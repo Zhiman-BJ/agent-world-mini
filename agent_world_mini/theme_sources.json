@@ -1,0 +1,112 @@
+{
+  "catalogs": [
+    {
+      "name": "Smithery",
+      "source_type": "mcp_catalog",
+      "url": "https://smithery.ai/"
+    },
+    {
+      "name": "RapidAPI Hub",
+      "source_type": "api_catalog",
+      "url": "https://rapidapi.com/hub"
+    },
+    {
+      "name": "ToolBench",
+      "source_type": "api_catalog_dataset",
+      "url": "https://arxiv.org/abs/2307.16789"
+    },
+    {
+      "name": "MCP-Atlas",
+      "source_type": "mcp_catalog_dataset",
+      "url": "https://arxiv.org/abs/2602.00933"
+    },
+    {
+      "name": "TheAgentCompany",
+      "source_type": "open_source_business_system",
+      "url": "https://github.com/TheAgentCompany/TheAgentCompany"
+    },
+    {
+      "name": "WorkArena",
+      "source_type": "open_source_business_system",
+      "url": "https://github.com/ServiceNow/WorkArena"
+    },
+    {
+      "name": "WebArena",
+      "source_type": "open_source_business_system",
+      "url": "https://arxiv.org/abs/2307.13854"
+    },
+    {
+      "name": "GitHub Topics",
+      "source_type": "open_source_catalog",
+      "url": "https://github.com/topics"
+    }
+  ],
+  "themes": [
+    {
+      "theme_id": "world-bank-development",
+      "seed_label": "country development indicators",
+      "source_type": "public_data",
+      "source_url": "https://data.worldbank.org/",
+      "license_or_access_note": "World Bank Open Data; retain source URLs and retrieval time.",
+      "coarse_route_label": "public-service",
+      "adapter": "world_bank",
+      "candidate_entities": ["country", "indicator observation"],
+      "candidate_operations": ["search country", "inspect country", "list indicators", "rank indicators"]
+    },
+    {
+      "theme_id": "github-issue-tracking",
+      "seed_label": "open source issue tracking",
+      "source_type": "open_source_business_system",
+      "source_url": "https://docs.github.com/rest",
+      "license_or_access_note": "Public GitHub API data; obey API rate limits and preserve source URLs.",
+      "coarse_route_label": "developer-workflow",
+      "adapter": "github_issues",
+      "candidate_entities": ["repository", "issue"],
+      "candidate_operations": ["search issue", "inspect issue", "inspect repository", "rank issues"]
+    },
+    {
+      "theme_id": "bicycle-sharing",
+      "seed_label": "bicycle sharing systems",
+      "source_type": "public_data",
+      "source_url": "https://api.citybik.es/v2/",
+      "license_or_access_note": "CityBikes public API snapshot; retain source URL and retrieval time.",
+      "coarse_route_label": "public-service",
+      "adapter": "citybikes",
+      "candidate_entities": ["station", "system status"],
+      "candidate_operations": ["search station", "inspect status"]
+    },
+    {
+      "theme_id": "open-library-subject-catalog",
+      "seed_label": "public library subject catalogue",
+      "source_type": "tool_documentation",
+      "source_url": "https://openlibrary.org/developers/api",
+      "license_or_access_note": "Open Library API and catalogue data; retain record-level source URLs and respect its terms.",
+      "coarse_route_label": "catalog-api",
+      "adapter": "open_library",
+      "candidate_entities": ["subject", "work", "author"],
+      "candidate_operations": ["search subject", "rank works", "inspect work", "inspect author"]
+    },
+    {
+      "theme_id": "openalex-publication-research",
+      "seed_label": "open scholarly publication research",
+      "source_type": "tool_documentation",
+      "source_url": "https://docs.openalex.org/",
+      "license_or_access_note": "OpenAlex API data; retain source URLs, retrieval time, and applicable attribution.",
+      "coarse_route_label": "research",
+      "adapter": "openalex",
+      "candidate_entities": ["research topic", "scholarly work", "research author"],
+      "candidate_operations": ["search topic", "rank works", "inspect work", "inspect author"]
+    },
+    {
+      "theme_id": "github-community-triage",
+      "seed_label": "open source community issue triage",
+      "source_type": "mcp_or_tool_documentation",
+      "source_url": "https://docs.github.com/en/rest/issues/issues",
+      "license_or_access_note": "Public GitHub API data; observe rate limits and preserve retrieval URLs.",
+      "coarse_route_label": "developer-workflow",
+      "adapter": "github_triage",
+      "candidate_entities": ["repository", "issue", "contributor"],
+      "candidate_operations": ["search repository", "rank issues", "inspect issue", "inspect contributor"]
+    }
+  ]
+}

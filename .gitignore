@@ -1,0 +1,29 @@
+# Local credentials
+.env
+.env.*
+!.env.example
+
+# Generated experiment artifacts
+runs/
+tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Test and editor caches
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+
+# OS metadata
+.DS_Store
+Thumbs.db
