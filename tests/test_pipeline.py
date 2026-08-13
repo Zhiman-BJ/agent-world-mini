@@ -7,7 +7,8 @@ from unittest.mock import patch
 from agent_world_mini.catalog import discover_smithery_themes, load_prepared_catalog, select_prepared_themes
 from agent_world_mini.graph import ToolGraph
 from agent_world_mini.llm import LLMClient
-from agent_world_mini.models import Record, ResearchBundle
+from agent_world_mini.models import Record, ResearchBundle, ToolSpec
+from agent_world_mini.pipeline import run
 from agent_world_mini.runtime import LocalToolRuntime
 from agent_world_mini.research import WebResearchAgent
 from agent_world_mini.tasks import TaskSynthesizer
@@ -31,6 +32,29 @@ class PipelineTests(unittest.TestCase):
         retained, reports = ToolValidator().validate(candidates, LocalToolRuntime(self.records, candidates))
         return candidates, retained, reports, mode
 
+    def test_research_bundle_round_trip_supports_codex_handoff(self):
+        restored = ResearchBundle.from_dict(self.bundle.to_dict())
+        self.assertEqual(restored.theme, self.bundle.theme)
+        self.assertEqual(restored.adapter, self.bundle.adapter)
+        self.assertEqual([record.to_dict() for record in restored.records], [record.to_dict() for record in self.records])
+
+    def test_research_bundle_requires_real_records(self):
+        with self.assertRaisesRegex(ValueError, "theme and at least one record"):
+            ResearchBundle.from_dict({"theme": "empty", "records": []})
+
+    def test_pipeline_can_continue_from_a_codex_research_bundle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle_path = root / "codex-research.json"
+            bundle_path.write_text(json.dumps(self.bundle.to_dict()), encoding="utf-8")
+            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()), patch(
+                "agent_world_mini.pipeline.WebResearchAgent.gather"
+            ) as gather:
+                summary = run(None, root / "output", research_bundle=bundle_path, max_candidates=4)
+            gather.assert_not_called()
+            self.assertEqual(summary["records"], len(self.records))
+            self.assertTrue((root / "output" / "tool_specs.json").is_file())
+
     def test_tools_are_derived_from_entities_and_relations(self):
         _candidates, tools, reports, mode = self._validated_tools()
         names = {tool.name for tool in tools}
@@ -47,6 +71,35 @@ class PipelineTests(unittest.TestCase):
         related = runtime.call("list_indicator_observations_for_country", {"entity_id": searched[0]["entity_id"]})
         self.assertEqual(related[0]["country_id"], "USA")
 
+    def test_discovery_tools_leave_full_details_for_lookup(self):
+        records = [
+            Record("model", "model-a", {"name": "Model A", "score": 10, "description": "Full details"}, "https://example.test/models"),
+            Record("model", "model-b", {"name": "Model B", "score": 5, "description": "Other details"}, "https://example.test/models"),
+        ]
+        candidates, _ = ToolDesigner(LLMClient()).design(ResearchBundle("models", "test", "x", [], records, {}))
+        runtime = LocalToolRuntime(records, candidates)
+        rank_tool = next(tool for tool in candidates if tool.operation == "rank")
+        compare_tool = next(tool for tool in candidates if tool.operation == "compare")
+        ranked = runtime.call(rank_tool.name, {"limit": 2})
+        comparison = runtime.call(compare_tool.name, {"left_id": "model-a", "right_id": "model-b"})
+        self.assertNotIn("description", ranked[0])
+        self.assertNotIn("left", comparison)
+        self.assertEqual(comparison["winner_id"], "model-a")
+
+    def test_join_records_compile_to_direct_bridge_tools(self):
+        records = [
+            Record("model", "model-a", {"name": "Model A"}, "https://example.test/models"),
+            Record("file", "file-a", {"name": "weights.bin"}, "https://example.test/files"),
+            Record("model_file_link", "model-a|file-a", {"model_id": "model-a", "file_id": "file-a"}, "https://example.test/model-a"),
+        ]
+        candidates, _mode = ToolDesigner(LLMClient()).design(ResearchBundle("models", "test", "x", [], records, {}))
+        names = {tool.name for tool in candidates}
+        self.assertNotIn("search_model_file_links", names)
+        self.assertIn("list_files_for_model", names)
+        self.assertIn("list_models_for_file", names)
+        runtime = LocalToolRuntime(records, candidates)
+        self.assertEqual(runtime.call("list_files_for_model", {"entity_id": "model-a", "limit": 3})[0]["entity_id"], "file-a")
+
     def test_tasks_are_created_only_from_executed_chains(self):
         _candidates, tools, _reports, _mode = self._validated_tools()
         walks = ToolGraph(tools).walks(count=12)
@@ -55,6 +108,52 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(tasks, [])
         self.assertGreater(report["executed_walks"], 0)
         self.assertTrue(all("execution" in candidate for candidate in report["candidates"]))
+
+    def test_semantic_review_batches_four_executed_chains_per_request(self):
+        class BatchReviewLLM:
+            enabled = True
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete_json(self, system, prompt):
+                self.calls += 1
+                data = json.loads(prompt)
+                return json.dumps({"reviews": [{
+                    "candidate_index": candidate["candidate_index"],
+                    "keep_step_indices": list(range(len(candidate["executed_trace"]))),
+                    "request": f"Answer grounded request {candidate['candidate_index']}",
+                    "answer_slots": [{
+                        "name": "result",
+                        "description": "Requested result",
+                        "step_indices": list(range(len(candidate["executed_trace"]))),
+                    }],
+                    "rubric": ["Use the executed evidence."],
+                } for candidate in data["candidates"]]})
+
+        _candidates, tools, _reports, _mode = self._validated_tools()
+        reviewer = BatchReviewLLM()
+        walks = ToolGraph(tools).walks(count=24)
+        tasks, _mode, report = TaskSynthesizer(reviewer).synthesize("country indicators", tools, walks, self.records)
+        self.assertEqual(reviewer.calls, report["semantic_review_requests"])
+        self.assertEqual(reviewer.calls, (report["semantic_reviews"] + 3) // 4)
+        self.assertEqual(len(tasks), report["semantic_reviews"])
+        self.assertTrue(all(task.validation["reference_plan_executed"] for task in tasks))
+
+    def test_execution_dedup_can_be_shared_across_batches(self):
+        _candidates, tools, _reports, _mode = self._validated_tools()
+        walks = ToolGraph(tools).walks(count=12, seed=9)
+        synthesizer = TaskSynthesizer(LLMClient())
+        seen: set[str] = set()
+        _tasks, _mode, first = synthesizer.synthesize(
+            "country indicators", tools, walks, self.records, seen_execution_signatures=seen,
+        )
+        _tasks, _mode, second = synthesizer.synthesize(
+            "country indicators", tools, walks, self.records, seen_execution_signatures=seen,
+        )
+        self.assertGreater(first["executed_walks"], 0)
+        self.assertEqual(second["executed_walks"], 0)
+        self.assertEqual(second["rejected_walks"]["duplicate_candidate_execution"], len(walks))
 
     def test_invalid_configuration_is_rejected(self):
         candidates, _tools, _reports, _mode = self._validated_tools()
@@ -100,16 +199,16 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(tools, [])
         self.assertEqual(designer.last_selection_report["status"], "unusable_data")
 
-    def test_tool_agent_rejects_tools_that_support_no_mcp_business_capability(self):
+    def test_tool_agent_rejects_documentation_only_data_when_marked_unusable(self):
         class DocumentationOnlyLLM:
             enabled = True
 
             @staticmethod
             def complete_json(system, prompt):
                 return json.dumps({
-                    "usable_environment": True,
-                    "supported_mcp_tool_names": [],
-                    "keep_tool_names": ["search_countries"],
+                    "usable_environment": False,
+                    "keep_tool_names": [],
+                    "missing_capabilities": ["retrieve live indicators"],
                     "reason": "Only documentation lookup is supported.",
                 })
 
@@ -164,6 +263,95 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(content_type, "application/json")
         self.assertEqual(json.loads(text), [{"id": 1}])
 
+    def test_structured_json_rows_are_kept_by_code(self):
+        class MappingLLM:
+            enabled = True
+
+            @staticmethod
+            def complete_json(system, prompt):
+                return json.dumps({"mappings": [{
+                    "url": "https://example.test/models",
+                    "path": "$.items",
+                    "entity_type": "model",
+                    "id_field": "modelId",
+                }]})
+
+        source = {
+            "url": "https://example.test/models",
+            "content_type": "application/json",
+            "retrieved_excerpt": json.dumps({"items": [
+                {"modelId": "model-a", "likes": 10},
+                {"modelId": "model-b", "likes": 8},
+                {"modelId": "model-c", "likes": 4},
+            ]}),
+        }
+        records, report = WebResearchAgent(MappingLLM())._extract_sources("models", [source])
+        self.assertEqual([record.entity_id for record in records], ["model-a", "model-b", "model-c"])
+        self.assertEqual(report["structured_sources"], 1)
+
+    def test_scoped_child_paths_are_unique_and_sampled(self):
+        class MappingLLM:
+            enabled = True
+
+            @staticmethod
+            def complete_json(system, prompt):
+                return json.dumps({"mappings": [{
+                    "url": "https://example.test/repos/a/tree",
+                    "path": "$.items",
+                    "entity_type": "file",
+                    "id_field": "path",
+                }]})
+
+        source = {
+            "url": "https://example.test/repos/a/tree",
+            "content_type": "application/json",
+            "retrieved_excerpt": json.dumps({"items": [{"path": f"part-{index}.bin", "size": index} for index in range(30)]}),
+        }
+        hint = {source["url"]: {"link_from": {"entity_type": "model", "entity_id": "repo/a"}}}
+        records, _report = WebResearchAgent(MappingLLM())._extract_sources("models", [source], hints=hint)
+        self.assertEqual(len(records), 20)
+        self.assertEqual(records[0].entity_id, "model:repo/a:part-0.bin")
+        self.assertEqual(records[0].attributes["local_id"], "part-0.bin")
+
+    def test_root_json_array_is_kept_when_mapper_omits_it(self):
+        class EmptyMappingLLM:
+            enabled = True
+
+            @staticmethod
+            def complete_json(system, prompt):
+                return json.dumps({"mappings": []})
+
+        source = {
+            "url": "https://example.test/api/models",
+            "content_type": "application/json",
+            "retrieved_excerpt": json.dumps([{"id": "model-a", "likes": 10}, {"id": "model-b", "likes": 8}]),
+        }
+        records, _report = WebResearchAgent(EmptyMappingLLM())._extract_sources("models", [source])
+        self.assertEqual([(record.entity_type, record.entity_id) for record in records], [("model", "model-a"), ("model", "model-b")])
+
+    def test_html_documentation_is_not_used_as_environment_state(self):
+        source = {
+            "url": "https://example.test/api-docs",
+            "content_type": "text/html",
+            "retrieved_excerpt": "This API can create orders and list customers.",
+        }
+        records, report = WebResearchAgent(LLMClient())._extract_sources("orders", [source])
+        self.assertEqual(records, [])
+        self.assertEqual(report["text_sources"], 0)
+
+    def test_state_expansion_can_add_a_real_link(self):
+        parent = Record("drug", "drug-a", {"name": "Drug A"}, "https://example.test/drugs")
+        child = Record("ingredient", "ingredient-a", {"name": "Ingredient A"}, "https://example.test/ingredients")
+        agent = WebResearchAgent(LLMClient())
+        links = agent._link_records(
+            [parent, child],
+            [child],
+            {child.source_url: {"link_from": {"entity_type": "drug", "entity_id": "drug-a"}}},
+        )
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0].attributes, {"drug_id": "drug-a", "ingredient_id": "ingredient-a"})
+        self.assertEqual(len(agent._relation_pairs([parent, child, *links])), 2)
+
     def test_graph_walks_execute_without_forced_length_or_template(self):
         records = [
             Record("subject", "science", {"name": "Science"}, "https://example.test/subject"),
@@ -184,13 +372,116 @@ class PipelineTests(unittest.TestCase):
         self.assertGreater(len(lengths), 1)
         self.assertTrue(all(len({(call["tool"], tuple(sorted(call["arguments"].items()))) for call in candidate["causal_core"]}) == len(candidate["causal_core"]) for candidate in report["candidates"]))
 
-    def test_graph_keeps_data_flow_edges_and_implicit_independent_fallback(self):
+    def test_connected_rich_data_can_naturally_produce_long_subgraphs(self):
+        records: list[Record] = []
+        for organization_index in range(2):
+            organization_id = f"org-{organization_index}"
+            records.append(Record("organization", organization_id, {"name": organization_id, "score": organization_index + 1}, "x"))
+            for model_index in range(3):
+                model_id = f"{organization_id}/model-{model_index}"
+                records.append(Record("model", model_id, {"name": model_id, "organization_id": organization_id, "score": model_index + 1}, "x"))
+                for file_index in range(2):
+                    records.append(Record("file", f"{model_id}/file-{file_index}", {"name": f"file-{file_index}", "model_id": model_id, "size": file_index + 1}, "x"))
+        for paper_index in range(3):
+            records.append(Record("paper", f"paper-{paper_index}", {
+                "title": f"Paper {paper_index}",
+                "model_id": f"org-{paper_index % 2}/model-{paper_index % 3}",
+                "citations": paper_index + 1,
+            }, "x"))
+        bundle = ResearchBundle("rich graph", "test", "x", [], records, {})
+        candidates, _mode = ToolDesigner(LLMClient()).design(bundle)
+        tools, _reports = ToolValidator().validate(candidates, LocalToolRuntime(records, candidates))
+        runtime = LocalToolRuntime(records, tools)
+        walks = ToolGraph(tools, runtime=runtime).walks(count=64, seed=7)
+        _tasks, _mode, report = TaskSynthesizer(LLMClient()).synthesize("rich graph", tools, walks, records)
+        lengths = [length for length, amount in report["causal_core_step_distribution"].items() for _ in range(amount)]
+        self.assertGreaterEqual(max(lengths), 10)
+        self.assertGreaterEqual(sum(lengths) / len(lengths), 5.5)
+        self.assertLessEqual(max(lengths), 14)
+
+    def test_graph_sampling_stays_on_connected_data_flow(self):
         _candidates, tools, _reports, _mode = self._validated_tools()
         graph = ToolGraph(tools)
         self.assertLess(len(graph.edges), len(tools) * (len(tools) - 1))
         self.assertTrue(any(edge["kind"] == "strong" and edge["weight"] == 3 for edge in graph.edges))
         self.assertFalse(any(edge["kind"] == "independent" for edge in graph.edges))
-        self.assertTrue(any("independent" in walk.edge_kinds for walk in graph.walks(count=48)))
+        self.assertFalse(any("independent" in walk.edge_kinds for walk in graph.walks(count=48)))
+        self.assertEqual(graph.sampling_mode, "topology_expansion_without_target_length")
+
+    def test_graph_relationships_come_from_verified_schema_flow(self):
+        class MisclassifyingLLM:
+            enabled = True
+
+            @staticmethod
+            def complete_json(system, prompt):
+                raise AssertionError("graph construction should not ask an LLM to discard schema-backed edges")
+
+        _candidates, tools, _reports, _mode = self._validated_tools()
+        graph = ToolGraph(tools, MisclassifyingLLM())
+        self.assertTrue(any(edge["kind"] == "strong" for edge in graph.edges))
+        self.assertTrue(any(edge["kind"] == "weak" for edge in graph.edges))
+        self.assertEqual(graph.construction_mode, "schema_data_flow")
+
+    def test_causal_core_removes_independent_prefix_and_rebases_provenance(self):
+        calls = [
+            {"tool": "unrelated", "arguments": {}, "argument_provenance": {}},
+            {"tool": "search", "arguments": {"query": "x"}, "argument_provenance": {"query": "user_seed"}},
+            {"tool": "lookup", "arguments": {"entity_id": "x"}, "argument_provenance": {"entity_id": "observation:1"}},
+        ]
+        core = TaskSynthesizer._causal_core(calls)
+        self.assertEqual([call["tool"] for call in core], ["search", "lookup"])
+        self.assertEqual(core[1]["argument_provenance"]["entity_id"], "observation:0")
+
+    def test_causal_core_keeps_two_branches_from_one_discovery(self):
+        calls = [
+            {"tool": "rank_models", "arguments": {"limit": 3}, "argument_provenance": {"limit": "task_constraint"}},
+            {"tool": "files_for_model", "arguments": {"entity_id": "a"}, "argument_provenance": {"entity_id": "observation:0"}},
+            {"tool": "files_for_model", "arguments": {"entity_id": "b"}, "argument_provenance": {"entity_id": "observation:0"}},
+        ]
+        core = TaskSynthesizer._causal_core(calls)
+        self.assertEqual([call["tool"] for call in core], ["rank_models", "files_for_model", "files_for_model"])
+
+    def test_comparison_ids_are_distinct_even_when_one_id_has_two_origins(self):
+        compare = next(tool for tool in self._validated_tools()[1] if tool.operation == "compare")
+        runtime = LocalToolRuntime(self.records, [compare])
+        observations = [
+            {"tool": "first", "result": {"entity_id": "USA", "entity_type": compare.entity_type}},
+            {"tool": "second", "result": {"entity_id": "USA", "entity_type": compare.entity_type}},
+        ]
+        options = TaskSynthesizer(LLMClient())._argument_options(compare, runtime, observations, 0)
+        self.assertTrue(options)
+        self.assertTrue(all(arguments["left_id"] != arguments["right_id"] for arguments, _ in options))
+
+    def test_relation_binding_backtracks_from_an_empty_parent(self):
+        records = [
+            Record("parent", "empty", {"name": "Empty"}, "x"),
+            Record("parent", "full", {"name": "Full"}, "x"),
+            Record("child", "child-a", {"name": "A", "parent_id": "full"}, "x"),
+        ]
+        tool = ToolSpec(
+            name="list_children", description="x", inputs={"entity_id": "string", "limit": "integer"},
+            outputs={"children": "child[]"}, reads=["parent", "child"], produces=["children"],
+            operation="relation", entity_type="parent", related_entity_type="child", relation_field="parent_id",
+            input_sources={"entity_id": "internal", "limit": "external"},
+        )
+        runtime = LocalToolRuntime(records, [tool])
+        calls = TaskSynthesizer(LLMClient())._instantiate_walk([tool], runtime, 0)
+        self.assertEqual(calls[0]["arguments"]["entity_id"], "full")
+
+    def test_same_parent_leaf_growth_is_not_structural_progress(self):
+        agent = WebResearchAgent(LLMClient())
+        before = [
+            Record("model", "model-a", {"name": "A"}, "x"),
+            Record("file", "model-a/readme", {"name": "README"}, "x"),
+            Record("model_file_link", "a|readme", {"model_id": "model-a", "file_id": "model-a/readme"}, "x"),
+        ]
+        after = [
+            *before,
+            Record("file", "model-a/config", {"name": "config"}, "x"),
+            Record("model_file_link", "a|config", {"model_id": "model-a", "file_id": "model-a/config"}, "x"),
+        ]
+        gains = agent._coverage_gains(agent._state_summary(before), agent._state_summary(after))
+        self.assertEqual(gains, ["file"])
 
     def test_verifier_accepts_concise_answer_with_tool_evidence(self):
         expected = {"reference_answer": {"repository": [{"entity_id": "repo/a", "entity_type": "repository"}]}}

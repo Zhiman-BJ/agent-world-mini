@@ -43,6 +43,8 @@ class ToolDesigner:
         # text key can expose discovery and inspection; relation-only join
         # records remain internal plumbing and are reached through endpoints.
         for entity_type, rows in sorted(by_type.items(), key=lambda item: (-len(item[1]), item[0])):
+            if entity_type.endswith("_link"):
+                continue
             singular, plural = _slug(entity_type), _plural(_slug(entity_type))
             fields = self._search_fields(rows)
             if not fields:
@@ -143,6 +145,7 @@ class ToolDesigner:
                 ))
 
         tools.extend(self._relation_tools(by_type, search_tools))
+        tools.extend(self._bridge_tools(by_type, search_tools))
         candidates = self._deduplicate(tools)
         if not self.llm.enabled:
             self.last_selection_report = {"status": "not_run_no_llm", "candidate_tools": len(candidates)}
@@ -152,11 +155,18 @@ class ToolDesigner:
 
     def _select_by_agent(self, bundle: ResearchBundle, candidates: list[ToolSpec]) -> list[ToolSpec]:
         result = extract_json_object(self.llm.complete_json(
-            "Choose a coherent toolset for this environment. MCP tools are only clues. Keep only operations supported by the mined data. A real-data snapshot is usable when it supports at least one substantive business capability suggested by the MCP; it need not stay live or cover every MCP tool. Metadata or documentation lookup alone is not usable. Pair each supported MCP capability with the retained candidate tools that actually produce the same business result.",
+            "Choose a coherent connected toolset from the candidate tools. MCP tools are capability clues, not names to copy. keep_tool_names must contain only exact candidate tool names. Prefer real relation traversal when the data has relations. Metadata or documentation lookup alone is not a usable environment.",
             json.dumps({
                 "environment": bundle.theme,
                 "mcp_description": bundle.theme_metadata.get("source_description", ""),
-                "mcp_tools": bundle.theme_metadata.get("documented_tools", []),
+                "mcp_tools": [
+                    {
+                        "name": str(tool.get("name") or ""),
+                        "description": str(tool.get("description") or "")[:300],
+                    }
+                    for tool in bundle.theme_metadata.get("documented_tools", [])
+                    if isinstance(tool, dict)
+                ],
                 "data_entities": bundle.state_contract.get("entities", []),
                 "data_relations": bundle.state_contract.get("relations", []),
                 "candidate_tools": [
@@ -196,8 +206,7 @@ class ToolDesigner:
                 capability_support.append({"mcp_tool_name": mcp_name, "retained_tool_names": retained_names})
         supported_mcp_tools = sorted({item["mcp_tool_name"] for item in capability_support})
         explicitly_unusable = usable is False or (isinstance(usable, str) and usable.strip().lower() == "false")
-        if explicitly_unusable or (documented_names and not supported_mcp_tools):
-            missing = ", ".join(str(value) for value in result.get("missing_capabilities", []))
+        if explicitly_unusable or not requested:
             self.last_selection_report = {
                 "status": "unusable_data",
                 "candidate_tools": len(candidates),
@@ -206,10 +215,34 @@ class ToolDesigner:
                 "capability_support": capability_support,
                 "missing_capabilities": result.get("missing_capabilities", []),
                 "reason": str(result.get("reason") or ""),
+                "requested_tool_names": [str(name) for name in result.get("keep_tool_names", [])],
             }
             return []
-        if not requested:
-            raise RuntimeError("Tool selection agent retained no data-supported tools")
+        supported_candidate_names = {
+            name for item in capability_support for name in item["retained_tool_names"]
+        }
+        if supported_candidate_names:
+            connected_entities = {
+                entity
+                for name in supported_candidate_names
+                for entity in (by_name[name].entity_type, by_name[name].related_entity_type)
+                if entity
+            }
+            changed = True
+            while changed:
+                changed = False
+                for tool in candidates:
+                    if tool.operation not in {"relation", "relation_rank", "linked_id", "bridge_relation"} or tool.entity_type not in connected_entities:
+                        continue
+                    if tool.related_entity_type and tool.related_entity_type not in connected_entities:
+                        connected_entities.add(tool.related_entity_type)
+                        changed = True
+            requested = [
+                name for name in requested
+                if by_name[name].entity_type in connected_entities
+                or by_name[name].related_entity_type in connected_entities
+            ]
+            requested_names = set(requested)
         keep = set(requested)
         changed = True
         while changed:
@@ -240,14 +273,14 @@ class ToolDesigner:
 
     @staticmethod
     def _search_fields(rows: list[dict[str, Any]]) -> list[str]:
-        preferred = ("name", "title", "full_name", "description", "city", "region", "state", "indicator")
+        preferred = ("name", "title", "full_name", "modelId", "id", "repo_name", "description", "city", "region", "state", "indicator")
         fields = [field for field in preferred if any(isinstance(row.get(field), str) and row[field] for row in rows)]
         if fields:
             return fields[:3]
         discovered: list[str] = []
         for row in rows:
             for field, value in row.items():
-                if field != "entity_id" and isinstance(value, str) and value and field not in discovered:
+                if field not in {"entity_id", "_id"} and not field.startswith("_") and isinstance(value, str) and value and field not in discovered:
                     discovered.append(field)
         return discovered[:3]
 
@@ -294,6 +327,8 @@ class ToolDesigner:
         tools: list[ToolSpec] = []
         entity_ids = {entity_type: {row["entity_id"] for row in rows} for entity_type, rows in by_type.items()}
         for target_type, rows in by_type.items():
+            if target_type.endswith("_link"):
+                continue
             for field in sorted({field for row in rows for field in row if field.endswith("_id")}):
                 values = {str(row[field]) for row in rows if row.get(field) is not None}
                 for source_type, ids in entity_ids.items():
@@ -305,8 +340,9 @@ class ToolDesigner:
                     linked_row = next(row for row in rows if row.get(field) is not None)
                     linked_source_id = str(linked_row[field])
                     source_singular, target_plural = _slug(source_type), _plural(_slug(target_type))
+                    relation_name = f"list_{target_plural}_for_{source_singular}"
                     tools.append(ToolSpec(
-                        name=f"list_{target_plural}_for_{source_singular}",
+                        name=relation_name,
                         description=f"List locally stored {target_type.replace('_', ' ')} records linked to one {source_type.replace('_', ' ')} record.",
                         inputs={"entity_id": "string", "limit": "integer"},
                         outputs={target_plural: f"{target_type}[]"},
@@ -335,6 +371,8 @@ class ToolDesigner:
                         entity_type=target_type,
                         related_entity_type=source_type,
                         relation_field=field,
+                        requires_tools=[relation_name],
+                        input_bindings={"entity_id": f"{relation_name}.{target_plural}[0].entity_id"},
                         input_sources={"entity_id": "internal"},
                         test_cases=[{"arguments": {"entity_id": linked_row["entity_id"]}, "expect_entity_id": linked_source_id}],
                     ))
@@ -359,12 +397,61 @@ class ToolDesigner:
                         ))
         return tools
 
+    def _bridge_tools(self, by_type: dict[str, list[dict[str, Any]]], search_tools: dict[str, ToolSpec]) -> list[ToolSpec]:
+        tools: list[ToolSpec] = []
+        entity_ids = {entity_type: {str(row["entity_id"]) for row in rows} for entity_type, rows in by_type.items()}
+        for link_type, rows in by_type.items():
+            if not link_type.endswith("_link"):
+                continue
+            bindings: list[tuple[str, str]] = []
+            for field in sorted({field for row in rows for field in row if field.endswith("_id")}):
+                values = {str(row[field]) for row in rows if row.get(field) is not None}
+                target = next((entity_type for entity_type, ids in entity_ids.items() if entity_type != link_type and values and values <= ids), None)
+                if target:
+                    bindings.append((field, target))
+            if len(bindings) != 2 or bindings[0][1] == bindings[1][1]:
+                continue
+            for (source_field, source_type), (target_field, target_type) in (bindings, bindings[::-1]):
+                source_search = search_tools.get(source_type)
+                if source_search is None:
+                    continue
+                source_singular = _slug(source_type)
+                target_plural = _plural(_slug(target_type))
+                example = next((row for row in rows if row.get(source_field) is not None and row.get(target_field) is not None), None)
+                if example is None:
+                    continue
+                tools.append(ToolSpec(
+                    name=f"list_{target_plural}_for_{source_singular}",
+                    description=f"List locally stored {target_type.replace('_', ' ')} records linked to one {source_type.replace('_', ' ')} record.",
+                    inputs={"entity_id": "string", "limit": "integer"},
+                    outputs={target_plural: f"{target_type}[]"},
+                    reads=[source_type, link_type, target_type],
+                    produces=[target_plural],
+                    requires_tools=[source_search.name],
+                    operation="bridge_relation",
+                    entity_type=source_type,
+                    related_entity_type=target_type,
+                    link_entity_type=link_type,
+                    source_relation_field=source_field,
+                    target_relation_field=target_field,
+                    input_bindings={"entity_id": f"{source_search.name}.{_slug(source_type)}_ids[0]"},
+                    input_sources={"entity_id": "internal", "limit": "external"},
+                    test_cases=[{
+                        "arguments": {"entity_id": str(example[source_field]), "limit": min(3, len(rows))},
+                        "expect_nonempty": True,
+                    }],
+                ))
+        return tools
+
     @staticmethod
     def _deduplicate(tools: list[ToolSpec]) -> list[ToolSpec]:
         kept: list[ToolSpec] = []
         fingerprints: set[tuple[object, ...]] = set()
         for tool in tools:
-            fingerprint = (tool.operation, tool.entity_type, tool.related_entity_type, tool.relation_field, tool.sort_field)
+            fingerprint = (
+                tool.operation, tool.entity_type, tool.related_entity_type, tool.relation_field,
+                tool.link_entity_type, tool.source_relation_field, tool.target_relation_field, tool.sort_field,
+            )
             if fingerprint not in fingerprints:
                 fingerprints.add(fingerprint)
                 kept.append(tool)
@@ -390,8 +477,10 @@ class ToolValidator:
                 failures.append("categorical_operation_has_no_field")
             if tool.operation in {"compare", "relation_rank"} and not tool.sort_field:
                 failures.append("numeric_operation_has_no_numeric_field")
-            if tool.operation == "relation" and not tool.related_entity_type:
+            if tool.operation in {"relation", "bridge_relation"} and not tool.related_entity_type:
                 failures.append("relation_has_no_target_type")
+            if tool.operation == "bridge_relation" and not all((tool.link_entity_type, tool.source_relation_field, tool.target_relation_field)):
+                failures.append("bridge_relation_is_incomplete")
             if tool.operation == "linked_id" and not tool.related_entity_type:
                 failures.append("linked_id_has_no_target_type")
             for test in tool.test_cases:

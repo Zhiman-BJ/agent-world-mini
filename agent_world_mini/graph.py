@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import json
 import random
-from .io_utils import extract_json_object
+from typing import Any
 from .llm import LLMClient
 from .models import ToolChain, ToolSpec
 
@@ -11,37 +10,103 @@ from .models import ToolChain, ToolSpec
 class ToolGraph:
     """Sparse data-flow graph with topology-aware exploratory sampling."""
 
-    def __init__(self, tools: list[ToolSpec], llm: LLMClient | None = None):
+    def __init__(self, tools: list[ToolSpec], llm: LLMClient | None = None, runtime: Any | None = None):
         self.tools = {tool.name: tool for tool in tools}
         self.llm = llm
+        self.runtime = runtime
         self.edges = self._build_edges()
-        self.construction_mode = "schema_data_flow"
+        self.construction_mode = "value_checked_schema_data_flow" if runtime is not None else "schema_data_flow"
+        self.sampling_mode = "topology_expansion_without_target_length"
         self.refinement_error = ""
-        if llm is not None and llm.enabled and self.edges:
-            self._refine_weak_edges()
 
     @staticmethod
     def _output_entity(tool: ToolSpec) -> str | None:
         if tool.operation in {"search", "lookup", "rank", "compare", "filter"}:
             return tool.entity_type
-        if tool.operation in {"relation", "relation_rank", "linked_id"}:
+        if tool.operation in {"relation", "relation_rank", "linked_id", "bridge_relation"}:
             return tool.related_entity_type
         return None
 
     @staticmethod
     def _input_entity(tool: ToolSpec) -> str | None:
-        if tool.operation in {"lookup", "compare", "relation", "relation_rank", "linked_id"}:
+        if tool.operation in {"lookup", "compare", "relation", "relation_rank", "linked_id", "bridge_relation"}:
             return tool.entity_type
         return None
 
     def _edge_kind(self, source: ToolSpec, target: ToolSpec) -> tuple[str, int, str] | None:
         declared = [binding for binding in target.input_bindings.values() if binding.startswith(f"{source.name}.")]
-        if declared:
+        if declared and self._values_can_flow(source, target):
             return "strong", 3, ", ".join(declared)
         output_entity = self._output_entity(source)
-        if output_entity and output_entity == self._input_entity(target):
+        if output_entity and output_entity == self._input_entity(target) and self._values_can_flow(source, target):
             return "weak", 2, f"{output_entity} value can flow into the target"
         return None
+
+    def _values_can_flow(self, source: ToolSpec, target: ToolSpec) -> bool:
+        if self.runtime is None:
+            return True
+        possible = self._possible_output_ids(source)
+        accepted = self._feasible_input_ids(target)
+        if possible is None or accepted is None:
+            return True
+        required = 2 if target.operation == "compare" else 1
+        return len(possible & accepted) >= required
+
+    def _possible_output_ids(self, tool: ToolSpec) -> set[str] | None:
+        if self.runtime is None:
+            return None
+        if tool.operation in {"search", "lookup", "rank", "compare", "filter"}:
+            return {str(row["entity_id"]) for row in self.runtime.rows_for(tool.entity_type)}
+        if tool.operation in {"relation", "relation_rank"}:
+            source_ids = {str(row["entity_id"]) for row in self.runtime.rows_for(tool.entity_type)}
+            return {
+                str(row["entity_id"])
+                for row in self.runtime.rows_for(tool.related_entity_type or "")
+                if str(row.get(tool.relation_field or "")) in source_ids
+            }
+        if tool.operation == "bridge_relation":
+            targets = {str(row["entity_id"]) for row in self.runtime.rows_for(tool.related_entity_type or "")}
+            return {
+                str(row[tool.target_relation_field or ""])
+                for row in self.runtime.rows_for(tool.link_entity_type or "")
+                if str(row.get(tool.target_relation_field or "")) in targets
+            }
+        if tool.operation == "linked_id":
+            targets = {str(row["entity_id"]) for row in self.runtime.rows_for(tool.related_entity_type or "")}
+            return {
+                str(row[tool.relation_field or ""])
+                for row in self.runtime.rows_for(tool.entity_type)
+                if str(row.get(tool.relation_field or "")) in targets
+            }
+        return None
+
+    def _feasible_input_ids(self, tool: ToolSpec) -> set[str] | None:
+        if self.runtime is None or self._input_entity(tool) is None:
+            return None
+        source_ids = {str(row["entity_id"]) for row in self.runtime.rows_for(tool.entity_type)}
+        if tool.operation in {"lookup", "compare"}:
+            return source_ids
+        if tool.operation in {"relation", "relation_rank"}:
+            return source_ids & {
+                str(row[tool.relation_field or ""])
+                for row in self.runtime.rows_for(tool.related_entity_type or "")
+                if row.get(tool.relation_field or "") is not None
+            }
+        if tool.operation == "bridge_relation":
+            target_ids = {str(row["entity_id"]) for row in self.runtime.rows_for(tool.related_entity_type or "")}
+            return source_ids & {
+                str(row[tool.source_relation_field or ""])
+                for row in self.runtime.rows_for(tool.link_entity_type or "")
+                if str(row.get(tool.target_relation_field or "")) in target_ids
+            }
+        if tool.operation == "linked_id":
+            target_ids = {str(row["entity_id"]) for row in self.runtime.rows_for(tool.related_entity_type or "")}
+            return {
+                str(row["entity_id"])
+                for row in self.runtime.rows_for(tool.entity_type)
+                if str(row.get(tool.relation_field or "")) in target_ids
+            }
+        return source_ids
 
     def _build_edges(self) -> list[dict[str, object]]:
         edges: list[dict[str, object]] = []
@@ -55,47 +120,6 @@ class ToolGraph:
                 kind, weight, reason = relation
                 edges.append({"from": source.name, "to": target.name, "kind": kind, "weight": weight, "reason": reason})
         return edges
-
-    def _refine_weak_edges(self) -> None:
-        strong = [edge for edge in self.edges if edge["kind"] == "strong"]
-        weak = [edge for edge in self.edges if edge["kind"] == "weak"]
-        try:
-            result = extract_json_object(self.llm.complete_json(
-                "Refine this tool dependency graph. Keep only useful directed weak links and add missing strong or weak links when one tool's result can support the next. Unrelated tools need no edge.",
-                json.dumps({
-                    "tools": [
-                        {"name": tool.name, "description": tool.description, "inputs": tool.inputs, "outputs": tool.outputs}
-                        for tool in self.tools.values()
-                    ],
-                    "fixed_strong_edges": strong,
-                    "candidate_weak_edges": weak,
-                    "return": {"edges": [{"from": "tool", "to": "tool", "kind": "weak", "reason": "brief reason"}]},
-                }, ensure_ascii=False),
-            ))
-            refined: list[dict[str, object]] = list(strong)
-            seen = {(str(edge["from"]), str(edge["to"])) for edge in refined}
-            for edge in result.get("edges", []):
-                if not isinstance(edge, dict):
-                    continue
-                source, target = str(edge.get("from") or ""), str(edge.get("to") or "")
-                kind = str(edge.get("kind") or "weak")
-                if source not in self.tools or target not in self.tools or source == target or kind not in {"strong", "weak"}:
-                    continue
-                if (source, target) in seen:
-                    continue
-                refined.append({
-                    "from": source,
-                    "to": target,
-                    "kind": kind,
-                    "weight": 3 if kind == "strong" else 2,
-                    "reason": str(edge.get("reason") or "LLM-refined logical dependency"),
-                })
-                seen.add((source, target))
-            self.edges = refined
-            self.construction_mode = "schema_plus_llm_refinement"
-        except (RuntimeError, ValueError, TypeError, KeyError) as error:
-            self.refinement_error = f"{type(error).__name__}: {error}"
-            self.construction_mode = "schema_data_flow_refinement_failed"
 
     def chains(self) -> list[ToolChain]:
         incoming = defaultdict(int)
@@ -123,7 +147,8 @@ class ToolGraph:
             for path in sorted(paths, key=lambda item: (len(item), item))
         ]
 
-    def walks(self, min_steps: int = 1, max_steps: int = 8, count: int = 32, seed: int = 7) -> list[ToolChain]:
+    def walks(self, max_steps: int = 14, count: int = 32, seed: int = 7) -> list[ToolChain]:
+        """Sample useful connected topology without assigning a target length."""
         if not self.tools:
             return []
         outgoing: dict[str, list[dict[str, object]]] = defaultdict(list)
@@ -145,43 +170,95 @@ class ToolGraph:
                 available_entities = {self._output_entity(self.tools[item]) for item in path}
                 needs_internal = any(source == "internal" for source in self.tools[name].input_sources.values())
                 if needs_internal and self._input_entity(self.tools[name]) not in available_entities:
-                    priors = [item for item in incoming_strong[name] if path.count(item) < 2]
+                    priors = [item for item in incoming_strong[name] if item not in path]
                     if priors:
-                        prior = rng.choice(sorted(priors))
+                        prior = rng.choice(sorted(priors, key=lambda item: (self.tools[item].operation != "search", item)))
                         add_with_priors(path, prior, depth + 1)
-            if path.count(name) < 2:
+            repeatable = self.tools[name].operation in {"lookup", "relation", "relation_rank", "bridge_relation"}
+            if path.count(name) < (2 if repeatable else 1):
                 path.append(name)
 
-        for _ in range(count):
-            target_steps = rng.randint(min_steps, max_steps)
+        roots = [
+            name for name in names
+            if self._output_entity(self.tools[name]) is not None
+            and not any(source == "internal" for source in self.tools[name].input_sources.values())
+        ] or names
+        root_weights = {
+            "search": 4, "rank": 3, "filter": 2, "group_count": 1,
+        }
+
+        for walk_index in range(count):
             path: list[str] = []
-            add_with_priors(path, rng.choice(names))
-            while len(path) < target_steps:
-                current = path[-1]
-                choices = [edge for edge in outgoing[current] if path.count(str(edge["to"])) < 2]
-                if choices:
-                    weighted = [edge for edge in choices for _ in range(int(edge["weight"]))]
-                    next_name = str(rng.choice(weighted)["to"])
-                else:
-                    independent = [name for name in names if path.count(name) < 2]
-                    if not independent:
-                        break
-                    next_name = rng.choice(independent)
-                before = len(path)
-                add_with_priors(path, next_name)
-                if len(path) == before:
-                    break
-            kinds = [edge_lookup.get((left, right), "independent") for left, right in zip(path, path[1:])]
+            transitions: set[tuple[str, str]] = set()
+            weighted_roots = [name for name in roots for _ in range(root_weights.get(self.tools[name].operation, 1))]
+            root = rng.choice(weighted_roots)
+            add_with_priors(path, root)
+            frontier: list[tuple[str, int]] = [(root, 0)]
+            while frontier and len(path) < max_steps:
+                current, depth = frontier.pop(0)
+                choices = []
+                for edge in outgoing[current]:
+                    target = str(edge["to"])
+                    repeat_limit = 2 if self.tools[target].operation in {"lookup", "relation", "relation_rank", "bridge_relation"} else 1
+                    if path.count(target) >= repeat_limit:
+                        continue
+                    input_entity = self._input_entity(self.tools[target])
+                    output_entity = self._output_entity(self.tools[target])
+                    if input_entity and output_entity and input_entity != output_entity and (output_entity, input_entity) in transitions:
+                        continue
+                    choices.append(edge)
+                if not choices:
+                    continue
+                operation_priority = {
+                    "relation_rank": 6, "bridge_relation": 5, "relation": 5,
+                    "compare": 4, "lookup": 3, "linked_id": 2,
+                }
+                weighted_choices = [
+                    edge
+                    for edge in choices
+                    for _ in range(int(edge["weight"]) + operation_priority.get(self.tools[str(edge["to"])].operation, 1))
+                ]
+                fanout = min(len(choices), 2 if depth < 2 else 1, max_steps - len(path))
+                selected: list[dict[str, object]] = []
+                while weighted_choices and len(selected) < fanout:
+                    edge = rng.choice(weighted_choices)
+                    if edge not in selected:
+                        selected.append(edge)
+                    weighted_choices = [item for item in weighted_choices if item is not edge]
+                for edge in selected:
+                    target = str(edge["to"])
+                    before = len(path)
+                    add_with_priors(path, target)
+                    if len(path) > before:
+                        input_entity = self._input_entity(self.tools[target])
+                        output_entity = self._output_entity(self.tools[target])
+                        if input_entity and output_entity and input_entity != output_entity:
+                            transitions.add((input_entity, output_entity))
+                            frontier.append((target, depth + 1))
+                    feasible = self._feasible_input_ids(self.tools[target])
+                    if (
+                        len(path) < max_steps
+                        and self.tools[target].operation in {"relation", "relation_rank", "bridge_relation"}
+                        and feasible is not None
+                        and len(feasible) >= 2
+                        and path.count(target) == 1
+                    ):
+                        path.append(target)
+            kinds = [
+                "branch" if left == right else edge_lookup.get((left, right), "dependency")
+                for left, right in zip(path, path[1:])
+            ]
             walks.append(ToolChain(path, [artifact for name in path for artifact in self.tools[name].produces], kinds))
         return walks
 
     def to_dict(self, chains: list[ToolChain], walks: list[ToolChain] | None = None) -> dict[str, object]:
         return {
             "construction_mode": self.construction_mode,
+            "sampling_mode": self.sampling_mode,
             "refinement_error": self.refinement_error,
             "nodes": [tool.to_dict() for tool in self.tools.values()],
             "edges": self.edges,
-            "independent_transitions": "implicit fallback during sampling",
+            "independent_transitions": "disabled; sampled subgraphs stay on executable data-flow edges",
             "strict_chains": [chain.to_dict() for chain in chains],
             "raw_weighted_walks": [chain.to_dict() for chain in walks or []],
         }

@@ -38,6 +38,11 @@ class LocalToolRuntime:
         """Discovery returns a compact hit; inspection is a separate action."""
         return {key: deepcopy(row[key]) for key in ("entity_id", "entity_type", *fields) if key in row}
 
+    @staticmethod
+    def _discovery_projection(row: dict[str, Any], extra_fields: tuple[str, ...] = ()) -> dict[str, Any]:
+        fields = ("entity_id", "entity_type", "name", "title", "id", "modelId", "path", "domain", *extra_fields)
+        return {key: deepcopy(row[key]) for key in dict.fromkeys(fields) if key in row}
+
     def call(self, name: str, arguments: dict[str, Any]) -> Any:
         tool = self.tools[name]
         if tool.operation == "search":
@@ -50,11 +55,12 @@ class LocalToolRuntime:
             limit = int(arguments.get("limit", 5))
             if limit < 1:
                 raise ValueError("limit must be positive")
-            return deepcopy(sorted(
+            ranked = sorted(
                 self.rows_for(tool.entity_type),
                 key=lambda row: (row.get(tool.sort_field or "") is not None, row.get(tool.sort_field or "", 0)),
                 reverse=True,
-            )[:limit])
+            )[:limit]
+            return [self._discovery_projection(row, (tool.sort_field or "",)) for row in ranked]
         if tool.operation == "filter":
             value = str(arguments[tool.relation_field or ""])
             limit = int(arguments.get("limit", 5))
@@ -76,11 +82,12 @@ class LocalToolRuntime:
             if limit < 1:
                 raise ValueError("limit must be positive")
             related = [row for row in self.rows_for(tool.related_entity_type or "") if str(row.get(tool.relation_field or "")) == str(entity_id)]
-            return deepcopy(sorted(
+            ranked = sorted(
                 related,
                 key=lambda row: (row.get(tool.sort_field or "") is not None, row.get(tool.sort_field or "", 0)),
                 reverse=True,
-            )[:limit])
+            )[:limit]
+            return [self._discovery_projection(row, (tool.sort_field or "",)) for row in ranked]
         if tool.operation == "relation":
             entity_id = arguments["entity_id"]
             limit = int(arguments.get("limit", 5))
@@ -88,7 +95,22 @@ class LocalToolRuntime:
                 raise ValueError("limit must be positive")
             if not any(row["entity_id"] == entity_id for row in self.rows_for(tool.entity_type)):
                 raise ValueError(f"Unknown {tool.entity_type} id: {entity_id}")
-            return [deepcopy(row) for row in self.rows_for(tool.related_entity_type or "") if str(row.get(tool.relation_field or "")) == str(entity_id)][:limit]
+            related = [row for row in self.rows_for(tool.related_entity_type or "") if str(row.get(tool.relation_field or "")) == str(entity_id)][:limit]
+            return [self._discovery_projection(row, (tool.relation_field or "",)) for row in related]
+        if tool.operation == "bridge_relation":
+            entity_id = str(arguments["entity_id"])
+            limit = int(arguments.get("limit", 5))
+            if limit < 1:
+                raise ValueError("limit must be positive")
+            if not any(row["entity_id"] == entity_id for row in self.rows_for(tool.entity_type)):
+                raise ValueError(f"Unknown {tool.entity_type} id: {entity_id}")
+            linked_ids = [
+                str(row[tool.target_relation_field or ""])
+                for row in self.rows_for(tool.link_entity_type or "")
+                if str(row.get(tool.source_relation_field or "")) == entity_id and row.get(tool.target_relation_field or "") is not None
+            ]
+            targets = {row["entity_id"]: row for row in self.rows_for(tool.related_entity_type or "")}
+            return [self._discovery_projection(targets[linked_id]) for linked_id in linked_ids if linked_id in targets][:limit]
         if tool.operation == "linked_id":
             entity_id = arguments["entity_id"]
             source = next((row for row in self.rows_for(tool.entity_type) if row["entity_id"] == entity_id), None)
@@ -108,13 +130,15 @@ class LocalToolRuntime:
             if not isinstance(left.get(field), (int, float)) or not isinstance(right.get(field), (int, float)):
                 raise ValueError("comparison field must be numeric")
             winner = left if left[field] >= right[field] else right
-            return deepcopy({
+            return {
                 "field": field,
-                "left": left,
-                "right": right,
+                "left_id": left_id,
+                "left_value": left[field],
+                "right_id": right_id,
+                "right_value": right[field],
                 "winner_id": winner["entity_id"],
                 "difference": abs(left[field] - right[field]),
-            })
+            }
         raise ValueError(f"Unsupported operation: {tool.operation}")
 
     def execute(self, calls: list[dict[str, Any]]) -> dict[str, Any]:

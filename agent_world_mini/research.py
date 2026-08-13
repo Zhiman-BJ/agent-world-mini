@@ -7,6 +7,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from typing import Any
 from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
@@ -117,12 +118,11 @@ class WebResearchAgent:
         complexification: list[dict[str, object]] = []
         candidates: list[dict[str, str]] = []
         gaps: list[str] = []
-        rounds = max(1, complexify_rounds)
+        # Discover a useful starting point first. Later rounds inspect the
+        # extracted state and target an actual missing entity or relation.
+        rounds = 1
         for round_index in range(rounds):
-            round_call_budget = min(
-                self.research_calls_per_round,
-                max(5, 4 + len(seed.documented_tools) // 4),
-            )
+            round_call_budget = min(self.research_calls_per_round, 6)
             prompt = {
                 "environment": {
                     "name": seed.seed_label,
@@ -134,14 +134,14 @@ class WebResearchAgent:
                 },
                 "already_selected_sources": [item["url"] for item in candidates],
                 "remaining_gaps": gaps,
-                "round_goal": "Find additional concrete URLs that return domain records; do not repeat overview or documentation pages." if round_index else "Find the first set of real record sources.",
+                "round_goal": "Find additional concrete URLs that return domain records; do not repeat overview or documentation pages." if round_index else "Find a diverse first set of real record sources and relationships, not many leaf records of one kind.",
                 "return": {
                     "sources": [{"url": "exact public URL", "title": "source title", "reason": "data it contributes"}],
                     "remaining_data_gaps": ["important missing entity or relation"],
                 },
             }
             raw, usage = self.llm.research_json(
-                "Research real public data for this environment. Search and fetch as needed. Put official data APIs, datasets, feeds, or real files first; when docs reveal an API, return a concrete query URL that yields records. Documentation and Wikipedia may explain the domain but cannot be the environment state. Do not invent records.",
+                "Research real public data for this environment. Search and fetch as needed. Prefer a small connected sample spanning several useful entity types over exhaustive records of one type. Never download model weights, media, archives, binaries, or every child item under one parent. Put official data APIs, datasets, feeds, or small real data files first; when docs reveal an API, return a concrete query URL that yields records. Documentation and Wikipedia may explain the domain but cannot be the environment state. Do not invent records.",
                 json.dumps(prompt, ensure_ascii=False),
                 max_tool_calls=round_call_budget,
             )
@@ -172,7 +172,7 @@ class WebResearchAgent:
                     continue
                 url = str(item.get("url") or "").strip()
                 domain = urlparse(url).netloc.lower()
-                if not url.startswith(("http://", "https://")) or not domain or url in seen:
+                if not url.startswith(("http://", "https://")) or not domain or url in seen or "{" in url or "}" in url:
                     continue
                 seen.add(url)
                 candidates.append({
@@ -206,7 +206,7 @@ class WebResearchAgent:
 
         def fetch_candidate(candidate: dict[str, str]) -> tuple[dict[str, str] | None, str | None]:
             try:
-                content_type, text = self._fetch(candidate["url"])
+                content_type, text = self._fetch(candidate["url"], limit=500_000)
                 if len(text) < 200:
                     return None, None
                 return {
@@ -214,7 +214,7 @@ class WebResearchAgent:
                     "url": candidate["url"],
                     "content_type": content_type,
                     "role": "data_source",
-                    "retrieved_excerpt": text[:8_000],
+                    "retrieved_excerpt": text if content_type == "application/json" else text[:8_000],
                     "query": candidate.get("query", theme),
                 }, None
             except (OSError, UnicodeError) as error:
@@ -276,7 +276,138 @@ class WebResearchAgent:
         })
         print(f"[research] API expansion fetched {len(expanded_sources)}/{len(expansion_candidates)} data sources", flush=True)
 
-        records, _dataset_rows = self._extract(theme, sources)
+        records, extraction = self._extract_sources(theme, sources)
+        complexification.append({
+            "round": "initial_extraction",
+            "sources_used": len(sources),
+            "records_created": len(records),
+            "entity_types": sorted({record.entity_type for record in records}),
+            "relations_created": len(self._relation_pairs(records)),
+            "structured_sources": extraction["structured_sources"],
+        })
+
+        remaining_gaps: list[str] = []
+        stagnant_rounds = 0
+        for round_index in range(min(max(0, complexify_rounds), 4)):
+            before_records = len(records)
+            before_types = {record.entity_type for record in records}
+            before_relations = self._relation_pairs(records)
+            summary = self._state_summary(records)
+            try:
+                raw, usage = self.llm.research_json(
+                    "Continue researching this environment on the web. Find a small number of concrete public GET URLs that improve entity diversity, relationship coverage, or reachable depth in the current local data. Prefer connecting currently isolated IDs and broadening coverage across several parent records. Do not collect more same-type leaves under an already covered parent. Never download weights, media, archives, binaries, or exhaustive file lists. Do not return overview pages, documentation-only URLs, or invented records.",
+                    json.dumps({
+                        "environment": {
+                            "name": seed.seed_label,
+                            "description": seed.source_description,
+                            "documented_capabilities": [
+                                {
+                                    "name": str(tool.get("name") or ""),
+                                    "description": str(tool.get("description") or "")[:240],
+                                }
+                                for tool in seed.documented_tools
+                                if isinstance(tool, dict)
+                            ],
+                            "data_directions": list(seed.data_directions),
+                        },
+                        "current_local_data": summary,
+                        "already_used_urls": [source["url"] for source in sources],
+                        "discovered_official_material": [
+                            {"url": source["url"], "content": source.get("retrieved_excerpt", "")[:3_000]}
+                            for source in sources[:8]
+                        ],
+                        "remaining_gaps": remaining_gaps,
+                        "return": {
+                            "data_urls": [{
+                                "url": "exact public GET URL returning JSON records",
+                                "title": "short title",
+                                "reason": "new entity or relation contributed",
+                                "entity_type_hint": "optional singular entity type",
+                                "records_path_hint": "optional JSON list path",
+                                "id_field_hint": "optional stable ID field",
+                                "link_from": {
+                                    "entity_type": "existing entity type when the URL is scoped by one current ID",
+                                    "entity_id": "exact current ID embedded in or used to build the URL",
+                                },
+                            }],
+                            "remaining_data_gaps": ["important missing entity or relation"],
+                        },
+                    }, ensure_ascii=False),
+                    max_tool_calls=min(self.research_calls_per_round, 5),
+                )
+                parsed = extract_json_object(raw)
+            except (RuntimeError, ValueError, KeyError, TypeError):
+                parsed, usage = {}, {}
+
+            proposed = parsed.get("data_urls", []) if isinstance(parsed, dict) else []
+            remaining_gaps = [
+                str(value) for value in parsed.get("remaining_data_gaps", [])
+                if str(value).strip()
+            ] if isinstance(parsed, dict) else []
+            hints: dict[str, dict[str, Any]] = {}
+            candidates_for_round: list[dict[str, str]] = []
+            for item in proposed[:4] if isinstance(proposed, list) else []:
+                if not isinstance(item, dict):
+                    continue
+                url = str(item.get("url") or "").strip()
+                if not url.startswith(("http://", "https://")) or url in seen or "{" in url or "}" in url:
+                    continue
+                seen.add(url)
+                hints[url] = item
+                candidates_for_round.append({
+                    "url": url,
+                    "title": str(item.get("title") or urlparse(url).netloc),
+                    "query": f"state-guided expansion round {round_index + 1}",
+                })
+
+            new_sources: list[dict[str, str]] = []
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                for source, failure in pool.map(fetch_candidate, candidates_for_round):
+                    if source is not None:
+                        new_sources.append(source)
+                    if failure:
+                        failures.append(failure)
+            new_records, round_extraction = self._extract_sources(theme, new_sources, records, hints)
+            records = self._merge_records(records, new_records)
+            link_records = self._link_records(records, new_records, hints)
+            records = self._merge_records(records, link_records)
+            sources.extend(new_sources)
+
+            after_types = {record.entity_type for record in records}
+            after_relations = self._relation_pairs(records)
+            after_summary = self._state_summary(records)
+            coverage_gains = self._coverage_gains(summary, after_summary)
+            structural_progress = bool(
+                after_types - before_types
+                or after_relations - before_relations
+                or len(coverage_gains) >= 2
+                or after_summary["topology"]["max_relation_hops"] > summary["topology"]["max_relation_hops"]
+            )
+            event = {
+                "round": round_index + 1,
+                "goal": "expand extracted state",
+                "urls_proposed": len(candidates_for_round),
+                "data_sources_fetched": len(new_sources),
+                "records_added": len(records) - before_records,
+                "entity_types_added": sorted(after_types - before_types),
+                "relations_added": sorted(after_relations - before_relations),
+                "connected_entity_types_improved": coverage_gains,
+                "structural_progress": structural_progress,
+                "structured_sources": round_extraction["structured_sources"],
+                "remaining_data_gaps": remaining_gaps,
+                "server_tool_use": usage.get("server_tool_use", {}),
+            }
+            complexification.append(event)
+            print(
+                f"[research] state expansion {round_index + 1}: "
+                f"{event['records_added']} records, {len(event['entity_types_added'])} entity types, "
+                f"{len(event['relations_added'])} relations, structural progress={structural_progress}",
+                flush=True,
+            )
+            stagnant_rounds = 0 if structural_progress else stagnant_rounds + 1
+            if stagnant_rounds >= 2:
+                break
+
         # Do not retain fetched page excerpts as state; they are research evidence
         # only. The record-level source URL remains in the output manifest.
         all_sources = ([theme_source] if theme_source else []) + sources
@@ -291,9 +422,351 @@ class WebResearchAgent:
                 "sources_used": len(sources),
                 "records_created": len(records),
                 "entity_types": sorted({record.entity_type for record in records}),
+                "relations_created": len(self._relation_pairs(records)),
                 "retrieval_failures": failures,
             }],
         )
+
+    def _extract_sources(
+        self,
+        theme: str,
+        sources: list[dict[str, str]],
+        existing_records: list[Record] | None = None,
+        hints: dict[str, dict[str, Any]] | None = None,
+    ) -> tuple[list[Record], dict[str, Any]]:
+        json_sources = [source for source in sources if source.get("content_type") == "application/json"]
+        structured = self._extract_json_records(theme, json_sources, existing_records or [], hints or {})
+        return structured, {
+            "structured_sources": len({record.source_url for record in structured}),
+            "text_sources": 0,
+        }
+
+    def _extract_json_records(
+        self,
+        theme: str,
+        sources: list[dict[str, str]],
+        existing_records: list[Record],
+        hints: dict[str, dict[str, Any]],
+    ) -> list[Record]:
+        collections: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        inventories: list[dict[str, Any]] = []
+        for source in sources:
+            try:
+                payload = json.loads(source["retrieved_excerpt"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for path, rows in self._json_collections(payload).items():
+                if not rows:
+                    continue
+                collections[(source["url"], path)] = rows
+                inventories.append({
+                    "url": source["url"],
+                    "path": path,
+                    "row_count": len(rows),
+                    "keys": sorted({str(key) for row in rows[:8] for key in row})[:40],
+                    "sample": rows[0],
+                    "hint": hints.get(source["url"], {}),
+                })
+        if not inventories:
+            return []
+        try:
+            mapped = extract_json_object(self.llm.complete_json(
+                "Identify the real domain-record arrays in these public JSON responses. Return only collections containing concrete entities, not wrappers, facets, error messages, or API schemas. Choose a stable ID field already present in each row. Keep entity type names short, singular, and domain-specific.",
+                json.dumps({
+                    "theme": theme,
+                    "existing_entity_types": sorted({record.entity_type for record in existing_records}),
+                    "collections": inventories,
+                    "return": {"mappings": [{
+                        "url": "exact supplied URL",
+                        "path": "exact supplied path",
+                        "entity_type": "domain entity type",
+                        "id_field": "stable row field",
+                    }]},
+                }, ensure_ascii=False),
+            ))
+            mappings = mapped.get("mappings", []) if isinstance(mapped, dict) else []
+        except (RuntimeError, ValueError, KeyError, TypeError):
+            mappings = []
+
+        selected = {
+            (str(mapping.get("url") or ""), str(mapping.get("path") or ""))
+            for mapping in mappings if isinstance(mapping, dict)
+        }
+        # Root arrays with an ordinary public ID are unambiguous enough to
+        # preserve without asking the model to repeat every collection.
+        for inventory in inventories:
+            url, path = inventory["url"], inventory["path"]
+            if path != "$" or (url, path) in selected:
+                continue
+            rows = collections[(url, path)]
+            keys = {str(key) for row in rows[:8] for key in row}
+            id_field = next((field for field in ("id", "entity_id", "slug", "code", "name") if field in keys), "")
+            segment = urlparse(url).path.rstrip("/").rsplit("/", 1)[-1].lower()
+            if not id_field or segment in {"search", "query", "api", "json"}:
+                continue
+            entity_type = segment[:-3] + "y" if segment.endswith("ies") else segment[:-1] if segment.endswith("s") else segment
+            mappings.append({"url": url, "path": path, "entity_type": entity_type, "id_field": id_field})
+            selected.add((url, path))
+
+        records: list[Record] = []
+        for mapping in mappings:
+            if not isinstance(mapping, dict):
+                continue
+            url = str(mapping.get("url") or "")
+            path = str(mapping.get("path") or "")
+            rows = collections.get((url, path))
+            entity_type = self._normal_entity_type(str(mapping.get("entity_type") or ""))
+            id_field = str(mapping.get("id_field") or "")
+            if not rows or not entity_type or not id_field:
+                continue
+            if id_field == "_id" and any("id" in row for row in rows[:8]):
+                id_field = "id"
+            parent = hints.get(url, {}).get("link_from", {})
+            scoped_parent_type = self._normal_entity_type(str(parent.get("entity_type") or "")) if isinstance(parent, dict) else ""
+            scoped_parent_id = str(parent.get("entity_id") or "") if isinstance(parent, dict) else ""
+            row_limit = 20 if scoped_parent_type and scoped_parent_id else 250
+            for row in rows[:row_limit]:
+                entity_id = self._nested_value(row, id_field)
+                attributes = self._scalar_attributes(row)
+                if entity_id in (None, "") or not attributes:
+                    continue
+                local_id = str(entity_id)
+                if scoped_parent_type and scoped_parent_id and id_field.lower() in {"path", "rfilename", "filename"}:
+                    attributes.setdefault("local_id", local_id)
+                    entity_id = f"{scoped_parent_type}:{scoped_parent_id}:{local_id}"
+                records.append(Record(entity_type, str(entity_id), attributes, url))
+        return self._merge_records([], records)
+
+    @staticmethod
+    def _json_collections(payload: Any) -> dict[str, list[dict[str, Any]]]:
+        found: dict[str, list[dict[str, Any]]] = {}
+
+        def visit(value: Any, path: str) -> None:
+            if isinstance(value, list):
+                dict_rows = [item for item in value if isinstance(item, dict)]
+                if dict_rows:
+                    found.setdefault(path or "$", []).extend(dict_rows)
+                for item in dict_rows:
+                    visit(item, f"{path}[]" if path else "$[]")
+            elif isinstance(value, dict):
+                for key, child in value.items():
+                    child_path = f"{path}.{key}" if path and path != "$" else (f"$.{key}" if path == "$" else str(key))
+                    visit(child, child_path)
+
+        visit(payload, "$")
+        return found
+
+    @staticmethod
+    def _nested_value(row: dict[str, Any], field: str) -> Any:
+        value: Any = row
+        for part in field.split("."):
+            if not isinstance(value, dict) or part not in value:
+                return None
+            value = value[part]
+        return value
+
+    @staticmethod
+    def _scalar_attributes(row: dict[str, Any]) -> dict[str, Any]:
+        attributes: dict[str, Any] = {}
+        for key, value in row.items():
+            if isinstance(value, (str, int, float, bool, type(None))):
+                attributes[str(key)] = value
+            elif isinstance(value, list) and all(isinstance(item, (str, int, float, bool, type(None))) for item in value):
+                attributes[str(key)] = value
+            elif isinstance(value, dict):
+                for child_key, child in value.items():
+                    if isinstance(child, (str, int, float, bool, type(None))):
+                        attributes[f"{key}_{child_key}"] = child
+        return attributes
+
+    @staticmethod
+    def _normal_entity_type(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+    @staticmethod
+    def _merge_records(existing: list[Record], added: list[Record]) -> list[Record]:
+        merged: dict[tuple[str, str], Record] = {
+            (record.entity_type, record.entity_id): record for record in existing
+        }
+        for record in added:
+            key = (record.entity_type, record.entity_id)
+            if key in merged:
+                current = merged[key]
+                current.attributes = current.attributes | record.attributes
+            else:
+                merged[key] = record
+        return list(merged.values())
+
+    def _link_records(
+        self,
+        all_records: list[Record],
+        new_records: list[Record],
+        hints: dict[str, dict[str, Any]],
+    ) -> list[Record]:
+        existing = {(record.entity_type, record.entity_id) for record in all_records}
+        links: list[Record] = []
+        for record in new_records:
+            hint = hints.get(record.source_url, {})
+            parent = hint.get("link_from", {}) if isinstance(hint, dict) else {}
+            if not isinstance(parent, dict):
+                continue
+            parent_type = self._normal_entity_type(str(parent.get("entity_type") or ""))
+            parent_id = str(parent.get("entity_id") or "")
+            if not parent_type or not parent_id or (parent_type, parent_id) not in existing or parent_type == record.entity_type:
+                continue
+            link_type = f"{parent_type}_{record.entity_type}_link"
+            links.append(Record(
+                link_type,
+                f"{parent_id}|{record.entity_id}",
+                {f"{parent_type}_id": parent_id, f"{record.entity_type}_id": record.entity_id},
+                record.source_url,
+            ))
+        return links
+
+    @staticmethod
+    def _relation_pairs(records: list[Record]) -> set[tuple[str, str]]:
+        ids: dict[str, set[str]] = {}
+        for record in records:
+            ids.setdefault(record.entity_type, set()).add(record.entity_id)
+        relations: set[tuple[str, str]] = set()
+        for record in records:
+            for field, value in record.attributes.items():
+                if not field.endswith("_id") or value is None:
+                    continue
+                for target_type, target_ids in ids.items():
+                    if str(value) in target_ids:
+                        relations.add((f"{record.entity_type}.{field}", f"{target_type}.entity_id"))
+        return relations
+
+    def _state_summary(self, records: list[Record]) -> dict[str, Any]:
+        by_type: dict[str, list[Record]] = {}
+        for record in records:
+            by_type.setdefault(record.entity_type, []).append(record)
+        topology = self._topology_summary(records)
+        return {
+            "entities": [
+                {
+                    "entity_type": entity_type,
+                    "record_count": len(rows),
+                    "connected_record_count": topology["connected_ids_by_type"].get(entity_type, 0),
+                    "unconnected_sample_ids": topology["unconnected_sample_ids_by_type"].get(entity_type, []),
+                    "fields": sorted({field for row in rows for field in row.attributes}),
+                    "sample_ids": [row.entity_id for row in rows[:3]],
+                }
+                for entity_type, rows in sorted(by_type.items())
+            ],
+            "relations": [
+                {"from": source, "to": target}
+                for source, target in sorted(self._relation_pairs(records))
+            ],
+            "relation_coverage": self._relation_coverage(records),
+            "topology": topology,
+        }
+
+    @staticmethod
+    def _relation_coverage(records: list[Record]) -> list[dict[str, Any]]:
+        ids: dict[str, set[str]] = {}
+        by_type: dict[str, list[Record]] = {}
+        for record in records:
+            ids.setdefault(record.entity_type, set()).add(record.entity_id)
+            by_type.setdefault(record.entity_type, []).append(record)
+        coverage: list[dict[str, Any]] = []
+        for source_type, rows in sorted(by_type.items()):
+            fields = sorted({field for row in rows for field in row.attributes if field.endswith("_id")})
+            for field in fields:
+                values = {str(row.attributes[field]) for row in rows if row.attributes.get(field) not in (None, "")}
+                for target_type, target_ids in sorted(ids.items()):
+                    matched = values & target_ids
+                    if not matched:
+                        continue
+                    linked_rows = sum(str(row.attributes.get(field)) in target_ids for row in rows)
+                    coverage.append({
+                        "from": f"{source_type}.{field}",
+                        "to": f"{target_type}.entity_id",
+                        "linked_source_records": linked_rows,
+                        "source_records": len(rows),
+                        "distinct_target_ids_covered": len(matched),
+                        "target_records": len(target_ids),
+                        "uncovered_target_sample_ids": sorted(target_ids - matched)[:5],
+                    })
+        return coverage
+
+    @staticmethod
+    def _topology_summary(records: list[Record]) -> dict[str, Any]:
+        nodes = {(record.entity_type, record.entity_id) for record in records if not record.entity_type.endswith("_link")}
+        ids: dict[str, set[str]] = {}
+        for entity_type, entity_id in nodes:
+            ids.setdefault(entity_type, set()).add(entity_id)
+        adjacency: dict[tuple[str, str], set[tuple[str, str]]] = {node: set() for node in nodes}
+
+        for record in records:
+            linked_nodes: list[tuple[str, str]] = []
+            for field, value in record.attributes.items():
+                if not field.endswith("_id") or value in (None, ""):
+                    continue
+                for target_type, target_ids in ids.items():
+                    if str(value) in target_ids:
+                        linked_nodes.append((target_type, str(value)))
+            if record.entity_type.endswith("_link"):
+                for left_index, left in enumerate(linked_nodes):
+                    for right in linked_nodes[left_index + 1:]:
+                        if left != right:
+                            adjacency[left].add(right)
+                            adjacency[right].add(left)
+            else:
+                source = (record.entity_type, record.entity_id)
+                for target in linked_nodes:
+                    if source != target:
+                        adjacency[source].add(target)
+                        adjacency[target].add(source)
+
+        connected = {node for node, neighbors in adjacency.items() if neighbors}
+        components: list[set[tuple[str, str]]] = []
+        unseen = set(connected)
+        while unseen:
+            root = unseen.pop()
+            component = {root}
+            frontier = [root]
+            while frontier:
+                current = frontier.pop()
+                for neighbor in adjacency[current]:
+                    if neighbor not in component:
+                        component.add(neighbor)
+                        unseen.discard(neighbor)
+                        frontier.append(neighbor)
+            components.append(component)
+
+        max_hops = 0
+        for component in components:
+            for start in component:
+                distances = {start: 0}
+                frontier = [start]
+                for current in frontier:
+                    for neighbor in adjacency[current]:
+                        if neighbor not in distances:
+                            distances[neighbor] = distances[current] + 1
+                            frontier.append(neighbor)
+                max_hops = max(max_hops, max(distances.values(), default=0))
+
+        connected_by_type: dict[str, int] = {}
+        unconnected_by_type: dict[str, list[str]] = {}
+        for entity_type, entity_ids in sorted(ids.items()):
+            connected_ids = {entity_id for kind, entity_id in connected if kind == entity_type}
+            connected_by_type[entity_type] = len(connected_ids)
+            unconnected_by_type[entity_type] = sorted(entity_ids - connected_ids)[:5]
+        return {
+            "connected_components": len(components),
+            "largest_component_records": max((len(component) for component in components), default=0),
+            "max_relation_hops": max_hops,
+            "connected_ids_by_type": connected_by_type,
+            "unconnected_sample_ids_by_type": unconnected_by_type,
+        }
+
+    @staticmethod
+    def _coverage_gains(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+        old = before.get("topology", {}).get("connected_ids_by_type", {})
+        new = after.get("topology", {}).get("connected_ids_by_type", {})
+        return sorted(entity_type for entity_type, count in new.items() if count > old.get(entity_type, 0))
 
     def _gather_world_bank(self, seed: ThemeSeed) -> ResearchBundle:
         country_codes = "USA;CHN;IND;BRA;ZAF;DEU;JPN;MEX;IDN;NGA;FRA;CAN"

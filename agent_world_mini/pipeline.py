@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .catalog import output_slug, prepare_smithery_catalog, select_prepared_themes
 from .graph import ToolGraph
 from .io_utils import write_json
 from .llm import LLMClient
+from .models import ResearchBundle
 from .research import WebResearchAgent
 from .runtime import LocalToolRuntime
 from .tasks import TaskSynthesizer
@@ -31,12 +33,27 @@ def run(
     max_candidates: int = 128,
     source_url: str | None = None,
     theme_seed: ThemeSeed | None = None,
+    research_bundle: Path | None = None,
 ) -> dict[str, object]:
     llm = LLMClient.from_environment()
-    seed = theme_seed or resolve_theme(theme, theme_id, source_url)
-    print(f"[{seed.theme_id}] researching {seed.source_url or seed.seed_label}", flush=True)
-    bundle = WebResearchAgent(llm).gather(seed, complexify_rounds=complexify_rounds)
-    print(f"[{seed.theme_id}] research complete: {len(bundle.records)} records", flush=True)
+    if research_bundle is not None:
+        bundle = ResearchBundle.from_dict(json.loads(research_bundle.read_text(encoding="utf-8")))
+        metadata = bundle.theme_metadata
+        seed = ThemeSeed(
+            theme_id=str(metadata.get("theme_id") or f"codex-{output_dir.name}"),
+            seed_label=bundle.theme,
+            source_type=str(metadata.get("source_type") or "codex_research_bundle"),
+            source_url=str(metadata.get("source_url") or ""),
+            license_or_access_note=str(metadata.get("license_or_access_note") or "See research bundle sources."),
+            coarse_route_label=str(metadata.get("coarse_route_label") or "codex-researched"),
+            adapter=bundle.adapter,
+        )
+        print(f"[{seed.theme_id}] loaded Codex research bundle: {len(bundle.records)} records", flush=True)
+    else:
+        seed = theme_seed or resolve_theme(theme, theme_id, source_url)
+        print(f"[{seed.theme_id}] researching {seed.source_url or seed.seed_label}", flush=True)
+        bundle = WebResearchAgent(llm).gather(seed, complexify_rounds=complexify_rounds)
+        print(f"[{seed.theme_id}] research complete: {len(bundle.records)} records", flush=True)
     write_json(output_dir / "research_bundle.json", bundle.to_dict())
     write_json(output_dir / "theme_registry.json", {
         "selected_theme": seed.to_dict(),
@@ -58,7 +75,7 @@ def run(
         missing = designer.last_selection_report.get("missing_capabilities", [])
         detail = ", ".join(str(value) for value in missing) or "no useful data-supported tools passed"
         raise EnvironmentRejected(detail)
-    graph = ToolGraph(tools, llm)
+    graph = ToolGraph(tools, llm, LocalToolRuntime(bundle.records, tools))
     chains = graph.chains()
     synthesizer = TaskSynthesizer(llm)
     tasks, task_mode, walk_report = synthesizer.synthesize_adaptive(
@@ -205,6 +222,7 @@ def main() -> None:
     parser.add_argument("--theme")
     parser.add_argument("--theme-id", choices=sorted(CURATED_THEME_SEEDS))
     parser.add_argument("--source-url", help="Use one concrete MCP or tool documentation page as the theme source.")
+    parser.add_argument("--research-bundle", type=Path, help="Use a research_bundle.json produced by a Codex research agent and skip built-in web research.")
     parser.add_argument("--batch-size", type=int, help="Select and run this many unseen environments from the prepared local catalogue.")
     parser.add_argument("--prepare-catalog", action="store_true", help="Fetch and organize the Smithery catalogue before generation.")
     parser.add_argument("--prepared-catalog", default="agent_world_mini/prepared_environments.json", help="Local prepared environment catalogue used by batch runs.")
@@ -240,7 +258,19 @@ def main() -> None:
             max_candidates=args.max_candidates,
         )
     else:
-        if not args.theme and not args.theme_id and not args.source_url:
-            parser.error("one of --theme, --theme-id, --source-url, or --batch-size is required")
-        summary = run(args.theme, Path(args.output_root) / args.slug, args.verify_five_runs, args.theme_id, args.complexify_rounds, args.max_semantic_reviews, args.max_tasks, args.react_max_steps, args.max_candidates, args.source_url)
+        if not args.theme and not args.theme_id and not args.source_url and not args.research_bundle:
+            parser.error("one of --theme, --theme-id, --source-url, --research-bundle, or --batch-size is required")
+        summary = run(
+            args.theme,
+            Path(args.output_root) / args.slug,
+            args.verify_five_runs,
+            args.theme_id,
+            args.complexify_rounds,
+            args.max_semantic_reviews,
+            args.max_tasks,
+            args.react_max_steps,
+            args.max_candidates,
+            args.source_url,
+            research_bundle=args.research_bundle,
+        )
     print(summary)

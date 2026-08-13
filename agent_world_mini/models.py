@@ -42,6 +42,68 @@ class ResearchBundle:
             "overlay_seed": self.overlay_seed,
         }
 
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ResearchBundle":
+        records = [
+            Record(
+                entity_type=str(item["entity_type"]),
+                entity_id=str(item["entity_id"]),
+                attributes=dict(item["attributes"]),
+                source_url=str(item["source_url"]),
+            )
+            for item in value.get("records", [])
+        ]
+        if not value.get("theme") or not records:
+            raise ValueError("A research bundle requires a theme and at least one record")
+        entity_ids: dict[str, set[str]] = {}
+        entity_fields: dict[str, set[str]] = {}
+        for record in records:
+            entity_ids.setdefault(record.entity_type, set()).add(record.entity_id)
+            entity_fields.setdefault(record.entity_type, set()).update(record.attributes)
+        relations: set[tuple[str, str]] = set()
+        for record in records:
+            for field, field_value in record.attributes.items():
+                if not field.endswith("_id") or field_value is None:
+                    continue
+                for target_type, ids in entity_ids.items():
+                    if str(field_value) in ids:
+                        relations.add((f"{record.entity_type}.{field}", f"{target_type}.entity_id"))
+        state_contract = dict(value.get("state_contract", {})) or {
+            "state_classes": {"source_records": "immutable_source", "overlay_records": "local_overlay"},
+            "entities": [
+                {
+                    "entity_type": entity_type,
+                    "fields": sorted(entity_fields[entity_type]),
+                    "record_count": len(ids),
+                }
+                for entity_type, ids in sorted(entity_ids.items())
+            ],
+            "relations": sorted(relations),
+            "invariants": [
+                "entity ids are unique within an entity type",
+                "source records are immutable during a rollout",
+                "local overlay is reset before each rollout",
+            ],
+        }
+        derived_datasets = dict(value.get("derived_datasets", {})) or {
+            "operational_entities": [
+                record.attributes | {"entity_id": record.entity_id, "entity_type": record.entity_type}
+                for record in records
+            ]
+        }
+        return cls(
+            theme=str(value["theme"]),
+            adapter=str(value.get("adapter") or "codex_research_agent"),
+            retrieved_at=str(value.get("retrieved_at") or ""),
+            sources=[dict(item) for item in value.get("sources", [])],
+            records=records,
+            derived_datasets=derived_datasets,
+            theme_metadata=dict(value.get("theme_metadata", {})),
+            complexification=[dict(item) for item in value.get("complexification", [])],
+            state_contract=state_contract,
+            overlay_seed=[dict(item) for item in value.get("overlay_seed", [])],
+        )
+
 
 @dataclass
 class ToolSpec:
@@ -59,6 +121,9 @@ class ToolSpec:
     sort_field: str | None = None
     related_entity_type: str | None = None
     relation_field: str | None = None
+    link_entity_type: str | None = None
+    source_relation_field: str | None = None
+    target_relation_field: str | None = None
     input_bindings: dict[str, str] = field(default_factory=dict)
     test_cases: list[dict[str, Any]] = field(default_factory=list)
     input_sources: dict[str, str] = field(default_factory=dict)
