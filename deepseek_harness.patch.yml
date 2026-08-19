@@ -1,0 +1,26 @@
+- id: agent-default-model
+  config:
+    provider: company-gateway
+    model: deepseek-v4-flash-0731
+
+# Use the generic OpenAI-compatible Harness adapter. The pipeline replaces the
+# placeholder below with DEEPSEEK_BASE_URL from the ignored local env file.
+- id: llm-pi-ai
+  config:
+    providers:
+      company-gateway:
+        displayName: Company OpenAI-compatible gateway
+        api: openai-completions
+        apiKeyEnv: DEEPSEEK_API_KEY
+        baseURL: __DEEPSEEK_BASE_URL__
+        models:
+          - id: deepseek-v4-flash-0731
+            name: DeepSeek-V4-Flash-0731
+            reasoningEfforts: false
+
+# This profile assumes the gateway does not expose DeepSeek's Anthropic
+# /messages web-search protocol. Research therefore uses the PowerShell tool.
+- id: tool-web
+  config:
+    search: false
+    fetch: false

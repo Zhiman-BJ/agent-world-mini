@@ -33,7 +33,7 @@ class ToolDesigner:
         self.llm = llm
         self.last_selection_report: dict[str, Any] = {"status": "not_run"}
 
-    def design(self, bundle: ResearchBundle) -> tuple[list[ToolSpec], str]:
+    def design(self, bundle: ResearchBundle, use_agent_selection: bool = True) -> tuple[list[ToolSpec], str]:
         by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in bundle.records:
             by_type[record.entity_type].append(record.attributes | {"entity_id": record.entity_id})
@@ -147,6 +147,13 @@ class ToolDesigner:
         tools.extend(self._relation_tools(by_type, search_tools))
         tools.extend(self._bridge_tools(by_type, search_tools))
         candidates = self._deduplicate(tools)
+        if not use_agent_selection:
+            self.last_selection_report = {
+                "status": "local_validation_pending",
+                "candidate_tools": len(candidates),
+                "reason": "Luna handoff mode keeps data-derived candidates for local execution validation.",
+            }
+            return candidates, "data_configuration_compiler"
         if not self.llm.enabled:
             self.last_selection_report = {"status": "not_run_no_llm", "candidate_tools": len(candidates)}
             return candidates, "data_configuration_compiler"
@@ -154,35 +161,65 @@ class ToolDesigner:
         return selected, "data_grounded_agent_selection"
 
     def _select_by_agent(self, bundle: ResearchBundle, candidates: list[ToolSpec]) -> list[ToolSpec]:
-        result = extract_json_object(self.llm.complete_json(
-            "Choose a coherent connected toolset from the candidate tools. MCP tools are capability clues, not names to copy. keep_tool_names must contain only exact candidate tool names. Prefer real relation traversal when the data has relations. Metadata or documentation lookup alone is not a usable environment.",
-            json.dumps({
-                "environment": bundle.theme,
-                "mcp_description": bundle.theme_metadata.get("source_description", ""),
-                "mcp_tools": [
-                    {
-                        "name": str(tool.get("name") or ""),
-                        "description": str(tool.get("description") or "")[:300],
-                    }
-                    for tool in bundle.theme_metadata.get("documented_tools", [])
-                    if isinstance(tool, dict)
-                ],
-                "data_entities": bundle.state_contract.get("entities", []),
-                "data_relations": bundle.state_contract.get("relations", []),
-                "candidate_tools": [
-                    {"name": tool.name, "description": tool.description, "inputs": tool.inputs, "outputs": tool.outputs}
-                    for tool in candidates
-                ],
-                "return": {
-                    "usable_environment": True,
-                    "keep_tool_names": ["candidate tool name"],
-                    "capability_support": [{"mcp_tool_name": "exact MCP tool name", "retained_tool_names": ["candidate tool producing the same business result"]}],
-                    "description_updates": {"candidate tool name": "clear business-facing description"},
-                    "missing_capabilities": ["core capability unsupported by the mined data"],
-                    "reason": "brief explanation of the resulting capability coverage",
-                },
-            }, ensure_ascii=False),
-        ))
+        prompt = json.dumps(self.selection_packet(bundle, candidates), ensure_ascii=False)
+        result: dict[str, Any] = {}
+        for attempt in range(2):
+            try:
+                result = extract_json_object(self.llm.complete_json(
+                    "Choose a coherent connected toolset from the candidate tools. MCP tools are capability clues, not names to copy. keep_tool_names must contain only exact candidate tool names. Prefer real relation traversal when the data has relations. Metadata or documentation lookup alone is not a usable environment.",
+                    prompt,
+                ))
+            except RuntimeError:
+                if attempt == 0:
+                    print("[tools] model request failed; retrying once", flush=True)
+                    continue
+                raise
+            usable = result.get("usable_environment")
+            explicitly_unusable = usable is False or (isinstance(usable, str) and usable.strip().lower() == "false")
+            if explicitly_unusable or result.get("keep_tool_names"):
+                break
+            if attempt == 0:
+                print("[tools] model returned an unexplained empty selection; retrying once", flush=True)
+        return self.apply_selection_result(bundle, candidates, result)
+
+    @staticmethod
+    def selection_packet(bundle: ResearchBundle, candidates: list[ToolSpec]) -> dict[str, Any]:
+        return {
+            "environment": bundle.theme,
+            "mcp_description": bundle.theme_metadata.get("source_description", ""),
+            "mcp_tools": [
+                {
+                    "name": str(tool.get("name") or ""),
+                    "description": str(tool.get("description") or "")[:300],
+                }
+                for tool in bundle.theme_metadata.get("documented_tools", [])
+                if isinstance(tool, dict)
+            ],
+            "data_entities": bundle.state_contract.get("entities", []),
+            "data_relations": bundle.state_contract.get("relations", []),
+            "candidate_tools": [
+                {"name": tool.name, "description": tool.description, "inputs": tool.inputs, "outputs": tool.outputs}
+                for tool in candidates
+            ],
+            "return": {
+                "usable_environment": True,
+                "keep_tool_names": ["candidate tool name"],
+                "capability_support": [{
+                    "mcp_tool_name": "exact MCP tool name",
+                    "retained_tool_names": ["candidate tool producing the same business result"],
+                }],
+                "description_updates": {"candidate tool name": "clear business-facing description"},
+                "missing_capabilities": ["core capability unsupported by the mined data"],
+                "reason": "brief explanation of the resulting capability coverage",
+            },
+        }
+
+    def apply_selection_result(
+        self,
+        bundle: ResearchBundle,
+        candidates: list[ToolSpec],
+        result: dict[str, Any],
+    ) -> list[ToolSpec]:
         usable = result.get("usable_environment")
         documented_names = {
             str(tool.get("name"))
@@ -288,6 +325,10 @@ class ToolDesigner:
     def _numeric_field(rows: list[dict[str, Any]]) -> str | None:
         preferred = ("value", "free_bikes", "empty_slots", "comments", "stargazers_count", "open_issues_count")
         excluded = {"year", "number", "latitude", "longitude", "search_rank"}
+
+        def is_identifier(field: str) -> bool:
+            return field == "id" or field.endswith(("_id", "_number", "_code", "_key"))
+
         values: dict[str, set[int | float]] = defaultdict(set)
         for row in rows:
             for field, value in row.items():
@@ -296,7 +337,11 @@ class ToolDesigner:
         for field in preferred:
             if len(values.get(field, set())) >= 2:
                 return field
-        candidates = [(len(distinct), field) for field, distinct in values.items() if len(distinct) >= 2 and field not in excluded]
+        candidates = [
+            (len(distinct), field)
+            for field, distinct in values.items()
+            if len(distinct) >= 2 and field not in excluded and not is_identifier(field)
+        ]
         return max(candidates)[1] if candidates else None
 
     @staticmethod

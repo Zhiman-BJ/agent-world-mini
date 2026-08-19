@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import combinations
@@ -8,7 +9,7 @@ from typing import Any
 
 from .io_utils import extract_json_object
 from .llm import LLMClient
-from .models import Record, Task, ToolChain, ToolSpec
+from .models import Record, ResearchBundle, Task, ToolChain, ToolSpec
 from .runtime import LocalToolRuntime
 
 
@@ -33,6 +34,7 @@ class TaskSynthesizer:
         max_tasks: int | None = None,
         semantic_workers: int = 4,
         seen_execution_signatures: set[str] | None = None,
+        candidate_only: bool = False,
     ) -> tuple[list[Task], str, dict[str, Any]]:
         runtime = LocalToolRuntime(records, tools)
         by_name = {tool.name: tool for tool in tools}
@@ -75,6 +77,8 @@ class TaskSynthesizer:
             "causal_core_step_distribution": dict(Counter(len(item["causal_core"]) for item in executed)),
             "candidates": executed,
         }
+        if candidate_only:
+            return [], "awaiting_luna_semantic_review", report
         if not self.llm.enabled:
             return [], "awaiting_api_semantic_review", report
 
@@ -115,6 +119,7 @@ class TaskSynthesizer:
         max_candidates: int = 128,
         max_semantic_reviews: int | None = None,
         max_tasks: int | None = None,
+        candidate_only: bool = False,
     ) -> tuple[list[Task], str, dict[str, Any]]:
         tasks: list[Task] = []
         seen_requests: set[str] = set()
@@ -123,6 +128,7 @@ class TaskSynthesizer:
         attempted = 0
         low_yield_batches = 0
         mode = "awaiting_api_semantic_review"
+        semantic_workers = max(1, int(os.environ.get("SEMANTIC_REVIEW_WORKERS", "1")))
 
         while attempted < max_candidates:
             batch_size = initial_candidates if attempted == 0 else batch_candidates
@@ -140,8 +146,9 @@ class TaskSynthesizer:
                 records,
                 max_semantic_reviews=remaining_reviews,
                 max_tasks=None,
-                semantic_workers=4,
+                semantic_workers=semantic_workers,
                 seen_execution_signatures=seen_execution_signatures,
+                candidate_only=candidate_only,
             )
             attempted += batch_size
             new_tasks = 0
@@ -163,11 +170,12 @@ class TaskSynthesizer:
                 flush=True,
             )
 
-            if not self.llm.enabled or (max_tasks is not None and len(tasks) >= max_tasks):
+            if (not candidate_only and not self.llm.enabled) or (max_tasks is not None and len(tasks) >= max_tasks):
                 break
-            low_yield_batches = low_yield_batches + 1 if new_tasks / max(1, batch_size) < 0.1 else 0
-            if low_yield_batches >= 2:
-                break
+            if not candidate_only:
+                low_yield_batches = low_yield_batches + 1 if new_tasks / max(1, batch_size) < 0.1 else 0
+                if low_yield_batches >= 2:
+                    break
 
         for index, task in enumerate(tasks, start=1):
             task.task_id = f"task_{index:03d}"
@@ -182,6 +190,100 @@ class TaskSynthesizer:
             "batches": batch_reports,
         }
         return tasks, mode, combined
+
+    @staticmethod
+    def luna_review_packet(bundle: ResearchBundle, tools: list[ToolSpec], report: dict[str, Any]) -> dict[str, Any]:
+        candidates = []
+        candidate_index = 0
+        for batch in report.get("batches", []):
+            for item in batch.get("candidates", []):
+                candidate_index += 1
+                candidates.append({
+                    "candidate_id": f"candidate_{candidate_index:03d}",
+                    "causal_core": item["causal_core"],
+                    "executed_trace": item["execution"]["trace"],
+                })
+        return {
+            "theme": bundle.theme,
+            "review_agent": "gpt-5.6-luna",
+            "tool_selection": {
+                "environment": bundle.theme,
+                "mcp_description": bundle.theme_metadata.get("source_description", ""),
+                "mcp_tools": bundle.theme_metadata.get("documented_tools", []),
+                "data_entities": bundle.state_contract.get("entities", []),
+                "data_relations": bundle.state_contract.get("relations", []),
+                "candidate_tools": TaskSynthesizer._public_tools(tools),
+            },
+            "tool_contracts": TaskSynthesizer._public_tools(tools),
+            "instructions": [
+                "Choose a coherent useful subset from candidate_tools and return its exact names in keep_tool_names.",
+                "Review the whole packet and keep a representative for every distinct useful objective; do not cap the number of reviews.",
+                "Omit artificial or incoherent candidates.",
+                "Keep only candidates whose first call can be derived from the request without a hidden internal ID; search queries must be natural text.",
+                "Keep only steps needed for one realistic objective, including every observation dependency.",
+                "Preserve coherent context, comparison, provenance, or related-entity branches when they form useful parts of the same objective; remove only detours.",
+                "Write a concise self-contained request without tool names, schemas, APIs, internal IDs, vague prior context, or invented facts.",
+                "Answer-slot step indices must cover exactly the kept steps.",
+            ],
+            "return_format": {
+                "usable_environment": True,
+                "keep_tool_names": ["exact candidate tool name"],
+                "reason": "brief tool selection reason",
+                "reviews": [{
+                    "candidate_id": "candidate_001",
+                    "keep_step_indices": [0],
+                    "request": "Natural user request",
+                    "answer_slots": [{"name": "result", "description": "Requested result", "step_indices": [0]}],
+                    "rubric": ["Uses the observed result"],
+                }],
+            },
+            "candidates": candidates,
+        }
+
+    def tasks_from_luna_reviews(
+        self,
+        tools: list[ToolSpec],
+        records: list[Record],
+        packet: dict[str, Any],
+        review_payload: dict[str, Any],
+        max_tasks: int | None = None,
+    ) -> tuple[list[Task], dict[str, Any]]:
+        runtime = LocalToolRuntime(records, tools)
+        candidates = {
+            str(item.get("candidate_id")): item
+            for item in packet.get("candidates", [])
+            if isinstance(item, dict) and item.get("candidate_id")
+        }
+        reviews = {
+            str(item.get("candidate_id")): item
+            for item in review_payload.get("reviews", [])
+            if isinstance(item, dict) and item.get("candidate_id")
+        }
+        tasks: list[Task] = []
+        rejected = 0
+        seen_requests: set[str] = set()
+        for candidate_number, (candidate_id, item) in enumerate(candidates.items(), start=1):
+            review = reviews.get(candidate_id)
+            if review is None:
+                continue
+            candidate = {"causal_core": item.get("causal_core", [])}
+            task = self._task_from_review(tools, runtime, candidate, candidate_number, review)
+            if task is None or task.request in seen_requests:
+                rejected += 1
+                continue
+            seen_requests.add(task.request)
+            tasks.append(task)
+            if max_tasks is not None and len(tasks) >= max_tasks:
+                break
+        for index, task in enumerate(tasks, start=1):
+            task.task_id = f"task_{index:03d}"
+        return tasks, {
+            "packet_candidates": len(candidates),
+            "submitted_reviews": len(reviews),
+            "accepted_tasks": len(tasks),
+            "rejected_reviews": rejected,
+            "unknown_candidate_reviews": sorted(set(reviews) - set(candidates)),
+        }
 
     def _instantiate_walk(self, chain_tools: list[ToolSpec], runtime: LocalToolRuntime, walk_index: int) -> list[dict[str, Any]]:
         attempts = 0
@@ -394,15 +496,20 @@ class TaskSynthesizer:
                 "Return JSON {reviews:[{candidate_index:integer,keep_step_indices:integer[],request:string,answer_slots:[{name:string,description:string,step_indices:integer[]}],rubric:[string]}]}. Within each review, answer-slot step indices must cover exactly the selected steps.",
             ],
         }
+        response = ""
         try:
-            result = extract_json_object(self.llm.complete_json(
+            response = self.llm.complete_json(
                 "Turn executed, source-grounded tool evidence into verifiable user tasks. Skip artificial chains.",
                 json.dumps(prompt, ensure_ascii=False),
-            ))
+            )
+            result = extract_json_object(response)
             raw_reviews = result["reviews"]
-        except (RuntimeError, KeyError, TypeError, ValueError):
+        except (RuntimeError, KeyError, TypeError, ValueError) as error:
+            preview = response.strip().replace("\n", " ")[:300]
+            print(f"[tasks] review request failed: {type(error).__name__}: {error}; response={preview!r}", flush=True)
             return []
         if not isinstance(raw_reviews, list):
+            print(f"[tasks] review response has non-list reviews: {type(raw_reviews).__name__}", flush=True)
             return []
         reviews = {
             int(review["candidate_index"]): review
@@ -417,6 +524,8 @@ class TaskSynthesizer:
             task = self._task_from_review(tools, runtime, item, task_index, review)
             if task is not None:
                 tasks.append(task)
+        if raw_reviews and not tasks:
+            print(f"[tasks] review returned {len(raw_reviews)} item(s), but none passed task construction", flush=True)
         return tasks
 
     def _task_from_review(
@@ -454,7 +563,8 @@ class TaskSynthesizer:
             return None
         calls = [call for index, call in enumerate(all_calls) if index in kept_indexes]
         tool_names = [call["tool"] for call in calls]
-        if not request or any(name in request for name in tool_names):
+        available_tool_names = {tool.name for tool in tools}
+        if not request or any(name in request for name in tool_names) or not set(tool_names) <= available_tool_names:
             return None
         execution = runtime.execute([{"tool": call["tool"], "arguments": call["arguments"]} for call in calls])
         old_to_new = {old: new for new, old in enumerate(kept_indexes)}

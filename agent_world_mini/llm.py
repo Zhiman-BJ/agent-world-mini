@@ -58,6 +58,8 @@ class LLMClient:
             raise RuntimeError(f"LLM request failed ({error.code}): {detail}") from error
         except URLError as error:
             raise RuntimeError(f"LLM request failed: {error.reason}") from error
+        except TimeoutError as error:
+            raise RuntimeError(f"LLM request timed out after {self.timeout_seconds} seconds") from error
         try:
             message = result["choices"][0]["message"]
             content = message["content"]
@@ -71,16 +73,18 @@ class LLMClient:
             raise RuntimeError(f"Unexpected LLM response: {result}") from error
 
     def complete_json(self, system: str, prompt: str) -> str:
-        content, _usage = self._complete({
+        payload: dict[str, object] = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-            "max_tokens": 6000,
-        })
+            "max_tokens": int(os.environ.get("OPENROUTER_JSON_MAX_TOKENS", "6000")),
+        }
+        if os.environ.get("OPENROUTER_JSON_MODE", "json_object") != "prompt":
+            payload["response_format"] = {"type": "json_object"}
+        content, _usage = self._complete(payload)
         return content
 
     def research_json(self, system: str, prompt: str, max_tool_calls: int = 10) -> tuple[str, dict[str, object]]:

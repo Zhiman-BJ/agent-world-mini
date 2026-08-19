@@ -4,11 +4,18 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_world_mini.catalog import discover_smithery_themes, load_prepared_catalog, select_prepared_themes
+from agent_world_mini.catalog import discover_smithery_themes, load_prepared_catalog, prepare_smithery_catalog, select_prepared_themes
+from agent_world_mini.composition import pair_tasks
+from agent_world_mini.deepseek_harness import DeepSeekHarnessResearchAgent
 from agent_world_mini.graph import ToolGraph
+from agent_world_mini.io_utils import write_json
 from agent_world_mini.llm import LLMClient
+from agent_world_mini.luna_rollout import aggregate as aggregate_luna_rollouts
+from agent_world_mini.luna_rollout import call as luna_call
+from agent_world_mini.luna_rollout import finish as finish_luna_rollout
+from agent_world_mini.luna_rollout import start as start_luna_rollout
 from agent_world_mini.models import Record, ResearchBundle, ToolSpec
-from agent_world_mini.pipeline import run
+from agent_world_mini.pipeline import apply_luna_reviews, run
 from agent_world_mini.runtime import LocalToolRuntime
 from agent_world_mini.research import WebResearchAgent
 from agent_world_mini.tasks import TaskSynthesizer
@@ -42,6 +49,22 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "theme and at least one record"):
             ResearchBundle.from_dict({"theme": "empty", "records": []})
 
+    def test_llm_timeout_is_reported_as_a_runtime_failure(self):
+        client = LLMClient(timeout_seconds=1)
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}), patch(
+            "agent_world_mini.llm.urlopen", side_effect=TimeoutError("slow endpoint")
+        ):
+            with self.assertRaisesRegex(RuntimeError, "timed out after 1 seconds"):
+                client.complete_json("system", "prompt")
+
+    def test_llm_prompt_json_mode_omits_response_format(self):
+        client = LLMClient()
+        with patch.dict("os.environ", {"OPENROUTER_JSON_MODE": "prompt"}), patch.object(
+            client, "_complete", return_value=("{}", {})
+        ) as complete:
+            client.complete_json("system", "prompt")
+        self.assertNotIn("response_format", complete.call_args.args[0])
+
     def test_pipeline_can_continue_from_a_codex_research_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -54,6 +77,160 @@ class PipelineTests(unittest.TestCase):
             gather.assert_not_called()
             self.assertEqual(summary["records"], len(self.records))
             self.assertTrue((root / "output" / "tool_specs.json").is_file())
+
+    def test_pipeline_can_use_deepseek_harness_for_research_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()), patch.object(
+                DeepSeekHarnessResearchAgent, "gather", return_value=self.bundle
+            ) as gather:
+                summary = run("country indicators", root / "output", deepseek_harness=True, max_candidates=4)
+            gather.assert_called_once()
+            self.assertEqual(summary["records"], len(self.records))
+            self.assertTrue((root / "output" / "tool_specs.json").is_file())
+
+    def test_luna_handoff_replaces_backend_calls_and_replays_reviewed_tasks(self):
+        class NoBackendCalls:
+            enabled = True
+
+            @staticmethod
+            def complete_json(system, prompt):
+                raise AssertionError("Luna handoff must not call the configured API model")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle_path = root / "research_bundle.json"
+            bundle_path.write_text(json.dumps(self.bundle.to_dict()), encoding="utf-8")
+            output = root / "output"
+            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=NoBackendCalls()):
+                summary = run(None, output, research_bundle=bundle_path, max_candidates=8, luna_review_export=True)
+            self.assertEqual(summary["semantic_review_status"], "awaiting_luna_review")
+
+            packet = json.loads((output / "luna_review_packet.json").read_text(encoding="utf-8"))
+            self.assertTrue(packet["candidates"])
+            candidate = packet["candidates"][0]
+            indexes = list(range(len(candidate["causal_core"])))
+            reviews_path = output / "luna_reviews.json"
+            review_payload = {
+                "usable_environment": True,
+                "keep_tool_names": [tool["name"] for tool in packet["tool_contracts"]],
+                "reason": "The locally validated tools support the reviewed task.",
+                "reviews": [{
+                    "candidate_id": candidate["candidate_id"],
+                    "keep_step_indices": indexes,
+                    "request": "Find and report the requested grounded result from the available records.",
+                    "answer_slots": [{
+                        "name": "result",
+                        "description": "The requested grounded result.",
+                        "step_indices": indexes,
+                    }],
+                    "rubric": ["Use the observed result."],
+                }],
+            }
+            reviews_path.write_text(json.dumps(review_payload), encoding="utf-8")
+            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=NoBackendCalls()):
+                completed = apply_luna_reviews(output, reviews_path)
+            self.assertEqual(completed["successful_tasks"], 1)
+            task_payload = json.loads((output / "tasks.json").read_text(encoding="utf-8"))
+            self.assertTrue(task_payload["tasks"][0]["validation"]["reference_plan_executed"])
+            self.assertEqual(
+                {tool["name"] for tool in task_payload["tasks"][0]["available_tools"]},
+                set(review_payload["keep_tool_names"]),
+            )
+
+    def test_luna_review_cannot_restore_an_unselected_tool_call(self):
+        _candidates, tools, _reports, _mode = self._validated_tools()
+        synthesizer = TaskSynthesizer(LLMClient())
+        _tasks, _mode, report = synthesizer.synthesize(
+            self.bundle.theme, tools, ToolGraph(tools).walks(count=8), self.records, candidate_only=True,
+        )
+        packet = TaskSynthesizer.luna_review_packet(self.bundle, tools, {"batches": [report]})
+        candidate = packet["candidates"][0]
+        used = {call["tool"] for call in candidate["causal_core"]}
+        selected = [tool for tool in tools if tool.name not in used]
+        indexes = list(range(len(candidate["causal_core"])))
+        tasks, imported = synthesizer.tasks_from_luna_reviews(selected, self.records, packet, {"reviews": [{
+            "candidate_id": candidate["candidate_id"],
+            "keep_step_indices": indexes,
+            "request": "Return the grounded result.",
+            "answer_slots": [{"name": "result", "description": "Result", "step_indices": indexes}],
+        }]})
+        self.assertEqual(tasks, [])
+        self.assertEqual(imported["rejected_reviews"], 1)
+
+    def test_luna_five_run_bridge_executes_calls_and_aggregates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "environment"
+            output.mkdir()
+            tools = self._validated_tools()[1]
+            synthesizer = TaskSynthesizer(LLMClient())
+            _empty, _mode, report = synthesizer.synthesize(
+                self.bundle.theme, tools, ToolGraph(tools).walks(count=8), self.records, candidate_only=True,
+            )
+            packet = TaskSynthesizer.luna_review_packet(self.bundle, tools, {"batches": [report]})
+            candidate = packet["candidates"][0]
+            indexes = list(range(len(candidate["causal_core"])))
+            reviewed, _imported = synthesizer.tasks_from_luna_reviews(tools, self.records, packet, {"reviews": [{
+                "candidate_id": candidate["candidate_id"],
+                "keep_step_indices": indexes,
+                "request": "Return the grounded result for the requested country indicator.",
+                "answer_slots": [{"name": "result", "description": "Result", "step_indices": indexes}],
+            }]})
+            write_json(output / "research_bundle.json", self.bundle.to_dict())
+            write_json(output / "tool_specs.json", {"tools": [tool.to_dict() for tool in tools]})
+            write_json(output / "tasks.json", {
+                "generation_mode": "test",
+                "tasks": [reviewed[0].to_dict()],
+                "rejected_tasks": [],
+                "inconclusive_tasks": [],
+            })
+            write_json(output / "summary.json", {})
+            task = reviewed[0].to_dict()
+            for run_id in range(1, 6):
+                public = start_luna_rollout(output, task["task_id"], run_id)
+                self.assertNotIn("reference_execution", public)
+                for reference_call in task["validation"]["reference_calls"]:
+                    luna_call(output, task["task_id"], run_id, reference_call["tool"], reference_call["arguments"])
+                outcome = finish_luna_rollout(
+                    output, task["task_id"], run_id, task["reference_execution"]["reference_answer"],
+                )
+                self.assertTrue(outcome["success"])
+            aggregate = aggregate_luna_rollouts(output)
+            self.assertEqual(aggregate["tasks_passed"], 1)
+            verified = json.loads((output / "tasks.json").read_text(encoding="utf-8"))["tasks"][0]
+            self.assertEqual(verified["validation"]["five_run_verification"]["successes"], 2)
+            self.assertEqual(verified["validation"]["five_run_verification"]["attempted_runs"], 2)
+            self.assertTrue(verified["validation"]["five_run_verification"]["decided_early"])
+
+            repeated = aggregate_luna_rollouts(output)
+            self.assertEqual(repeated, aggregate)
+
+    def test_related_task_composition_requires_shared_real_entities(self):
+        def task(task_id, request, calls, entity_ids):
+            return {
+                "task_id": task_id,
+                "request": request,
+                "validation": {"reference_calls": calls},
+                "reference_execution": {"trace": [{"result": [{"entity_id": value} for value in entity_ids]}]},
+            }
+
+        left = task("task_001", "Describe company A.", [
+            {"tool": "search_companies", "arguments": {"query": "Company A"}},
+            {"tool": "get_company", "arguments": {"entity_id": "company-a"}},
+        ], ["company-a"])
+        right = task("task_002", "Report company A filings.", [
+            {"tool": "search_companies", "arguments": {"query": "Company A"}},
+            {"tool": "list_filings", "arguments": {"entity_id": "company-a"}},
+        ], ["company-a", "filing-a"])
+        unrelated = task("task_003", "Describe company B.", [
+            {"tool": "search_companies", "arguments": {"query": "Company B"}},
+            {"tool": "get_company", "arguments": {"entity_id": "company-b"}},
+        ], ["company-b"])
+        pairs = pair_tasks([left, right, unrelated])
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual([item["task_id"] for item in pairs[0][:2]], ["task_001", "task_002"])
+        self.assertEqual(len(pairs[0][2]), 3)
 
     def test_tools_are_derived_from_entities_and_relations(self):
         _candidates, tools, reports, mode = self._validated_tools()
@@ -85,6 +262,14 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("description", ranked[0])
         self.assertNotIn("left", comparison)
         self.assertEqual(comparison["winner_id"], "model-a")
+
+    def test_identifier_numbers_do_not_create_rank_or_compare_tools(self):
+        records = [
+            Record("user", "user-a", {"name": "A", "user_number": 10}, "https://example.test/users"),
+            Record("user", "user-b", {"name": "B", "user_number": 20}, "https://example.test/users"),
+        ]
+        candidates, _ = ToolDesigner(LLMClient()).design(ResearchBundle("users", "test", "x", [], records, {}))
+        self.assertFalse(any(tool.operation in {"rank", "compare"} for tool in candidates))
 
     def test_join_records_compile_to_direct_bridge_tools(self):
         records = [
@@ -245,6 +430,23 @@ class PipelineTests(unittest.TestCase):
         tools, _mode = designer.design(bundle)
         self.assertEqual([tool.name for tool in tools], ["search_countries"])
         self.assertEqual(designer.last_selection_report["supported_mcp_tools"], ["find_country"])
+
+    def test_tool_agent_retries_an_unexplained_empty_selection_once(self):
+        class FlakyLLM:
+            enabled = True
+            calls = 0
+
+            @classmethod
+            def complete_json(cls, system, prompt):
+                cls.calls += 1
+                if cls.calls == 1:
+                    return json.dumps({"usable_environment": True, "keep_tool_names": []})
+                return json.dumps({"usable_environment": True, "keep_tool_names": ["search_countries"]})
+
+        designer = ToolDesigner(FlakyLLM())
+        tools, _mode = designer.design(self.bundle)
+        self.assertEqual([tool.name for tool in tools], ["search_countries"])
+        self.assertEqual(FlakyLLM.calls, 2)
 
     def test_research_request_requires_real_web_tool_use(self):
         client = LLMClient()
@@ -510,6 +712,59 @@ class PipelineTests(unittest.TestCase):
         judgment = FiveRunVerifier._judge({"request": "x"}, expected, trace, {"repository": "repo/b"})
         self.assertFalse(judgment["passed"])
 
+    def test_verifier_ignores_unrequested_discovery_rows_and_internal_ids(self):
+        expected = {"reference_answer": {"summaries": [[
+            {"entity_id": "faers:warfarin", "dataset": "FDA FAERS", "drug_id": "rxnorm:11289"},
+            {"entity_id": "faers:aspirin", "dataset": "FDA FAERS", "drug_id": "rxnorm:1191"},
+            {"entity_id": "faers:metformin", "dataset": "FDA FAERS", "drug_id": "rxnorm:6809"},
+        ]]}}
+        trace = [{"tool": "search", "arguments": {"query": "warfarin"}, "result": expected["reference_answer"]["summaries"][0]}]
+        judgment = FiveRunVerifier._judge(
+            {"request": "Compare warfarin and aspirin adverse event summaries."}, expected, trace,
+            {"summaries": [{"drug": "warfarin"}, {"drug": "aspirin"}]},
+        )
+        self.assertTrue(judgment["passed"])
+
+    def test_verifier_preview_handles_non_mapping_list_items(self):
+        self.assertEqual(FiveRunVerifier._preview(["a"] * 9)[-1], {"truncated": 1})
+
+    def test_verifier_normalizes_equivalent_tool_call_shapes(self):
+        tools = {"search_chemicals"}
+        expected = {
+            "kind": "call",
+            "call": {"tool": "search_chemicals", "arguments": {"query": "benzene"}},
+        }
+        self.assertEqual(
+            FiveRunVerifier._normalize_action(
+                {"tool": "search_chemicals", "arguments": {"query": "benzene"}}, tools, set(), False
+            ),
+            expected,
+        )
+        self.assertEqual(
+            FiveRunVerifier._normalize_action(
+                {"call": {"name": "search_chemicals", "parameters": {"query": "benzene"}}}, tools, set(), False
+            ),
+            expected,
+        )
+
+    def test_verifier_normalizes_equivalent_final_answer_shapes(self):
+        answer = {"chemical": {"name": "Benzene"}}
+        self.assertEqual(
+            FiveRunVerifier._normalize_action({"final_answer": answer}, set(), {"chemical"}, True),
+            {"kind": "final", "answer": answer},
+        )
+        self.assertEqual(
+            FiveRunVerifier._normalize_action(answer, set(), {"chemical"}, True),
+            {"kind": "final", "answer": answer},
+        )
+
+    def test_verifier_does_not_treat_an_unknown_action_as_an_answer(self):
+        self.assertIsNone(
+            FiveRunVerifier._normalize_action(
+                {"tool": "made_up", "arguments": {}}, {"search_chemicals"}, {"chemical"}, True
+            )
+        )
+
     def test_five_run_stops_after_two_successes(self):
         llm = type("EnabledLLM", (), {"enabled": True})()
         verifier = FiveRunVerifier(llm, None, [])
@@ -597,3 +852,21 @@ class PipelineTests(unittest.TestCase):
                 selected, report = select_prepared_themes(catalog, 1, root / "runs", selection_seed=1)
             self.assertEqual(selected[0].seed_label, "Library")
             self.assertEqual(report["selected"], 1)
+
+    def test_prepared_catalog_deduplicates_themes_before_fetching_details(self):
+        servers = [
+            {"qualifiedName": "vendor/product", "displayName": "Product MCP", "description": "A public business service with searchable operational records."},
+            {"qualifiedName": "vendor/product-v2", "displayName": "Product", "description": "A duplicate entry for the same public business service."},
+            {"qualifiedName": "vendor/library", "displayName": "Library", "description": "A public library service with searchable operational records."},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "prepared.json"
+            with (
+                patch("agent_world_mini.catalog._smithery_servers", return_value=servers),
+                patch("agent_world_mini.catalog._read_server_detail", side_effect=lambda item: item | {"tools": [{"name": "search"}]}),
+                patch("agent_world_mini.catalog._organize_environment", side_effect=lambda item, _llm: item | {"organizationStatus": "agent_organized"}),
+            ):
+                summary = prepare_smithery_catalog(output)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(summary["prepared"], 2)
+            self.assertEqual([item["displayName"] for item in payload["environments"]], ["Product MCP", "Library"])

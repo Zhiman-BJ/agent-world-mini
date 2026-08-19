@@ -1,0 +1,20 @@
+diff --git a/src/agents/mcpmark_agent.py b/src/agents/mcpmark_agent.py
+--- a/src/agents/mcpmark_agent.py
++++ b/src/agents/mcpmark_agent.py
+@@ -6,6 +6,7 @@ Unified agent using LiteLLM for all model interactions with minimal MCP support.
+ 
+ import asyncio
+ import json
++import os
+ import time
+ from typing import Any, Dict, List, Optional, Callable
+ from pydantic import AnyUrl
+@@ -849,7 +850,7 @@ class MCPMarkAgent(BaseMCPAgent):
+                     "model": self.litellm_input_model_name,
+                     "messages": messages,
+                     "api_key": self.api_key,
+-                    "max_tokens": 32768,
++                    "max_tokens": int(os.getenv("MCPMARK_MAX_TOKENS", "32768")),
+                     "temperature": 1.0,
+                     "enforcer_mode": "on",
+                     "think_mode": "on",

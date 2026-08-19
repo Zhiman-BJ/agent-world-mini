@@ -1,0 +1,24 @@
+diff --git a/verl/workers/engine/fsdp/transformer_impl.py b/verl/workers/engine/fsdp/transformer_impl.py
+index dd5cf33..41199b5 100644
+--- a/verl/workers/engine/fsdp/transformer_impl.py
++++ b/verl/workers/engine/fsdp/transformer_impl.py
+@@ -1063,8 +1063,18 @@ class FSDPEngine(BaseEngine):
+                 offload_fsdp_model_to_cpu(self.module)
+             log_gpu_memory_usage("After offload_fsdp_model_to_cpu", logger=logger)
+ 
++    @contextmanager
+     def disable_adapter(self) -> ContextManager:
+-        return self.module.disable_adapter()
++        from peft.tuners.tuners_utils import BaseTunerLayer
++
++        adapter_layers = [layer for layer in self.module.modules() if isinstance(layer, BaseTunerLayer)]
++        for layer in adapter_layers:
++            layer.enable_adapters(enabled=False)
++        try:
++            yield
++        finally:
++            for layer in adapter_layers:
++                layer.enable_adapters(enabled=True)
+ 
+ 
+ class EngineEvalModeCtx(BaseEngineCtx):

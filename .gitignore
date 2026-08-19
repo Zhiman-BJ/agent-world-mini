@@ -2,10 +2,20 @@
 .env
 .env.*
 !.env.example
+.deepseek-harness.env
 
 # Generated experiment artifacts
 runs/
 tmp/
+training_artifacts/
+artifacts/
+cross_audit*.json
+*_progress*.json
+
+# One-off server recovery and scheduling scripts
+training/run_gpu4_*.sh
+training/run_parallel_mcpmark_back_gpus.sh
+training/run_spare_gpu_one_pass_evals.sh
 
 # Python
 __pycache__/

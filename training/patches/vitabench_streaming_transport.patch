@@ -1,0 +1,105 @@
+diff --git a/src/vita/config.py b/src/vita/config.py
+index 6dc6c5b..a8bf966 100644
+--- a/src/vita/config.py
++++ b/src/vita/config.py
+@@ -27,7 +27,8 @@ def _deep_merge_dict(base_dict: dict, override_dict: dict) -> dict:
+ 
+ try:
+     with open(_models_yaml_path, 'r') as f:
+-        models_config_yaml = yaml.load(f, Loader=yaml.FullLoader)
++        config_text = os.path.expandvars(f.read())
++        models_config_yaml = yaml.load(config_text, Loader=yaml.FullLoader)
+ 
+     default_model_config = models_config_yaml.get('default', {})
+ 
+diff --git a/src/vita/utils/llm_utils.py b/src/vita/utils/llm_utils.py
+index 2da76b0..7b4dd32 100644
+--- a/src/vita/utils/llm_utils.py
++++ b/src/vita/utils/llm_utils.py
+@@ -118,6 +118,57 @@ def format_messages(messages: list[Message]) -> list[dict]:
+     return messages_formatted
+ 
+ 
++def consume_streaming_response(response: requests.Response) -> dict:
++    """Collect an OpenAI-compatible SSE response into one chat completion."""
++    response.raise_for_status()
++    message = {"role": "assistant", "content": ""}
++    reasoning_parts = []
++    tool_calls = {}
++    usage = {}
++
++    for line in response.iter_lines(decode_unicode=True):
++        if not line or not line.startswith("data:"):
++            continue
++        payload = line[5:].strip()
++        if payload == "[DONE]":
++            break
++        chunk = json.loads(payload)
++        if chunk.get("usage"):
++            usage = chunk["usage"]
++        choices = chunk.get("choices") or []
++        if not choices:
++            continue
++        delta = choices[0].get("delta") or {}
++        if delta.get("content"):
++            message["content"] += delta["content"]
++        reasoning = delta.get("reasoning_content") or delta.get("reasoning")
++        if reasoning:
++            reasoning_parts.append(reasoning)
++        for call in delta.get("tool_calls") or []:
++            index = call.get("index", 0)
++            current = tool_calls.setdefault(
++                index,
++                {
++                    "id": "",
++                    "type": "function",
++                    "function": {"name": "", "arguments": ""},
++                },
++            )
++            if call.get("id"):
++                current["id"] += call["id"]
++            function = call.get("function") or {}
++            if function.get("name"):
++                current["function"]["name"] += function["name"]
++            if function.get("arguments"):
++                current["function"]["arguments"] += function["arguments"]
++
++    if reasoning_parts:
++        message["reasoning_content"] = "".join(reasoning_parts)
++    if tool_calls:
++        message["tool_calls"] = [tool_calls[index] for index in sorted(tool_calls)]
++    return {"choices": [{"message": message}], "usage": usage}
++
++
+ def to_claude_think_official(messages_formatted: list[dict], messages: list[Message]) -> list[dict]:
+     try:
+         for i, (formatted_msg, original_msg) in enumerate(zip(messages_formatted, messages)):
+@@ -224,6 +275,9 @@ def generate(
+             data.update(models[model])
+             data = kwargs_adapter(data, enable_think, messages)
+             headers = models[model]["headers"]
++            base_url = models[model]["base_url"]
++            for config_key in ("base_url", "headers", "name", "max_input_tokens", "cost_1m_token_dollar"):
++                data.pop(config_key, None)
+ 
+             max_retries = 3
+             retry_delay = 1
+@@ -230,9 +284,16 @@ def generate(
+             for attempt in range(max_retries + 1):
+                 try:
+-                    response = requests.post(data["base_url"], json=data, headers=headers, timeout=(10, 600))
++                    use_stream = bool(data.get("stream"))
++                    response = requests.post(
++                        base_url, json=data, headers=headers,
++                        timeout=(10, 600), stream=use_stream,
++                    )
+ 
+                     if response.status_code != 500:
+-                        response = response.json()
++                        response = (
++                            consume_streaming_response(response)
++                            if use_stream else response.json()
++                        )
+                         break
+ 
+                     if attempt < max_retries:

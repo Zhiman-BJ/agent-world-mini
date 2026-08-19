@@ -100,20 +100,28 @@ def _read_server_detail(server: dict[str, object]) -> dict[str, object] | None:
 def _organize_environment(item: dict[str, object], llm: LLMClient) -> dict[str, object]:
     if not llm.enabled:
         return item | {"organizationStatus": "raw_catalog_record"}
+    tool_clues = [
+        {
+            "name": str(tool.get("name") or ""),
+            "description": str(tool.get("description") or "")[:500],
+        }
+        for tool in item.get("tools", [])
+        if isinstance(tool, dict) and tool.get("name")
+    ]
     try:
         organized = extract_json_object(llm.complete_json(
-            "Organize this MCP description for a later research agent. Its tools are capability clues, not a required final tool list.",
+            "Organize this MCP description for a later research agent and return JSON. Its tools are capability clues, not a required final tool list.",
             json.dumps({
                 "name": item.get("displayName") or item.get("qualifiedName"),
                 "description": item.get("description", ""),
-                "tools": item.get("tools", []),
+                "tools": tool_clues,
                 "return": {
                     "business_description": "brief description of the real service or workflow",
                     "data_directions": ["types of real public data likely to support this environment"],
                 },
             }, ensure_ascii=False),
         ))
-    except (RuntimeError, ValueError, TypeError, KeyError):
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError):
         return item | {"organizationStatus": "agent_failed"}
     result = dict(item)
     result["description"] = str(organized.get("business_description") or item.get("description") or "")
@@ -128,10 +136,20 @@ def prepare_smithery_catalog(
     limit: int = 0,
     llm: LLMClient | None = None,
 ) -> dict[str, object]:
-    servers = [
-        item for item in _smithery_servers(query)
-        if not item.get("inactive") and not item.get("unlisted") and len(str(item.get("description") or "")) >= 40
-    ]
+    servers: list[dict[str, object]] = []
+    seen_themes: set[str] = set()
+    for item in _smithery_servers(query):
+        theme_key = _normal_name(str(item.get("displayName") or item.get("qualifiedName") or ""))
+        if (
+            item.get("inactive")
+            or item.get("unlisted")
+            or len(str(item.get("description") or "")) < 40
+            or not theme_key
+            or theme_key in seen_themes
+        ):
+            continue
+        seen_themes.add(theme_key)
+        servers.append(item)
     if limit > 0:
         servers = servers[:limit]
     with ThreadPoolExecutor(max_workers=8) as pool:

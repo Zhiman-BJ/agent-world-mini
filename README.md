@@ -4,14 +4,17 @@
 
 它从一个主题或 MCP 目录项出发，搜索真实公开数据，根据数据生成可调用工具，再从工具之间真实可执行的数据依赖中生成任务。项目当前仍是研究原型，重点是把每一步留下来，方便检查数据从哪里来、工具为什么存在、任务能不能真正执行。
 
-## 先看懂两种运行方式
+## 先看懂三种运行方式
 
-这个仓库有两种使用方式，它们目前是分开的：
+这个仓库有三种 Research Agent 使用方式：
 
 1. **内置 Research Agent**：Python pipeline 自己完成网络研究，再继续生成工具、图、任务和可选的 5-run。
-2. **Codex Research Agent**：Codex 子智能体只负责网络研究并写出 `research_bundle.json`，Python pipeline 通过 `--research-bundle` 接过这个文件，继续完成后半段。
+2. **外部 Research Agent**：Codex 或 Luna 子智能体只负责网络研究并写出 `research_bundle.json`，Python pipeline 通过 `--research-bundle` 接过这个文件，继续完成后半段。
+3. **DeepSeek Harness Research Agent**：Python CLI 自动调用本机 `dsh` 完成同一个研究文件，再直接继续后半段。
 
-两种方式共用同一套工具生成、执行验证、图采样和任务生成代码，区别只在 Research Agent。需要让 Codex 深入研究几个工业主题时，阅读 [Codex Research Agent 用法](docs/CODEX_WORKFLOW_ZH.md)，并把 [Codex 执行提示词](CODEX_PROMPT.md)交给 Codex。
+三种方式共用同一套工具生成、执行验证、图采样和任务生成代码，区别只在 Research Agent。需要让 Codex 深入研究几个工业主题时，阅读 [Codex Research Agent 用法](docs/CODEX_WORKFLOW_ZH.md)，并把 [Codex 执行提示词](CODEX_PROMPT.md)交给 Codex。模型训练、GRPO 和正式评测见 [训练与评测说明](training/README_ZH.md)。
+
+后半段的工具筛选和任务语义审核也可以交给 Luna 子智能体，不再调用配置的 DeepSeek API。Python 仍负责生成工具、构图、执行候选链和参考答案，Luna 只从已有工具和真实执行候选中做选择。
 
 ## Pipeline 做了什么
 
@@ -50,6 +53,15 @@ OPENROUTER_TIMEOUT_SECONDS=35
 ```
 
 `.env` 已被 Git 忽略，不会正常进入提交。不要把真实密钥写进 README、命令示例或源码。
+
+使用 DeepSeek Harness 时，再安装官方 CLI 并填写单独的本地配置：
+
+```powershell
+npm install -g @deepseek-ai/dsh
+Copy-Item .deepseek-harness.env.example .deepseek-harness.env
+```
+
+`DEEPSEEK_BASE_URL` 填 OpenAI-compatible API 的 `/v1` 基址，不要带 `/chat/completions`。这个本地配置文件也已被 Git 忽略。
 
 ## 最快跑一次
 
@@ -109,6 +121,49 @@ python -m agent_world_mini `
 
 这里不是让 Codex 手写 `tool_specs.json`、`tool_graph.json` 或 `tasks.json`；这些仍由 pipeline 统一生成。
 
+## 用 Luna 接管后半段审核
+
+先让 Python 完成工具执行验证和候选链执行，并导出 Luna 交接文件：
+
+```powershell
+python -m agent_world_mini `
+  --research-bundle runs/codex-genomics/research_bundle.json `
+  --output-root runs `
+  --slug codex-genomics `
+  --luna-review-export
+```
+
+然后让 Luna 子智能体读取 `runs/codex-genomics/luna_review_packet.json`，按文件中的格式写出 `runs/codex-genomics/luna_reviews.json`。最后导入审核结果：
+
+```powershell
+python -m agent_world_mini `
+  --output-root runs `
+  --slug codex-genomics `
+  --luna-reviews runs/codex-genomics/luna_reviews.json
+```
+
+一次 Luna 审核同时选择可用工具并审查任务。Luna 不能增加工具、修改参数或编造调用链；导入时 Python 会按原候选重新执行，并据此生成 `tasks.json` 和参考答案。
+
+## 用 DeepSeek Harness 自动执行 Research Agent
+
+从准备好的本地目录选择一个尚未运行的环境，并自动完成研究和后半段：
+
+```powershell
+python -m agent_world_mini --batch-size 1 --deepseek-harness
+```
+
+也可以对人工指定的主题运行：
+
+```powershell
+python -m agent_world_mini `
+  --theme "公开药品监管与不良事件数据" `
+  --source-url "https://example.com/starting-page" `
+  --deepseek-harness `
+  --slug deepseek-pharma
+```
+
+Harness 只写 `research_bundle.json`。工具、图、链和任务仍由 Python pipeline 生成。当前配置使用 Harness 的 PowerShell 工具访问真实网页和公开 API。
+
 ## 可选的 5-run
 
 ```powershell
@@ -121,6 +176,8 @@ python -m agent_world_mini `
 5-run 会让求解模型独立尝试每个任务 5 次。当前规则是至少 2 次给出有依据的正确结果才保留。网络或模型服务故障会记为基础设施问题，不会伪装成模型答错。
 
 这一步消耗最多 API 调用，建议先检查普通运行的数据和任务，再决定是否执行。
+
+Luna 文件审核目前不替代 5-run。5-run 是模型在看不到参考链的情况下现场调用工具解题，需要逐步交互；把静态审核伪装成 5-run 会使验证失真。
 
 ## 输出文件
 
@@ -135,6 +192,8 @@ python -m agent_world_mini `
 | `tool_validation.json` | 每个候选工具的实际执行结果 |
 | `tool_graph.json` | 工具依赖边和严格路径 |
 | `walk_synthesis.json` | 原始游走、执行、去重和语义审查记录 |
+| `luna_review_packet.json` | 等待 Luna 选择工具和审查真实候选的交接文件 |
+| `luna_review_result.json` | Luna 审核导入后的接受与拒绝统计 |
 | `tasks.json` | 最终任务与隐藏参考调用链 |
 | `summary.json` | 本次运行的简要统计 |
 
@@ -150,6 +209,8 @@ python -m agent_world_mini `
 --react-max-steps N         5-run 中单次求解的工具调用预算
 --output-root PATH          输出根目录，默认 runs
 --research-bundle PATH      读取 Codex 产出的研究数据并跳过内置网络研究
+--luna-review-export        不调用后端模型，导出 Luna 审核交接文件
+--luna-reviews PATH         导入 Luna 审核结果并重放生成最终任务
 ```
 
 完整说明见 [中文使用手册](docs/USAGE_ZH.md)。设计取舍见 [工具设计与筛选](TOOL_DESIGN_AND_FILTERING.md)，实验记录和已知问题见 [实验记录](EXPERIMENTS.md)。
@@ -166,3 +227,4 @@ python -m unittest discover -s tests -q
 - Generic Research Agent 的效果取决于模型的搜索能力和公开数据质量。
 - “参考调用链能执行”只说明环境内部答案存在，不等于任意模型都能完成任务。
 - Codex 子智能体通过 `research_bundle.json` 接入 Research Agent 阶段；子智能体调度仍发生在 Codex 会话中，不是 Python CLI 自动创建的。
+- DeepSeek Harness 可以由 `--deepseek-harness` 自动启动，但必须先安装官方 `dsh` 并配置可用的模型接口。

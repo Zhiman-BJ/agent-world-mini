@@ -91,6 +91,11 @@ class ResearchBundle:
                 for record in records
             ]
         }
+        complexification_value = value.get("complexification", [])
+        if isinstance(complexification_value, dict):
+            complexification_value = [complexification_value]
+        elif isinstance(complexification_value, str):
+            complexification_value = [{"note": complexification_value}]
         return cls(
             theme=str(value["theme"]),
             adapter=str(value.get("adapter") or "codex_research_agent"),
@@ -99,7 +104,7 @@ class ResearchBundle:
             records=records,
             derived_datasets=derived_datasets,
             theme_metadata=dict(value.get("theme_metadata", {})),
-            complexification=[dict(item) for item in value.get("complexification", [])],
+            complexification=[dict(item) for item in complexification_value if isinstance(item, dict)],
             state_contract=state_contract,
             overlay_seed=[dict(item) for item in value.get("overlay_seed", [])],
         )
