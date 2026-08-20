@@ -78,7 +78,7 @@ def call(environment_dir: Path, task_id: str, run_id: int, tool_name: str, argum
         raise ValueError("This rollout is already finished")
     if len(session["calls"]) >= int(session["max_steps"]):
         raise ValueError("This rollout has exhausted its tool-call budget")
-    runtime = LocalToolRuntime(bundle.records, tools)
+    runtime = LocalToolRuntime(bundle, tools)
     for previous in session["calls"]:
         runtime.call(previous["tool"], previous["arguments"])
     result = runtime.call(tool_name, arguments)
@@ -88,11 +88,19 @@ def call(environment_dir: Path, task_id: str, run_id: int, tool_name: str, argum
 
 
 def finish(environment_dir: Path, task_id: str, run_id: int, answer: dict[str, Any]) -> dict[str, Any]:
-    _bundle, _tools, tasks = _load_environment(environment_dir)
+    bundle, tools, tasks = _load_environment(environment_dir)
     task = _find_task(tasks, task_id)
     path = _session_path(environment_dir, task_id, run_id)
     session = _load_json(path)
     judgment = FiveRunVerifier._judge(task, task["reference_execution"], session["calls"], answer)
+    outcome = task.get("validation", {}).get("outcome", {})
+    if judgment.get("passed") and outcome:
+        runtime = LocalToolRuntime(bundle, tools)
+        for previous in session["calls"]:
+            runtime.call(previous["tool"], previous["arguments"])
+        state_judgment = runtime.check_outcome(outcome)
+        if not state_judgment["passed"]:
+            judgment = {"passed": False, "reason": "state_or_file_outcome_mismatch", **state_judgment}
     session["final_answer"] = answer
     session["judgment"] = judgment
     session["success"] = bool(judgment["passed"])

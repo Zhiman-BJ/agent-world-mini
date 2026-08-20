@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+from pathlib import Path
 from typing import Any
+
+from agent_world_mini.runtime import LocalToolRuntime
 
 
 def anchors(value: Any, field: str = "") -> list[str]:
@@ -182,6 +186,46 @@ def score_one(solution: str, ground_truth: str | dict[str, Any]) -> dict[str, fl
     }
 
 
+def replay_outcome(
+    solution: str,
+    expected: dict[str, Any],
+    extra_info: dict[str, Any] | None,
+) -> float | None:
+    outcome = expected.get("outcome")
+    if not outcome:
+        return None
+    info = extra_info or {}
+    tools_kwargs = info.get("tools_kwargs", {})
+    if not isinstance(tools_kwargs, dict) or not tools_kwargs:
+        return 0.0
+    first = next(iter(tools_kwargs.values()), {})
+    relative = first.get("create_kwargs", {}).get("environment_file") if isinstance(first, dict) else None
+    data_root = info.get("data_root") or os.environ.get("AGENTWORLD_DATA_ROOT")
+    if not relative or not data_root:
+        return 0.0
+    try:
+        payload = json.loads((Path(str(data_root)) / str(relative)).read_text(encoding="utf-8"))
+        runtime = LocalToolRuntime.from_dict(payload)
+        calls = re.findall(r"<tool_call>\s*(.*?)\s*</tool_call>", solution, flags=re.DOTALL)
+        for text in calls:
+            action = parse_json_object(text)
+            if not isinstance(action, dict):
+                return 0.0
+            function = action.get("function") if isinstance(action.get("function"), dict) else action
+            name = function.get("name") or function.get("tool")
+            arguments = function.get("arguments", function.get("parameters", {}))
+            if isinstance(arguments, str):
+                arguments = json.loads(arguments)
+            config = tools_kwargs.get(name, {})
+            original = config.get("create_kwargs", {}).get("original_name") if isinstance(config, dict) else None
+            if not original or not isinstance(arguments, dict):
+                return 0.0
+            runtime.call(str(original), arguments)
+        return float(runtime.check_outcome(outcome)["passed"])
+    except Exception:
+        return 0.0
+
+
 def compute_score(
     data_source: str | None = None,
     solution_str: str | None = None,
@@ -195,7 +239,23 @@ def compute_score(
 ) -> dict[str, float] | list[dict[str, float]]:
     """Score one current veRL rollout, while retaining old batch-runner compatibility."""
     if solution_str is not None and ground_truth is not None:
-        return score_one(solution_str, ground_truth)
+        expected = json.loads(ground_truth) if isinstance(ground_truth, str) else ground_truth
+        scored = score_one(solution_str, expected)
+        outcome_score = replay_outcome(solution_str, expected, extra_info)
+        if outcome_score is not None:
+            scored["outcome"] = outcome_score
+            scored["score"] *= outcome_score
+        return scored
     if solution_strs is None or ground_truths is None:
         raise ValueError("Missing rollout solution or ground truth")
-    return [score_one(solution, truth) for solution, truth in zip(solution_strs, ground_truths, strict=True)]
+    infos = extra_infos or [{} for _ in solution_strs]
+    results = []
+    for solution, truth, info in zip(solution_strs, ground_truths, infos, strict=True):
+        expected = json.loads(truth) if isinstance(truth, str) else truth
+        scored = score_one(solution, expected)
+        outcome_score = replay_outcome(solution, expected, info)
+        if outcome_score is not None:
+            scored["outcome"] = outcome_score
+            scored["score"] *= outcome_score
+        results.append(scored)
+    return results

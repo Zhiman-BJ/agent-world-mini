@@ -79,9 +79,10 @@ def export_packet(environment_dir: Path) -> dict[str, Any]:
     bundle = ResearchBundle.from_dict(_load(environment_dir / "research_bundle.json"))
     tools = [ToolSpec(**item) for item in _load(environment_dir / "tool_specs.json").get("tools", [])]
     tasks = _load(environment_dir / "tasks.json").get("tasks", [])
-    runtime = LocalToolRuntime(bundle.records, tools)
+    runtime = LocalToolRuntime(bundle, tools)
     compositions = []
     for index, (left, right, calls) in enumerate(pair_tasks(tasks), start=1):
+        runtime.reset()
         execution = runtime.execute(calls)
         compositions.append({
             "composition_id": f"composition_{index:03d}",
@@ -129,7 +130,7 @@ def import_reviews(environment_dir: Path, reviews_path: Path) -> dict[str, Any]:
         if isinstance(item, dict) and item.get("composition_id")
     }
     synthesizer = TaskSynthesizer(LLMClient())
-    runtime = LocalToolRuntime(bundle.records, tools)
+    runtime = LocalToolRuntime(bundle, tools)
     existing = list(tasks_payload.get("tasks", []))
     seen_requests = {str(task.get("request")) for task in existing}
     accepted = []

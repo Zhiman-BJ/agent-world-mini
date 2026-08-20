@@ -185,7 +185,7 @@ Luna 文件审核目前不替代 5-run。5-run 是模型在看不到参考链的
 
 | 文件 | 内容 |
 | --- | --- |
-| `research_bundle.json` | 结构化数据、来源 URL 和研究过程 |
+| `research_bundle.json` | 真实结构化数据、可选文件资源、本地状态蓝图、来源 URL 和研究过程 |
 | `theme_registry.json` | 使用的主题目录项或来源页面 |
 | `environment_manifest.json` | 环境状态、对智能体可见的内容和重置方式 |
 | `tool_specs.json` | 最终工具定义 |

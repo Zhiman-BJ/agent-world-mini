@@ -91,9 +91,28 @@ python -m agent_world_mini `
       "source_url": "https://www.ncbi.nlm.nih.gov/clinvar/..."
     }
   ],
+  "resources": [
+    {
+      "resource_id": "clinvar-summary",
+      "name": "clinvar-summary.json",
+      "media_type": "application/json",
+      "source_url": "https://真实数据地址",
+      "content": {"实际下载的数据": []}
+    }
+  ],
   "theme_metadata": {
     "theme_id": "codex-genomics",
-    "source_type": "codex_research_bundle"
+    "source_type": "codex_research_bundle",
+    "environment_blueprint": {
+      "mutable_entities": [
+        {
+          "entity_type": "analysis_job",
+          "fields": {"status": {"type": "string", "example": "queued", "update_example": "complete"}},
+          "operations": ["create", "read", "update", "delete"]
+        }
+      ],
+      "python_tools": []
+    }
   },
   "complexification": []
 }
@@ -106,7 +125,7 @@ python -m agent_world_mini `
 3. 关系使用 `*_id` 字段，并且值等于另一条记录的 `entity_id`。
 4. 多对多关系使用以 `_link` 结尾的实体，例如 `variant_publication_link`，其中保存 `variant_id` 和 `publication_id`。
 
-`derived_datasets` 和 `state_contract` 可以省略，pipeline 会根据记录自动生成。Codex 不需要提前设计工具，也不需要填写任务。
+`resources` 和 `environment_blueprint` 是可选的：前者保存实际下载的小型 JSON、CSV 或文本，后者只描述本地可变任务状态。Codex 不需要写最终工具和任务；pipeline 会统一编译和验证。`derived_datasets` 和 `state_contract` 仍可省略。
 
 ## 研究做到什么程度就停
 

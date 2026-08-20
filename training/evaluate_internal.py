@@ -10,10 +10,9 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 
 from agent_world_mini.io_utils import extract_json_object
-from agent_world_mini.models import Record, ToolSpec
 from agent_world_mini.runtime import LocalToolRuntime
 from agent_world_mini.verification import FiveRunVerifier
 
@@ -24,7 +23,7 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def make_runtime(path: Path) -> LocalToolRuntime:
     value = json.loads(path.read_text(encoding="utf-8"))
-    return LocalToolRuntime([Record(**item) for item in value["records"]], [ToolSpec(**item) for item in value["tools"]])
+    return LocalToolRuntime.from_dict(value)
 
 
 def parse_answer(text: str) -> dict[str, Any] | None:
@@ -35,6 +34,37 @@ def parse_answer(text: str) -> dict[str, Any] | None:
         return None
 
 
+def chat_with_context_retry(
+    client: OpenAI,
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    temperature: float,
+    max_output_tokens: int,
+) -> Any:
+    """Retry only context-length failures with a smaller completion budget."""
+    budgets = [max_output_tokens]
+    while budgets[-1] > 128:
+        budgets.append(max(128, budgets[-1] // 2))
+    for budget in dict.fromkeys(budgets):
+        try:
+            return client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                temperature=temperature,
+                top_p=0.95 if temperature else 1.0,
+                max_tokens=budget,
+            ).choices[0].message
+        except BadRequestError as error:
+            message = str(error).lower()
+            if "maximum context length" not in message and "context length" not in message:
+                raise
+            if budget == budgets[-1]:
+                raise
+
+
 def run_once(
     client: OpenAI,
     model: str,
@@ -43,6 +73,7 @@ def run_once(
     registry: dict[str, Any],
     temperature: float,
     max_steps: int,
+    max_output_tokens: int,
 ) -> dict[str, Any]:
     extra = row["extra_info"]
     runtime = make_runtime(data_root / next(iter(extra["tools_kwargs"].values()))["create_kwargs"]["environment_file"])
@@ -54,13 +85,14 @@ def run_once(
     messages = deepcopy(row["prompt"])
     trace: list[dict[str, Any]] = []
     for _ in range(max_steps):
-        response = client.chat.completions.create(
+        response = chat_with_context_retry(
+            client,
             model=model,
             messages=messages,
             tools=tools,
             temperature=temperature,
-            top_p=0.95 if temperature else 1.0,
-        ).choices[0].message
+            max_output_tokens=max_output_tokens,
+        )
         assistant: dict[str, Any] = {"role": "assistant", "content": response.content or ""}
         if response.tool_calls:
             assistant["tool_calls"] = [call.model_dump() for call in response.tool_calls]
@@ -70,6 +102,10 @@ def run_once(
             answer = parse_answer(response.content or "")
             task = {"request": truth["request"], "validation": {"answer_slots": truth["answer_slots"]}}
             judgment = FiveRunVerifier._judge(task, {"reference_answer": truth["reference_answer"]}, trace, answer)
+            if judgment.get("passed") and truth.get("outcome"):
+                state_judgment = runtime.check_outcome(truth["outcome"])
+                if not state_judgment["passed"]:
+                    judgment = {"passed": False, "reason": "state_or_file_outcome_mismatch", **state_judgment}
             return {
                 "success": judgment["passed"],
                 "calls": trace,
@@ -102,6 +138,7 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-steps", type=int, default=16)
+    parser.add_argument("--max-output-tokens", type=int, default=4096)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     root = args.data_root.resolve()
@@ -114,7 +151,18 @@ def main() -> None:
     def evaluate_row(index: int, row: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         attempts = []
         for _ in range(args.runs):
-            attempts.append(run_once(client, args.model, row, root, registry, args.temperature, args.max_steps))
+            attempts.append(
+                run_once(
+                    client,
+                    args.model,
+                    row,
+                    root,
+                    registry,
+                    args.temperature,
+                    args.max_steps,
+                    args.max_output_tokens,
+                )
+            )
         return index, {
             "environment_id": row["extra_info"]["environment_id"],
             "task_id": row["extra_info"]["task_id"],
@@ -144,6 +192,7 @@ def main() -> None:
         "tasks": len(results),
         "runs": args.runs,
         "temperature": args.temperature,
+        "max_output_tokens": args.max_output_tokens,
         "pass_at_1": round(pass_at_1, 6),
         "pass_at_k": round(pass_at_k, 6),
         "by_reference_length": {

@@ -17,7 +17,7 @@
 1. 先理解主题对应的真实工作流，再选择需要的实体和关系。优先官方 API、官方数据集和权威结构化来源。
 2. 只保存真实抓取到、可以追溯的事实。每条记录必须有 `source_url`，禁止用模型常识补值或生成虚构记录。
 3. 数据扩展的目标是改善实体多样性、关系覆盖和自然可达深度。继续增加同一父节点下的相似文件、图片、零件或记录，不算进展。
-4. 不下载模型权重、基因组大文件、遥感影像、PDF、压缩包、二进制文件或整站文件列表。只保留对环境结构有帮助的少量代表数据和元数据。
+4. 可以保留任务真正会使用的少量 JSON、CSV 或文本文件；不下载模型权重、基因组大文件、遥感影像、PDF、压缩包、二进制文件或整站文件列表。
 5. 不预先规定必须挖多少条。主要工作流已经连通，而继续搜索只会增加同类叶子时就停止；数据不足以构成环境时要如实说明。
 6. 不为合成一张连通图而添加没有来源支持的关系。真实的多个连通分量可以保留并解释。
 7. `entity_id` 必须稳定且在同类实体中唯一。子实体的 ID 要包含父级范围，避免不同仓库或不同产品下的同名项被合并。
@@ -50,9 +50,29 @@ runs/codex-<slug>/research_bundle.json
       "source_url": "支持这条记录的真实 URL"
     }
   ],
+  "resources": [
+    {
+      "resource_id": "稳定资源 ID",
+      "name": "data.json",
+      "media_type": "application/json",
+      "source_url": "真实下载 URL",
+      "content": {"实际下载并解析的内容": true}
+    }
+  ],
   "theme_metadata": {
     "theme_id": "codex-<slug>",
-    "source_type": "codex_research_bundle"
+    "source_type": "codex_research_bundle",
+    "environment_blueprint": {
+      "mutable_entities": [
+        {
+          "entity_type": "本地可操作对象",
+          "fields": {"status": {"type": "string", "example": "queued", "update_example": "complete"}},
+          "operations": ["create", "read", "update", "delete"],
+          "update_fields": ["status"]
+        }
+      ],
+      "python_tools": []
+    }
   },
   "complexification": [
     {"round": 1, "reason": "补充了什么关系", "result": "增加了哪些真实实体"}
@@ -60,7 +80,7 @@ runs/codex-<slug>/research_bundle.json
 }
 ```
 
-`derived_datasets` 和 `state_contract` 不需要子智能体填写，pipeline 会自动生成。
+`resources` 只放实际下载的小文件；`environment_blueprint` 只描述用户在本地沙箱中管理的任务、集合、报告等对象，不能把模型编造的事实放进去。两者没有合适内容时都可以省略。最终工具、实现、图和任务仍由 pipeline 生成。`derived_datasets` 和 `state_contract` 不需要子智能体填写。
 
 子智能体完成后，主智能体必须先独立抽查来源、记录和 ID 关系。确认无明显问题后，为每个环境执行：
 

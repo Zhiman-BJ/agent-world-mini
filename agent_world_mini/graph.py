@@ -21,7 +21,7 @@ class ToolGraph:
 
     @staticmethod
     def _output_entity(tool: ToolSpec) -> str | None:
-        if tool.operation in {"search", "lookup", "rank", "compare", "filter"}:
+        if tool.operation in {"search", "lookup", "rank", "compare", "filter", "create", "update"}:
             return tool.entity_type
         if tool.operation in {"relation", "relation_rank", "linked_id", "bridge_relation"}:
             return tool.related_entity_type
@@ -29,21 +29,47 @@ class ToolGraph:
 
     @staticmethod
     def _input_entity(tool: ToolSpec) -> str | None:
-        if tool.operation in {"lookup", "compare", "relation", "relation_rank", "linked_id", "bridge_relation"}:
+        if tool.operation in {"lookup", "compare", "relation", "relation_rank", "linked_id", "bridge_relation", "update", "delete"}:
             return tool.entity_type
         return None
 
     def _edge_kind(self, source: ToolSpec, target: ToolSpec) -> tuple[str, int, str] | None:
+        if source.name in target.requires_tools:
+            return "strong", 3, "declared prerequisite"
         declared = [binding for binding in target.input_bindings.values() if binding.startswith(f"{source.name}.")]
         if declared and self._values_can_flow(source, target):
             return "strong", 3, ", ".join(declared)
+        changed_state = [] if source.operation in {"delete", "delete_file"} else sorted(set(source.writes) & set(target.reads))
+        if changed_state and not self._same_state_object(source, target):
+            changed_state = []
+        if changed_state:
+            return "state", 3, ", ".join(changed_state)
         output_entity = self._output_entity(source)
         if output_entity and output_entity == self._input_entity(target) and self._values_can_flow(source, target):
             return "weak", 2, f"{output_entity} value can flow into the target"
         return None
 
+    @staticmethod
+    def _same_state_object(source: ToolSpec, target: ToolSpec) -> bool:
+        target_selectors = target.selector_inputs()
+        if not target_selectors:
+            return True
+        source_bindings = {
+            source.input_bindings[name]
+            for name in source.selector_inputs()
+            if source.input_bindings.get(name)
+        }
+        target_bindings = {
+            target.input_bindings[name]
+            for name in target_selectors
+            if target.input_bindings.get(name)
+        }
+        return bool(source_bindings & target_bindings)
+
     def _values_can_flow(self, source: ToolSpec, target: ToolSpec) -> bool:
         if self.runtime is None:
+            return True
+        if source.mutates_state or target.mutates_state:
             return True
         possible = self._possible_output_ids(source)
         accepted = self._feasible_input_ids(target)
@@ -125,7 +151,7 @@ class ToolGraph:
         incoming = defaultdict(int)
         outgoing: dict[str, list[str]] = defaultdict(list)
         for edge in self.edges:
-            if edge["kind"] == "strong":
+            if edge["kind"] in {"strong", "state"}:
                 incoming[str(edge["to"])] += 1
                 outgoing[str(edge["from"])].append(str(edge["to"]))
         roots = sorted(name for name in self.tools if incoming[name] == 0)
@@ -167,9 +193,17 @@ class ToolGraph:
 
         def add_with_priors(path: list[str], name: str, depth: int = 0) -> None:
             if depth < 3:
+                tool = self.tools[name]
+                declared_priors = list(dict.fromkeys([
+                    *tool.requires_tools,
+                    *(binding.partition(".")[0] for binding in tool.input_bindings.values() if "." in binding),
+                ]))
+                for prior in declared_priors:
+                    if prior in self.tools and prior not in path:
+                        add_with_priors(path, prior, depth + 1)
                 available_entities = {self._output_entity(self.tools[item]) for item in path}
-                needs_internal = any(source == "internal" for source in self.tools[name].input_sources.values())
-                if needs_internal and self._input_entity(self.tools[name]) not in available_entities:
+                needs_internal = any(source == "internal" for source in tool.input_sources.values())
+                if not declared_priors and needs_internal and self._input_entity(tool) not in available_entities:
                     priors = [item for item in incoming_strong[name] if item not in path]
                     if priors:
                         prior = rng.choice(sorted(priors, key=lambda item: (self.tools[item].operation != "search", item)))
@@ -180,7 +214,7 @@ class ToolGraph:
 
         roots = [
             name for name in names
-            if self._output_entity(self.tools[name]) is not None
+            if self.tools[name].produces
             and not any(source == "internal" for source in self.tools[name].input_sources.values())
         ] or names
         root_weights = {
@@ -212,6 +246,8 @@ class ToolGraph:
                 operation_priority = {
                     "relation_rank": 6, "bridge_relation": 5, "relation": 5,
                     "compare": 4, "lookup": 3, "linked_id": 2,
+                    "create": 5, "update": 6, "delete": 4,
+                    "copy_resource": 5, "read_file": 6, "python": 6, "write_file": 5,
                 }
                 weighted_choices = [
                     edge
@@ -234,7 +270,7 @@ class ToolGraph:
                         output_entity = self._output_entity(self.tools[target])
                         if input_entity and output_entity and input_entity != output_entity:
                             transitions.add((input_entity, output_entity))
-                            frontier.append((target, depth + 1))
+                        frontier.append((target, depth + 1))
                     feasible = self._feasible_input_ids(self.tools[target])
                     if (
                         len(path) < max_steps

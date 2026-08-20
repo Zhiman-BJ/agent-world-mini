@@ -8,6 +8,7 @@ from typing import Any
 from .io_utils import extract_json_object
 from .llm import LLMClient
 from .models import ResearchBundle, ToolSpec
+from .compiler import EnvironmentCompiler
 
 
 def _slug(value: str) -> str:
@@ -146,6 +147,7 @@ class ToolDesigner:
 
         tools.extend(self._relation_tools(by_type, search_tools))
         tools.extend(self._bridge_tools(by_type, search_tools))
+        tools.extend(EnvironmentCompiler(self.llm).compile_tools(bundle))
         candidates = self._deduplicate(tools)
         if not use_agent_selection:
             self.last_selection_report = {
@@ -197,6 +199,11 @@ class ToolDesigner:
             ],
             "data_entities": bundle.state_contract.get("entities", []),
             "data_relations": bundle.state_contract.get("relations", []),
+            "local_resources": [
+                {key: resource.get(key) for key in ("resource_id", "name", "media_type", "source_url")}
+                for resource in bundle.resources
+            ],
+            "environment_blueprint": bundle.theme_metadata.get("environment_blueprint", {}),
             "candidate_tools": [
                 {"name": tool.name, "description": tool.description, "inputs": tool.inputs, "outputs": tool.outputs}
                 for tool in candidates
@@ -278,6 +285,7 @@ class ToolDesigner:
                 name for name in requested
                 if by_name[name].entity_type in connected_entities
                 or by_name[name].related_entity_type in connected_entities
+                or name in supported_candidate_names
             ]
             requested_names = set(requested)
         keep = set(requested)
@@ -496,6 +504,9 @@ class ToolDesigner:
             fingerprint = (
                 tool.operation, tool.entity_type, tool.related_entity_type, tool.relation_field,
                 tool.link_entity_type, tool.source_relation_field, tool.target_relation_field, tool.sort_field,
+                tool.backend,
+                json.dumps(tool.config, sort_keys=True),
+                tool.name if tool.backend == "python" or tool.operation in {"copy_resource", "read_file", "write_file", "delete_file"} else "",
             )
             if fingerprint not in fingerprints:
                 fingerprints.add(fingerprint)
@@ -512,7 +523,9 @@ class ToolValidator:
         for tool in tools:
             failures: list[str] = []
             rows = runtime.rows_for(tool.entity_type)
-            if not rows:
+            if tool.operation in {"search", "lookup", "rank", "filter", "group_count", "relation", "relation_rank", "linked_id", "bridge_relation", "compare"} and not rows and not any(
+                test.get("setup_calls") for test in tool.test_cases
+            ):
                 failures.append("target_entity_type_has_no_rows")
             if tool.operation == "search" and not tool.search_fields:
                 failures.append("search_has_no_text_fields")
@@ -530,6 +543,9 @@ class ToolValidator:
                 failures.append("linked_id_has_no_target_type")
             for test in tool.test_cases:
                 try:
+                    runtime.reset()
+                    for setup in test.get("setup_calls", []):
+                        runtime.call(setup["tool"], setup.get("arguments", {}))
                     result = runtime.call(tool.name, test["arguments"])
                     if test.get("expect_nonempty") and not result:
                         failures.append(f"test_returned_empty:{test['arguments']}")
@@ -539,7 +555,13 @@ class ToolValidator:
                         failures.append(f"test_entity_mismatch:{test['arguments']}")
                     if test.get("expect_winner") and not result.get("winner_id"):
                         failures.append(f"test_missing_winner:{test['arguments']}")
-                except (KeyError, TypeError, ValueError, StopIteration) as error:
+                    if test.get("expect_deleted") and not result.get("deleted"):
+                        failures.append(f"test_missing_deletion:{test['arguments']}")
+                    if test.get("expect_file") and not result.get("path"):
+                        failures.append(f"test_missing_file:{test['arguments']}")
+                    if test.get("expect_entity_type") and result.get("entity_type") != test["expect_entity_type"]:
+                        failures.append(f"test_entity_type_mismatch:{test['arguments']}")
+                except Exception as error:
                     failures.append(f"runtime_error:{type(error).__name__}")
             report = {"tool": tool.name, "status": "passed" if not failures else "rejected", "failures": failures, "tests": tool.test_cases}
             reports.append(report)

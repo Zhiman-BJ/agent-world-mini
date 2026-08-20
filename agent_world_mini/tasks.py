@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from itertools import combinations
 from typing import Any
 
@@ -43,6 +45,7 @@ class TaskSynthesizer:
         rejected: Counter[str] = Counter()
         for walk_index, walk in enumerate(walks):
             try:
+                runtime.reset()
                 candidate = self._instantiate_walk([by_name[name] for name in walk.tool_names], runtime, walk_index)
             except (KeyError, RuntimeError, TypeError, ValueError, StopIteration):
                 rejected["cannot_bind_or_execute"] += 1
@@ -51,7 +54,7 @@ class TaskSynthesizer:
             if quality_failure:
                 rejected[quality_failure] += 1
                 continue
-            causal_core = self._causal_core(candidate)
+            causal_core = self._causal_core(candidate, by_name)
             if not causal_core:
                 rejected["empty_causal_core"] += 1
                 continue
@@ -64,9 +67,12 @@ class TaskSynthesizer:
                 rejected["duplicate_candidate_execution"] += 1
                 continue
             seen_executions.add(signature)
+            runtime.reset()
+            initial_state = runtime.snapshot()
+            execution = runtime.execute([{"tool": step["tool"], "arguments": step["arguments"]} for step in causal_core])
             executed.append({
                 "raw_walk": walk.to_dict(), "calls": candidate, "causal_core": causal_core,
-                "execution": runtime.execute([{"tool": step["tool"], "arguments": step["arguments"]} for step in causal_core]),
+                "execution": execution | {"initial_state": initial_state, "final_state": runtime.snapshot()},
             })
 
         report: dict[str, Any] = {
@@ -302,6 +308,9 @@ class TaskSynthesizer:
                 if signature in existing:
                     continue
                 try:
+                    runtime.reset()
+                    for previous in calls:
+                        runtime.call(previous["tool"], previous["arguments"])
                     result = runtime.call(tool.name, arguments)
                 except (KeyError, TypeError, ValueError, StopIteration):
                     continue
@@ -327,6 +336,8 @@ class TaskSynthesizer:
         observations: list[dict[str, Any]],
         cursor: int,
     ) -> list[tuple[dict[str, Any], dict[str, str]]]:
+        if tool.operation in {"create", "update", "delete", "copy_resource", "read_file", "write_file", "delete_file", "python"}:
+            return self._configured_argument_options(tool, observations)
         if tool.operation == "search":
             options: list[tuple[dict[str, Any], dict[str, str]]] = []
             rows = runtime.rows_for(tool.entity_type)
@@ -381,6 +392,91 @@ class TaskSynthesizer:
             ]
         return []
 
+    def _configured_argument_options(
+        self,
+        tool: ToolSpec,
+        observations: list[dict[str, Any]],
+    ) -> list[tuple[dict[str, Any], dict[str, str]]]:
+        examples = [
+            dict(test.get("arguments", {}))
+            for test in tool.test_cases
+            if isinstance(test, dict) and isinstance(test.get("arguments", {}), dict)
+        ] or [{}]
+        options: list[tuple[dict[str, Any], dict[str, str]]] = []
+        for example in examples[:6]:
+            arguments: dict[str, Any] = {}
+            provenance: dict[str, str] = {}
+            valid = True
+            for name, kind in tool.inputs.items():
+                source = tool.input_sources.get(name, "external")
+                if source == "internal":
+                    found = self._bound_observation_values(tool.input_bindings.get(name, ""), name, observations)
+                    if not found:
+                        valid = False
+                        break
+                    value, index = found[0]
+                    arguments[name] = value
+                    provenance[name] = f"observation:{index}"
+                else:
+                    arguments[name] = deepcopy(example[name]) if name in example else self._example_argument(kind, name)
+                    provenance[name] = "task_constraint"
+            if valid:
+                option = (arguments, provenance)
+                if option not in options:
+                    options.append(option)
+        return options
+
+    @staticmethod
+    def _example_argument(kind: str, name: str) -> Any:
+        lowered = str(kind).lower()
+        if lowered in {"integer", "int"}:
+            return 1
+        if lowered in {"number", "float"}:
+            return 1.0
+        if lowered in {"boolean", "bool"}:
+            return True
+        if lowered in {"object", "dict"}:
+            return {}
+        if lowered.endswith("[]") or lowered in {"array", "list"}:
+            return []
+        return f"example_{name}"
+
+    @staticmethod
+    def _bound_observation_values(
+        binding: str,
+        input_name: str,
+        observations: list[dict[str, Any]],
+    ) -> list[tuple[Any, int]]:
+        source_tool, separator, path = binding.partition(".")
+        found: list[tuple[Any, int]] = []
+        for index in range(len(observations) - 1, -1, -1):
+            observation = observations[index]
+            if source_tool and separator and observation["tool"] != source_tool:
+                continue
+            values = TaskSynthesizer._values_at_path(observation["result"], path or input_name)
+            found.extend((value, index) for value in values if value not in (None, ""))
+        return found
+
+    @staticmethod
+    def _values_at_path(value: Any, path: str) -> list[Any]:
+        current = [value]
+        for name, index_text in re.findall(r"([a-zA-Z0-9_]+)(?:\[([0-9]+)\])?", path):
+            next_values = []
+            for item in current:
+                if isinstance(item, dict) and name in item:
+                    child = item[name]
+                    if index_text:
+                        if isinstance(child, list) and int(index_text) < len(child):
+                            next_values.append(child[int(index_text)])
+                    else:
+                        next_values.append(child)
+                elif isinstance(item, list):
+                    next_values.extend(child[name] for child in item if isinstance(child, dict) and name in child)
+            current = next_values
+            if not current:
+                break
+        return current
+
     def _arguments_for(self, tool: ToolSpec, runtime: LocalToolRuntime, observations: list[dict[str, Any]], cursor: int) -> tuple[dict[str, Any], dict[str, str]]:
         options = self._argument_options(tool, runtime, observations, cursor)
         if options:
@@ -417,7 +513,10 @@ class TaskSynthesizer:
         return ids[0]
 
     @staticmethod
-    def _causal_core(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _causal_core(
+        calls: list[dict[str, Any]],
+        tools: dict[str, ToolSpec] | None = None,
+    ) -> list[dict[str, Any]]:
         """Keep the largest connected dependency component, including branches."""
         if not calls:
             return []
@@ -429,6 +528,19 @@ class TaskSynthesizer:
                 source_index = int(origin.split(":", 1)[1])
                 adjacency[index].add(source_index)
                 adjacency[source_index].add(index)
+            if tools is not None:
+                target = tools[call["tool"]]
+                for source_index in range(index):
+                    source = tools[calls[source_index]["tool"]]
+                    shares_state = set(source.writes) & set(target.reads) and TaskSynthesizer._same_state_arguments(
+                        source,
+                        target,
+                        calls[source_index]["arguments"],
+                        call["arguments"],
+                    )
+                    if source.name in target.requires_tools or shares_state:
+                        adjacency[index].add(source_index)
+                        adjacency[source_index].add(index)
         components: list[set[int]] = []
         unseen = set(range(len(calls)))
         while unseen:
@@ -461,6 +573,28 @@ class TaskSynthesizer:
         if len(signatures) != len(kept):
             return []
         return kept
+
+    @staticmethod
+    def _same_state_arguments(
+        source: ToolSpec,
+        target: ToolSpec,
+        source_arguments: dict[str, Any],
+        target_arguments: dict[str, Any],
+    ) -> bool:
+        target_names = target.selector_inputs()
+        if not target_names:
+            return True
+        source_values = {
+            str(source_arguments[name])
+            for name in source.selector_inputs()
+            if source_arguments.get(name) not in (None, "")
+        }
+        target_values = {
+            str(target_arguments[name])
+            for name in target_names
+            if target_arguments.get(name) not in (None, "")
+        }
+        return bool(source_values & target_values)
 
     @staticmethod
     def _basic_quality_failure(calls: list[dict[str, Any]]) -> str | None:
@@ -545,8 +679,6 @@ class TaskSynthesizer:
             return None
         if not isinstance(answer_slots, list) or not answer_slots or not kept_indexes or not set(kept_indexes) <= set(range(len(all_calls))):
             return None
-        if len(all_calls) - 1 not in kept_indexes:
-            return None
         for index in kept_indexes:
             for origin in all_calls[index]["argument_provenance"].values():
                 if origin.startswith("observation:") and int(origin.split(":", 1)[1]) not in kept_indexes:
@@ -566,7 +698,11 @@ class TaskSynthesizer:
         available_tool_names = {tool.name for tool in tools}
         if not request or any(name in request for name in tool_names) or not set(tool_names) <= available_tool_names:
             return None
-        execution = runtime.execute([{"tool": call["tool"], "arguments": call["arguments"]} for call in calls])
+        task_runtime = runtime.fork()
+        initial_state = task_runtime.snapshot()
+        execution = task_runtime.execute([{"tool": call["tool"], "arguments": call["arguments"]} for call in calls])
+        final_state = task_runtime.snapshot()
+        outcome = LocalToolRuntime.outcome(initial_state, final_state)
         old_to_new = {old: new for new, old in enumerate(kept_indexes)}
         normalized_slots = [{**slot, "step_indices": [old_to_new[index] for index in slot["step_indices"]]} for slot in normalized_slots]
         reference_answer = {
@@ -587,9 +723,10 @@ class TaskSynthesizer:
                 "reference_calls": [{"tool": call["tool"], "arguments": call["arguments"]} for call in calls],
                 "rubric": result.get("rubric", []),
                 "answer_slots": normalized_slots,
+                "outcome": outcome,
             },
-            reference_execution=execution | {"reference_answer": reference_answer},
-            initial_state=runtime.snapshot(),
+            reference_execution=execution | {"reference_answer": reference_answer, "final_state": final_state},
+            initial_state=initial_state,
         )
 
     @staticmethod

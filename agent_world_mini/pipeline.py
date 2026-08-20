@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from .catalog import output_slug, prepare_smithery_catalog, select_prepared_themes
+from .compiler import EnvironmentCompiler
 from .deepseek_harness import DeepSeekHarnessResearchAgent
 from .graph import ToolGraph
 from .io_utils import write_json
@@ -67,6 +68,7 @@ def run(
         print(f"[{seed.theme_id}] researching {seed.source_url or seed.seed_label}", flush=True)
         bundle = WebResearchAgent(llm).gather(seed, complexify_rounds=complexify_rounds)
         print(f"[{seed.theme_id}] research complete: {len(bundle.records)} records", flush=True)
+    EnvironmentCompiler(llm).prepare(bundle, use_agent=not luna_review_export)
     write_json(output_dir / "research_bundle.json", bundle.to_dict())
     write_json(output_dir / "theme_registry.json", {
         "selected_theme": seed.to_dict(),
@@ -74,7 +76,7 @@ def run(
     })
     designer = ToolDesigner(llm)
     candidate_tools, tool_mode = designer.design(bundle, use_agent_selection=not luna_review_export)
-    candidate_runtime = LocalToolRuntime(bundle.records, candidate_tools)
+    candidate_runtime = LocalToolRuntime(bundle, candidate_tools)
     tools, validation_reports = ToolValidator().validate(candidate_tools, candidate_runtime)
     if luna_review_export:
         designer.last_selection_report.update({"status": "locally_validated", "retained_tools": len(tools)})
@@ -90,13 +92,13 @@ def run(
         missing = designer.last_selection_report.get("missing_capabilities", [])
         detail = ", ".join(str(value) for value in missing) or "no useful data-supported tools passed"
         raise EnvironmentRejected(detail)
-    graph = ToolGraph(tools, llm, LocalToolRuntime(bundle.records, tools))
+    graph = ToolGraph(tools, llm, LocalToolRuntime(bundle, tools))
     chains = graph.chains()
     synthesizer = TaskSynthesizer(llm)
     tasks, task_mode, walk_report = synthesizer.synthesize_adaptive(
         bundle.theme,
         tools,
-        bundle.records,
+        bundle,
         graph.walks,
         max_candidates=max_candidates,
         max_semantic_reviews=max_semantic_reviews or None,
@@ -112,7 +114,7 @@ def run(
         # metadata. Keeping this payload small materially reduces API latency.
         tool_contracts = tasks[0].available_tools if tasks else []
         def verify_one(index: int) -> tuple[int, dict[str, object]]:
-            verifier = FiveRunVerifier(llm, LocalToolRuntime(bundle.records, tools), tool_contracts)
+            verifier = FiveRunVerifier(llm, LocalToolRuntime(bundle, tools), tool_contracts)
             return index, verifier.verify(tasks[index].to_dict(), tasks[index].reference_execution, max_steps=react_max_steps)
         # Verification is independent per task. Keep the verifier's own
         # two-rollout batches, and add a small task-level pool so a slow
@@ -142,7 +144,7 @@ def run(
             "tools": "All retained schemas are visible before the rollout",
             "state": "Only observations returned by calls are visible; database snapshot and evaluators remain sandbox-internal",
         },
-        "reset_policy": "Each reference execution and ReAct rollout starts from the immutable source snapshot and an empty local overlay.",
+        "reset_policy": "Each reference execution and ReAct rollout starts from the same source records, local state seed, and researched resource snapshot.",
     })
     write_json(output_dir / "tool_graph.json", graph.to_dict(chains))
     write_json(output_dir / "walk_synthesis.json", walk_report)
@@ -159,11 +161,14 @@ def run(
         "theme_id": seed.theme_id,
         "llm_enabled": llm.enabled,
         "records": len(bundle.records),
+        "resources": len(bundle.resources),
         "entity_types": sorted({record.entity_type for record in bundle.records}),
         "complexification_rounds_requested": complexify_rounds,
         "complexification_events": len(bundle.complexification),
         "candidate_tools": len(candidate_tools),
         "tools": len(tools),
+        "state_mutating_tools": sum(tool.mutates_state for tool in tools),
+        "python_tools": sum(tool.backend == "python" for tool in tools),
         "edges": len(graph.edges),
         "strict_chains": len(chains),
         "graph_construction_mode": graph.construction_mode,
@@ -197,7 +202,7 @@ def apply_luna_reviews(output_dir: Path, reviews_path: Path, max_tasks: int = 0)
     if not tools:
         raise EnvironmentRejected(str(designer.last_selection_report.get("reason") or "Luna retained no usable tools"))
     tasks, report = TaskSynthesizer(LLMClient.from_environment()).tasks_from_luna_reviews(
-        tools, bundle.records, packet, reviews, max_tasks=max_tasks or None,
+        tools, bundle, packet, reviews, max_tasks=max_tasks or None,
     )
     write_json(output_dir / "tool_specs.json", {
         "generation_mode": "luna_data_grounded_selection",
@@ -208,7 +213,7 @@ def apply_luna_reviews(output_dir: Path, reviews_path: Path, max_tasks: int = 0)
     validation["selection"] = designer.last_selection_report
     validation["retained_tools"] = len(tools)
     write_json(validation_path, validation)
-    graph = ToolGraph(tools, LLMClient.from_environment(), LocalToolRuntime(bundle.records, tools))
+    graph = ToolGraph(tools, LLMClient.from_environment(), LocalToolRuntime(bundle, tools))
     write_json(output_dir / "tool_graph.json", graph.to_dict(graph.chains()))
     write_json(output_dir / "luna_review_result.json", report)
     write_json(output_dir / "tasks.json", {
@@ -224,6 +229,8 @@ def apply_luna_reviews(output_dir: Path, reviews_path: Path, max_tasks: int = 0)
         "semantic_review_status": "completed_by_luna",
         "backend_model_calls": "disabled_luna_handoff",
         "tools": len(tools),
+        "state_mutating_tools": sum(tool.mutates_state for tool in tools),
+        "python_tools": sum(tool.backend == "python" for tool in tools),
         "edges": len(graph.edges),
         "strict_chains": len(graph.chains()),
         "successful_tasks": len(tasks),

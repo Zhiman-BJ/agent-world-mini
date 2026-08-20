@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from training.evaluate_internal import parse_answer
 from training.prepare_data import (
@@ -10,6 +12,7 @@ from training.prepare_data import (
     rebalance_split,
     request_with_sections,
     stratified_split,
+    environment_runtime,
 )
 from training.prepare_mcp_atlas_subset import envfactory_rows, used_tools
 from training.reward import compute_score, score_one
@@ -84,6 +87,52 @@ class TrainingDataTests(unittest.TestCase):
         )
         unsupported = '{"rate":"The June 2026 rate was 4.4 percent."}'
         self.assertEqual(score_one(unsupported, truth)["score"], 0.0)
+
+    def test_training_environment_keeps_state_and_resources(self) -> None:
+        payload = environment_runtime(
+            {
+                "records": [{"entity_type": "dataset", "entity_id": "d1", "attributes": {"name": "A"}, "source_url": "x"}],
+                "overlay_seed": [{"entity_type": "job", "entity_id": "j1", "attributes": {"status": "queued"}}],
+                "resources": [{"resource_id": "r1", "name": "data.json", "content": {"a": 1}}],
+            },
+            [{"name": "get_dataset"}],
+        )
+        self.assertEqual(payload["overlay_seed"][0]["entity_id"], "j1")
+        self.assertEqual(payload["resources"][0]["resource_id"], "r1")
+
+    def test_grpo_reward_replays_calls_and_requires_real_state_outcome(self) -> None:
+        environment = {
+            "records": [{"entity_type": "dataset", "entity_id": "d1", "attributes": {"name": "A"}, "source_url": "x"}],
+            "overlay_seed": [],
+            "resources": [],
+            "tools": [{
+                "name": "create_job", "description": "Create", "inputs": {"status": "string"},
+                "outputs": {"job": "job"}, "reads": [], "produces": ["job"], "mutates_state": True,
+                "operation": "create", "entity_type": "job",
+            }],
+        }
+        truth = {
+            "request": "Create a complete job.",
+            "reference_answer": {"job": {"entity_id": "job-1", "status": "complete"}},
+            "outcome": {"created": [{"entity_type": "job", "entity_id": "job-1", "status": "complete"}]},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "environment.json").write_text(json.dumps(environment), encoding="utf-8")
+            info = {
+                "data_root": str(root),
+                "tools_kwargs": {"registered_create_job": {"create_kwargs": {
+                    "environment_file": "environment.json", "original_name": "create_job",
+                }}},
+            }
+            correct = (
+                '<tool_call>{"name":"registered_create_job","arguments":{"status":"complete"}}</tool_call>'
+                '<tool_response>{"entity_id":"job-1","status":"complete"}</tool_response>'
+                '{"job":{"entity_id":"job-1","status":"complete"}}'
+            )
+            wrong = correct.replace('"status":"complete"}}</tool_call>', '"status":"queued"}}</tool_call>', 1)
+            self.assertEqual(compute_score(solution_str=correct, ground_truth=truth, extra_info=info)["score"], 1.0)
+            self.assertEqual(compute_score(solution_str=wrong, ground_truth=truth, extra_info=info)["score"], 0.0)
 
     def test_reward_does_not_reward_more_calls(self) -> None:
         truth = {"request": "Return item Alpha.", "reference_answer": {"item": {"name": "Alpha"}}}

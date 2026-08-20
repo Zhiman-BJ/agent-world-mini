@@ -27,6 +27,7 @@ class ResearchBundle:
     complexification: list[dict[str, Any]] = field(default_factory=list)
     state_contract: dict[str, Any] = field(default_factory=dict)
     overlay_seed: list[dict[str, Any]] = field(default_factory=list)
+    resources: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +41,7 @@ class ResearchBundle:
             "complexification": self.complexification,
             "state_contract": self.state_contract,
             "overlay_seed": self.overlay_seed,
+            "resources": self.resources,
         }
 
     @classmethod
@@ -107,6 +109,7 @@ class ResearchBundle:
             complexification=[dict(item) for item in complexification_value if isinstance(item, dict)],
             state_contract=state_contract,
             overlay_seed=[dict(item) for item in value.get("overlay_seed", [])],
+            resources=[dict(item) for item in value.get("resources", [])],
         )
 
 
@@ -135,6 +138,12 @@ class ToolSpec:
     writes: list[str] = field(default_factory=list)
     effects: list[str] = field(default_factory=list)
     evidence_ids: list[str] = field(default_factory=list)
+    backend: str = "builtin"
+    config: dict[str, Any] = field(default_factory=dict)
+    implementation: str = ""
+
+    def selector_inputs(self) -> list[str]:
+        return [name for name in self.inputs if name == "entity_id" or name.endswith("_id") or name == "path"]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

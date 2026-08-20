@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from agent_world_mini.catalog import discover_smithery_themes, load_prepared_catalog, prepare_smithery_catalog, select_prepared_themes
 from agent_world_mini.composition import pair_tasks
+from agent_world_mini.compiler import EnvironmentCompiler
 from agent_world_mini.deepseek_harness import DeepSeekHarnessResearchAgent
 from agent_world_mini.graph import ToolGraph
 from agent_world_mini.io_utils import write_json
@@ -14,9 +15,10 @@ from agent_world_mini.luna_rollout import aggregate as aggregate_luna_rollouts
 from agent_world_mini.luna_rollout import call as luna_call
 from agent_world_mini.luna_rollout import finish as finish_luna_rollout
 from agent_world_mini.luna_rollout import start as start_luna_rollout
-from agent_world_mini.models import Record, ResearchBundle, ToolSpec
+from agent_world_mini.models import Record, ResearchBundle, ToolChain, ToolSpec
 from agent_world_mini.pipeline import apply_luna_reviews, run
 from agent_world_mini.runtime import LocalToolRuntime
+from agent_world_mini.sessions import runtime_for_rollout
 from agent_world_mini.research import WebResearchAgent
 from agent_world_mini.tasks import TaskSynthesizer
 from agent_world_mini.themes import CURATED_THEME_SEEDS, resolve_theme
@@ -270,6 +272,309 @@ class PipelineTests(unittest.TestCase):
         ]
         candidates, _ = ToolDesigner(LLMClient()).design(ResearchBundle("users", "test", "x", [], records, {}))
         self.assertFalse(any(tool.operation in {"rank", "compare"} for tool in candidates))
+
+    def test_runtime_crud_and_reset_share_one_local_state(self):
+        tools = [
+            ToolSpec("create_job", "Create a job", {"name": "string"}, {"job": "job"}, [], ["job"], mutates_state=True, operation="create", entity_type="job", writes=["job"]),
+            ToolSpec("update_job", "Update a job", {"entity_id": "string", "status": "string"}, {"job": "job"}, ["job"], ["job"], mutates_state=True, operation="update", entity_type="job", writes=["job"]),
+            ToolSpec("delete_job", "Delete a job", {"entity_id": "string"}, {"deleted": "boolean"}, ["job"], ["deletion"], mutates_state=True, operation="delete", entity_type="job", writes=["job"]),
+        ]
+        runtime = LocalToolRuntime(self.bundle, tools)
+        created = runtime.call("create_job", {"name": "Analysis"})
+        updated = runtime.call("update_job", {"entity_id": created["entity_id"], "status": "complete"})
+        self.assertEqual(updated["status"], "complete")
+        runtime.call("delete_job", {"entity_id": created["entity_id"]})
+        self.assertEqual(runtime.rows_for("job"), [])
+        runtime.reset()
+        self.assertEqual(runtime.rows_for("job"), [])
+
+    def test_outcome_keeps_a_create_then_delete_event(self):
+        tools = [
+            ToolSpec("create_job", "Create", {"name": "string"}, {"job": "job"}, [], ["job"], operation="create", entity_type="job"),
+            ToolSpec("delete_job", "Delete", {"entity_id": "string"}, {"deleted": "boolean"}, ["job"], ["deletion"], operation="delete", entity_type="job"),
+        ]
+        runtime = LocalToolRuntime(self.bundle, tools)
+        initial = runtime.snapshot()
+        created = runtime.call("create_job", {"name": "Temporary"})
+        runtime.call("delete_job", {"entity_id": created["entity_id"]})
+        outcome = runtime.outcome(initial, runtime.snapshot())
+        self.assertEqual(outcome, {"events": [{
+            "operation": "delete", "entity_type": "job", "entity_id": created["entity_id"],
+        }]})
+        self.assertTrue(runtime.check_outcome(outcome)["passed"])
+        self.assertFalse(LocalToolRuntime(self.bundle, tools).check_outcome(outcome)["passed"])
+
+    def test_runtime_uses_overlay_seed_and_restores_it_after_reset(self):
+        bundle = ResearchBundle(
+            "jobs", "test", "x", [], self.records, {},
+            overlay_seed=[{"entity_type": "job", "entity_id": "job-1", "attributes": {"status": "queued"}}],
+        )
+        tool = ToolSpec(
+            "update_job", "Update a job", {"entity_id": "string", "status": "string"}, {"job": "job"},
+            ["job"], ["job"], mutates_state=True, operation="update", entity_type="job", writes=["job"],
+        )
+        runtime = LocalToolRuntime(bundle, [tool])
+        runtime.call("update_job", {"entity_id": "job-1", "status": "complete"})
+        self.assertEqual(runtime.get_row("job", "job-1")["status"], "complete")
+        runtime.reset()
+        self.assertEqual(runtime.get_row("job", "job-1")["status"], "queued")
+
+    def test_runtime_copies_reads_and_writes_real_resource_files(self):
+        bundle = ResearchBundle(
+            "files", "test", "x", [], self.records, {},
+            resources=[{
+                "resource_id": "manifest", "name": "manifest.json", "source_url": "https://example.test/manifest.json",
+                "content": {"datasets": [{"name": "A"}]},
+            }],
+        )
+        tools = [
+            ToolSpec("download_manifest", "Download", {}, {"path": "string"}, [], ["file_path"], operation="copy_resource", config={"resource_id": "manifest"}),
+            ToolSpec("read_manifest", "Read", {"path": "string"}, {"data": "object"}, ["file_path"], ["data"], operation="read_file"),
+            ToolSpec("write_report", "Write", {"path": "string", "content": "object"}, {"path": "string"}, ["data"], ["report_path"], mutates_state=True, operation="write_file", writes=["file:report"]),
+        ]
+        runtime = LocalToolRuntime(bundle, tools)
+        copied = runtime.call("download_manifest", {})
+        data = runtime.call("read_manifest", {"path": copied["path"]})
+        self.assertEqual(data["datasets"][0]["name"], "A")
+        runtime.call("write_report", {"path": "report.json", "content": {"count": 1}})
+        self.assertEqual(runtime.read_file("files/report.json")["count"], 1)
+        runtime.reset()
+        self.assertEqual(runtime.snapshot()["files"], [])
+
+    def test_runtime_executes_environment_python_handler(self):
+        tool = ToolSpec(
+            "summarize_jobs", "Summarize jobs", {}, {"counts": "object"}, ["job"], ["counts"],
+            backend="python",
+            implementation="def run(context, arguments):\n    return {'count': len(context.rows_for('job'))}\n",
+        )
+        bundle = ResearchBundle(
+            "jobs", "test", "x", [], self.records, {},
+            overlay_seed=[{"entity_type": "job", "entity_id": "job-1", "attributes": {"status": "queued"}}],
+        )
+        self.assertEqual(LocalToolRuntime(bundle, [tool]).call("summarize_jobs", {}), {"count": 1})
+
+    def test_runtime_session_follows_rollout_lifetime(self):
+        tools = [
+            ToolSpec("create_job", "Create", {"name": "string"}, {"job": "job"}, [], ["job"], mutates_state=True, operation="create", entity_type="job"),
+            ToolSpec("get_job", "Get", {"entity_id": "string"}, {"job": "job"}, ["job"], ["job"], operation="lookup", entity_type="job"),
+        ]
+        first_rollout = type("Rollout", (), {})()
+        first = runtime_for_rollout(first_rollout, "environment", lambda: LocalToolRuntime(self.bundle, tools))
+        second = runtime_for_rollout(first_rollout, "environment", lambda: LocalToolRuntime(self.bundle, tools))
+        created = first.call("create_job", {"name": "Shared"})
+        self.assertEqual(second.call("get_job", {"entity_id": created["entity_id"]})["name"], "Shared")
+        next_rollout = type("Rollout", (), {})()
+        fresh = runtime_for_rollout(next_rollout, "environment", lambda: LocalToolRuntime(self.bundle, tools))
+        self.assertEqual(fresh.rows_for("job"), [])
+
+    def test_environment_compiler_builds_valid_crud_and_resource_tools(self):
+        bundle = ResearchBundle(
+            "analysis workspace", "test", "x", [], self.records, {},
+            theme_metadata={"environment_blueprint": {
+                "mutable_entities": [{
+                    "entity_type": "analysis_job",
+                    "description": "analysis job",
+                    "fields": {
+                        "name": {"type": "string", "example": "Population report"},
+                        "status": {"type": "string", "example": "queued"},
+                    },
+                    "operations": ["create", "read", "update", "delete"],
+                    "update_fields": ["status"],
+                }],
+                "python_tools": [],
+            }},
+            resources=[{
+                "resource_id": "population_manifest", "name": "population.json",
+                "media_type": "application/json", "source_url": "https://example.test/population.json",
+                "content": {"countries": 2},
+            }],
+        )
+        compiler = EnvironmentCompiler(LLMClient())
+        compiler.prepare(bundle, use_agent=False)
+        candidates = compiler.compile_tools(bundle)
+        runtime = LocalToolRuntime(bundle, candidates)
+        retained, reports = ToolValidator().validate(candidates, runtime)
+        self.assertTrue(all(report["status"] == "passed" for report in reports), reports)
+        self.assertEqual(
+            {tool.name for tool in retained},
+            {"create_analysis_job", "get_analysis_job", "update_analysis_job", "delete_analysis_job", "download_population_json", "read_population_json"},
+        )
+
+    def test_environment_compiler_agent_plan_is_theme_agnostic_and_executable(self):
+        class PlanningLLM:
+            enabled = True
+
+            @staticmethod
+            def complete_json(system, prompt):
+                packet = json.loads(prompt)
+                self.assertNotIn("github", system.lower())
+                self.assertEqual(packet["environment"], "scientific files")
+                return json.dumps({
+                    "mutable_entities": [{
+                        "entity_type": "report",
+                        "fields": {"title": {"type": "string", "example": "Summary"}},
+                        "operations": ["create", "read"],
+                    }],
+                    "python_tools": [{
+                        "name": "count_datasets",
+                        "description": "Count datasets in the downloaded manifest.",
+                        "inputs": {"path": "string"},
+                        "outputs": {"count": "integer"},
+                        "reads": ["file_path"],
+                        "produces": ["dataset_count"],
+                        "requires_tools": ["download_manifest_json"],
+                        "input_bindings": {"path": "download_manifest_json.path"},
+                        "input_sources": {"path": "internal"},
+                        "implementation": "def run(context, arguments):\n    return {'count': len(context.read_file(arguments['path'])['datasets'])}\n",
+                        "test_cases": [{
+                            "setup_calls": [{"tool": "download_manifest_json", "arguments": {}}],
+                            "arguments": {"path": "files/manifest.json"},
+                            "expect_nonempty": True,
+                        }],
+                    }],
+                })
+
+        bundle = ResearchBundle(
+            "scientific files", "test", "x", [], self.records, {},
+            theme_metadata={"documented_tools": [{"name": "download_manifest", "description": "Download a manifest"}]},
+            resources=[{
+                "resource_id": "manifest", "name": "manifest.json", "media_type": "application/json",
+                "source_url": "https://example.test/manifest.json", "content": {"datasets": ["a", "b"]},
+            }],
+        )
+        compiler = EnvironmentCompiler(PlanningLLM())
+        compiler.prepare(bundle)
+        candidates = compiler.compile_tools(bundle)
+        retained, reports = ToolValidator().validate(candidates, LocalToolRuntime(bundle, candidates))
+        self.assertTrue(all(report["status"] == "passed" for report in reports), reports)
+        custom = next(tool for tool in retained if tool.name == "count_datasets")
+        runtime = LocalToolRuntime(bundle, retained)
+        downloaded = runtime.call("download_manifest_json", {})
+        self.assertEqual(runtime.call(custom.name, {"path": downloaded["path"]}), {"count": 2})
+        graph = ToolGraph(retained, runtime=runtime)
+        self.assertTrue(any(
+            edge["from"] == "download_manifest_json"
+            and edge["to"] == "count_datasets"
+            and edge["kind"] == "strong"
+            for edge in graph.edges
+        ))
+
+    def test_stateful_compiled_tools_form_and_execute_one_clean_chain(self):
+        bundle = ResearchBundle(
+            "analysis workspace", "test", "x", [], self.records, {},
+            theme_metadata={"environment_blueprint": {
+                "mutable_entities": [{
+                    "entity_type": "analysis_job",
+                    "fields": {
+                        "name": {"type": "string", "example": "Population report"},
+                        "status": {"type": "string", "example": "queued", "update_example": "complete"},
+                    },
+                    "operations": ["create", "read", "update", "delete"],
+                    "update_fields": ["status"],
+                }],
+                "python_tools": [],
+            }},
+        )
+        compiler = EnvironmentCompiler(LLMClient())
+        compiler.prepare(bundle, use_agent=False)
+        candidates = compiler.compile_tools(bundle)
+        tools, reports = ToolValidator().validate(candidates, LocalToolRuntime(bundle, candidates))
+        self.assertTrue(all(report["status"] == "passed" for report in reports), reports)
+        graph = ToolGraph(tools, runtime=LocalToolRuntime(bundle, tools))
+        edges = {(edge["from"], edge["to"]) for edge in graph.edges}
+        self.assertIn(("create_analysis_job", "update_analysis_job"), edges)
+        self.assertIn(("update_analysis_job", "get_analysis_job"), edges)
+        self.assertNotIn(("delete_analysis_job", "get_analysis_job"), edges)
+
+        walk = ToolChain(
+            ["create_analysis_job", "update_analysis_job", "get_analysis_job"],
+            ["analysis_job"],
+        )
+        tasks, mode, report = TaskSynthesizer(LLMClient()).synthesize(
+            bundle.theme, tools, [walk], bundle, candidate_only=True,
+        )
+        self.assertEqual(tasks, [])
+        self.assertEqual(mode, "awaiting_luna_semantic_review")
+        self.assertEqual(report["executed_walks"], 1)
+        execution = report["candidates"][0]["execution"]
+        jobs = [row for row in execution["final_state"]["records"] if row["entity_type"] == "analysis_job"]
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]["status"], "complete")
+        review = {
+            "request": "Create a population analysis, mark it complete, and return the resulting job.",
+            "keep_step_indices": [0, 1, 2],
+            "answer_slots": [{"name": "job", "description": "The resulting job", "step_indices": [0, 1, 2]}],
+            "rubric": ["The job is complete."],
+        }
+        task = TaskSynthesizer(LLMClient())._task_from_review(
+            tools, LocalToolRuntime(bundle, tools), report["candidates"][0], 1, review,
+        )
+        self.assertIsNotNone(task)
+        self.assertEqual(task.validation["outcome"]["created"][0]["status"], "complete")
+        replay = LocalToolRuntime(bundle, tools)
+        replay.execute(task.validation["reference_calls"])
+        self.assertTrue(replay.check_outcome(task.validation["outcome"])["passed"])
+
+    def test_stateful_environment_runs_through_luna_handoff_end_to_end(self):
+        bundle = ResearchBundle(
+            "local analysis jobs", "codex_research_agent", "x", [], self.records, {},
+            theme_metadata={
+                "theme_id": "analysis-jobs",
+                "environment_blueprint": {
+                    "mutable_entities": [{
+                        "entity_type": "analysis_job",
+                        "fields": {
+                            "name": {"type": "string", "example": "Population report"},
+                            "status": {"type": "string", "example": "queued", "update_example": "complete"},
+                        },
+                        "operations": ["create", "read", "update", "delete"],
+                        "update_fields": ["status"],
+                    }],
+                    "python_tools": [],
+                },
+            },
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle_path = root / "bundle.json"
+            bundle_path.write_text(json.dumps(bundle.to_dict()), encoding="utf-8")
+            output = root / "output"
+            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()):
+                summary = run(None, output, research_bundle=bundle_path, max_candidates=64, luna_review_export=True)
+            self.assertGreaterEqual(summary["state_mutating_tools"], 3)
+            packet = json.loads((output / "luna_review_packet.json").read_text(encoding="utf-8"))
+            candidate = next(
+                item for item in packet["candidates"]
+                if {"create_analysis_job", "update_analysis_job"} <= {step["tool"] for step in item["causal_core"]}
+            )
+            steps = [
+                index for index, step in enumerate(candidate["causal_core"])
+                if step["tool"] in {"create_analysis_job", "update_analysis_job"}
+            ]
+            tool_names = [tool["name"] for tool in packet["tool_contracts"]]
+            reviews = {
+                "usable_environment": True,
+                "keep_tool_names": tool_names,
+                "reviews": [{
+                    "candidate_id": candidate["candidate_id"],
+                    "keep_step_indices": steps,
+                    "request": "Create a population analysis job, complete it, and return the resulting state.",
+                    "answer_slots": [{"name": "result", "description": "The completed local job", "step_indices": steps}],
+                    "rubric": ["The local job was created and completed."],
+                }],
+            }
+            reviews_path = output / "reviews.json"
+            reviews_path.write_text(json.dumps(reviews), encoding="utf-8")
+            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()):
+                imported = apply_luna_reviews(output, reviews_path)
+            self.assertEqual(imported["successful_tasks"], 1)
+            task = json.loads((output / "tasks.json").read_text(encoding="utf-8"))["tasks"][0]
+            self.assertTrue(task["validation"]["outcome"])
+            runtime_payload = json.loads((output / "research_bundle.json").read_text(encoding="utf-8"))
+            tools_payload = json.loads((output / "tool_specs.json").read_text(encoding="utf-8"))["tools"]
+            runtime = LocalToolRuntime.from_dict({**runtime_payload, "tools": tools_payload})
+            runtime.execute(task["validation"]["reference_calls"])
+            self.assertTrue(runtime.check_outcome(task["validation"]["outcome"])["passed"])
 
     def test_join_records_compile_to_direct_bridge_tools(self):
         records = [
@@ -624,6 +929,46 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(any(edge["kind"] == "weak" for edge in graph.edges))
         self.assertEqual(graph.construction_mode, "schema_data_flow")
 
+    def test_walk_includes_all_declared_prerequisites(self):
+        tools = [
+            ToolSpec("create_note", "Create note", {}, {}, [], ["note_id"]),
+            ToolSpec("create_collection", "Create collection", {}, {}, [], ["collection_id"]),
+            ToolSpec(
+                "add_note", "Add note", {"note_id": "string", "collection_id": "string"}, {}, [], ["membership"],
+                requires_tools=["create_note", "create_collection"],
+                input_bindings={"note_id": "create_note.entity_id", "collection_id": "create_collection.entity_id"},
+                input_sources={"note_id": "internal", "collection_id": "internal"},
+            ),
+        ]
+        walks = ToolGraph(tools).walks(count=32)
+        linked = [walk.tool_names for walk in walks if "add_note" in walk.tool_names]
+        self.assertTrue(linked)
+        for names in linked:
+            link_index = names.index("add_note")
+            self.assertIn("create_note", names[:link_index])
+            self.assertIn("create_collection", names[:link_index])
+
+    def test_walk_continues_through_same_entity_state_steps(self):
+        tools = [
+            ToolSpec("create_note", "Create", {}, {}, [], ["note_id"], operation="create", entity_type="note"),
+            ToolSpec(
+                "trash_note", "Trash", {"note_id": "string"}, {}, ["note_status"], ["trashed_note"],
+                requires_tools=["create_note"], input_bindings={"note_id": "create_note.entity_id"},
+                input_sources={"note_id": "internal"}, writes=["note_status"], operation="python",
+            ),
+            ToolSpec(
+                "restore_note", "Restore", {"note_id": "string"}, {}, ["note_status"], ["restored_note"],
+                requires_tools=["trash_note"], input_bindings={"note_id": "trash_note.note.entity_id"},
+                input_sources={"note_id": "internal"}, writes=["note_status"], operation="python",
+            ),
+        ]
+        walks = ToolGraph(tools).walks(count=32)
+        restored = [walk.tool_names for walk in walks if "restore_note" in walk.tool_names]
+        self.assertTrue(restored)
+        for names in restored:
+            self.assertLess(names.index("create_note"), names.index("trash_note"))
+            self.assertLess(names.index("trash_note"), names.index("restore_note"))
+
     def test_causal_core_removes_independent_prefix_and_rebases_provenance(self):
         calls = [
             {"tool": "unrelated", "arguments": {}, "argument_provenance": {}},
@@ -642,6 +987,42 @@ class PipelineTests(unittest.TestCase):
         ]
         core = TaskSynthesizer._causal_core(calls)
         self.assertEqual([call["tool"] for call in core], ["rank_models", "files_for_model", "files_for_model"])
+
+    def test_causal_core_keeps_state_dependency_without_argument_binding(self):
+        tools = {
+            "write_report": ToolSpec("write_report", "Write", {}, {}, [], [], writes=["report"]),
+            "summarize_report": ToolSpec("summarize_report", "Summarize", {}, {}, ["report"], []),
+        }
+        calls = [
+            {"tool": "write_report", "arguments": {}, "argument_provenance": {}},
+            {"tool": "summarize_report", "arguments": {}, "argument_provenance": {}},
+        ]
+        core = TaskSynthesizer._causal_core(calls, tools)
+        self.assertEqual([call["tool"] for call in core], ["write_report", "summarize_report"])
+
+    def test_causal_core_does_not_join_different_state_objects(self):
+        tools = {
+            "update_note": ToolSpec("update_note", "Update", {"note_id": "string"}, {}, ["note"], [], writes=["note"]),
+            "trash_note": ToolSpec("trash_note", "Trash", {"note_id": "string"}, {}, ["note"], []),
+        }
+        calls = [
+            {"tool": "update_note", "arguments": {"note_id": "note-a"}, "argument_provenance": {"note_id": "task_constraint"}},
+            {"tool": "trash_note", "arguments": {"note_id": "note-b"}, "argument_provenance": {"note_id": "task_constraint"}},
+        ]
+        core = TaskSynthesizer._causal_core(calls, tools)
+        self.assertEqual([call["tool"] for call in core], ["trash_note"])
+
+    def test_causal_core_keeps_declared_prerequisite_without_argument_binding(self):
+        tools = {
+            "download": ToolSpec("download", "Download", {}, {}, [], ["file"]),
+            "analyze": ToolSpec("analyze", "Analyze", {}, {}, [], ["result"], requires_tools=["download"]),
+        }
+        calls = [
+            {"tool": "download", "arguments": {}, "argument_provenance": {}},
+            {"tool": "analyze", "arguments": {}, "argument_provenance": {}},
+        ]
+        core = TaskSynthesizer._causal_core(calls, tools)
+        self.assertEqual([call["tool"] for call in core], ["download", "analyze"])
 
     def test_comparison_ids_are_distinct_even_when_one_id_has_two_origins(self):
         compare = next(tool for tool in self._validated_tools()[1] if tool.operation == "compare")
@@ -684,6 +1065,24 @@ class PipelineTests(unittest.TestCase):
         ]
         gains = agent._coverage_gains(agent._state_summary(before), agent._state_summary(after))
         self.assertEqual(gains, ["file"])
+
+    def test_research_preserves_small_real_json_and_text_resources(self):
+        resources = WebResearchAgent._resources_from_sources([
+            {
+                "url": "https://example.test/manifest.json", "content_type": "application/json",
+                "retrieved_excerpt": '{"datasets":[{"name":"A"}]}',
+            },
+            {
+                "url": "https://example.test/notes.txt", "content_type": "text/plain",
+                "retrieved_excerpt": "Real source notes",
+            },
+            {
+                "url": "https://example.test/page", "content_type": "text/html",
+                "retrieved_excerpt": "An overview page",
+            },
+        ])
+        self.assertEqual([item["name"] for item in resources], ["manifest.json", "notes.txt"])
+        self.assertEqual(resources[0]["content"]["datasets"][0]["name"], "A")
 
     def test_verifier_accepts_concise_answer_with_tool_evidence(self):
         expected = {"reference_answer": {"repository": [{"entity_id": "repo/a", "entity_type": "repository"}]}}

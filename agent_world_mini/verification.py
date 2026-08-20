@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -54,7 +53,7 @@ class FiveRunVerifier:
         }
 
     def _run_once(self, task: dict[str, Any], expected: Any, max_steps: int) -> dict[str, Any]:
-        runtime = deepcopy(self.runtime)
+        runtime = self.runtime.fork()
         trace: list[dict[str, Any]] = []
         tool_names = {str(tool.get("name")) for tool in self.tools if tool.get("name")}
         answer_names = {
@@ -98,6 +97,11 @@ class FiveRunVerifier:
                 result = runtime.call(call["tool"], call.get("arguments", {}))
                 trace.append({"tool": call["tool"], "arguments": call.get("arguments", {}), "result": self._preview(result)})
             judgment = self._judge(task, expected, trace, final_answer) if final_answer is not None else {"passed": False, "reason": "no_final_answer"}
+            outcome = task.get("validation", {}).get("outcome", {})
+            if judgment.get("passed") and outcome:
+                state_judgment = runtime.check_outcome(outcome)
+                if not state_judgment["passed"]:
+                    judgment = {"passed": False, "reason": "state_or_file_outcome_mismatch", **state_judgment}
             return {"success": judgment["passed"], "calls": trace, "final_answer": final_answer, "judgment": judgment}
         except (ValueError, KeyError, StopIteration, TypeError, AttributeError) as error:
             return {

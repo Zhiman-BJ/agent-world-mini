@@ -380,6 +380,7 @@ def grpo_row(
         "rubric": task.get("validation", {}).get("rubric", []),
         "expected_answer": compact_reference_answer(task),
         "reference_answer": task.get("reference_execution", {}).get("reference_answer", {}),
+        "outcome": task.get("validation", {}).get("outcome", {}),
     }
     return {
         "data_source": "agentworld",
@@ -405,7 +406,12 @@ def grpo_row(
 
 
 def environment_runtime(bundle: dict[str, Any], tools: list[dict[str, Any]]) -> dict[str, Any]:
-    return {"records": bundle["records"], "tools": tools}
+    return {
+        "records": bundle["records"],
+        "overlay_seed": bundle.get("overlay_seed", []),
+        "resources": bundle.get("resources", []),
+        "tools": tools,
+    }
 
 
 def prepare(repo_root: Path, output: Path, batch_paths: list[Path], seed: int) -> dict[str, Any]:

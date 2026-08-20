@@ -141,7 +141,7 @@ class WebResearchAgent:
                 },
             }
             raw, usage = self.llm.research_json(
-                "Research real public data for this environment. Search and fetch as needed. Prefer a small connected sample spanning several useful entity types over exhaustive records of one type. Never download model weights, media, archives, binaries, or every child item under one parent. Put official data APIs, datasets, feeds, or small real data files first; when docs reveal an API, return a concrete query URL that yields records. Documentation and Wikipedia may explain the domain but cannot be the environment state. Do not invent records.",
+                "Research real public data for this environment. Search and fetch as needed. Prefer a small connected sample spanning several useful entity types over exhaustive records of one type. Never download model weights, media, archives, binaries, or every child item under one parent. Put official data APIs, datasets, feeds, or small real JSON, CSV, and text files first; when docs reveal an API, return a concrete query URL that yields records. Documentation and Wikipedia may explain the domain but cannot be the environment state. Do not invent records.",
                 json.dumps(prompt, ensure_ascii=False),
                 max_tool_calls=round_call_budget,
             )
@@ -425,7 +425,42 @@ class WebResearchAgent:
                 "relations_created": len(self._relation_pairs(records)),
                 "retrieval_failures": failures,
             }],
+            resources=self._resources_from_sources(all_sources),
         )
+
+    @staticmethod
+    def _resources_from_sources(sources: list[dict[str, str]]) -> list[dict[str, Any]]:
+        resources = []
+        used_names: set[str] = set()
+        for index, source in enumerate(sources, start=1):
+            content_type = str(source.get("content_type") or "").lower()
+            url_path = urlparse(source["url"]).path
+            name = url_path.rsplit("/", 1)[-1] or f"resource_{index:02d}"
+            is_json = content_type == "application/json" or name.lower().endswith(".json")
+            is_text = content_type in {"text/plain", "text/csv", "text/xml", "application/xml"} \
+                or name.lower().endswith((".csv", ".txt", ".xml"))
+            if not is_json and not is_text:
+                continue
+            if is_json and "." not in name:
+                name += ".json"
+            if name in used_names:
+                stem, separator, suffix = name.rpartition(".")
+                name = f"{stem or name}_{index:02d}{separator}{suffix}" if separator else f"{name}_{index:02d}"
+            content: Any = source.get("retrieved_excerpt", "")
+            if is_json:
+                try:
+                    content = json.loads(str(content))
+                except json.JSONDecodeError:
+                    continue
+            used_names.add(name)
+            resources.append({
+                "resource_id": f"source_{index:02d}",
+                "name": name,
+                "media_type": content_type or ("application/json" if is_json else "text/plain"),
+                "source_url": source["url"],
+                "content": content,
+            })
+        return resources
 
     def _extract_sources(
         self,
@@ -1012,7 +1047,15 @@ class WebResearchAgent:
         except ValueError:
             return None
 
-    def _bundle_from_records(self, seed: ThemeSeed, adapter: str, sources: list[dict[str, str]], records: list[Record], complexification: list[dict[str, object]]) -> ResearchBundle:
+    def _bundle_from_records(
+        self,
+        seed: ThemeSeed,
+        adapter: str,
+        sources: list[dict[str, str]],
+        records: list[Record],
+        complexification: list[dict[str, object]],
+        resources: list[dict[str, Any]] | None = None,
+    ) -> ResearchBundle:
         entity_fields: dict[str, set[str]] = {}
         entity_ids: dict[str, set[str]] = {}
         for record in records:
@@ -1042,6 +1085,7 @@ class WebResearchAgent:
             theme_metadata=seed.to_dict(),
             complexification=complexification,
             state_contract=state_contract,
+            resources=resources or [],
         )
 
     def _extract(self, theme: str, sources: list[dict[str, str]]) -> tuple[list[Record], list[dict[str, object]]]:
