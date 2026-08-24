@@ -1,4 +1,4 @@
-from .pipeline import main
+from agent_world_mini.run_pipeline import main
 
 
 if __name__ == "__main__":

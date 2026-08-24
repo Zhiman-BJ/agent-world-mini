@@ -5,9 +5,9 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from .io_utils import extract_json_object
-from .llm import LLMClient
-from .runtime import LocalToolRuntime
+from agent_world_mini.utils.io import extract_json_object
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.runtime.engine import LocalToolRuntime
 
 
 class FiveRunVerifier:

@@ -256,8 +256,8 @@ binding.  Do not use a random walk as evidence of dependency correctness.
 ## Concrete Implementation Sequence
 
 1. Add `StateContract`, `ToolIntent`, `ToolTestCase`, and typed input/output
-   bindings to `models.py`.
-2. Replace the fixed fallback in `tools.py` with configuration generation,
+   bindings to `agent_world_mini/schemas/models.py`.
+2. Replace the fixed fallback in `agent_world_mini/env_gen/tool_gen/designer.py` with configuration generation,
    static binding, and a constrained compiler. Keep generic operators
    internally; expose domain-named tools only when the data supports them.
 3. Replace the name-switch runtime with a state backend and a registry of
@@ -265,7 +265,7 @@ binding.  Do not use a random walk as evidence of dependency correctness.
 4. Add the filter/test/revision loop and persist a `tool_validation.json`
    artifact containing every candidate, rejection reason, test trace, and
    retained contract.
-5. Rebuild `graph.py` around typed parameter bindings and execute each sampled
+5. Rebuild `agent_world_mini/task_gen/dag_form/graph.py` around typed parameter bindings and execute each sampled
    chain before task synthesis.
 6. Keep the existing task reference execution and 5-run test, but run them
    only after this tool-level validation has passed.

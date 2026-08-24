@@ -5,10 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .io_utils import write_json
-from .models import ResearchBundle, ToolSpec
-from .runtime import LocalToolRuntime
-from .verification import FiveRunVerifier
+from agent_world_mini.utils.io import write_json
+from agent_world_mini.schemas.models import ResearchBundle, ToolSpec
+from agent_world_mini.runtime.engine import LocalToolRuntime
+from agent_world_mini.task_gen.validation.five_run import FiveRunVerifier
 
 
 def _load_json(path: Path) -> dict[str, Any]:

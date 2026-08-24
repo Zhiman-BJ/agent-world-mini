@@ -10,9 +10,9 @@ from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from .io_utils import extract_json_object, write_json
-from .llm import LLMClient
-from .themes import CURATED_THEME_SEEDS, ThemeSeed, theme_from_catalog
+from agent_world_mini.utils.io import extract_json_object, write_json
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.seed_gen.themes import CURATED_THEME_SEEDS, ThemeSeed, theme_from_catalog
 
 
 SMITHERY_API = "https://api.smithery.ai/servers"

@@ -8,7 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from agent_world_mini.runtime import LocalToolRuntime
-from agent_world_mini.sessions import runtime_for_rollout
+from agent_world_mini.runtime.sessions import runtime_for_rollout
 from verl.tools.base_tool import BaseTool
 from verl.tools.schemas import ToolResponse
 

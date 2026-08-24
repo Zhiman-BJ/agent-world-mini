@@ -40,28 +40,29 @@
 git clone https://github.com/shelter951/agent-world-mini.git
 cd agent-world-mini
 python -m pip install -e .
-Copy-Item .env.example .env
+Copy-Item config/api_keys.env.example config/api_keys.env
 ```
 
-在 `.env` 中填写 OpenRouter 配置：
+在 `config/api_keys.env` 中填写模型配置：
 
 ```dotenv
-OPENROUTER_API_KEY=your-key
-OPENROUTER_MODEL=deepseek/deepseek-v4-flash
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1/chat/completions
-OPENROUTER_TIMEOUT_SECONDS=35
+LLM_API_KEY=your-key
+LLM_MODEL=deepseek/deepseek-v4-flash
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_TIMEOUT_SECONDS=90
 ```
 
-`.env` 已被 Git 忽略，不会正常进入提交。不要把真实密钥写进 README、命令示例或源码。
+`config/api_keys.env` 已被 Git 忽略，不会正常进入提交。系统环境变量优先于本地文件；不要把真实密钥写进 README、命令示例或源码。
 
-使用 DeepSeek Harness 时，再安装官方 CLI 并填写单独的本地配置：
+模型服务只要兼容 OpenAI Chat Completions 即可。设置 `LLM_STREAM=true` 后，普通文本和 JSON 调用都会通过 SSE 流式读取；完整配置见 [中文使用手册](docs/USAGE_ZH.md)。内置网络研究仍使用 OpenRouter 专属搜索工具，改用其他服务时应使用独立的 Codex 或其他 Research Agent。
+
+使用 DeepSeek Harness 时，再安装官方 CLI，并在同一个 `config/api_keys.env` 中填写 `DEEPSEEK_API_KEY` 和 `DEEPSEEK_BASE_URL`：
 
 ```powershell
 npm install -g @deepseek-ai/dsh
-Copy-Item .deepseek-harness.env.example .deepseek-harness.env
 ```
 
-`DEEPSEEK_BASE_URL` 填 OpenAI-compatible API 的 `/v1` 基址，不要带 `/chat/completions`。这个本地配置文件也已被 Git 忽略。
+`DEEPSEEK_BASE_URL` 填 OpenAI-compatible API 的 `/v1` 基址，不要带 `/chat/completions`。
 
 ## 最快跑一次
 
@@ -85,7 +86,7 @@ python -m agent_world_mini `
 
 ## 从本地目录批量运行
 
-仓库包含预处理后的环境目录 `agent_world_mini/prepared_environments.json`。批量运行只读这个本地文件，不会在每次启动时重新访问 MCP 网站。
+仓库包含预处理后的环境目录 `agent_world_mini/seed_gen/prepared_environments.json`。批量运行只读这个本地文件，不会在每次启动时重新访问 MCP 网站。
 
 先只看会选中什么，不开始研究：
 
@@ -213,7 +214,7 @@ Luna 文件审核目前不替代 5-run。5-run 是模型在看不到参考链的
 --luna-reviews PATH         导入 Luna 审核结果并重放生成最终任务
 ```
 
-完整说明见 [中文使用手册](docs/USAGE_ZH.md)。设计取舍见 [工具设计与筛选](TOOL_DESIGN_AND_FILTERING.md)，实验记录和已知问题见 [实验记录](EXPERIMENTS.md)。
+完整说明见 [中文使用手册](docs/USAGE_ZH.md)，代码模块和数据流见 [系统架构说明](docs/SYSTEM_ARCHITECTURE_ZH.md)，目标数据边界见 [环境契约](docs/环境契约界定-v1.0.md) 和 [工具契约](docs/工具契约补充界定-v1.0.md)。设计取舍见 [工具设计与筛选](TOOL_DESIGN_AND_FILTERING.md)，实验记录和已知问题见 [实验记录](EXPERIMENTS.md)。
 
 ## 测试
 

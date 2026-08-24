@@ -9,21 +9,37 @@
 ```powershell
 python --version
 python -m pip install -e .
-Copy-Item .env.example .env
+Copy-Item config/api_keys.env.example config/api_keys.env
 ```
 
 Python 版本需要不低于 3.10。项目本身没有第三方运行依赖。
 
-打开 `.env`，填写模型服务：
+打开 `config/api_keys.env`，填写模型服务：
 
 ```dotenv
-OPENROUTER_API_KEY=your-key
-OPENROUTER_MODEL=deepseek/deepseek-v4-flash
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1/chat/completions
-OPENROUTER_TIMEOUT_SECONDS=35
+LLM_API_KEY=your-key
+LLM_MODEL=deepseek/deepseek-v4-flash
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_TIMEOUT_SECONDS=90
+LLM_STREAM=false
 ```
 
-`OPENROUTER_BASE_URL` 应该是兼容 OpenAI Chat Completions 的完整地址。当前 Research Agent 还会发送 OpenRouter 的 `web_search` 和 `web_fetch` 工具定义，所以普通的兼容代理即使能聊天，也不一定支持通用主题的网络研究。
+`LLM_BASE_URL` 可以写到 `/v1`，也可以填写完整的 `/chat/completions` 地址。当前 Web Research Agent 会使用 OpenRouter 的 `web_search` 和 `web_fetch` 工具，因此运行通用主题的网络研究时仍需配置支持这些工具的 OpenRouter 服务；其他工具筛选和任务生成只要求兼容 Chat Completions。
+
+代码中也可以直接初始化：
+
+```python
+llm = LLMClient(
+    model="your-model",
+    base_url="https://api.openai.com/v1",
+    api_key="your-key",
+    stream=True,
+)
+```
+
+`LLM_STREAM=true` 会让客户端以 SSE 流式读取响应。也可以向 `complete_text()` 或 `complete_json()` 传入 `on_delta` 回调实时接收文本增量。
+
+`CodexAgentClient()` 默认使用本机 `~/.codex/config.toml`。需要覆盖时，直接给它传入自己的 `model`、`base_url` 和 `api_key`；这部分配置与 `LLMClient` 无关。
 
 先确认命令可用：
 

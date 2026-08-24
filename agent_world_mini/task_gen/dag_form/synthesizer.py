@@ -9,10 +9,10 @@ from copy import deepcopy
 from itertools import combinations
 from typing import Any
 
-from .io_utils import extract_json_object
-from .llm import LLMClient
-from .models import Record, ResearchBundle, Task, ToolChain, ToolSpec
-from .runtime import LocalToolRuntime
+from agent_world_mini.utils.io import extract_json_object
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.schemas.models import Record, ResearchBundle, Task, ToolChain, ToolSpec
+from agent_world_mini.runtime.engine import LocalToolRuntime
 
 
 class TaskSynthesizer:

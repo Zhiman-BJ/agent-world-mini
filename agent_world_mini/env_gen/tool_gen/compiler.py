@@ -5,9 +5,9 @@ import re
 from copy import deepcopy
 from typing import Any
 
-from .io_utils import extract_json_object
-from .llm import LLMClient
-from .models import ResearchBundle, ToolSpec
+from agent_world_mini.utils.io import extract_json_object
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.schemas.models import ResearchBundle, ToolSpec
 
 
 def _slug(value: str) -> str:

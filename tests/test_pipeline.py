@@ -2,28 +2,31 @@ import unittest
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from agent_world_mini.catalog import discover_smithery_themes, load_prepared_catalog, prepare_smithery_catalog, select_prepared_themes
-from agent_world_mini.composition import pair_tasks
-from agent_world_mini.compiler import EnvironmentCompiler
-from agent_world_mini.deepseek_harness import DeepSeekHarnessResearchAgent
-from agent_world_mini.graph import ToolGraph
-from agent_world_mini.io_utils import write_json
-from agent_world_mini.llm import LLMClient
-from agent_world_mini.luna_rollout import aggregate as aggregate_luna_rollouts
-from agent_world_mini.luna_rollout import call as luna_call
-from agent_world_mini.luna_rollout import finish as finish_luna_rollout
-from agent_world_mini.luna_rollout import start as start_luna_rollout
-from agent_world_mini.models import Record, ResearchBundle, ToolChain, ToolSpec
-from agent_world_mini.pipeline import apply_luna_reviews, run
+from agent_world_mini.seed_gen.catalog import discover_smithery_themes, load_prepared_catalog, prepare_smithery_catalog, select_prepared_themes
+from agent_world_mini.task_gen.common.composition import pair_tasks
+from agent_world_mini.env_gen.tool_gen.compiler import EnvironmentCompiler
+from agent_world_mini.utils.search_agent.codex import CodexAgentClient
+from agent_world_mini.utils.search_agent.deepseek_harness import DeepSeekHarnessResearchAgent
+from agent_world_mini.task_gen.dag_form.graph import ToolGraph
+from agent_world_mini.utils.io import write_json
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.utils import config as config_module
+from agent_world_mini.task_gen.validation.luna_rollout import aggregate as aggregate_luna_rollouts
+from agent_world_mini.task_gen.validation.luna_rollout import call as luna_call
+from agent_world_mini.task_gen.validation.luna_rollout import finish as finish_luna_rollout
+from agent_world_mini.task_gen.validation.luna_rollout import start as start_luna_rollout
+from agent_world_mini.schemas.models import Record, ResearchBundle, ToolChain, ToolSpec
+from agent_world_mini.run_pipeline import apply_luna_reviews, run
 from agent_world_mini.runtime import LocalToolRuntime
-from agent_world_mini.sessions import runtime_for_rollout
-from agent_world_mini.research import WebResearchAgent
-from agent_world_mini.tasks import TaskSynthesizer
-from agent_world_mini.themes import CURATED_THEME_SEEDS, resolve_theme
-from agent_world_mini.tools import ToolDesigner, ToolValidator
-from agent_world_mini.verification import FiveRunVerifier
+from agent_world_mini.runtime.sessions import runtime_for_rollout
+from agent_world_mini.utils.search_agent.web import WebResearchAgent
+from agent_world_mini.task_gen.dag_form.synthesizer import TaskSynthesizer
+from agent_world_mini.seed_gen.themes import CURATED_THEME_SEEDS, resolve_theme
+from agent_world_mini.env_gen.tool_gen.designer import ToolDesigner, ToolValidator
+from agent_world_mini.task_gen.validation.five_run import FiveRunVerifier
 
 
 class PipelineTests(unittest.TestCase):
@@ -51,29 +54,113 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "theme and at least one record"):
             ResearchBundle.from_dict({"theme": "empty", "records": []})
 
-    def test_llm_timeout_is_reported_as_a_runtime_failure(self):
-        client = LLMClient(timeout_seconds=1)
-        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}), patch(
-            "agent_world_mini.llm.urlopen", side_effect=TimeoutError("slow endpoint")
-        ):
-            with self.assertRaisesRegex(RuntimeError, "timed out after 1 seconds"):
-                client.complete_json("system", "prompt")
+    def test_llm_initializes_openai_client_from_configuration(self):
+        client = LLMClient(
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_key="test-key",
+            timeout_seconds=1,
+        )
+        with patch("agent_world_mini.utils.llm.OpenAI") as openai:
+            self.assertIs(client.client, openai.return_value)
+        openai.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://example.test/v1",
+            timeout=1,
+        )
 
-    def test_llm_prompt_json_mode_omits_response_format(self):
+    def test_llm_can_omit_json_response_format(self):
         client = LLMClient()
-        with patch.dict("os.environ", {"OPENROUTER_JSON_MODE": "prompt"}), patch.object(
-            client, "_complete", return_value=("{}", {})
-        ) as complete:
-            client.complete_json("system", "prompt")
-        self.assertNotIn("response_format", complete.call_args.args[0])
+        with patch.object(
+            client, "_create", return_value=("{}", {})
+        ) as create:
+            client.complete_json("system", "prompt", use_response_format=False)
+        self.assertNotIn("response_format", create.call_args.kwargs)
+
+    def test_llm_reads_openai_compatible_stream_incrementally(self):
+        class FakeCompletions:
+            def __init__(self):
+                self.parameters = {}
+
+            def create(self, **parameters):
+                self.parameters = parameters
+                return iter([
+                    SimpleNamespace(
+                        usage=None,
+                        choices=[SimpleNamespace(delta=SimpleNamespace(content="hel"))],
+                    ),
+                    SimpleNamespace(
+                        usage=None,
+                        choices=[SimpleNamespace(delta=SimpleNamespace(content="lo"))],
+                    ),
+                    SimpleNamespace(
+                        usage=SimpleNamespace(model_dump=lambda: {"total_tokens": 2}),
+                        choices=[],
+                    ),
+                ])
+
+        deltas: list[str] = []
+        client = LLMClient(
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_key="test-key",
+        )
+        completions = FakeCompletions()
+        client._client = SimpleNamespace(
+            chat=SimpleNamespace(completions=completions)
+        )
+        content, usage = client._create([], on_delta=deltas.append)
+
+        self.assertTrue(completions.parameters["stream"])
+        self.assertEqual(
+            completions.parameters["stream_options"],
+            {"include_usage": True},
+        )
+        self.assertEqual(content, "hello")
+        self.assertEqual(deltas, ["hel", "lo"])
+        self.assertEqual(usage["total_tokens"], 2)
+
+    def test_llm_environment_prefers_configured_openai_key_over_default_model(self):
+        environment = {
+            "OPENAI_API_KEY": "openai-test-key",
+            "OPENAI_MODEL": "openai-test-model",
+            # 配置示例可能预填模型名，但未填写 OpenRouter key。
+            "OPENROUTER_MODEL": "openrouter-default-model",
+            "OPENAI_BASE_URL": "https://example.test/v1",
+            "OPENAI_STREAM": "true",
+        }
+        with patch(
+            "agent_world_mini.utils.llm.load_local_environment",
+            return_value=environment,
+        ):
+            client = LLMClient.from_environment()
+
+        self.assertEqual(client.model, "openai-test-model")
+        self.assertEqual(client.base_url, "https://example.test/v1")
+        self.assertTrue(client.stream)
+
+    def test_local_api_key_file_does_not_override_injected_environment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            local_file = Path(temporary) / "api_keys.env"
+            local_file.write_text(
+                "OPENROUTER_API_KEY=local-key\nDEEPSEEK_API_KEY=deepseek-key\n",
+                encoding="utf-8",
+            )
+            environment = {"OPENROUTER_API_KEY": "injected-key"}
+            with patch.object(config_module, "LOCAL_API_KEYS_FILE", local_file), patch.object(
+                config_module, "LEGACY_ENV_FILES", ()
+            ):
+                config_module.load_local_environment(environment)
+            self.assertEqual(environment["OPENROUTER_API_KEY"], "injected-key")
+            self.assertEqual(environment["DEEPSEEK_API_KEY"], "deepseek-key")
 
     def test_pipeline_can_continue_from_a_codex_research_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             bundle_path = root / "codex-research.json"
             bundle_path.write_text(json.dumps(self.bundle.to_dict()), encoding="utf-8")
-            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()), patch(
-                "agent_world_mini.pipeline.WebResearchAgent.gather"
+            with patch("agent_world_mini.run_pipeline.LLMClient.from_environment", return_value=LLMClient()), patch(
+                "agent_world_mini.env_gen.data_gen.generator.WebResearchAgent.gather"
             ) as gather:
                 summary = run(None, root / "output", research_bundle=bundle_path, max_candidates=4)
             gather.assert_not_called()
@@ -83,13 +170,79 @@ class PipelineTests(unittest.TestCase):
     def test_pipeline_can_use_deepseek_harness_for_research_only(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()), patch.object(
+            with patch("agent_world_mini.run_pipeline.LLMClient.from_environment", return_value=LLMClient()), patch.object(
                 DeepSeekHarnessResearchAgent, "gather", return_value=self.bundle
             ) as gather:
                 summary = run("country indicators", root / "output", deepseek_harness=True, max_candidates=4)
             gather.assert_called_once()
             self.assertEqual(summary["records"], len(self.records))
             self.assertTrue((root / "output" / "tool_specs.json").is_file())
+
+    def test_codex_agent_client_returns_final_response(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+
+            def fake_run(command, **kwargs):
+                final_path = Path(command[command.index("--output-last-message") + 1])
+                final_path.write_text("research complete", encoding="utf-8")
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout="",
+                    stderr="",
+                )
+
+            client = CodexAgentClient(
+                executable="codex-test",
+                enable_web_search=True,
+                timeout_seconds=5,
+            )
+            with patch("agent_world_mini.utils.search_agent.codex.subprocess.run", side_effect=fake_run) as run_process:
+                result = client.run(
+                    "Research one environment",
+                    working_directory=workspace,
+                )
+
+            command = run_process.call_args.args[0]
+            self.assertLess(command.index("--search"), command.index("exec"))
+            self.assertIn("--ephemeral", command)
+            self.assertEqual(command[-1], "-")
+            self.assertEqual(run_process.call_args.kwargs["input"], "Research one environment")
+            self.assertEqual(result, "research complete")
+
+    def test_codex_agent_client_accepts_its_own_model_configuration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            client = CodexAgentClient(
+                model="test-codex-model",
+                base_url="https://example.test/v1",
+                api_key="secret-test-key",
+                executable="codex-test",
+            )
+
+            def fake_run(command, **kwargs):
+                final_path = Path(command[command.index("--output-last-message") + 1])
+                final_path.write_text("done", encoding="utf-8")
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with patch(
+                "agent_world_mini.utils.search_agent.codex.subprocess.run",
+                side_effect=fake_run,
+            ) as run_process:
+                self.assertEqual(client.run("Do the task", working_directory=workspace), "done")
+
+            command = run_process.call_args.args[0]
+            child_environment = run_process.call_args.kwargs["env"]
+            self.assertEqual(command[command.index("--model") + 1], "test-codex-model")
+            self.assertIn('model_provider="agent_world_llm"', command)
+            self.assertIn(
+                'model_providers.agent_world_llm.wire_api="responses"',
+                command,
+            )
+            self.assertNotIn("secret-test-key", command)
+            self.assertEqual(
+                child_environment["AGENT_WORLD_LLM_API_KEY"],
+                "secret-test-key",
+            )
 
     def test_luna_handoff_replaces_backend_calls_and_replays_reviewed_tasks(self):
         class NoBackendCalls:
@@ -104,7 +257,7 @@ class PipelineTests(unittest.TestCase):
             bundle_path = root / "research_bundle.json"
             bundle_path.write_text(json.dumps(self.bundle.to_dict()), encoding="utf-8")
             output = root / "output"
-            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=NoBackendCalls()):
+            with patch("agent_world_mini.run_pipeline.LLMClient.from_environment", return_value=NoBackendCalls()):
                 summary = run(None, output, research_bundle=bundle_path, max_candidates=8, luna_review_export=True)
             self.assertEqual(summary["semantic_review_status"], "awaiting_luna_review")
 
@@ -130,7 +283,7 @@ class PipelineTests(unittest.TestCase):
                 }],
             }
             reviews_path.write_text(json.dumps(review_payload), encoding="utf-8")
-            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=NoBackendCalls()):
+            with patch("agent_world_mini.run_pipeline.LLMClient.from_environment", return_value=NoBackendCalls()):
                 completed = apply_luna_reviews(output, reviews_path)
             self.assertEqual(completed["successful_tasks"], 1)
             task_payload = json.loads((output / "tasks.json").read_text(encoding="utf-8"))
@@ -539,7 +692,7 @@ class PipelineTests(unittest.TestCase):
             bundle_path = root / "bundle.json"
             bundle_path.write_text(json.dumps(bundle.to_dict()), encoding="utf-8")
             output = root / "output"
-            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()):
+            with patch("agent_world_mini.run_pipeline.LLMClient.from_environment", return_value=LLMClient()):
                 summary = run(None, output, research_bundle=bundle_path, max_candidates=64, luna_review_export=True)
             self.assertGreaterEqual(summary["state_mutating_tools"], 3)
             packet = json.loads((output / "luna_review_packet.json").read_text(encoding="utf-8"))
@@ -565,7 +718,7 @@ class PipelineTests(unittest.TestCase):
             }
             reviews_path = output / "reviews.json"
             reviews_path.write_text(json.dumps(reviews), encoding="utf-8")
-            with patch("agent_world_mini.pipeline.LLMClient.from_environment", return_value=LLMClient()):
+            with patch("agent_world_mini.run_pipeline.LLMClient.from_environment", return_value=LLMClient()):
                 imported = apply_luna_reviews(output, reviews_path)
             self.assertEqual(imported["successful_tasks"], 1)
             task = json.loads((output / "tasks.json").read_text(encoding="utf-8"))["tasks"][0]
@@ -754,18 +907,38 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(FlakyLLM.calls, 2)
 
     def test_research_request_requires_real_web_tool_use(self):
-        client = LLMClient()
-        with patch.object(client, "_complete", return_value=("{}", {})) as complete:
-            client.research_json("system", "prompt", max_tool_calls=6)
-        payload = complete.call_args.args[0]
-        self.assertEqual(payload["tool_choice"], "required")
-        self.assertEqual(payload["max_tool_calls"], 6)
+        class FakeCompletions:
+            def __init__(self):
+                self.parameters = {}
+
+            def create(self, **parameters):
+                self.parameters = parameters
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(
+                        message=SimpleNamespace(content="{}", annotations=[])
+                    )],
+                    usage=SimpleNamespace(model_dump=lambda: {}),
+                )
+
+        client = LLMClient(
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_key="test-key",
+        )
+        completions = FakeCompletions()
+        client._client = SimpleNamespace(
+            chat=SimpleNamespace(completions=completions)
+        )
+        agent = WebResearchAgent(client)
+        agent._research_json("system", "prompt", max_tool_calls=6)
+        self.assertEqual(completions.parameters["tool_choice"], "required")
+        self.assertEqual(completions.parameters["extra_body"]["max_tool_calls"], 6)
 
     def test_research_fetch_uses_curl_when_python_tls_fails(self):
         completed = type("CurlResult", (), {"returncode": 0, "stdout": b'[{"id": 1}]'})()
-        with patch("agent_world_mini.research.urlopen", side_effect=OSError("TLS failed")), \
-             patch("agent_world_mini.research.shutil.which", return_value="curl"), \
-             patch("agent_world_mini.research.subprocess.run", return_value=completed):
+        with patch("agent_world_mini.utils.search_agent.web.urlopen", side_effect=OSError("TLS failed")), \
+             patch("agent_world_mini.utils.search_agent.web.shutil.which", return_value="curl"), \
+             patch("agent_world_mini.utils.search_agent.web.subprocess.run", return_value=completed):
             content_type, text = WebResearchAgent(LLMClient())._fetch("https://example.test/data")
         self.assertEqual(content_type, "application/json")
         self.assertEqual(json.loads(text), [{"id": 1}])
@@ -1224,7 +1397,7 @@ class PipelineTests(unittest.TestCase):
                 "pagination": {"totalPages": 1},
             }
             detail = {"tools": [{"name": "search_records"}, {"name": "get_record"}]}
-            with patch("agent_world_mini.catalog._get_json", side_effect=[listing, detail]):
+            with patch("agent_world_mini.seed_gen.catalog._get_json", side_effect=[listing, detail]):
                 selected, report = discover_smithery_themes(1, output_root, selection_seed=1)
             self.assertEqual([seed.seed_label for seed in selected], ["New Business"])
             self.assertEqual(report["skipped_existing_or_duplicate"], 1)
@@ -1247,7 +1420,7 @@ class PipelineTests(unittest.TestCase):
             }), encoding="utf-8")
             loaded = load_prepared_catalog(catalog)
             self.assertEqual(loaded[0].documented_tools[0]["inputSchema"]["properties"]["query"]["type"], "string")
-            with patch("agent_world_mini.catalog._get_json", side_effect=AssertionError("batch selection must not use the network")):
+            with patch("agent_world_mini.seed_gen.catalog._get_json", side_effect=AssertionError("batch selection must not use the network")):
                 selected, report = select_prepared_themes(catalog, 1, root / "runs", selection_seed=1)
             self.assertEqual(selected[0].seed_label, "Library")
             self.assertEqual(report["selected"], 1)
@@ -1261,9 +1434,9 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "prepared.json"
             with (
-                patch("agent_world_mini.catalog._smithery_servers", return_value=servers),
-                patch("agent_world_mini.catalog._read_server_detail", side_effect=lambda item: item | {"tools": [{"name": "search"}]}),
-                patch("agent_world_mini.catalog._organize_environment", side_effect=lambda item, _llm: item | {"organizationStatus": "agent_organized"}),
+                patch("agent_world_mini.seed_gen.catalog._smithery_servers", return_value=servers),
+                patch("agent_world_mini.seed_gen.catalog._read_server_detail", side_effect=lambda item: item | {"tools": [{"name": "search"}]}),
+                patch("agent_world_mini.seed_gen.catalog._organize_environment", side_effect=lambda item, _llm: item | {"organizationStatus": "agent_organized"}),
             ):
                 summary = prepare_smithery_catalog(output)
             payload = json.loads(output.read_text(encoding="utf-8"))

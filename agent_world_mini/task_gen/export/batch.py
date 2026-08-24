@@ -6,7 +6,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .io_utils import write_json
+from agent_world_mini.utils.io import write_json
 
 
 def _load(path: Path) -> dict[str, Any]:

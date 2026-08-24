@@ -11,10 +11,10 @@ from typing import Any
 from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
-from .io_utils import extract_json_object
-from .llm import LLMClient
-from .models import Record, ResearchBundle
-from .themes import ThemeSeed, resolve_theme
+from agent_world_mini.utils.io import extract_json_object
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.schemas.models import Record, ResearchBundle
+from agent_world_mini.seed_gen.themes import ThemeSeed, resolve_theme
 
 
 class _ReadableTextParser(HTMLParser):
@@ -45,6 +45,52 @@ class WebResearchAgent:
         self.llm = llm
         self.max_sources = max_sources
         self.research_calls_per_round = research_calls_per_round
+
+    def _research_json(
+        self,
+        system: str,
+        prompt: str,
+        max_tool_calls: int,
+    ) -> tuple[str, dict[str, object]]:
+        """调用 OpenRouter 托管的搜索工具；该协议属于 Research Agent。"""
+
+        response = self.llm.client.chat.completions.create(
+            model=self.llm.model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            response_format={"type": "json_object"},
+            tools=[
+                {
+                    "type": "openrouter:web_search",
+                    "parameters": {
+                        "max_results": 5,
+                        "max_total_results": 30,
+                        "search_context_size": "medium",
+                    },
+                },
+                {
+                    "type": "openrouter:web_fetch",
+                    "parameters": {"max_content_tokens": 12000},
+                },
+            ],
+            tool_choice="required",
+            extra_body={"max_tool_calls": max_tool_calls},
+        )
+        message = response.choices[0].message
+        content = message.content or ""
+        if not content.strip():
+            raise RuntimeError("Research Agent 没有返回 JSON 内容")
+        usage = response.usage.model_dump() if response.usage else {}
+        annotations = getattr(message, "annotations", None)
+        if annotations:
+            usage["annotations"] = [
+                item.model_dump() if hasattr(item, "model_dump") else item
+                for item in annotations
+            ]
+        return content, usage
 
     def _fetch(self, url: str, limit: int = 60_000) -> tuple[str, str]:
         url = quote(url, safe=":/?&=#%;")
@@ -140,7 +186,7 @@ class WebResearchAgent:
                     "remaining_data_gaps": ["important missing entity or relation"],
                 },
             }
-            raw, usage = self.llm.research_json(
+            raw, usage = self._research_json(
                 "Research real public data for this environment. Search and fetch as needed. Prefer a small connected sample spanning several useful entity types over exhaustive records of one type. Never download model weights, media, archives, binaries, or every child item under one parent. Put official data APIs, datasets, feeds, or small real JSON, CSV, and text files first; when docs reveal an API, return a concrete query URL that yields records. Documentation and Wikipedia may explain the domain but cannot be the environment state. Do not invent records.",
                 json.dumps(prompt, ensure_ascii=False),
                 max_tool_calls=round_call_budget,
@@ -294,7 +340,7 @@ class WebResearchAgent:
             before_relations = self._relation_pairs(records)
             summary = self._state_summary(records)
             try:
-                raw, usage = self.llm.research_json(
+                raw, usage = self._research_json(
                     "Continue researching this environment on the web. Find a small number of concrete public GET URLs that improve entity diversity, relationship coverage, or reachable depth in the current local data. Prefer connecting currently isolated IDs and broadening coverage across several parent records. Do not collect more same-type leaves under an already covered parent. Never download weights, media, archives, binaries, or exhaustive file lists. Do not return overview pages, documentation-only URLs, or invented records.",
                     json.dumps({
                         "environment": {

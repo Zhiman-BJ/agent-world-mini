@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Hashable
 
-from .runtime import LocalToolRuntime
+from agent_world_mini.runtime.engine import LocalToolRuntime
 
 
 def runtime_for_rollout(

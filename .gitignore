@@ -1,4 +1,5 @@
 # Local credentials
+config/api_keys.env
 .env
 .env.*
 !.env.example

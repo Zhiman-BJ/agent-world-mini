@@ -8,7 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from .models import Record, ResearchBundle, ToolSpec
+from agent_world_mini.schemas.models import Record, ResearchBundle, ToolSpec
 
 
 class RuntimeContext:

@@ -5,19 +5,19 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from .catalog import output_slug, prepare_smithery_catalog, select_prepared_themes
-from .compiler import EnvironmentCompiler
-from .deepseek_harness import DeepSeekHarnessResearchAgent
-from .graph import ToolGraph
-from .io_utils import write_json
-from .llm import LLMClient
-from .models import ResearchBundle, ToolSpec
-from .research import WebResearchAgent
-from .runtime import LocalToolRuntime
-from .tasks import TaskSynthesizer
-from .themes import CURATED_THEME_SEEDS, ThemeSeed, resolve_theme
-from .tools import ToolDesigner, ToolValidator
-from .verification import FiveRunVerifier
+from agent_world_mini.seed_gen.catalog import output_slug, prepare_smithery_catalog, select_prepared_themes
+from agent_world_mini.env_gen.assembler import assemble_environment_manifest
+from agent_world_mini.env_gen.data_gen import DataGenerator
+from agent_world_mini.env_gen.tool_gen.compiler import EnvironmentCompiler
+from agent_world_mini.task_gen.dag_form.graph import ToolGraph
+from agent_world_mini.utils.io import write_json
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.schemas.models import ResearchBundle, ToolSpec
+from agent_world_mini.runtime.engine import LocalToolRuntime
+from agent_world_mini.task_gen.dag_form.synthesizer import TaskSynthesizer
+from agent_world_mini.seed_gen.themes import CURATED_THEME_SEEDS, ThemeSeed, resolve_theme
+from agent_world_mini.env_gen.tool_gen.designer import ToolDesigner, ToolValidator
+from agent_world_mini.task_gen.validation.five_run import FiveRunVerifier
 
 
 class EnvironmentRejected(RuntimeError):
@@ -48,10 +48,14 @@ def run(
     if deepseek_harness:
         seed = theme_seed or resolve_theme(theme, theme_id, source_url)
         print(f"[{seed.theme_id}] DeepSeek Harness researching {seed.source_url or seed.seed_label}", flush=True)
-        bundle = DeepSeekHarnessResearchAgent().gather(seed, output_dir / "research_bundle.json")
+        bundle = DataGenerator(llm).generate(
+            seed,
+            deepseek_harness=True,
+            output_file=output_dir / "research_bundle.json",
+        )
         print(f"[{seed.theme_id}] DeepSeek Harness research complete: {len(bundle.records)} records", flush=True)
     elif research_bundle is not None:
-        bundle = ResearchBundle.from_dict(json.loads(research_bundle.read_text(encoding="utf-8")))
+        bundle = DataGenerator.load(research_bundle)
         metadata = bundle.theme_metadata
         seed = ThemeSeed(
             theme_id=str(metadata.get("theme_id") or f"external-{output_dir.name}"),
@@ -66,7 +70,7 @@ def run(
     else:
         seed = theme_seed or resolve_theme(theme, theme_id, source_url)
         print(f"[{seed.theme_id}] researching {seed.source_url or seed.seed_label}", flush=True)
-        bundle = WebResearchAgent(llm).gather(seed, complexify_rounds=complexify_rounds)
+        bundle = DataGenerator(llm).generate(seed, complexify_rounds=complexify_rounds)
         print(f"[{seed.theme_id}] research complete: {len(bundle.records)} records", flush=True)
     EnvironmentCompiler(llm).prepare(bundle, use_agent=not luna_review_export)
     write_json(output_dir / "research_bundle.json", bundle.to_dict())
@@ -134,18 +138,7 @@ def run(
         inconclusive_tasks = [task.to_dict() for task in tasks if task.validation["five_run_verification"]["status"] == "inconclusive_infrastructure"]
         tasks = [task for task in tasks if task.validation["five_run_verification"]["status"] == "passed"]
 
-    write_json(output_dir / "environment_manifest.json", {
-        "theme": bundle.theme,
-        "theme_source": seed.to_dict(),
-        "research_sources": bundle.sources,
-        "state_contract": bundle.state_contract,
-        "agent_visible_contract": {
-            "task": "Provided per task",
-            "tools": "All retained schemas are visible before the rollout",
-            "state": "Only observations returned by calls are visible; database snapshot and evaluators remain sandbox-internal",
-        },
-        "reset_policy": "Each reference execution and ReAct rollout starts from the same source records, local state seed, and researched resource snapshot.",
-    })
+    write_json(output_dir / "environment_manifest.json", assemble_environment_manifest(bundle, seed, tools))
     write_json(output_dir / "tool_graph.json", graph.to_dict(chains))
     write_json(output_dir / "walk_synthesis.json", walk_report)
     if luna_review_export:
@@ -253,7 +246,7 @@ def run_batch(
     output_root: Path,
     selection_seed: int | None = None,
     dry_run: bool = False,
-    prepared_catalog: Path = Path("agent_world_mini/prepared_environments.json"),
+    prepared_catalog: Path = Path("agent_world_mini/seed_gen/prepared_environments.json"),
     **run_options: object,
 ) -> dict[str, object]:
     pool_size = batch_size if dry_run else batch_size * 2
@@ -316,7 +309,7 @@ def main() -> None:
     parser.add_argument("--luna-reviews", type=Path, help="Import reviews written by a Luna subagent into an existing exported environment.")
     parser.add_argument("--batch-size", type=int, help="Select and run this many unseen environments from the prepared local catalogue.")
     parser.add_argument("--prepare-catalog", action="store_true", help="Fetch and organize the Smithery catalogue before generation.")
-    parser.add_argument("--prepared-catalog", default="agent_world_mini/prepared_environments.json", help="Local prepared environment catalogue used by batch runs.")
+    parser.add_argument("--prepared-catalog", default="agent_world_mini/seed_gen/prepared_environments.json", help="Local prepared environment catalogue used by batch runs.")
     parser.add_argument("--catalog-query", default="", help="Optional Smithery query used only while preparing the catalogue.")
     parser.add_argument("--catalog-limit", type=int, default=0, help="Optional preparation limit; 0 prepares every matching entry.")
     parser.add_argument("--selection-seed", type=int, help="Optional repeatable random selection seed.")

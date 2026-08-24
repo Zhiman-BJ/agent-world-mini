@@ -12,9 +12,9 @@ from typing import Any
 
 from openai import BadRequestError, OpenAI
 
-from agent_world_mini.io_utils import extract_json_object
+from agent_world_mini.utils.io import extract_json_object
 from agent_world_mini.runtime import LocalToolRuntime
-from agent_world_mini.verification import FiveRunVerifier
+from agent_world_mini.task_gen.validation.five_run import FiveRunVerifier
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:

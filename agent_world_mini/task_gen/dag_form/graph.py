@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 import random
 from typing import Any
-from .llm import LLMClient
-from .models import ToolChain, ToolSpec
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.schemas.models import ToolChain, ToolSpec
 
 
 class ToolGraph:

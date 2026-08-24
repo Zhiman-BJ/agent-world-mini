@@ -8,19 +8,13 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import ResearchBundle
-from .themes import ThemeSeed
+from agent_world_mini.schemas.models import ResearchBundle
+from agent_world_mini.seed_gen.themes import ThemeSeed
+from agent_world_mini.utils.config import load_local_environment
 
 
 def _load_project_env(environment: dict[str, str]) -> None:
-    for env_file in (Path(".env"), Path(".deepseek-harness.env")):
-        if not env_file.is_file():
-            continue
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            key, separator, value = line.partition("=")
-            key = key.strip()
-            if separator and key and not key.startswith("#"):
-                environment.setdefault(key, value.strip().strip('"').strip("'"))
+    load_local_environment(environment)
 
 
 def _research_prompt(seed: ThemeSeed, output_file: Path) -> str:
@@ -70,7 +64,7 @@ class DeepSeekHarnessResearchAgent:
 
         output_file = output_file.resolve()
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_template = Path(__file__).resolve().parent.parent / "deepseek_harness.patch.yml"
+        patch_template = Path(__file__).resolve().parents[3] / "deepseek_harness.patch.yml"
         with tempfile.TemporaryDirectory(prefix="agent-world-deepseek-") as temporary:
             workspace = Path(temporary)
             harness_output = workspace / "research_bundle.json"

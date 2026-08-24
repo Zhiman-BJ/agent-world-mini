@@ -5,7 +5,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from agent_world_mini.verification import FiveRunVerifier
+from agent_world_mini.task_gen.validation.five_run import FiveRunVerifier
 from training.evaluate_internal import load_jsonl, parse_answer
 
 

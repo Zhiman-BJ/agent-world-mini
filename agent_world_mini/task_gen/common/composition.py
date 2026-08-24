@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .io_utils import write_json
-from .llm import LLMClient
-from .models import ResearchBundle, ToolSpec
-from .runtime import LocalToolRuntime
-from .tasks import TaskSynthesizer
+from agent_world_mini.utils.io import write_json
+from agent_world_mini.utils.llm import LLMClient
+from agent_world_mini.schemas.models import ResearchBundle, ToolSpec
+from agent_world_mini.runtime.engine import LocalToolRuntime
+from agent_world_mini.task_gen.dag_form.synthesizer import TaskSynthesizer
 
 
 def _load(path: Path) -> dict[str, Any]:
