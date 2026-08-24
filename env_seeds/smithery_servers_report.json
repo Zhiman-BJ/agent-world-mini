@@ -1,0 +1,57 @@
+{
+  "generated_at_utc": "2026-08-23T17:14:16.512396+00:00",
+  "source": "https://smithery.ai/servers",
+  "api": "https://api.smithery.ai/servers",
+  "filter": {
+    "remote": [
+      true,
+      false
+    ]
+  },
+  "stable_pagination_seed": 20260823,
+  "page_size": 100,
+  "pages": 76,
+  "pagination_groups": {
+    "remote_true": {
+      "total_pages": 68,
+      "total_count": 6705
+    },
+    "remote_false": {
+      "total_pages": 8,
+      "total_count": 719
+    }
+  },
+  "reported_servers": 7424,
+  "written_servers": 7424,
+  "unique_server_names": 7424,
+  "verified_true": 269,
+  "verified_false": 7155,
+  "remote_true": 6705,
+  "remote_false": 719,
+  "record_fields": [
+    "bySmithery",
+    "createdAt",
+    "description",
+    "displayName",
+    "homepage",
+    "iconUrl",
+    "id",
+    "inactive",
+    "isDeployed",
+    "namespace",
+    "owner",
+    "qualifiedName",
+    "remote",
+    "score",
+    "slug",
+    "unlisted",
+    "useCount",
+    "verified"
+  ],
+  "order": [
+    "useCount descending",
+    "qualifiedName ascending"
+  ],
+  "output": "D:\\Desktop\\agent-world-mini\\env_seeds\\smithery_servers.json",
+  "output_sha256": "4906f191da3b87ab332e1271cf7244bcc833a179a83ec75d4d17e003bf464e86"
+}

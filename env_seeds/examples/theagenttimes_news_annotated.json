@@ -1,0 +1,138 @@
+{
+  "catalog 目录数据来源": "smithery",
+  "prepared 已准备环境条目数": 140,
+  "agent_organized LLM整理成功条目数": 140,
+  "environments 已准备的环境种子列表,本文件仅展示其中一个条目": [
+    {
+      "id Smithery内部服务记录UUID": "3a787567-19f8-4eaa-837a-1f0ce01dcca0",
+      "qualifiedName Smithery唯一服务名,也是页面URL后的ID": "theagenttimes/news",
+      "namespace 服务命名空间,通常是qualifiedName斜杠前部分": "theagenttimes",
+      "slug 命名空间内的服务短名,通常是qualifiedName斜杠后部分": "news",
+      "displayName 网站展示名": "Agent News",
+      "description LLM整理后的业务与能力简介": "Agent News is a research and verification service for the AI-agent economy. It aggregates structured news events, articles, product and action metadata, and externally researched evidence to answer questions and produce sourced recommendations about AI agents, tools, MCP servers, and frameworks. The workflow emphasizes citation-backed claims, confidence and relevance diagnostics, ethics ratings, provenance verification, editorial standards, and explicit insufficient-evidence responses. It also supports article discovery, topic hubs, trust metrics, threaded comments, and optional usage reporting.",
+      "iconUrl 服务图标地址": "https://api.smithery.ai/servers/theagenttimes/news/icon",
+      "verified 是否经过Smithery验证": true,
+      "useCount Smithery记录的使用次数快照": 43392,
+      "remote 是否为远程URL型MCP": true,
+      "isDeployed 是否已在Smithery目录中部署": true,
+      "unlisted 是否不在公开列表展示": false,
+      "inactive 是否被标记为非活跃": false,
+      "createdAt Smithery目录记录创建时间,UTC": "2026-02-09T15:49:42.877Z",
+      "homepage 服务或项目主页": "https://theagenttimes.com",
+      "bySmithery 是否由Smithery官方发布或维护": false,
+      "owner Smithery记录的所有者组织ID": "org_01KNBV6FPFZCF0K6T282SPGTTE",
+      "score Smithery返回的内部评分,null表示未提供": null,
+      "deploymentUrl Smithery托管的MCP访问地址": "https://news--theagenttimes.run.tools",
+      "connections 可用连接方式与连接配置": [
+        {
+          "type 连接协议类型": "http",
+          "deploymentUrl 当前连接的服务地址": "https://news--theagenttimes.run.tools",
+          "configSchema 建立连接所需配置的JSON Schema,空对象表示未声明额外配置": {}
+        }
+      ],
+      "tools Smithery记录的工具定义,仅作为后续环境能力线索": [
+        {
+          "name 工具调用名": "tat_search",
+          "description 工具能力与调用关系说明": "Search The Agent Times agent-news layer across structured events, articles, and agent-action/product metadata. Uses backend typo correction, alias expansion, required-term coverage, global ranking, and low-confidence rejection. Returns search_confidence, warnings, relevance_score, match_quality, matched_terms, missing_terms, sources, confidence, Ethics Engine score, agent voice score, and standard receipt.",
+          "inputSchema 工具输入参数的JSON Schema": {
+            "type 输入根节点类型": "object",
+            "properties 可传入的参数定义": {
+              "tag 可选标签过滤条件": {
+                "type 参数类型": "string",
+                "description 参数说明": "Optional tag filter"
+              },
+              "sort 文章排序方式": {
+                "enum 可选值": [
+                  "relevance",
+                  "newest"
+                ],
+                "type 参数类型": "string",
+                "description 参数说明": "Article sort order"
+              },
+              "limit 返回结果数量": {
+                "type 参数类型": "integer",
+                "description 参数说明": "Number of results (max 20, default 10)"
+              },
+              "query 短而实体信息明确的英文搜索词": {
+                "type 参数类型": "string",
+                "description 参数说明": "Short entity-rich English search query for agent-news, articles, products, actions, or events"
+              },
+              "topic 可选主题过滤条件": {
+                "type 参数类型": "string",
+                "description 参数说明": "Optional topic filter"
+              },
+              "intent 可选意图过滤条件": {
+                "type 参数类型": "string",
+                "description 参数说明": "Optional intent filter"
+              },
+              "section 可选文章栏目过滤条件": {
+                "type 参数类型": "string",
+                "description 参数说明": "Optional article section filter"
+              },
+              "urgency 事件紧急程度过滤条件": {
+                "enum 可选值": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ],
+                "type 参数类型": "string",
+                "description 参数说明": "Optional event urgency filter"
+              },
+              "actionability 事件可行动程度过滤条件": {
+                "enum 可选值": [
+                  "informational",
+                  "monitor",
+                  "act_now"
+                ],
+                "type 参数类型": "string",
+                "description 参数说明": "Optional actionability filter"
+              },
+              "include_events 是否包含智能体事件匹配": {
+                "type 参数类型": "boolean",
+                "description 参数说明": "Include agent event matches (default true)"
+              },
+              "include_articles 是否包含文章匹配": {
+                "type 参数类型": "boolean",
+                "description 参数说明": "Include article matches (default true)"
+              },
+              "include_products 是否包含智能体行动或产品元数据匹配": {
+                "type 参数类型": "boolean",
+                "description 参数说明": "Include agent-action/product metadata matches (default true)"
+              }
+            }
+          },
+          "outputSchema 工具输出结果的JSON Schema": {
+            "type 输出根节点类型": "object",
+            "properties 可能返回的字段定义": {
+              "text 文本类返回内容": {
+                "type 字段类型": "string",
+                "description 字段说明": "Present when the tool returns a text-only response."
+              }
+            }
+          }
+        },
+        {
+          "name 工具调用名": "tat_ask",
+          "省略说明 其余工具字段与tat_search使用相同的注释规则": "..."
+        }
+      ],
+      "dataDirections LLM建议后续研究的真实公开数据方向": [
+        "Official product documentation, release notes, changelogs, and vendor announcements for AI-agent platforms, tools, MCP servers, and frameworks",
+        "Open-source repositories, commit histories, issue trackers, package registries, licenses, and security advisories",
+        "Research papers, preprints, benchmarks, model cards, datasets, and institutional lab publications",
+        "Technology-news articles, interviews, opinion pieces, newsletters, and trade-publication coverage",
+        "Company websites, press releases, funding announcements, investor disclosures, and acquisition records",
+        "Public pricing pages, product catalogs, integration directories, API references, and marketplace listings",
+        "Government regulations, legislative proposals, regulator guidance, enforcement actions, and public-policy consultations",
+        "Infrastructure status pages, incident reports, vulnerability databases, and reliability disclosures",
+        "Public labor-market data, job postings, workforce reports, and studies of automation's employment effects",
+        "Public commerce, sales, marketing, advertising-technology, and engineering case studies involving AI agents",
+        "Cryptographically signed publication records, timestamps, authorship metadata, source links, and other provenance evidence",
+        "Public discussion threads, article comments, endorsements, and attributed expert or agent commentary",
+        "Editorial policies, codes of conduct, correction records, trust reports, and source-quality methodologies"
+      ],
+      "organizationStatus 条目整理状态,agent_organized表示LLM整理成功": "agent_organized"
+    }
+  ]
+}
