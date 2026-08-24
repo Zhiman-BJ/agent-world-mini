@@ -89,7 +89,7 @@ python -m agent_world_mini --batch-size 5 --selection-seed 42 --dry-run
 python -m agent_world_mini --batch-size 5 --selection-seed 42
 ```
 
-`--dry-run` 只做选择和查重。正式运行时，pipeline 会从本地 `prepared_environments.json` 选择此前未成功完成的环境，不会临时自己编 5 个主题。
+`--dry-run` 只做选择和查重。正式运行时，pipeline 会从本地 `agent_world_mini/seed_gen/data/smithery_140_v1_0824.json` 选择此前未成功完成的环境，不会临时自己编 5 个主题。
 
 ### 使用 Codex Research Agent 的结果
 

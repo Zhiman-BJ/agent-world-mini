@@ -39,8 +39,10 @@ agent_world_mini/
 ├── seed_gen/
 │   ├── themes.py
 │   ├── catalog.py
-│   ├── theme_sources.json
-│   └── prepared_environments.json
+│   ├── data/
+│   │   ├── theme_sources.json
+│   │   └── prepared_environments.json
+│   └── scripts/
 ├── env_gen/
 │   ├── data_gen/
 │   │   └── generator.py

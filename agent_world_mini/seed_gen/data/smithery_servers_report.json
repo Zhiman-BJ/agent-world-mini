@@ -52,6 +52,6 @@
     "useCount descending",
     "qualifiedName ascending"
   ],
-  "output": "D:\\Desktop\\agent-world-mini\\env_seeds\\smithery_servers.json",
+  "output": "D:\\Desktop\\agent-world-mini\\agent_world_mini\\seed_gen\\data\\smithery_servers.json",
   "output_sha256": "4906f191da3b87ab332e1271cf7244bcc833a179a83ec75d4d17e003bf464e86"
 }

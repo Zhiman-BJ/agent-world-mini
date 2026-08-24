@@ -86,7 +86,7 @@ python -m agent_world_mini `
 
 ## 从本地目录批量运行
 
-仓库包含预处理后的环境目录 `agent_world_mini/seed_gen/prepared_environments.json`。批量运行只读这个本地文件，不会在每次启动时重新访问 MCP 网站。
+仓库包含预处理后的环境目录 `agent_world_mini/seed_gen/data/prepared_environments.json`。批量运行只读这个本地文件，不会在每次启动时重新访问 MCP 网站。
 
 先只看会选中什么，不开始研究：
 

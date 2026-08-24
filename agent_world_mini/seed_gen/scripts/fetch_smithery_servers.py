@@ -192,7 +192,8 @@ def write_json_atomic(path: Path, value: object) -> None:
 
 
 def main() -> None:
-    default_root = Path(__file__).resolve().parent
+    seed_gen_root = Path(__file__).resolve().parents[1]
+    default_root = seed_gen_root / "data"
     parser = argparse.ArgumentParser(
         description="Fetch remote=true and remote=false Smithery servers with stable deep pagination"
     )
@@ -208,7 +209,7 @@ def main() -> None:
     if args.retries < 0:
         parser.error("--retries must not be negative")
 
-    workspace_env = default_root.parent / ".env"
+    workspace_env = seed_gen_root.parents[1] / ".env"
     load_dotenv(workspace_env)
     api_key = os.environ.get("SMITHERY_API_KEY", "").strip()
     if not api_key:

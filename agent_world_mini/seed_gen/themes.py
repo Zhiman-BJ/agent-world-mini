@@ -27,7 +27,7 @@ class ThemeSeed:
         return asdict(self)
 
 
-THEME_SOURCE_FILE = Path(__file__).with_name("theme_sources.json")
+THEME_SOURCE_FILE = Path(__file__).with_name("data") / "theme_sources.json"
 
 
 def _load_theme_sources() -> tuple[dict[str, ThemeSeed], list[dict[str, str]]]:

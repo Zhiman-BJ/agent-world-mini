@@ -17,4 +17,4 @@ agent-world-mini = "agent_world_mini.run_pipeline:main"
 include = ["agent_world_mini*"]
 
 [tool.setuptools.package-data]
-agent_world_mini = ["seed_gen/*.json", "schemas/*.json", "schemas/*.md"]
+agent_world_mini = ["seed_gen/*.md", "seed_gen/data/*.json", "seed_gen/docs/*.md", "schemas/*.json", "schemas/*.md"]

@@ -246,7 +246,7 @@ def run_batch(
     output_root: Path,
     selection_seed: int | None = None,
     dry_run: bool = False,
-    prepared_catalog: Path = Path("agent_world_mini/seed_gen/prepared_environments.json"),
+    prepared_catalog: Path = Path("agent_world_mini/seed_gen/data/smithery_140_v1_0824.json"),
     **run_options: object,
 ) -> dict[str, object]:
     pool_size = batch_size if dry_run else batch_size * 2
@@ -309,7 +309,7 @@ def main() -> None:
     parser.add_argument("--luna-reviews", type=Path, help="Import reviews written by a Luna subagent into an existing exported environment.")
     parser.add_argument("--batch-size", type=int, help="Select and run this many unseen environments from the prepared local catalogue.")
     parser.add_argument("--prepare-catalog", action="store_true", help="Fetch and organize the Smithery catalogue before generation.")
-    parser.add_argument("--prepared-catalog", default="agent_world_mini/seed_gen/prepared_environments.json", help="Local prepared environment catalogue used by batch runs.")
+    parser.add_argument("--prepared-catalog", default="agent_world_mini/seed_gen/data/smithery_140_v1_0824.json", help="Local prepared environment catalogue used by batch runs.")
     parser.add_argument("--catalog-query", default="", help="Optional Smithery query used only while preparing the catalogue.")
     parser.add_argument("--catalog-limit", type=int, default=0, help="Optional preparation limit; 0 prepares every matching entry.")
     parser.add_argument("--selection-seed", type=int, help="Optional repeatable random selection seed.")
