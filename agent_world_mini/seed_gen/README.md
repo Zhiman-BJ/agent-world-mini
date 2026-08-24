@@ -13,11 +13,15 @@ seed_gen/
 
 - `data/prepared_environments.json`：批量环境生成默认读取的 140 条 Smithery 环境目录。
 - `data/smithery_140_v1_0824.json`：按环境种子 v1 结构转换的 140 条正式产物。
-- `data/environment_1_v1.json`：正式结构及带字段说明的单环境样例。
-- `data/prepared_environments_1.json`、`data/prepared_environments_10.json`：整理过程中的小规模参考样例。
+- `data/env示例1_v1.json`：正式结构片段及带字段说明的单环境阅读样例。
+- `data/prepared_environments_10.json`：整理过程中的小规模参考样例。
 - `data/smithery_servers.json`：保留 Smithery 列表接口原字段的完整快照。
 - `data/smithery_servers_report.json`：完整快照的分页、数量和 SHA-256 校验信息。
 - `data/theme_sources.json`：内置主题来源。
+
+环境种子格式见 `../schemas/环境种子契约-v1.0.md` 和
+`../schemas/env_seeds.schema.json`。注释样例中的中文 key 和省略号不属于正式格式，
+批量机器产物以 `data/smithery_140_v1_0824.json` 为准。
 
 ## 维护命令
 
