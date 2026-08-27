@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/validation/env_seeds.schema.json",
+  "title": "Agent-World Environment Seed Validation",
+  "description": "用于发布前验证环境种子集合；字段结构与环境种子契约一致。",
+  "$comment": "除本 Schema 外，Validator 还必须重算 global_id、检查集合级唯一性、来源 URL 和同一环境内参考工具名。",
+  "type": "array",
+  "minItems": 1,
+  "uniqueItems": true,
+  "items": {
+    "$ref": "#/$defs/environmentSeed"
+  },
+  "$defs": {
+    "snakeCaseId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+    },
+    "environmentSeed": {
+      "type": "object",
+      "properties": {
+        "global_id": {
+          "$ref": "#/$defs/snakeCaseId",
+          "description": "环境种子的稳定全局标识。由 source、规范化后的 name 和 index 组成。"
+        },
+        "schema_version": {
+          "type": "string",
+          "const": "1.0",
+          "description": "环境种子契约版本。"
+        },
+        "environment": {
+          "$ref": "#/$defs/seedEnvironment"
+        },
+        "init_ref_tools": {
+          "type": "array",
+          "description": "来源自带的参考工具。空数组表示来源未提供工具；数组元素保持来源工具字段，不等同于正式工具契约。",
+          "items": {
+            "$ref": "#/$defs/referenceTool"
+          }
+        },
+        "init_ref_tasks": {
+          "type": "array",
+          "description": "来源自带的参考任务。空数组表示来源未提供任务；数组元素不等同于最终任务。",
+          "items": {
+            "$ref": "#/$defs/referenceTask"
+          }
+        },
+        "others": {
+          "$ref": "#/$defs/otherInformation"
+        }
+      },
+      "required": [
+        "global_id",
+        "schema_version",
+        "environment",
+        "init_ref_tools",
+        "init_ref_tasks",
+        "others"
+      ],
+      "additionalProperties": false
+    },
+    "seedEnvironment": {
+      "type": "object",
+      "properties": {
+        "basic_info": {
+          "$ref": "#/$defs/basicInfo"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "环境对应的业务场景、数据范围、主要能力和用途。"
+        },
+        "domain": {
+          "$ref": "#/$defs/domain"
+        }
+      },
+      "required": [
+        "basic_info",
+        "description",
+        "domain"
+      ],
+      "additionalProperties": false
+    },
+    "basicInfo": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/snakeCaseId",
+          "description": "种子目录或提供方的稳定标识，例如 smithery。"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "format": "uri",
+          "description": "可回溯到来源条目的绝对 URI。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "来源中的稳定名称。Smithery 数据使用原始 qualifiedName。"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "该来源快照中的正整数序号。"
+        }
+      },
+      "required": [
+        "source",
+        "url",
+        "name",
+        "index"
+      ],
+      "additionalProperties": false
+    },
+    "categoryLevel": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/snakeCaseId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "domain": {
+      "type": "object",
+      "description": "最多三级的环境分类。层级值使用稳定 snake_case 分类标识；未分类层级使用 null。",
+      "properties": {
+        "level1": {
+          "$ref": "#/$defs/categoryLevel"
+        },
+        "level2": {
+          "$ref": "#/$defs/categoryLevel"
+        },
+        "level3": {
+          "$ref": "#/$defs/categoryLevel"
+        }
+      },
+      "required": [
+        "level1",
+        "level2",
+        "level3"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "level1": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "level1"
+            ]
+          },
+          "then": {
+            "properties": {
+              "level2": {
+                "type": "null"
+              },
+              "level3": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "level2": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "level2"
+            ]
+          },
+          "then": {
+            "properties": {
+              "level3": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "referenceTool": {
+      "type": "object",
+      "description": "来源记录的参考工具。字段名和 Schema 内容按来源保留，不套用正式 tool.schema.json。",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "来源工具名；允许保留点号、连字符等来源命名。"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "来源提供的工具能力说明。"
+        },
+        "inputSchema": {
+          "type": "object",
+          "description": "来源提供并声称为输入 JSON Schema 的对象。根节点必须表示 object，内部关键字和参数名原样保留；种子契约不保证其通过 JSON Schema 元校验。",
+          "properties": {
+            "type": {
+              "const": "object"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true
+        },
+        "outputSchema": {
+          "type": "object",
+          "description": "来源提供并声称为输出 JSON Schema 的对象。来源未声明时省略该字段；种子契约不保证其通过 JSON Schema 元校验。"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "inputSchema"
+      ],
+      "additionalProperties": false
+    },
+    "referenceTask": {
+      "type": "object",
+      "description": "来源记录的参考任务。任务存在时使用完整四字段结构；没有任务时使用空 init_ref_tasks 数组。",
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "来源任务描述。"
+        },
+        "input": {
+          "description": "来源任务输入，可保留任意合法 JSON 值。"
+        },
+        "output": {
+          "description": "来源任务期望输出，可保留任意合法 JSON 值。"
+        },
+        "solution_path": {
+          "type": "array",
+          "description": "来源提供的参考解决步骤。字符串用于自然语言步骤，对象用于保留结构化步骤。",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "object"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "description",
+        "input",
+        "output",
+        "solution_path"
+      ],
+      "additionalProperties": false
+    },
+    "otherInformation": {
+      "type": "object",
+      "description": "不属于环境、参考工具和参考任务核心结构的来源元数据与整理信息。一级自定义 key 使用 snake_case；嵌套的来源原始载荷可以保留原 key。",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+      },
+      "additionalProperties": true
+    }
+  }
+}

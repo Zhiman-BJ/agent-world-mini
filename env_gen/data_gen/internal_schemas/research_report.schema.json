@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/research_report.schema.json",
+  "title": "Agent-World DataGen Research Report",
+  "type": "object",
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"type": "string", "enum": ["ready", "insufficient_public_data"]},
+    "representation_mode": {"type": "string", "enum": ["structured_records", "file_native", "hybrid"]},
+    "summary": {"type": "string", "minLength": 1},
+    "coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/coverage"}
+    },
+    "extensions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/extension"}
+    },
+    "relations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/relation"}
+    },
+    "relation_gaps": {
+      "type": "array",
+      "minItems": 0,
+      "description": "有字段语义和实际交集但目标实体未完整采集的关系候选；不会被工具作为可遍历关系使用。",
+      "items": {"$ref": "#/$defs/relationGap"}
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/dimension"}
+    },
+    "gaps": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/gap"}
+    },
+    "data_policy": {
+      "type": "object",
+      "properties": {
+        "business_records": {"type": "string", "const": "real_public_only"},
+        "synthetic_business_record_count": {"type": "integer", "const": 0},
+        "deterministic_transformations_only": {"type": "boolean", "const": true}
+      },
+      "required": ["business_records", "synthetic_business_record_count", "deterministic_transformations_only"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version", "request_sha256", "status", "representation_mode", "summary",
+    "coverage", "extensions", "relations", "relation_gaps", "dimensions", "gaps", "data_policy"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "resource_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+        "entity_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"}
+        },
+        "field_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"}
+        },
+        "note": {"type": "string", "minLength": 1}
+      },
+      "required": ["resource_id", "entity_types", "field_refs", "note"],
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "requirement_id": {"type": "string", "pattern": "^seed_(?:entity|operation|scope)_[0-9]{2}$"},
+        "status": {"type": "string", "enum": ["covered", "unavailable"]},
+        "operation_family": {"$ref": "#/$defs/operationFamily"},
+        "target_entity": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "explanation": {"type": "string", "minLength": 1}
+      },
+      "required": ["requirement_id", "status", "evidence", "explanation"],
+      "additionalProperties": false
+    },
+    "extension": {
+      "type": "object",
+      "properties": {
+        "capability_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+        "description": {"type": "string", "minLength": 1},
+        "operation_family": {"$ref": "#/$defs/operationFamily"},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}}
+      },
+      "required": ["capability_id", "description", "operation_family", "evidence"],
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "properties": {
+        "relation_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+        "from_entity": {"type": "string"},
+        "field": {"type": "string"},
+        "to_entity": {"type": "string"},
+        "target_field": {"type": "string"},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["relation_id", "from_entity", "field", "to_entity", "target_field", "description"],
+      "additionalProperties": false
+    },
+    "relationGap": {
+      "type": "object",
+      "properties": {
+        "relation_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+        "from_entity": {"type": "string"},
+        "field": {"type": "string"},
+        "to_entity": {"type": "string"},
+        "target_field": {"type": "string"},
+        "source_value_count": {"type": "integer", "minimum": 1},
+        "matched_value_count": {"type": "integer", "minimum": 1},
+        "missing_value_count": {"type": "integer", "minimum": 1},
+        "coverage_ratio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "relation_id", "from_entity", "field", "to_entity", "target_field",
+        "source_value_count", "matched_value_count", "missing_value_count",
+        "coverage_ratio", "description"
+      ],
+      "additionalProperties": false
+    },
+    "dimension": {
+      "type": "object",
+      "properties": {
+        "dimension_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+        "kind": {"type": "string", "enum": ["temporal", "state", "numeric", "category", "text", "hierarchy", "geospatial", "anomaly", "file_format"]},
+        "resource_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "field_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["dimension_id", "kind", "resource_ids", "field_refs", "description"],
+      "additionalProperties": false
+    },
+    "gap": {
+      "type": "object",
+      "properties": {
+        "requirement_id": {"type": "string"},
+        "category": {"type": "string", "enum": ["not_public", "access_blocked", "license_blocked", "not_applicable", "optional_gap"]},
+        "reason": {"type": "string", "minLength": 1},
+        "attempted_urls": {"type": "array", "items": {"type": "string", "format": "uri"}},
+        "impact": {"type": "string", "minLength": 1}
+      },
+      "required": ["category", "reason", "attempted_urls", "impact"],
+      "additionalProperties": false
+    },
+    "operationFamily": {
+      "type": "string",
+      "enum": ["search", "inspect", "list", "filter", "rank", "compare", "aggregate", "traverse", "timeline", "audit", "transform", "export", "mutate", "other"]
+    }
+  }
+}

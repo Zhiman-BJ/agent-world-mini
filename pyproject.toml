@@ -8,13 +8,20 @@ version = "0.1.0"
 description = "A compact reproduction of the Agent-World environment construction pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["openai>=1.0"]
+dependencies = ["jsonschema>=4.18", "openai>=1.0"]
 
 [project.scripts]
-agent-world-mini = "agent_world_mini.run_pipeline:main"
+agent-world-data-gen = "env_gen.data_gen.__main__:main"
+agent-world-program-form = "task_gen.program_form.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["agent_world_mini*"]
+include = ["env_gen*", "seed_gen*", "task_gen*", "utils*"]
 
 [tool.setuptools.package-data]
-agent_world_mini = ["seed_gen/*.md", "seed_gen/data/*.json", "seed_gen/docs/*.md", "schemas/*.json", "schemas/*.md"]
+seed_gen = ["*.md", "data/*.json"]
+env_gen = ["data_gen/*.md", "data_gen/internal_schemas/*.json"]
+task_gen = ["program_form/*.json", "program_form/*.md"]
+
+[tool.setuptools.data-files]
+"schemas" = ["schemas/*.json", "schemas/*.md"]
+"schemas/validation" = ["schemas/validation/*.json"]

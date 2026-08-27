@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "environment_id": "example_environment_001",
+  "name": "示例环境",
+  "description": "包含真实工作区资源和可执行工具的示例环境。",
+  "resources": [
+    {
+      "resource_id": "input_records",
+      "name": "输入记录",
+      "description": "环境初始化时已经存在的原始 JSON 记录。",
+      "data_type": "raw",
+      "storage_type": "file",
+      "path": "raw/input_records.json",
+      "format": "json",
+      "writable": false
+    },
+    {
+      "resource_id": "reports",
+      "name": "报告目录",
+      "description": "工具生成报告的输出目录。",
+      "data_type": "output",
+      "storage_type": "directory",
+      "path": "reports/",
+      "format": "directory",
+      "writable": true
+    }
+  ],
+  "rules": [],
+  "tools": [
+    {
+      "name": "count_input_records",
+      "description": "统计输入记录数量，不修改工作区。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean", "const": true},
+              "data": {
+                "type": "object",
+                "properties": {"count": {"type": "integer", "minimum": 0}},
+                "required": ["count"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["success", "data"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean", "const": false},
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {"type": "string", "enum": ["internal_error"]},
+                  "path": {"type": "string"},
+                  "message": {"type": "string", "minLength": 1},
+                  "retryable": {"type": "boolean"}
+                },
+                "required": ["code", "path", "message", "retryable"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["success", "error"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(arguments, context):\n    import json\n    path = context.workspace_root / 'raw' / 'input_records.json'\n    records = json.loads(path.read_text(encoding='utf-8'))\n    return {'success': True, 'data': {'count': len(records)}}\n"
+      }
+    }
+  ]
+}
