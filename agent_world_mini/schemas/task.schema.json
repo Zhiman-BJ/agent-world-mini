@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/task.schema.json",
+  "title": "Agent-World Task Contract",
+  "description": "绑定到一个 CompleteEnvironmentArtifact 的任务产物。评分器、试跑结果和生成过程不属于该契约。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "description": "任务契约版本。"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "description": "任务在所属数据集内唯一且稳定的标识。"
+    },
+    "environment_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "description": "任务所属环境的 ID；必须等于完整环境中的 environment_id。"
+    },
+    "task_text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "交给 Agent 的自然语言任务。"
+    },
+    "difficulty": {
+      "type": "object",
+      "description": "由参考轨迹直接计算的任务难度信息。v1.0 只记录工具调用次数。",
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "完成参考轨迹所需的工具调用次数；必须等于 reference.tool_calls 的元素数量。"
+        }
+      },
+      "required": ["tool_calls"],
+      "additionalProperties": false
+    },
+    "initial_state": {
+      "type": "array",
+      "minItems": 1,
+      "description": "任务开始前的完整资源状态。每个元素复制完整环境中的一个 resources[] 元素，并在同层保存实际内容。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$", "description": "环境内唯一的资源标识。"},
+          "name": {"type": "string", "minLength": 1, "description": "资源名称。"},
+          "description": {"type": "string", "minLength": 1, "description": "资源包含的数据及其现实业务用途。"},
+          "data_type": {"type": "string", "enum": ["raw", "entity", "derived", "output"], "description": "资源是原始数据、实体数据、派生数据还是输出位置。"},
+          "storage_type": {"type": "string", "enum": ["file", "file_collection", "directory"], "description": "资源在工作区中对应单个文件、一组文件或目录。"},
+          "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$", "description": "相对工作区根目录的路径；file_collection 可以使用 glob。"},
+          "format": {"type": "string", "minLength": 1, "description": "资源格式，例如 json、csv、gdsii、touchstone 或 directory。"},
+          "writable": {"type": "boolean", "description": "工具是否允许修改该资源范围内的内容。"},
+          "source_resources": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "该实体数据或派生数据所依赖的 resource_id。",
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"}
+          },
+          "entity_schema": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "entity 资源包含的实体类型和字段。",
+            "propertyNames": {"pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "description": {"type": "string", "minLength": 1, "description": "实体的业务含义。"},
+                "fields": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "description": "实体字段名到基础数据类型的映射。",
+                  "propertyNames": {"pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+                  "additionalProperties": {"type": "string", "enum": ["string", "integer", "number", "boolean"]}
+                }
+              },
+              "required": ["description", "fields"],
+              "additionalProperties": false
+            }
+          },
+          "encoding": {"type": "string", "enum": ["utf-8", "base64"]},
+          "content": {"type": "string"},
+          "files": {
+            "type": "array",
+            "description": "该资源在此状态下包含的全部文件；空目录使用空数组。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+                "encoding": {"type": "string", "enum": ["utf-8", "base64"]},
+                "content": {"type": "string"}
+              },
+              "required": ["path", "encoding", "content"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["resource_id", "name", "description", "data_type", "storage_type", "path", "format", "writable"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {"properties": {"data_type": {"const": "entity"}}, "required": ["data_type"]},
+            "then": {"required": ["source_resources", "entity_schema"], "properties": {"format": {"enum": ["json", "jsonl", "csv", "parquet", "sqlite"]}}}
+          },
+          {
+            "if": {"properties": {"data_type": {"const": "derived"}}, "required": ["data_type"]},
+            "then": {"required": ["source_resources"], "not": {"required": ["entity_schema"]}}
+          },
+          {
+            "if": {"properties": {"data_type": {"const": "raw"}}, "required": ["data_type"]},
+            "then": {"not": {"anyOf": [{"required": ["source_resources"]}, {"required": ["entity_schema"]}]}}
+          },
+          {
+            "if": {"properties": {"data_type": {"const": "output"}}, "required": ["data_type"]},
+            "then": {"properties": {"writable": {"const": true}}, "not": {"anyOf": [{"required": ["source_resources"]}, {"required": ["entity_schema"]}]}}
+          },
+          {
+            "if": {"properties": {"storage_type": {"const": "directory"}}, "required": ["storage_type"]},
+            "then": {"properties": {"format": {"const": "directory"}}}
+          },
+          {
+            "if": {"properties": {"storage_type": {"const": "file"}}, "required": ["storage_type"]},
+            "then": {"required": ["encoding", "content"], "not": {"required": ["files"]}}
+          },
+          {
+            "if": {"properties": {"storage_type": {"enum": ["file_collection", "directory"]}}, "required": ["storage_type"]},
+            "then": {"required": ["files"], "not": {"anyOf": [{"required": ["encoding"]}, {"required": ["content"]}]}}
+          }
+        ]
+      }
+    },
+    "available_tools": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "本任务允许调用的公开工具契约；工具名必须唯一，且每个元素必须等于完整环境中同名 tools[] 元素移除 internal 后的公开投影。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+            "minLength": 1,
+            "description": "环境内唯一且稳定的工具名。使用小写 snake_case，并采用业务动词加业务对象的命名方式。"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "说明工具做什么、何时使用、关键限制和主要副作用。不得包含 Python 代码、内部路径或测试细节。"
+          },
+          "inputSchema": {
+            "type": "object",
+            "description": "Agent 调用工具时 arguments 对象的完整 JSON Schema。根节点固定为封闭 object；没有参数时 properties 和 required 均为空。",
+            "required": ["type", "properties", "required", "additionalProperties"],
+            "properties": {
+              "type": {
+                "const": "object",
+                "description": "一次工具调用的 arguments 必须是 JSON object。"
+              },
+              "properties": {
+                "type": "object",
+                "description": "允许传入的参数名及每个参数对应的 JSON Schema。对象和数组参数必须继续完整声明内部结构。",
+                "additionalProperties": {
+                  "type": "object",
+                  "description": "一个 JSON Schema Draft 2020-12 节点。具体类型约束由该节点自身的 type、properties、items、oneOf 等关键字表达。"
+                }
+              },
+              "required": {
+                "type": "array",
+                "description": "调用时必须出现的参数名。无必填参数时使用空数组。",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "additionalProperties": {
+                "const": false,
+                "description": "固定为 false，拒绝 properties 中没有声明的额外参数。"
+              }
+            },
+            "additionalProperties": true
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "工具返回值的完整 JSON Schema。必须使用 oneOf 分别定义 success=true 的 data 分支和 success=false 的 error 分支。",
+            "required": ["oneOf"],
+            "properties": {
+              "oneOf": {
+                "type": "array",
+                "description": "两个分支分别描述成功结果和业务失败结果。失败 error 统一包含 code、path、message、retryable。",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "object",
+                  "description": "一个 JSON Schema Draft 2020-12 节点。具体类型约束由该节点自身的 type、properties、items、oneOf 等关键字表达。"
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "required": ["name", "description", "inputSchema", "outputSchema"],
+        "additionalProperties": false
+      }
+    },
+    "reference": {
+      "type": "object",
+      "description": "Agent 不可见的参考工具调用、参考答案和执行后状态。",
+      "properties": {
+        "tool_calls": {
+          "type": "array",
+          "minItems": 1,
+          "description": "已从本任务 initial_state 成功执行的参考工具调用，数组顺序就是执行顺序。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+                "description": "调用的工具名；必须等于某个 available_tools[].name。"
+              },
+              "arguments": {
+                "type": "object",
+                "description": "该次调用的完整参数对象；必须通过对应工具的 inputSchema。"
+              }
+            },
+            "required": ["tool", "arguments"],
+            "additionalProperties": false
+          }
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "根据参考工具调用结果整理出的完整参考答案文本；不是某一次工具的原始返回值。"
+        },
+        "final_state": {
+          "type": "array",
+          "minItems": 1,
+          "description": "参考轨迹完成后的完整资源状态；结构与 initial_state 相同。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$", "description": "环境内唯一的资源标识。"},
+              "name": {"type": "string", "minLength": 1, "description": "资源名称。"},
+              "description": {"type": "string", "minLength": 1, "description": "资源包含的数据及其现实业务用途。"},
+              "data_type": {"type": "string", "enum": ["raw", "entity", "derived", "output"], "description": "资源是原始数据、实体数据、派生数据还是输出位置。"},
+              "storage_type": {"type": "string", "enum": ["file", "file_collection", "directory"], "description": "资源在工作区中对应单个文件、一组文件或目录。"},
+              "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$", "description": "相对工作区根目录的路径；file_collection 可以使用 glob。"},
+              "format": {"type": "string", "minLength": 1, "description": "资源格式，例如 json、csv、gdsii、touchstone 或 directory。"},
+              "writable": {"type": "boolean", "description": "工具是否允许修改该资源范围内的内容。"},
+              "source_resources": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "description": "该实体数据或派生数据所依赖的 resource_id。",
+                "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"}
+              },
+              "entity_schema": {
+                "type": "object",
+                "minProperties": 1,
+                "description": "entity 资源包含的实体类型和字段。",
+                "propertyNames": {"pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "description": {"type": "string", "minLength": 1, "description": "实体的业务含义。"},
+                    "fields": {
+                      "type": "object",
+                      "minProperties": 1,
+                      "description": "实体字段名到基础数据类型的映射。",
+                      "propertyNames": {"pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
+                      "additionalProperties": {"type": "string", "enum": ["string", "integer", "number", "boolean"]}
+                    }
+                  },
+                  "required": ["description", "fields"],
+                  "additionalProperties": false
+                }
+              },
+              "encoding": {"type": "string", "enum": ["utf-8", "base64"]},
+              "content": {"type": "string"},
+              "files": {
+                "type": "array",
+                "description": "该资源在此状态下包含的全部文件；空目录使用空数组。",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+                    "encoding": {"type": "string", "enum": ["utf-8", "base64"]},
+                    "content": {"type": "string"}
+                  },
+                  "required": ["path", "encoding", "content"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["resource_id", "name", "description", "data_type", "storage_type", "path", "format", "writable"],
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {"properties": {"data_type": {"const": "entity"}}, "required": ["data_type"]},
+                "then": {"required": ["source_resources", "entity_schema"], "properties": {"format": {"enum": ["json", "jsonl", "csv", "parquet", "sqlite"]}}}
+              },
+              {
+                "if": {"properties": {"data_type": {"const": "derived"}}, "required": ["data_type"]},
+                "then": {"required": ["source_resources"], "not": {"required": ["entity_schema"]}}
+              },
+              {
+                "if": {"properties": {"data_type": {"const": "raw"}}, "required": ["data_type"]},
+                "then": {"not": {"anyOf": [{"required": ["source_resources"]}, {"required": ["entity_schema"]}]}}
+              },
+              {
+                "if": {"properties": {"data_type": {"const": "output"}}, "required": ["data_type"]},
+                "then": {"properties": {"writable": {"const": true}}, "not": {"anyOf": [{"required": ["source_resources"]}, {"required": ["entity_schema"]}]}}
+              },
+              {
+                "if": {"properties": {"storage_type": {"const": "directory"}}, "required": ["storage_type"]},
+                "then": {"properties": {"format": {"const": "directory"}}}
+              },
+              {
+                "if": {"properties": {"storage_type": {"const": "file"}}, "required": ["storage_type"]},
+                "then": {"required": ["encoding", "content"], "not": {"required": ["files"]}}
+              },
+              {
+                "if": {"properties": {"storage_type": {"enum": ["file_collection", "directory"]}}, "required": ["storage_type"]},
+                "then": {"required": ["files"], "not": {"anyOf": [{"required": ["encoding"]}, {"required": ["content"]}]}}
+              }
+            ]
+          }
+        }
+      },
+      "required": ["tool_calls", "answer", "final_state"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "environment_id",
+    "task_text",
+    "difficulty",
+    "initial_state",
+    "available_tools",
+    "reference"
+  ],
+  "additionalProperties": false
+}
