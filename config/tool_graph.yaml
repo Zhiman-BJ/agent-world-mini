@@ -1,0 +1,49 @@
+paths:
+  environment_dir: ../artifacts/mcp_test3/bugagent
+  schema_dir: ../schemas
+  output_root: ../runs/taskgen
+
+llm:
+  # API 账户余额不足时改用本机已登录的 Codex CLI；阶段 prompt 和返回契约不变。
+  backend: codex
+  model: gpt-5.6-terra
+  base_url: https://api-slb.micuapi.ai/v1
+  api_key_env: LLM_API_KEY
+  timeout_seconds: 180
+  # Codex CLI 双路完整提示实测可并行；保留 4 路作为正式运行值。
+  max_concurrency: 4
+  # 给足额度，绝不让输出截断打断流水线：截断会使整阶段失败，而本流水线无断点续跑。
+  # 实测 bugagent 单目标真实回复仅约 133 token，因此这个上限的成本可忽略。
+  # 注意：codex 后端走 CLI，没有该参数，此项只影响 api 后端。
+  max_tokens: 81920
+graph: {}
+planning:
+  # 初始试验值；实现后依据三个正式环境的有效率和候选质量调整。
+  sample_count: 10000
+  keep_top_count: 10
+  # 禁止修改。上一轮实测：设为 8 时 finstat 某轮只能凑出 9 条候选（不足
+  # keep_top_count），当时改成 2 来凑满 10 条。这里明确选择保持 8 —— 宁可候选
+  # 少于 10 条，也不要用 2 步短链充数。Step 2 已有回退：若全部观测链都短于 8，
+  # 则只让长度等于 longest_observed_length 的链参加排名，因此不会一条都没有。
+  min_chain_length: 8
+  max_chain_length: 15
+  max_tool_visits: 2
+  random_seed: 42
+  # 先筛选 20 条进行两轮 LLM 处理，逻辑评分后选最多 10 条进入 Step 3。
+  review_count: 20
+  edge_sampling_probabilities:
+    "1": 0.2
+    "2": 0.3
+    "3": 0.5
+  diversity_lambda: 0.3
+execution:
+  max_concurrency: 4
+  retry_count: 3
+  tool_result_max_bytes: 65536
+  # 工具可能包含慢速扫描；仍由子进程提供可强制终止的硬上限。
+  tool_timeout_seconds: 300
+  # internal.code 属于上游产物而非本流水线审计过的代码；超时只约束时间，
+  # 磁盘和内存上限用于挡住写满磁盘或耗尽内存的工具。
+  tool_max_write_bytes: 268435456
+  tool_max_memory_bytes: 2147483648
+cost: {}
