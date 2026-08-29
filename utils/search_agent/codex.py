@@ -115,12 +115,29 @@ class CodexAgentClient:
             stop_when=required_paths,
         )
 
+    def run_until_json_file(
+        self,
+        prompt: str,
+        *,
+        working_directory: Path,
+        required_path: Path,
+    ) -> str:
+        """草稿成为完整且稳定的 JSON 后结束本次 Agent 调用。"""
+
+        return self._run_process(
+            prompt,
+            working_directory=working_directory,
+            stop_when=(required_path,),
+            stable_json_path=required_path,
+        )
+
     def _run_process(
         self,
         prompt: str,
         *,
         working_directory: Path,
         stop_when: tuple[Path, ...] = (),
+        stable_json_path: Path | None = None,
     ) -> str:
         """启动 Codex；可选地在指定文件全部出现后终止子进程。"""
 
@@ -183,6 +200,7 @@ class CodexAgentClient:
 
             process: subprocess.Popen[str] | None = None
             stopped_at_checkpoint = False
+            stable_since: float | None = None
             try:
                 with stdout_log.open("w", encoding="utf-8") as stdout_stream, stderr_log.open(
                     "w", encoding="utf-8"
@@ -205,11 +223,33 @@ class CodexAgentClient:
                     deadline = time.monotonic() + self.timeout_seconds
                     while process.poll() is None:
                         if stop_when and all(path.resolve().is_file() for path in stop_when):
-                            stopped_at_checkpoint = True
-                            self._terminate_process_group(process)
-                            break
+                            if stable_json_path is None:
+                                stopped_at_checkpoint = True
+                                self._terminate_process_group(
+                                    process,
+                                    wait_for_paths=(stdout_log, stderr_log),
+                                )
+                                break
+                            try:
+                                json.loads(stable_json_path.read_text(encoding="utf-8"))
+                            except (OSError, json.JSONDecodeError):
+                                stable_since = None
+                            else:
+                                stable_since = stable_since or time.monotonic()
+                                if time.monotonic() - stable_since >= 1.0:
+                                    stopped_at_checkpoint = True
+                                    self._terminate_process_group(
+                                        process,
+                                        wait_for_paths=(stdout_log, stderr_log),
+                                    )
+                                    break
+                        else:
+                            stable_since = None
                         if time.monotonic() >= deadline:
-                            self._terminate_process_group(process)
+                            self._terminate_process_group(
+                                process,
+                                wait_for_paths=(stdout_log, stderr_log),
+                            )
                             raise RuntimeError(
                                 f"Codex 智能体在 {self.timeout_seconds} 秒后超时"
                             )
@@ -222,7 +262,10 @@ class CodexAgentClient:
                 raise
             except OSError as error:
                 if process is not None and process.poll() is None:
-                    self._terminate_process_group(process)
+                    self._terminate_process_group(
+                        process,
+                        wait_for_paths=(stdout_log, stderr_log),
+                    )
                 raise RuntimeError(f"启动 Codex CLI 失败：{error}") from error
 
             if not stopped_at_checkpoint and process.returncode != 0:
@@ -242,10 +285,38 @@ class CodexAgentClient:
             return response
 
     @staticmethod
-    def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+    def _terminate_process_group(
+        process: subprocess.Popen[str],
+        *,
+        wait_for_paths: tuple[Path, ...] = (),
+    ) -> None:
         """终止 Codex 及其子进程，避免网络命令或代码宿主残留。"""
 
         if process.poll() is not None:
+            return
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+            # Codex 的子进程退出后可能短暂保留重定向日志的文件句柄。
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                try:
+                    for path in wait_for_paths:
+                        probe = path.with_name(path.name + ".release-probe")
+                        path.replace(probe)
+                        probe.replace(path)
+                    break
+                except PermissionError:
+                    time.sleep(0.1)
             return
         try:
             # ``start_new_session=True`` 使子进程 PID 同时是进程组 ID。
