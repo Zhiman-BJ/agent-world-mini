@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/program-task-candidate.schema.json",
+  "title": "Program-form task candidates",
+  "type": "object",
+  "properties": {
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 40
+          },
+          "output_schema": {
+            "type": "object"
+          },
+          "solution_code": {
+            "type": "string",
+            "minLength": 20
+          },
+          "design": {
+            "type": "object",
+            "properties": {
+              "business_goal": {"type": "string", "minLength": 20},
+              "evidence_sources": {
+                "type": "array",
+                "minItems": 2,
+                "uniqueItems": true,
+                "items": {"type": "string", "minLength": 8}
+              },
+              "exclusion_basis": {"type": "string", "minLength": 12},
+              "decision_rule": {"type": "string", "minLength": 12},
+              "tool_plan": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tool": {"type": "string", "minLength": 1},
+                    "purpose": {"type": "string", "minLength": 8}
+                  },
+                  "required": ["tool", "purpose"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "business_goal",
+              "evidence_sources",
+              "exclusion_basis",
+              "decision_rule",
+              "tool_plan"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["task", "output_schema", "solution_code", "design"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["candidates"],
+  "additionalProperties": false
+}

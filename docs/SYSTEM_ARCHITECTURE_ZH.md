@@ -28,7 +28,15 @@ python -m agent_world_mini
 ```text
 agent_world_mini/
 ├── schemas/
-│   └── models.py
+│   ├── env_seeds.schema.json
+│   ├── environment.schema.json
+│   ├── tool.schema.json
+│   ├── complete_environment.schema.json
+│   ├── 环境种子契约-v1.0.md
+│   ├── 环境契约-v1.0.md
+│   ├── 工具契约-v1.0.md
+│   ├── 完整环境契约-v1.0.md
+│   └── validation/
 ├── utils/
 │   ├── config.py
 │   ├── io.py
@@ -45,7 +53,18 @@ agent_world_mini/
 │   └── scripts/
 ├── env_gen/
 │   ├── data_gen/
-│   │   └── generator.py
+│   │   ├── pipeline.py
+│   │   ├── steps/
+│   │   │   ├── step01_build_research_request.py
+│   │   │   ├── step02_collect_source_data.py
+│   │   │   ├── step03_profile_collected_data.py
+│   │   │   ├── step04_evaluate_data_richness.py
+│   │   │   ├── step05_expand_source_data.py
+│   │   │   ├── step06_describe_environment.py
+│   │   │   ├── step07_validate_environment.py
+│   │   │   ├── step08_repair_environment.py
+│   │   │   └── step09_publish_environment.py
+│   │   └── analysis/
 │   ├── tool_gen/
 │   │   ├── compiler.py
 │   │   └── designer.py
@@ -60,6 +79,10 @@ agent_world_mini/
 │   │   ├── graph.py
 │   │   └── synthesizer.py
 │   ├── program_form/
+│   │   ├── loader.py
+│   │   ├── runtime.py
+│   │   ├── executor.py
+│   │   └── generator.py
 │   ├── validation/
 │   │   ├── five_run.py
 │   │   └── luna_rollout.py
@@ -72,28 +95,27 @@ config/
 └── api_keys.env              # 本地文件，被 Git 忽略
 ```
 
-`program_form/` 当前只是扩展位置。现有代码只有 DAG/工具图驱动的任务生成，不能把同一实现复制一份后称为 Program-form。
+`program_form/` 已实现独立的 Program-form 路径：模型联合生成现实任务、输出 Schema 和隐藏 Python 参考程序；程序只能经 `call_tool` 使用公开工具，并在隔离 Runtime 中执行和至少两次干净重放。它不依赖 DAG walk，也不会把工具内部代码暴露给任务生成 Agent。
 
 ## 3. 每个阶段的输入和输出
 
 | 阶段 | 读取 | 输出 | 当前权威实现 |
 | --- | --- | --- | --- |
 | SeedGen | 人工主题、内置主题或 MCP 目录 | `ThemeSeed` | `seed_gen/themes.py`、`catalog.py` |
-| DataGen | `ThemeSeed`、Research Agent 配置 | `ResearchBundle` | `env_gen/data_gen/generator.py` |
-| ToolGen | `ResearchBundle` | 通过执行验证的 `ToolSpec[]` 和验证报告 | `env_gen/tool_gen/` |
+| DataGen | Seed JSON、环境契约、Research Agent 配置 | 不带工具的环境数据包 | `env_gen/data_gen/pipeline.py` |
+| ToolGen | 当前仍是旧 `ResearchBundle`；待适配 DataGen 环境包 | 通过执行验证的 `ToolSpec[]` 和验证报告 | `env_gen/tool_gen/` |
 | Assembler | Seed、数据、已验证工具 | `environment_manifest.json` | `env_gen/assembler.py` |
 | Runtime | 数据包、工具内部实现、调用参数 | 工具结果、状态快照、outcome | `runtime/` |
 | DAG-form | 完整环境、可执行工具 | 候选图、walk、`Task[]` | `task_gen/dag_form/` |
 | Validation | Task、Runtime、求解模型 | 通过/拒绝/基础设施失败 | `task_gen/validation/` |
 | Export | 多环境任务和轨迹 | 数据集与统计文件 | `task_gen/export/` |
 
-`schemas/models.py` 目前保存旧流水线正在使用的 Python 数据类。新的四份跨阶段 JSON Schema 尚未冻结，因此这里不能被误解为最终协议已经完成。待冻结对象是：
+`schemas/*.schema.json` 是四类跨阶段 JSON 数据的契约结构示例；它们展示实际输出的字段和嵌套关系，不是环境目录中的业务数据。`schemas/validation/` 中是发布前使用的 Draft 2020-12 校验 Schema，允许在协议结构之上加入代码入口、路径和格式等验证约束。人类可读的字段含义以 `schemas/*契约-v1.0.md` 为准，二者共同构成最终协议：
 
 ```text
-SeedPackage
-DataPackage
-EnvironmentPackage
-TaskPackage
+schemas/*.schema.json                 契约结构
+schemas/validation/*.schema.json      发布校验规则
+schemas/*契约-v1.0.md                 字段语义和跨字段规则
 ```
 
 ## 4. 阶段职责
@@ -106,7 +128,7 @@ TaskPackage
 - `codex.py`：对本机 `codex exec` 的最小非交互调用封装；不包含 Agent-World 业务协议。
 - `deepseek_harness.py`：启动本机 `dsh`，要求它写出研究数据文件。
 
-它们不决定流水线阶段，也不生成工具。`DataGenerator` 选择使用哪个适配器，并把结果统一成 `ResearchBundle`。
+它们不决定流水线阶段，也不生成工具。`DataGenerator` 只通过统一的 `run()` 接口调用调研 Agent。
 
 ### 4.2 `seed_gen`
 
@@ -120,11 +142,25 @@ SeedGen 不抓取业务实体，也不定义最终工具。
 
 ### 4.3 `env_gen/data_gen`
 
-`DataGenerator` 接收一个 Seed，调用指定 Research Agent，输出带来源的实体、关系、资源和 overlay 初始数据。
+`pipeline.py` 是 DataGen 唯一权威编排入口。它按编号执行九个步骤：编译调研请求、
+首轮采集、事实画像、丰富度评估、定向扩充、环境语义描述、确定性校验、声明修复
+和分类发布。`steps/` 中一个文件只负责一个步骤，Agent Prompt 与使用它的步骤放在
+同一个文件中。
 
-外部 Codex 生成的 `research_bundle.json` 也从这里加载。该路径会跳过调研调用，但不会跳过后续 ToolGen。
+Agent 只用于四个位置：首轮采集固定一次、数据扩充零到三次、环境语义描述固定
+一次、失败后的声明修复零到两次。画像、质量判定、校验和发布都不调用模型。
+
+环境语义不能由字段名启发式决定。Python 负责路径、格式、哈希、类型、数量和
+引用覆盖率等可验证事实；Step 06 Agent 负责资源含义、实体边界和业务关系声明；
+Step 07 再核对这些声明。`analysis/legacy_metadata_inference.py` 只保留画像和校验
+兼容能力，不再生成或覆盖最终 `environment.json`。
 
 ### 4.4 `env_gen/tool_gen`
+
+这里目前还是旧实现，`compiler.py` 和 `designer.py` 直接读取 `ResearchBundle`，尚未
+接入新的 `environment.json + workspace`。因此 DataGen 初版可以独立生成和校验
+环境，但不能把“DataGen 已完成”误写成“ToolGen 已经接通”。下一步需要新增明确的
+DataGen 环境包加载器，再按工具契约生成和执行验证工具。
 
 - `compiler.py`：把资源、可变实体蓝图和特殊 Python 操作编译为候选工具。
 - `designer.py::ToolDesigner`：根据实际实体和关系生成检索、读取、排序、统计、关系查询等候选工具，并做模型筛选。
@@ -197,8 +233,8 @@ OpenRouter 与 DeepSeek Harness 均调用同一个加载器。`config/api_keys.e
 
 这次完成的是目录和阶段归属，不是数据协议重写。后续应按这个顺序继续：
 
-1. 冻结四份跨阶段 JSON Schema。
+1. 冻结四份跨阶段契约结构示例及其 validation/ 校验 Schema。
 2. 把 `ToolSpec` 拆成公开工具契约、Runtime 内部实现和 ToolGen 验证材料。
 3. 以 OmniaBench 的 Schema/事务检查为基础增强 Runtime，同时保留当前 workspace、fork 和 outcome 能力。
 4. 让 DAG 图只读取标准化依赖，不再推断工具实现细节。
-5. 在独立协议确定后实现真正的 Program-form 任务生成。
+5. 将 Program-form 已验证任务继续接入统一 rubric、求解 rollout 和最终数据集导出。

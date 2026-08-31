@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/research_request.schema.json",
+  "title": "Agent-World DataGen Research Request",
+  "description": "由种子和通用策略确定性编译的调研边界；调研 Agent 只能读取，不能改写。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "seed": {"$ref": "#/$defs/seed"},
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/requirement"}
+    },
+    "quality_policy": {"$ref": "#/$defs/qualityPolicy"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": ["schema_version", "seed", "requirements", "quality_policy", "request_sha256"],
+  "$defs": {
+    "seed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme_id": {"type": "string", "minLength": 1},
+        "seed_label": {"type": "string", "minLength": 1},
+        "source_type": {"type": "string", "minLength": 1},
+        "source_url": {"type": "string", "format": "uri"},
+        "license_or_access_note": {"type": "string", "minLength": 1},
+        "coarse_route_label": {"type": "string", "minLength": 1},
+        "adapter": {"type": "string", "minLength": 1}
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "pattern": "^seed_(?:entity|operation|scope)_[0-9]{2}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["seed_entity", "seed_operation", "seed_scope"]
+        },
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "priority": {"type": "string", "const": "core"},
+        "operation_family": {"$ref": "#/$defs/operationFamily"},
+        "target_tokens": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "target_entity_candidates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "target_resolution": {
+          "type": "string",
+          "enum": ["direct_entity", "direct_or_related_fact", "relation"]
+        },
+        "required_field_role": {
+          "type": "string",
+          "enum": [
+            "none", "business_numeric", "business_text", "varied_field",
+            "temporal", "record_fields", "foreign_key", "writable_target",
+            "writable_output", "integrity_evidence"
+          ]
+        },
+        "minimum_records": {"type": "integer", "minimum": 0}
+      },
+      "required": [
+        "requirement_id", "kind", "name", "description", "priority"
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "seed_entity"}}, "required": ["kind"]},
+          "then": {"required": ["minimum_records"]}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "seed_operation"}}, "required": ["kind"]},
+          "then": {
+            "required": ["operation_family", "target_resolution", "required_field_role", "minimum_records"]
+          }
+        }
+      ]
+    },
+    "qualityPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_total_seconds": {"type": "integer", "minimum": 1},
+        "max_sources": {"type": "integer", "minimum": 0},
+        "max_raw_files": {"type": "integer", "minimum": 0},
+        "max_download_bytes": {"type": "integer", "minimum": 0},
+        "max_derived_bytes": {"type": "integer", "minimum": 0},
+        "max_workspace_bytes": {"type": "integer", "minimum": 0},
+        "data_phase_seconds": {"type": "integer", "minimum": 0},
+        "metadata_phase_seconds": {"type": "integer", "minimum": 0},
+        "repair_phase_seconds": {"type": "integer", "minimum": 0},
+        "min_total_entity_records": {"type": "integer", "minimum": 0},
+        "min_core_entity_records": {"type": "integer", "minimum": 0},
+        "min_operation_records": {"type": "integer", "minimum": 0},
+        "min_operation_distinct_values": {"type": "integer", "minimum": 0},
+        "min_extension_entity_types": {"type": "integer", "minimum": 0},
+        "min_extension_capabilities": {"type": "integer", "minimum": 0},
+        "min_extension_operation_families": {"type": "integer", "minimum": 0},
+        "min_relations": {"type": "integer", "minimum": 0},
+        "min_dimension_kinds": {"type": "integer", "minimum": 0},
+        "min_dimension_distinct_values": {"type": "integer", "minimum": 0},
+        "min_operation_evidence_fields": {"type": "integer", "minimum": 0},
+        "min_entity_types": {"type": "integer", "minimum": 0},
+        "extension_capability_target": {"type": "integer", "minimum": 0},
+        "extension_operation_family_target": {"type": "integer", "minimum": 0},
+        "primary_sources_required": {"type": "boolean", "const": true},
+        "synthetic_business_records": {"type": "string", "const": "prohibited"},
+        "core_missing_data_action": {"type": "string", "const": "stop_with_insufficient_public_data"},
+        "optional_missing_data_action": {"type": "string", "const": "record_gap_and_continue_only_if_all_gates_pass"},
+        "relation_policy": {"type": "string", "const": "closed_relations_only; partial_candidates_must_be_reported_in_relation_gaps"},
+        "source_scope": {"$ref": "#/$defs/sourceScope"}
+      },
+      "required": [
+        "max_total_seconds", "max_sources", "max_raw_files", "max_download_bytes",
+        "max_derived_bytes", "max_workspace_bytes", "data_phase_seconds",
+        "metadata_phase_seconds", "repair_phase_seconds", "min_total_entity_records",
+        "min_core_entity_records", "min_operation_records", "min_operation_distinct_values",
+        "min_extension_entity_types", "min_extension_capabilities",
+        "min_extension_operation_families", "min_relations", "min_dimension_kinds",
+        "min_dimension_distinct_values", "min_operation_evidence_fields", "min_entity_types",
+        "extension_capability_target", "extension_operation_family_target",
+        "primary_sources_required", "synthetic_business_records", "core_missing_data_action",
+        "optional_missing_data_action", "relation_policy", "source_scope"
+      ]
+    },
+    "sourceScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_registered_domains": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z0-9.-]+$"}
+        },
+        "allow_subdomains": {"type": "boolean", "const": true},
+        "action_outside_scope": {"type": "string", "const": "reject_source"}
+      },
+      "required": ["allowed_registered_domains", "allow_subdomains", "action_outside_scope"]
+    },
+    "operationFamily": {
+      "type": "string",
+      "enum": [
+        "search", "inspect", "list", "filter", "rank", "compare", "aggregate",
+        "traverse", "timeline", "audit", "transform", "export", "mutate", "other"
+      ]
+    }
+  }
+}

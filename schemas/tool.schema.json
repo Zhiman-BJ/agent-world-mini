@@ -1,0 +1,71 @@
+{
+  "tools": [
+    {
+      "name": "cancel_appointment",
+      "description": "Cancel an existing scheduled appointment and record the cancellation reason. Validation failure performs no state change.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Appointment selected from the task or a previous tool result."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": ["appointment_id", "reason"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean", "const": true},
+              "data": {
+                "type": "object",
+                "properties": {
+                  "appointment_id": {"type": "string", "format": "uuid"},
+                  "status": {"type": "string", "const": "cancelled"}
+                },
+                "required": ["appointment_id", "status"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["success", "data"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean", "const": false},
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": ["not_found", "invalid_state", "conflict"]
+                  },
+                  "path": {"type": "string"},
+                  "message": {"type": "string", "minLength": 1},
+                  "retryable": {"type": "boolean"}
+                },
+                "required": ["code", "path", "message", "retryable"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["success", "error"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(arguments, context):\n    import json\n    path = context.workspace_root / 'appointments.json'\n    appointments = json.loads(path.read_text(encoding='utf-8'))\n    appointment = next((item for item in appointments if item['appointment_id'] == arguments['appointment_id']), None)\n    if appointment is None:\n        return {'success': False, 'error': {'code': 'not_found', 'path': '$.appointment_id', 'message': 'Appointment not found.', 'retryable': False}}\n    if appointment['status'] != 'scheduled':\n        return {'success': False, 'error': {'code': 'invalid_state', 'path': '$.appointment_id', 'message': 'Appointment is not cancellable.', 'retryable': False}}\n    appointment['status'] = 'cancelled'\n    appointment['cancellation_reason'] = arguments['reason']\n    path.write_text(json.dumps(appointments, ensure_ascii=False, indent=2), encoding='utf-8')\n    return {'success': True, 'data': {'appointment_id': appointment['appointment_id'], 'status': 'cancelled'}}"
+      }
+    }
+  ]
+}

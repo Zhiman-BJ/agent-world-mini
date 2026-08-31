@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/source_inventory.schema.json",
+  "title": "Agent-World Data Source Inventory",
+  "description": "研究 Agent 对公开数据面、分页方式和采集完成状态的可审计清单。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "summary": {"type": "string", "minLength": 1},
+    "surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/surface"}
+    }
+  },
+  "required": ["schema_version", "request_sha256", "summary", "surfaces"],
+  "$defs": {
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "surface_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$"
+        },
+        "name": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri"},
+        "priority": {"type": "string", "enum": ["core", "extension"]},
+        "kind": {
+          "type": "string",
+          "enum": [
+            "paginated_api", "bulk_download", "repository", "file_collection",
+            "single_file", "documentation", "other"
+          ]
+        },
+        "entities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "pagination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["none", "page", "offset", "cursor", "download"]
+            },
+            "page_size": {"type": ["integer", "null"], "minimum": 1},
+            "pages_collected": {"type": "integer", "minimum": 0},
+            "reported_total": {"type": ["integer", "null"], "minimum": 0}
+          },
+          "required": ["type", "page_size", "pages_collected", "reported_total"]
+        },
+        "collection_mode": {
+          "type": "string",
+          "enum": ["exhaustive", "bounded_stratified", "metadata_only", "unavailable"]
+        },
+        "collection_status": {
+          "type": "string",
+          "enum": ["pending", "partial", "complete", "blocked"]
+        },
+        "records_collected": {"type": "integer", "minimum": 0},
+        "raw_files": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^raw/(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+          }
+        },
+        "related_surface_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$"}
+        },
+        "exhaustion_evidence": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "cursor_exhausted", "reported_total_reached",
+                    "bounded_policy_reached", "repository_enumerated",
+                    "source_unavailable", "not_applicable"
+                  ]
+                },
+                "detail": {"type": "string", "minLength": 1}
+              },
+              "required": ["type", "detail"]
+            }
+          ]
+        }
+      },
+      "required": [
+        "surface_id", "name", "url", "priority", "kind", "entities",
+        "pagination", "collection_mode", "collection_status", "records_collected",
+        "raw_files", "related_surface_ids", "exhaustion_evidence"
+      ]
+    }
+  }
+}

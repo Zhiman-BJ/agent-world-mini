@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/quality_profile.schema.json",
+  "title": "Agent-World Environment Quality Profile",
+  "description": "由真实 workspace 确定性计算的能力、关系和任务容量画像。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "quality_tier": {"type": "string", "enum": ["rich", "not_rich"]},
+    "summary": {"type": "string", "minLength": 1},
+    "policy": {"$ref": "#/$defs/policy"},
+    "collection": {"$ref": "#/$defs/collection"},
+    "data_profile": {"$ref": "#/$defs/dataProfile"},
+    "capability_profile": {"$ref": "#/$defs/capabilityProfile"},
+    "relation_profile": {"$ref": "#/$defs/relationProfile"},
+    "composition_profile": {"$ref": "#/$defs/compositionProfile"},
+    "gaps": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/gap"}
+    }
+  },
+  "required": [
+    "schema_version", "request_sha256", "quality_tier", "summary", "policy",
+    "collection", "data_profile", "capability_profile", "relation_profile",
+    "composition_profile", "gaps"
+  ],
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min_capability_atoms": {"type": "integer", "minimum": 0},
+        "min_operation_families": {"type": "integer", "minimum": 0},
+        "min_evidence_features": {"type": "integer", "minimum": 0},
+        "min_transition_shapes": {"type": "integer", "minimum": 0},
+        "min_chain_shapes": {"type": "integer", "minimum": 0},
+        "min_long_chain_shapes": {"type": "integer", "minimum": 0},
+        "min_estimated_task_instances": {"type": "integer", "minimum": 0}
+      },
+      "required": [
+        "min_capability_atoms", "min_operation_families", "min_evidence_features",
+        "min_transition_shapes", "min_chain_shapes", "min_long_chain_shapes",
+        "min_estimated_task_instances"
+      ]
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "surface_count": {"type": "integer", "minimum": 0},
+        "core_surface_count": {"type": "integer", "minimum": 0},
+        "settled_core_surface_count": {"type": "integer", "minimum": 0},
+        "unsettled_core_surface_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "required": [
+        "surface_count", "core_surface_count", "settled_core_surface_count",
+        "unsettled_core_surface_ids"
+      ]
+    },
+    "dataProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entity_type_count": {"type": "integer", "minimum": 0},
+        "entity_record_count": {"type": "integer", "minimum": 0},
+        "file_count": {"type": "integer", "minimum": 0},
+        "file_bytes": {"type": "integer", "minimum": 0},
+        "entities": {"type": "object"},
+        "files": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": [
+        "entity_type_count", "entity_record_count", "file_count", "file_bytes",
+        "entities", "files"
+      ]
+    },
+    "capabilityProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capability_atom_count": {"type": "integer", "minimum": 0},
+        "operation_families": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "evidence_feature_count": {"type": "integer", "minimum": 0},
+        "evidence_features": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "atoms": {"type": "array", "items": {"$ref": "#/$defs/atom"}}
+      },
+      "required": [
+        "capability_atom_count", "operation_families", "evidence_feature_count",
+        "evidence_features", "atoms"
+      ]
+    },
+    "atom": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capability_id": {"type": "string", "minLength": 1},
+        "operation_family": {"type": "string", "minLength": 1},
+        "input_kind": {"type": "string", "minLength": 1},
+        "output_kind": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "support_count": {"type": "integer", "minimum": 0},
+        "parameter_cardinality": {"type": "integer", "minimum": 0},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "capability_id", "operation_family", "input_kind", "output_kind",
+        "evidence", "support_count", "parameter_cardinality", "description"
+      ]
+    },
+    "relationProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "closed_relation_count": {"type": "integer", "minimum": 0},
+        "relations": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": ["closed_relation_count", "relations"]
+    },
+    "compositionProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transition_shape_count": {"type": "integer", "minimum": 0},
+        "chain_shape_count": {"type": "integer", "minimum": 0},
+        "long_chain_shape_count": {"type": "integer", "minimum": 0},
+        "estimated_task_instances": {"type": "integer", "minimum": 0},
+        "chains": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": [
+        "transition_shape_count", "chain_shape_count", "long_chain_shape_count",
+        "estimated_task_instances", "chains"
+      ]
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "observed": {"type": ["integer", "boolean"]},
+        "required": {"type": ["integer", "boolean"]}
+      },
+      "required": ["code", "message", "action", "observed", "required"]
+    }
+  }
+}

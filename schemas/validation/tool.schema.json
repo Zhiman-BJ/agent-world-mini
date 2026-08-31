@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/validation/tool.schema.json",
+  "title": "Agent-World Tool Validation",
+  "description": "用于发布前验证单个可执行工具的完整规则；字段结构与工具契约一致。",
+  "$comment": "除本 Schema 外，Tool Validator 还必须编译 internal.code、检查 run 入口、实际资源读写、返回值和失败回滚。",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "minLength": 1,
+      "description": "环境内唯一且稳定的工具名。使用小写 snake_case，并采用业务动词加业务对象的命名方式。"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "说明工具做什么、何时使用、关键限制和主要副作用。不得包含 Python 代码、内部路径或测试细节。"
+    },
+    "inputSchema": {
+      "$ref": "#/$defs/inputSchema"
+    },
+    "outputSchema": {
+      "$ref": "#/$defs/outputSchema"
+    },
+    "internal": {
+      "type": "object",
+      "description": "工具的内部可执行定义。该字段不会暴露给求解 Agent。",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\bdef[ \\t]+run[ \\t]*\\(",
+          "description": "完整 Python 源代码。代码必须定义 run(arguments, context)，并返回符合 outputSchema 的 JSON-native 对象。"
+        }
+      },
+      "required": ["code"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["name", "description", "inputSchema", "outputSchema", "internal"],
+  "additionalProperties": false,
+  "$defs": {
+    "jsonSchemaNode": {
+      "$ref": "https://json-schema.org/draft/2020-12/schema",
+      "description": "一个通过 Draft 2020-12 元 Schema 校验的 JSON Schema 节点；标准允许对象形式或布尔形式。"
+    },
+    "inputSchema": {
+      "type": "object",
+      "description": "Agent 调用工具时 arguments 对象的完整 JSON Schema。根节点固定为封闭 object。",
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonSchemaNode"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "additionalProperties": {
+          "const": false
+        }
+      },
+      "required": ["type", "properties", "required", "additionalProperties"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "description": "工具返回值的完整 JSON Schema。第一个 oneOf 分支是 success=true + data，第二个分支是 success=false + error。",
+      "properties": {
+        "oneOf": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {"$ref": "#/$defs/successResultSchema"},
+            {"$ref": "#/$defs/failureResultSchema"}
+          ],
+          "items": false
+        }
+      },
+      "required": ["oneOf"],
+      "additionalProperties": false
+    },
+    "closedObjectSchema": {
+      "allOf": [
+        {"$ref": "#/$defs/jsonSchemaNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "object"},
+            "properties": {"type": "object"},
+            "required": {
+              "type": "array",
+              "items": {"type": "string"},
+              "uniqueItems": true
+            },
+            "additionalProperties": {"const": false}
+          },
+          "required": ["type", "properties", "required", "additionalProperties"]
+        }
+      ]
+    },
+    "trueFlagSchema": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "boolean"},
+        "const": {"const": true},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["type", "const"],
+      "additionalProperties": false
+    },
+    "falseFlagSchema": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "boolean"},
+        "const": {"const": false},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["type", "const"],
+      "additionalProperties": false
+    },
+    "stringSchema": {
+      "allOf": [
+        {"$ref": "#/$defs/jsonSchemaNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "string"}
+          },
+          "required": ["type"]
+        }
+      ]
+    },
+    "errorCodeSchema": {
+      "allOf": [
+        {"$ref": "#/$defs/stringSchema"},
+        {
+          "type": "object",
+          "properties": {
+            "enum": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+              }
+            }
+          },
+          "required": ["enum"]
+        }
+      ]
+    },
+    "messageSchema": {
+      "allOf": [
+        {"$ref": "#/$defs/stringSchema"},
+        {
+          "type": "object",
+          "properties": {
+            "minLength": {"type": "integer", "minimum": 1}
+          },
+          "required": ["minLength"]
+        }
+      ]
+    },
+    "booleanSchema": {
+      "allOf": [
+        {"$ref": "#/$defs/jsonSchemaNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "boolean"}
+          },
+          "required": ["type"]
+        }
+      ]
+    },
+    "errorObjectSchema": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "object"},
+        "properties": {
+          "type": "object",
+          "properties": {
+            "code": {"$ref": "#/$defs/errorCodeSchema"},
+            "path": {"$ref": "#/$defs/stringSchema"},
+            "message": {"$ref": "#/$defs/messageSchema"},
+            "retryable": {"$ref": "#/$defs/booleanSchema"}
+          },
+          "required": ["code", "path", "message", "retryable"],
+          "additionalProperties": false
+        },
+        "required": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "allOf": [
+            {"contains": {"const": "code"}},
+            {"contains": {"const": "path"}},
+            {"contains": {"const": "message"}},
+            {"contains": {"const": "retryable"}}
+          ]
+        },
+        "additionalProperties": {"const": false}
+      },
+      "required": ["type", "properties", "required", "additionalProperties"],
+      "additionalProperties": false
+    },
+    "successResultSchema": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "object"},
+        "properties": {
+          "type": "object",
+          "properties": {
+            "success": {"$ref": "#/$defs/trueFlagSchema"},
+            "data": {"$ref": "#/$defs/closedObjectSchema"}
+          },
+          "required": ["success", "data"],
+          "additionalProperties": false
+        },
+        "required": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "allOf": [
+            {"contains": {"const": "success"}},
+            {"contains": {"const": "data"}}
+          ]
+        },
+        "additionalProperties": {"const": false}
+      },
+      "required": ["type", "properties", "required", "additionalProperties"],
+      "additionalProperties": false
+    },
+    "failureResultSchema": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "object"},
+        "properties": {
+          "type": "object",
+          "properties": {
+            "success": {"$ref": "#/$defs/falseFlagSchema"},
+            "error": {"$ref": "#/$defs/errorObjectSchema"}
+          },
+          "required": ["success", "error"],
+          "additionalProperties": false
+        },
+        "required": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "allOf": [
+            {"contains": {"const": "success"}},
+            {"contains": {"const": "error"}}
+          ]
+        },
+        "additionalProperties": {"const": false}
+      },
+      "required": ["type", "properties", "required", "additionalProperties"],
+      "additionalProperties": false
+    }
+  }
+}

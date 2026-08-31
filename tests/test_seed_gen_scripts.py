@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
-from agent_world_mini.seed_gen.scripts.fetch_smithery_servers import build_seed_records, fetch_all_servers
+from seed_gen.scripts.fetch_smithery_servers import build_seed_records, fetch_all_servers
 
 
 class SmitherySeedExportTests(unittest.TestCase):
@@ -51,7 +51,7 @@ class SmitherySeedExportTests(unittest.TestCase):
                 },
             }
 
-        with patch("agent_world_mini.seed_gen.scripts.fetch_smithery_servers._get_json", side_effect=fake_get):
+        with patch("seed_gen.scripts.fetch_smithery_servers._get_json", side_effect=fake_get):
             servers, pagination = fetch_all_servers("secret", page_size=2, workers=1, seed=9)
 
         self.assertEqual([server["qualifiedName"] for server in servers], ["a", "b", "c", "local"])
@@ -80,7 +80,7 @@ class SmitherySeedExportTests(unittest.TestCase):
             ],
             "pagination": {"currentPage": 1, "pageSize": 2, "totalPages": 1, "totalCount": 2},
         }
-        with patch("agent_world_mini.seed_gen.scripts.fetch_smithery_servers._get_json", return_value=payload):
+        with patch("seed_gen.scripts.fetch_smithery_servers._get_json", return_value=payload):
             with self.assertRaisesRegex(RuntimeError, "duplicate server"):
                 fetch_all_servers("secret", page_size=2, workers=1)
 
@@ -91,7 +91,7 @@ class SmitherySeedExportTests(unittest.TestCase):
             ],
             "pagination": {"currentPage": 1, "pageSize": 1, "totalPages": 1, "totalCount": 1},
         }
-        with patch("agent_world_mini.seed_gen.scripts.fetch_smithery_servers._get_json", return_value=payload):
+        with patch("seed_gen.scripts.fetch_smithery_servers._get_json", return_value=payload):
             with self.assertRaisesRegex(RuntimeError, "invalid verified value"):
                 fetch_all_servers("secret", page_size=1, workers=1)
 

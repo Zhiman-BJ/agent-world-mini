@@ -1,0 +1,43 @@
+[
+  {
+    "global_id": "smithery_theagenttimes_news_1",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "smithery",
+        "url": "https://smithery.ai/servers/theagenttimes/news",
+        "name": "theagenttimes/news",
+        "index": 1
+      },
+      "description": "Agent News is a research and verification service for the AI-agent economy.",
+      "domain": {
+        "level1": "general",
+        "level2": null,
+        "level3": null
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "tat_search",
+        "description": "Search documented agent-news records.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object"
+        }
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "qualified_name": "theagenttimes/news"
+      }
+    }
+  }
+]

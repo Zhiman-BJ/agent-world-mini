@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "environment_id": "semiconductor_layout_001",
+  "name": "芯片版图验证工作区",
+  "description": "包含原始版图、抽取后的版图实体、设计规则和分析工作区。",
+  "resources": [
+    {
+      "resource_id": "raw_layouts",
+      "name": "原始版图",
+      "description": "客户提交的原始 GDSII 芯片版图文件。",
+      "data_type": "raw",
+      "storage_type": "file_collection",
+      "path": "layouts/*.gds",
+      "format": "gdsii",
+      "writable": false
+    },
+    {
+      "resource_id": "layout_entities",
+      "name": "版图实体数据",
+      "description": "从原始版图中抽取出的 cell、layer 和 geometry 实体记录。",
+      "data_type": "entity",
+      "storage_type": "file",
+      "path": "entities/layout_entities.json",
+      "format": "json",
+      "writable": false,
+      "source_resources": ["raw_layouts"],
+      "entity_schema": {
+        "cell": {
+          "description": "版图中的 cell 实体。",
+          "fields": {
+            "cell_id": {
+              "type": "string",
+              "description": "cell 的稳定标识，供 geometry.cell_id 引用。"
+            },
+            "name": {
+              "type": "string",
+              "description": "版图文件中保存的 cell 名称。"
+            }
+          }
+        },
+        "layer": {
+          "description": "版图中的工艺层实体。",
+          "fields": {
+            "layer_id": {
+              "type": "string",
+              "description": "工艺层的稳定标识，供 geometry.layer_id 引用。"
+            },
+            "layer_number": {
+              "type": "integer",
+              "description": "GDSII 文件中的 layer number。",
+              "minimum": 0
+            },
+            "datatype": {
+              "type": "integer",
+              "description": "与 layer number 配套的 GDSII datatype。",
+              "minimum": 0
+            }
+          }
+        },
+        "geometry": {
+          "description": "版图中的几何图形实体。",
+          "fields": {
+            "geometry_id": {
+              "type": "string",
+              "description": "几何图形的稳定标识。"
+            },
+            "cell_id": {
+              "type": "string",
+              "description": "该图形所属 cell 的标识，引用 cell.cell_id。"
+            },
+            "layer_id": {
+              "type": "string",
+              "description": "该图形所在工艺层的标识，引用 layer.layer_id。"
+            },
+            "geometry_type": {
+              "type": "string",
+              "description": "图形的 GDSII 几何类别。",
+              "enum": ["boundary", "path", "text", "box"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource_id": "layer_statistics",
+      "name": "层统计结果",
+      "description": "根据版图实体计算出的各层面积和图形数量。",
+      "data_type": "derived",
+      "storage_type": "file",
+      "path": "derived/layer_statistics.json",
+      "format": "json",
+      "writable": false,
+      "source_resources": ["layout_entities"]
+    },
+    {
+      "resource_id": "reports",
+      "name": "分析报告目录",
+      "description": "工具生成的检查报告、图片和中间结果。",
+      "data_type": "output",
+      "storage_type": "directory",
+      "path": "reports/",
+      "format": "directory",
+      "writable": true
+    }
+  ],
+  "rules": [
+    {
+      "description": "geometry.cell_id 必须引用存在的 cell.cell_id。",
+      "resources": ["layout_entities"]
+    },
+    {
+      "description": "geometry.layer_id 必须引用存在的 layer.layer_id。",
+      "resources": ["layout_entities"]
+    }
+  ]
+}
