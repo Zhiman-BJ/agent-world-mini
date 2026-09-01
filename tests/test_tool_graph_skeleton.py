@@ -2,12 +2,53 @@
 
 from pathlib import Path
 import ast
+import json
 import tempfile
 import unittest
 from unittest.mock import patch
 
 
 class ToolGraphSkeletonTest(unittest.TestCase):
+    def test_pipeline_records_llm_call_with_active_step(self) -> None:
+        from task_gen.tool_graph import llm
+        from task_gen.tool_graph.contracts import Config
+        from task_gen.tool_graph.pipeline import run
+
+        class FakeClient:
+            model = "test-model"
+            client = object()
+
+            def complete_messages(self, messages, **_parameters):
+                return "answer", {"total_tokens": 7}
+
+        def build_graph(_stage_input):
+            llm.infer("graph prompt", llm_config={})
+            return {"tool_graph": []}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output_root = Path(temporary)
+            config = Config(output_root=output_root)
+            with (
+                patch("task_gen.tool_graph.pipeline.run_io.load_config", return_value=config),
+                patch("task_gen.tool_graph.pipeline.load_environment", return_value={"environment": {}}),
+                patch("task_gen.tool_graph.pipeline.build_graph", side_effect=build_graph),
+                patch("task_gen.tool_graph.pipeline.sample_chains", side_effect=RuntimeError("stop")),
+                patch.object(llm.LLMClient, "from_environment", return_value=FakeClient()),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "stop"):
+                    run(Path("config.yaml"))
+
+            run_dir = next(output_root.iterdir())
+            records = [
+                json.loads(line)
+                for line in (run_dir / "llm_calls.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["step"], "step_1_graph_build")
+        self.assertEqual(records[0]["prompt"], "graph prompt")
+        self.assertEqual(records[0]["answer"], "answer")
+
     def test_pipeline_reports_stage_when_bundle_persistence_fails(self) -> None:
         from task_gen.tool_graph.contracts import Config
         from task_gen.tool_graph.pipeline import run

@@ -9,14 +9,19 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime
 import json
 import os
 from pathlib import Path
 import re
 import tempfile
+import time
 from types import MappingProxyType
 from typing import Any, overload
+from uuid import uuid4
 
 from utils.llm import LLMClient
 from utils.search_agent.codex import CodexAgentClient
@@ -24,6 +29,21 @@ from utils.search_agent.codex import CodexAgentClient
 
 Message = dict[str, str]
 ChunkHandler = Callable[[int, str], None]
+TraceWriter = Callable[[dict[str, Any]], None]
+_TRACE_CONTEXT: ContextVar[tuple[str, TraceWriter] | None] = ContextVar(
+    "tool_graph_llm_trace",
+    default=None,
+)
+
+
+@contextmanager
+def capture_calls(step: str, writer: TraceWriter):
+    """把当前阶段内的模型调用交给 ``writer`` 留档。"""
+    token = _TRACE_CONTEXT.set((step, writer))
+    try:
+        yield
+    finally:
+        _TRACE_CONTEXT.reset(token)
 
 
 class MalformedJSONError(ValueError):
@@ -59,6 +79,49 @@ def _freeze(value: object) -> object:
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(item) for item in value)
     return value
+
+
+def _plain(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    return value
+
+
+def _record_call(
+    trace: tuple[str, TraceWriter] | None,
+    *,
+    index: int,
+    prompt: str,
+    system_prompt: str | None,
+    history: Sequence[Message],
+    backend: str,
+    model: str,
+    started_at: str,
+    started: float,
+    result: InferenceResult | None = None,
+    error: Exception | None = None,
+) -> None:
+    if trace is None:
+        return
+    step, writer = trace
+    writer({
+        "call_id": uuid4().hex,
+        "step": step,
+        "batch_index": index,
+        "started_at": started_at,
+        "duration_seconds": time.perf_counter() - started,
+        "backend": backend,
+        "model": result.model if result else model,
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "history": [dict(message) for message in history],
+        "answer": result.text if result else None,
+        "usage": _plain(result.usage) if result else {},
+        "status": "succeeded" if result else "failed",
+        "error": f"{type(error).__name__}: {error}" if error else None,
+    })
 
 
 @dataclass(frozen=True)
@@ -110,6 +173,7 @@ def infer(
         raise ValueError("prompt 不能为空")
 
     config = llm_config or {}
+    trace = _TRACE_CONTEXT.get()
     # codex 后端走本机已登录的 Codex CLI，用于 API 账户配额不足时；
     # 阶段 prompt 和返回契约完全不变。它没有 max_tokens 概念，该配置只影响 api 后端。
     if str(config.get("backend") or "api") == "codex":
@@ -119,6 +183,7 @@ def infer(
             history=history,
             config=config,
             on_chunk=on_chunk,
+            trace=trace,
         )
     client = _client(config)
     client.stream = False
@@ -129,13 +194,43 @@ def infer(
         parameters["max_tokens"] = int(config["max_tokens"])
 
     def run(index: int, item: str) -> InferenceResult:
-        request = ([{"role": "system", "content": system_prompt}] if system_prompt else [])
-        request += [dict(message) for message in messages]
-        request.append({"role": "user", "content": item})
-        callback = (lambda text: on_chunk(index, text)) if on_chunk else None
-        complete_messages = getattr(client, "complete_messages", None) or client._create
-        text, usage = complete_messages(request, on_delta=callback, **parameters)
-        return InferenceResult(text, usage, client.model)
+        started_at = datetime.now().astimezone().isoformat()
+        started = time.perf_counter()
+        try:
+            request = ([{"role": "system", "content": system_prompt}] if system_prompt else [])
+            request += [dict(message) for message in messages]
+            request.append({"role": "user", "content": item})
+            callback = (lambda text: on_chunk(index, text)) if on_chunk else None
+            complete_messages = getattr(client, "complete_messages", None) or client._create
+            text, usage = complete_messages(request, on_delta=callback, **parameters)
+        except Exception as error:
+            _record_call(
+                trace,
+                index=index,
+                prompt=item,
+                system_prompt=system_prompt,
+                history=messages,
+                backend="api",
+                model=client.model,
+                started_at=started_at,
+                started=started,
+                error=error,
+            )
+            raise
+        result = InferenceResult(text, usage, client.model)
+        _record_call(
+            trace,
+            index=index,
+            prompt=item,
+            system_prompt=system_prompt,
+            history=messages,
+            backend="api",
+            model=client.model,
+            started_at=started_at,
+            started=started,
+            result=result,
+        )
+        return result
 
     if isinstance(prompt, str):
         return run(0, prompt)
@@ -153,6 +248,7 @@ def _infer_codex(
     history: Sequence[Message] | None,
     config: Mapping[str, Any],
     on_chunk: ChunkHandler | None,
+    trace: tuple[str, TraceWriter] | None,
 ) -> InferenceResult | list[InferenceResult]:
     """通过本机已登录的 Codex CLI 推理；沙箱只读，工作目录用临时目录隔离。
 
@@ -170,17 +266,47 @@ def _infer_codex(
         context += f"<{message['role']}>\n{message['content']}\n</{message['role']}>\n"
 
     def run(index: int, item: str) -> InferenceResult:
+        started_at = datetime.now().astimezone().isoformat()
+        started = time.perf_counter()
         request = (
             "不要使用工具或读取文件，只根据下面请求中已经提供的信息作答。"
             "最终响应只包含请求要求的内容。\n<request>\n"
             + context
             + item
         )
-        with tempfile.TemporaryDirectory(prefix="tool-graph-llm-") as temporary:
-            text = client.run(request, working_directory=Path(temporary))
+        try:
+            with tempfile.TemporaryDirectory(prefix="tool-graph-llm-") as temporary:
+                text = client.run(request, working_directory=Path(temporary))
+        except Exception as error:
+            _record_call(
+                trace,
+                index=index,
+                prompt=item,
+                system_prompt=system_prompt,
+                history=history or (),
+                backend="codex",
+                model=client.model or "codex-default",
+                started_at=started_at,
+                started=started,
+                error=error,
+            )
+            raise
         if on_chunk is not None:
             on_chunk(index, text)
-        return InferenceResult(text, {}, client.model or "codex-default")
+        result = InferenceResult(text, {}, client.model or "codex-default")
+        _record_call(
+            trace,
+            index=index,
+            prompt=item,
+            system_prompt=system_prompt,
+            history=history or (),
+            backend="codex",
+            model=client.model or "codex-default",
+            started_at=started_at,
+            started=started,
+            result=result,
+        )
+        return result
 
     if isinstance(prompt, str):
         return run(0, prompt)

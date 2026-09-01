@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +11,24 @@ from task_gen.tool_graph.contracts import Config, PipelineStep
 
 
 class ToolGraphRunIOTest(unittest.TestCase):
+    def test_append_llm_calls_is_thread_safe_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary)
+            records = [
+                {"call_id": str(index), "prompt": f"中文\n{index}", "answer": str(index)}
+                for index in range(20)
+            ]
+
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                list(executor.map(lambda record: run_io.append_llm_call(run_dir, record), records))
+
+            saved = [
+                json.loads(line)
+                for line in (run_dir / "llm_calls.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertCountEqual(saved, records)
+
     def test_run_directory_bundle_progress_and_finish_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

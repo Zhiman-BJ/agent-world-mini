@@ -29,8 +29,73 @@ class FakeLLMClient:
 
 
 class ToolGraphLLMTest(unittest.TestCase):
+    def test_infer_records_each_batch_call_with_current_step(self) -> None:
+        records: list[dict[str, object]] = []
+
+        with (
+            patch.object(
+                llm.LLMClient,
+                "from_environment",
+                return_value=FakeLLMClient(),
+            ),
+            llm.capture_calls("step_1_graph_build", records.append),
+        ):
+            llm.infer(
+                ["first", "second"],
+                system_prompt="system",
+                history=[{"role": "assistant", "content": "history"}],
+                llm_config={"model": "test-model", "max_concurrency": 2},
+            )
+
+        self.assertEqual(len(records), 2)
+        by_index = {record["batch_index"]: record for record in records}
+        self.assertEqual(by_index[0]["step"], "step_1_graph_build")
+        self.assertEqual(by_index[0]["prompt"], "first")
+        self.assertEqual(by_index[0]["answer"], "first")
+        self.assertEqual(by_index[0]["usage"], {"total_tokens": 5})
+        self.assertEqual(by_index[0]["system_prompt"], "system")
+        self.assertEqual(
+            by_index[0]["history"],
+            [{"role": "assistant", "content": "history"}],
+        )
+        self.assertEqual(by_index[0]["status"], "succeeded")
+        self.assertIsNone(by_index[0]["error"])
+        self.assertEqual(by_index[0]["backend"], "api")
+        self.assertEqual(by_index[0]["model"], "test-model")
+        self.assertIsInstance(by_index[0]["call_id"], str)
+        self.assertIsInstance(by_index[0]["started_at"], str)
+        self.assertGreaterEqual(by_index[0]["duration_seconds"], 0)
+        self.assertEqual(by_index[1]["prompt"], "second")
+
+    def test_infer_records_failed_call_before_reraising(self) -> None:
+        records: list[dict[str, object]] = []
+
+        class FailingClient(FakeLLMClient):
+            def complete_messages(self, messages, **_parameters):
+                raise TimeoutError("timed out")
+
+        with (
+            patch.object(
+                llm.LLMClient,
+                "from_environment",
+                return_value=FailingClient(),
+            ),
+            llm.capture_calls("step_3_chain_execute", records.append),
+        ):
+            with self.assertRaisesRegex(TimeoutError, "timed out"):
+                llm.infer("build arguments", llm_config={"model": "test-model"})
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["step"], "step_3_chain_execute")
+        self.assertEqual(records[0]["prompt"], "build arguments")
+        self.assertIsNone(records[0]["answer"])
+        self.assertEqual(records[0]["usage"], {})
+        self.assertEqual(records[0]["status"], "failed")
+        self.assertEqual(records[0]["error"], "TimeoutError: timed out")
+
     def test_codex_backend_uses_empty_read_only_workspace_and_preserves_order(self) -> None:
         calls: list[tuple[str, list[str]]] = []
+        records: list[dict[str, object]] = []
 
         class FakeCodexClient:
             def __init__(self, **kwargs) -> None:
@@ -44,6 +109,7 @@ class ToolGraphLLMTest(unittest.TestCase):
         with (
             patch.object(llm, "CodexAgentClient", FakeCodexClient),
             patch.object(llm.LLMClient, "from_environment", side_effect=AssertionError("API client used")),
+            llm.capture_calls("step_4_task_compose", records.append),
         ):
             results = llm.infer(
                 ["first", "second"],
@@ -58,6 +124,13 @@ class ToolGraphLLMTest(unittest.TestCase):
         self.assertEqual([result.text for result in results], ["first", "second"])
         self.assertEqual([files for _prompt, files in calls], [[], []])
         self.assertTrue(all("不要使用工具或读取文件" in prompt for prompt, _files in calls))
+        self.assertEqual(
+            sorted((record["batch_index"], record["prompt"], record["answer"]) for record in records),
+            [(0, "first", "first"), (1, "second", "second")],
+        )
+        self.assertTrue(all(record["step"] == "step_4_task_compose" for record in records))
+        self.assertTrue(all(record["backend"] == "codex" for record in records))
+        self.assertTrue(all(record["usage"] == {} for record in records))
 
     def test_parse_json_object_accepts_reasoning_wrapper_and_fence(self) -> None:
         self.assertEqual(

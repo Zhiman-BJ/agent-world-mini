@@ -13,7 +13,7 @@ from pathlib import Path
 import time
 from typing import Any
 
-from . import run_io
+from . import llm, run_io
 from .contracts import AppendOnlyBundle, PipelineStep, RunResult
 from .step_0_environment_load import load_environment
 from .step_1_graph_build import build_graph
@@ -39,7 +39,11 @@ def run(
         nonlocal active_step
         active_step = step
         started = time.perf_counter()
-        output = producer()
+        with llm.capture_calls(
+            step.value,
+            lambda record: run_io.append_llm_call(run_dir, record),
+        ):
+            output = producer()
         run_io.merge_output(bundle, output, step)
         run_io.save_bundle(run_dir, bundle)
         timings[step.value] = round(time.perf_counter() - started, 3)

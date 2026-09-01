@@ -4,6 +4,7 @@
 - 从 AppendOnlyBundle 提取每阶段所需字段，构造对应 Input
 - 将阶段 Output 作为新字段合入 AppendOnlyBundle（禁止覆盖）
 - 创建一次运行的目录结构（runs/taskgen/<时间戳>_<环境>_<模型>/）
+- 模型调用审计日志（llm_calls.jsonl）的并发安全追加
 - 每个阶段产物的存档与读档（一阶段一文件，存 intermediate/ 下）
 - 最终产物（tasks.json / rejected.json / run.json）的写入
 
@@ -13,6 +14,7 @@
 目录结构（每个 Bundle 都包含截至该 Step 的全部平铺字段）：
     runs/taskgen/<run_name>/
     ├── run.json                 # 配置快照 + 元信息
+    ├── llm_calls.jsonl          # 每行一次完整模型调用（含 step、prompt、answer）
     ├── tasks.json               # validation 通过的 TaskArtifact[]
     ├── rejected.json            # validation 失败的完整候选记录[]
     ├── tasks/                  # 本次运行独占的任务 workspace
@@ -35,6 +37,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
+from threading import Lock
 from typing import Any
 
 import yaml
@@ -51,6 +54,9 @@ from .contracts import (
     AppendOnlyBundle,
     ValidateTasksInput,
 )
+
+
+_LLM_CALL_LOCK = Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +211,14 @@ def update_run_meta(run_dir: Path, values: Mapping[str, Any]) -> None:
         raise ValueError("run.json 顶层必须是 object")
     meta.update(values)
     _write_json(path, meta)
+
+
+def append_llm_call(run_dir: Path, record: Mapping[str, Any]) -> None:
+    """线程安全地追加一条完整模型调用记录。"""
+    line = json.dumps(record, ensure_ascii=False, default=str)
+    with _LLM_CALL_LOCK:
+        with (run_dir / "llm_calls.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(line + "\n")
 
 
 # ---------------------------------------------------------------------------
