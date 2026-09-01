@@ -21,8 +21,8 @@ def main() -> None:
     parser.add_argument(
         "--schema-path",
         type=Path,
-        default=Path("schemas/validation/environment-v2.schema.json"),
-        help="兼容参数；v2 管线固定使用 schemas/validation/environment-v2.schema.json",
+        default=Path("schemas/environment.schema.json"),
+        help="环境声明的正式 JSON Schema",
     )
     parser.add_argument("--contract-path", type=Path, help="可选的人类可读环境契约；默认读取 Schema 同目录文件")
     output_group = parser.add_mutually_exclusive_group()

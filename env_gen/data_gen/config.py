@@ -8,7 +8,7 @@ from pathlib import Path
 
 DEFAULT_RESEARCH_MODEL = "gpt-5.6-terra"
 DEFAULT_REASONING_EFFORT = "high"
-DEFAULT_SCHEMA_EXAMPLE = Path("schemas/environment.schema.json")
+DEFAULT_ENVIRONMENT_SCHEMA = Path("schemas/environment.schema.json")
 DEFAULT_SEED_VALIDATION_SCHEMA = Path("schemas/validation/env_seeds.schema.json")
 DEFAULT_OSS_OUTPUT_ROOT = Path(
     "/mnt/oss-bucket/sunshuo/AgentWorld/environment/data_gen_v3"
@@ -96,7 +96,7 @@ class DataGenConfig:
 
     seed_path: Path
     global_id: str
-    schema_path: Path = DEFAULT_SCHEMA_EXAMPLE
+    schema_path: Path = DEFAULT_ENVIRONMENT_SCHEMA
     seed_validation_schema_path: Path = DEFAULT_SEED_VALIDATION_SCHEMA
     contract_path: Path | None = None
     output_dir: Path | None = None
@@ -130,7 +130,7 @@ __all__ = [
     "DEFAULT_OSS_OUTPUT_ROOT",
     "DEFAULT_REASONING_EFFORT",
     "DEFAULT_RESEARCH_MODEL",
-    "DEFAULT_SCHEMA_EXAMPLE",
+    "DEFAULT_ENVIRONMENT_SCHEMA",
     "DEFAULT_SEED_VALIDATION_SCHEMA",
     "DataGenConfig",
 ]

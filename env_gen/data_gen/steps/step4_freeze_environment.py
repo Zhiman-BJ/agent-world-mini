@@ -405,7 +405,7 @@ def freeze_environment(run_dir: Path) -> dict[str, Any]:
     write_json(run_dir / "environment.json", environment)
     write_json(run_dir / INTEGRATION_PROFILE_PATH, integration_profile)
     write_json(run_dir / QUALITY_PROFILE_PATH, quality_profile)
-    validator = V2EnvironmentPackageValidator(Path(config["environment_v2_schema_path"]))
+    validator = V2EnvironmentPackageValidator(Path(config["environment_schema_path"]))
     validation = validator.validate(run_dir, integration_plan=plan)
     if not validation.valid:
         raise EnvironmentFreezeError(

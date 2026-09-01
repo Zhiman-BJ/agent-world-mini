@@ -36,7 +36,7 @@ prepare_generation_run
 │   └── provenance/
 ├── B. 解析协议
 │   ├── Seed 校验 Schema
-│   ├── environment-v2 Schema 与契约
+│   ├── environment.schema.json 与环境契约
 │   └── 后续阶段实际读取的 checkpoint Schema
 ├── C. 选择 Seed
 │   ├── 校验完整 Seed 集合

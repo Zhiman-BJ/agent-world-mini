@@ -34,7 +34,12 @@ def prepare_generation_run(
     schema_root = project_root / "schemas"
     seed_path = config.seed_path.resolve()
     seed_validation = config.seed_validation_schema_path.resolve()
-    environment_schema = (schema_root / "validation/environment-v2.schema.json").resolve()
+    configured_schema = config.schema_path
+    environment_schema = (
+        configured_schema
+        if configured_schema.is_absolute()
+        else project_root / configured_schema
+    ).resolve()
     contract = (config.contract_path or schema_root / "环境契约-v2.0.md").resolve()
     schema_paths = {
         "scenario_research_schema_path": checkpoint_root / "scenario_research.schema.json",
@@ -45,7 +50,7 @@ def prepare_generation_run(
         "environment_quality_profile_schema_path": (
             checkpoint_root / "environment_quality_profile.schema.json"
         ),
-        "environment_v2_schema_path": environment_schema,
+        "environment_schema_path": environment_schema,
     }
     required = (seed_path, seed_validation, contract, *schema_paths.values())
     missing = [path for path in required if not path.is_file()]

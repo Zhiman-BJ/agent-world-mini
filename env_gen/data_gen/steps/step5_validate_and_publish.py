@@ -268,7 +268,7 @@ def validate_and_publish(
     quality_tier = str(quality.get("quality_tier") or "")
     if integration.get("integration_tier") != "integrated" or quality_tier not in {"rich", "not_rich"}:
         raise FinalValidationError("最终集成画像或质量画像未通过发布门")
-    validator = V2EnvironmentPackageValidator(Path(config["environment_v2_schema_path"]))
+    validator = V2EnvironmentPackageValidator(Path(config["environment_schema_path"]))
     validation = validator.validate(run_dir, integration_plan=plan)
     if not validation.valid:
         raise FinalValidationError(
