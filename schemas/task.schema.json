@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "task_id": "cancel_scheduled_appointment",
+  "environment_id": "appointment_management_001",
+  "task_text": "取消指定的预约，并记录用户提供的取消原因。",
+  "difficulty": {
+    "tool_calls": 1
+  },
+  "initial_state": "tasks/cancel_scheduled_appointment/initial",
+  "available_tools": [
+    {
+      "name": "cancel_appointment",
+      "description": "Cancel an existing scheduled appointment and record the cancellation reason. Validation failure performs no state change.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Appointment selected from the task or a previous tool result."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": ["appointment_id", "reason"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean", "const": true},
+              "data": {
+                "type": "object",
+                "properties": {
+                  "appointment_id": {"type": "string", "format": "uuid"},
+                  "status": {"type": "string", "const": "cancelled"}
+                },
+                "required": ["appointment_id", "status"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["success", "data"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean", "const": false},
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": ["not_found", "invalid_state", "conflict"]
+                  },
+                  "path": {"type": "string"},
+                  "message": {"type": "string", "minLength": 1},
+                  "retryable": {"type": "boolean"}
+                },
+                "required": ["code", "path", "message", "retryable"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["success", "error"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  ],
+  "resource_constraints": {
+    "should_modify": ["appointments"],
+    "can_modify": [],
+    "must_not_modify": []
+  },
+  "reference": {
+    "tool_calls": [
+      {
+        "tool": "cancel_appointment",
+        "arguments": {
+          "appointment_id": "4c3f2f8d-3f2e-4f9a-91a5-c67f701c0342",
+          "reason": "行程有变"
+        }
+      }
+    ],
+    "answer": "预约已取消，并已记录取消原因。",
+    "final_state": "tasks/cancel_scheduled_appointment/final"
+  }
+}

@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/task.schema.json",
+  "title": "Agent-World Task Contract",
+  "description": "绑定到一个 CompleteEnvironmentArtifact 的任务产物。评分器、试跑结果和生成过程不属于该契约。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "description": "任务契约版本。"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "description": "任务在所属数据集内唯一且稳定的标识。"
+    },
+    "environment_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "description": "任务所属环境的 ID；必须等于完整环境中的 environment_id。"
+    },
+    "task_text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "交给 Agent 的自然语言任务。"
+    },
+    "difficulty": {
+      "type": "object",
+      "description": "由参考轨迹直接计算的任务难度信息。v1.0 只记录工具调用次数。",
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "完成参考轨迹所需的工具调用次数；必须等于 reference.tool_calls 的元素数量。"
+        }
+      },
+      "required": [
+        "tool_calls"
+      ],
+      "additionalProperties": false
+    },
+    "initial_state": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "description": "相对该任务所属单次 run 目录的初始 workspace 路径；目录与环境初始 workspace 同构。"
+    },
+    "available_tools": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "本任务允许调用的公开工具契约；工具名必须唯一，且每个元素必须等于完整环境中同名 tools[] 元素移除 internal 后的公开投影。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+            "minLength": 1,
+            "description": "环境内唯一且稳定的工具名。使用小写 snake_case，并采用业务动词加业务对象的命名方式。"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "说明工具做什么、何时使用、关键限制和主要副作用。不得包含 Python 代码、内部路径或测试细节。"
+          },
+          "inputSchema": {
+            "type": "object",
+            "description": "Agent 调用工具时 arguments 对象的完整 JSON Schema。根节点固定为封闭 object；没有参数时 properties 和 required 均为空。",
+            "required": [
+              "type",
+              "properties",
+              "required",
+              "additionalProperties"
+            ],
+            "properties": {
+              "type": {
+                "const": "object",
+                "description": "一次工具调用的 arguments 必须是 JSON object。"
+              },
+              "properties": {
+                "type": "object",
+                "description": "允许传入的参数名及每个参数对应的 JSON Schema。对象和数组参数必须继续完整声明内部结构。",
+                "additionalProperties": {
+                  "type": "object",
+                  "description": "一个 JSON Schema Draft 2020-12 节点。具体类型约束由该节点自身的 type、properties、items、oneOf 等关键字表达。"
+                }
+              },
+              "required": {
+                "type": "array",
+                "description": "调用时必须出现的参数名。无必填参数时使用空数组。",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "additionalProperties": {
+                "const": false,
+                "description": "固定为 false，拒绝 properties 中没有声明的额外参数。"
+              }
+            },
+            "additionalProperties": true
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "工具返回值的完整 JSON Schema。必须使用 oneOf 分别定义 success=true 的 data 分支和 success=false 的 error 分支。",
+            "required": [
+              "oneOf"
+            ],
+            "properties": {
+              "oneOf": {
+                "type": "array",
+                "description": "两个分支分别描述成功结果和业务失败结果。失败 error 统一包含 code、path、message、retryable。",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "object",
+                  "description": "一个 JSON Schema Draft 2020-12 节点。具体类型约束由该节点自身的 type、properties、items、oneOf 等关键字表达。"
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "inputSchema",
+          "outputSchema"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "resource_constraints": {
+      "type": "object",
+      "description": "任务语义层面的资源改动约束，粒度为 resource。只包含生成时显式判定的 resource_id；未出现在任何列表中的资源按默认禁止修改处理，判定规则由使用方实现。三个列表互不相交，元素必须是所属环境 resources[] 中的 resource_id，且 writable=false 的资源不得出现在 should_modify 或 can_modify 中。",
+      "properties": {
+        "should_modify": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "完成 task_text 要求的业务结果时必须产生最终净变化的资源。",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+          }
+        },
+        "can_modify": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "不同合理解法可能修改、但任务不要求其必须变化的资源。",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+          }
+        },
+        "must_not_modify": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "任何合理解法都不得改变的资源。只列出生成时显式判定的资源，不补全其余资源。",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+          }
+        }
+      },
+      "required": [
+        "should_modify",
+        "can_modify",
+        "must_not_modify"
+      ],
+      "additionalProperties": false
+    },
+    "reference": {
+      "type": "object",
+      "description": "Agent 不可见的参考工具调用、参考答案和执行后状态。",
+      "properties": {
+        "tool_calls": {
+          "type": "array",
+          "minItems": 1,
+          "description": "已从本任务 initial_state 成功执行的参考工具调用，数组顺序就是执行顺序。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+                "description": "调用的工具名；必须等于某个 available_tools[].name。"
+              },
+              "arguments": {
+                "type": "object",
+                "description": "该次调用的完整参数对象；必须通过对应工具的 inputSchema。"
+              }
+            },
+            "required": [
+              "tool",
+              "arguments"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "根据参考工具调用结果整理出的完整参考答案文本；不是某一次工具的原始返回值。"
+        },
+        "final_state": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "description": "相对该任务所属单次 run 目录的参考轨迹最终 workspace 路径；目录结构与 initial_state 同构。"
+        }
+      },
+      "required": [
+        "tool_calls",
+        "answer",
+        "final_state"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "environment_id",
+    "task_text",
+    "difficulty",
+    "initial_state",
+    "available_tools",
+    "resource_constraints",
+    "reference"
+  ],
+  "additionalProperties": false
+}

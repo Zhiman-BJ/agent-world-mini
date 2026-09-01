@@ -8,13 +8,14 @@ version = "0.1.0"
 description = "A compact reproduction of the Agent-World environment construction pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["jsonschema>=4.18", "openai>=1.0"]
+dependencies = ["jsonschema>=4.18", "openai>=1.0", "PyYAML>=6.0"]
 
 [project.optional-dependencies]
 data-gen = ["pyarrow>=14"]
 
 [project.scripts]
 agent-world-data-gen = "env_gen.data_gen.__main__:main"
+agent-world-tool-gen = "env_gen.tool_gen.__main__:main"
 agent-world-program-form = "task_gen.program_form.__main__:main"
 
 [tool.setuptools.packages.find]
