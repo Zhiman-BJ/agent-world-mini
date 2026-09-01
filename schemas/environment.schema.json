@@ -9,7 +9,8 @@
     "schema_version": {"const": "2.0"},
     "environment_id": {"$ref": "#/$defs/environmentId"},
     "name": {"type": "string", "minLength": 1, "maxLength": 120},
-    "description": {"type": "string", "minLength": 1},
+    "summary": {"type": "string", "minLength": 20, "maxLength": 160},
+    "description": {"type": "string", "minLength": 80, "maxLength": 800},
     "record_sets": {
       "type": "array",
       "items": {"$ref": "#/$defs/recordSet"}
@@ -24,7 +25,7 @@
     }
   },
   "required": [
-    "schema_version", "environment_id", "name", "description",
+    "schema_version", "environment_id", "name", "summary", "description",
     "record_sets", "relationships", "filesystem_scopes"
   ],
   "anyOf": [
