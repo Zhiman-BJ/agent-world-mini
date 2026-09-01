@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/environment-quality-profile.schema.json",
+  "title": "DataGen v2 Environment Quality Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "3.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "quality_tier": {"enum": ["rich", "not_rich"]},
+    "summary": {"type": "string", "minLength": 1},
+    "shape": {"enum": ["structured_records", "file_native", "hybrid"]},
+    "policy": {"type": "object"},
+    "record_profile": {"type": "object"},
+    "file_profile": {"type": "object"},
+    "relationship_profile": {"type": "object"},
+    "need_profile": {"type": "object"},
+    "integration_profile": {"type": "object"},
+    "quality_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1},
+          "observed": {"type": ["integer", "string"]},
+          "required": {"type": ["integer", "string"]}
+        },
+        "required": ["code", "message", "action", "observed", "required"]
+      }
+    }
+  },
+  "required": [
+    "schema_version", "seed_global_id", "seed_sha256", "quality_tier",
+    "summary", "shape", "policy", "record_profile", "file_profile",
+    "relationship_profile", "need_profile", "integration_profile", "quality_gaps"
+  ]
+}

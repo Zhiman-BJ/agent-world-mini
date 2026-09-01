@@ -53,18 +53,23 @@ agent_world_mini/
 │   └── scripts/
 ├── env_gen/
 │   ├── data_gen/
-│   │   ├── pipeline.py
+│   │   ├── run_pipeline.py
+│   │   ├── config.py
 │   │   ├── steps/
-│   │   │   ├── step01_build_research_request.py
-│   │   │   ├── step02_collect_source_data.py
-│   │   │   ├── step03_profile_collected_data.py
-│   │   │   ├── step04_evaluate_data_richness.py
-│   │   │   ├── step05_expand_source_data.py
-│   │   │   ├── step06_describe_environment.py
-│   │   │   ├── step07_validate_environment.py
-│   │   │   ├── step08_repair_environment.py
-│   │   │   └── step09_publish_environment.py
+│   │   │   ├── acquisition.py
+│   │   │   ├── research_policy.py
+│   │   │   ├── research_semantics.py
+│   │   │   ├── workflow.py
+│   │   │   ├── environment.py
+│   │   │   └── publication.py
 │   │   └── analysis/
+│   │       ├── entity_profiling.py
+│   │       ├── record_extraction.py
+│   │       ├── capability_extraction.py
+│   │       ├── task_space_estimation.py
+│   │       ├── quality.py
+│   │       ├── validator.py
+│   │       └── checkpoint_schemas/
 │   ├── tool_gen/
 │   │   ├── compiler.py
 │   │   └── designer.py
@@ -102,7 +107,7 @@ config/
 | 阶段 | 读取 | 输出 | 当前权威实现 |
 | --- | --- | --- | --- |
 | SeedGen | 人工主题、内置主题或 MCP 目录 | `ThemeSeed` | `seed_gen/themes.py`、`catalog.py` |
-| DataGen | Seed JSON、环境契约、Research Agent 配置 | 不带工具的环境数据包 | `env_gen/data_gen/pipeline.py` |
+| DataGen | Seed JSON、环境契约、Research Agent 配置 | 不带工具的环境数据包 | `env_gen/data_gen/run_pipeline.py` |
 | ToolGen | 当前仍是旧 `ResearchBundle`；待适配 DataGen 环境包 | 通过执行验证的 `ToolSpec[]` 和验证报告 | `env_gen/tool_gen/` |
 | Assembler | Seed、数据、已验证工具 | `environment_manifest.json` | `env_gen/assembler.py` |
 | Runtime | 数据包、工具内部实现、调用参数 | 工具结果、状态快照、outcome | `runtime/` |
@@ -128,7 +133,7 @@ schemas/*契约-v1.0.md                 字段语义和跨字段规则
 - `codex.py`：对本机 `codex exec` 的最小非交互调用封装；不包含 Agent-World 业务协议。
 - `deepseek_harness.py`：启动本机 `dsh`，要求它写出研究数据文件。
 
-它们不决定流水线阶段，也不生成工具。`DataGenerator` 只通过统一的 `run()` 接口调用调研 Agent。
+它们不决定流水线阶段，也不生成工具。DataGen 只通过统一的 `run()` 接口调用调研 Agent。
 
 ### 4.2 `seed_gen`
 
@@ -142,18 +147,19 @@ SeedGen 不抓取业务实体，也不定义最终工具。
 
 ### 4.3 `env_gen/data_gen`
 
-`pipeline.py` 是 DataGen 唯一权威编排入口。它按编号执行九个步骤：编译调研请求、
-首轮采集、事实画像、丰富度评估、定向扩充、环境语义描述、确定性校验、声明修复
-和分类发布。`steps/` 中一个文件只负责一个步骤，Agent Prompt 与使用它的步骤放在
-同一个文件中。
+`run_pipeline.py` 是 DataGen 唯一权威编排入口。Step 1 先生成完整 Seed 的紧凑调研索引，再
+调用 Codex 把环境描述、参考工具、参考任务和数据方向综合为候选场景简报
+`scenario_research.json`；Step 2 以该简报为起点继续深度调研，通过 `datagenctl` 保存严格的
+`source_plan.json`、下载 Raw、整理 Entity/Derived、执行 `assess`，最后通过 `finalize` 收口。
 
-Agent 只用于四个位置：首轮采集固定一次、数据扩充零到三次、环境语义描述固定
-一次、失败后的声明修复零到两次。画像、质量判定、校验和发布都不调用模型。
+正常会调用 Agent 多次：一次场景研究；采集阶段每轮都在同一 staging 现场继续，直到收口或
+达到 `max_collection_rounds`；随后再调用一次生成环境声明，失败后的声明修复为零到两次。
+画像、质量判定、checkpoint、校验和发布都由 Python 完成，不接受 Agent 自报结果。
 
 环境语义不能由字段名启发式决定。Python 负责路径、格式、哈希、类型、数量和
-引用覆盖率等可验证事实；Step 06 Agent 负责资源含义、实体边界和业务关系声明；
-Step 07 再核对这些声明。`analysis/legacy_metadata_inference.py` 只保留画像和校验
-兼容能力，不再生成或覆盖最终 `environment.json`。
+引用覆盖率等可验证事实；声明 Agent 负责资源含义、实体边界和业务关系声明；
+Validator 再核对这些声明。`analysis/record_extraction.py` 等模块只提供画像和校验
+所需的确定性事实，不生成或覆盖最终 `environment.json`。
 
 ### 4.4 `env_gen/tool_gen`
 

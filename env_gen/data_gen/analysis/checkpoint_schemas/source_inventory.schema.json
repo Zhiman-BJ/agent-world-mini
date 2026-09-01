@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/source_inventory.schema.json",
+  "title": "DataGen Source Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "summary": {"$ref": "#/$defs/summary"},
+    "sources": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/source"}
+    },
+    "files": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/file"}
+    }
+  },
+  "required": [
+    "schema_version", "seed_global_id", "seed_sha256", "summary", "sources", "files"
+  ],
+  "$defs": {
+    "nonNegativeInteger": {"type": "integer", "minimum": 0},
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "file_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "total_bytes": {"$ref": "#/$defs/nonNegativeInteger"},
+        "usable_file_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "structured_record_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "formats": {"$ref": "#/$defs/stringArray"},
+        "retrieval_stability_counts": {"$ref": "#/$defs/retrievalStabilityCounts"}
+      },
+      "required": [
+        "source_count", "file_count", "total_bytes", "usable_file_count",
+        "structured_record_count", "formats", "retrieval_stability_counts"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "file_paths": {"$ref": "#/$defs/stringArray"},
+        "file_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "total_bytes": {"$ref": "#/$defs/nonNegativeInteger"},
+        "usable_file_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "structured_record_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "formats": {"$ref": "#/$defs/stringArray"},
+        "retrieval_stability_counts": {"$ref": "#/$defs/retrievalStabilityCounts"},
+        "source_status": {"type": "string", "minLength": 1},
+        "profile_status": {"enum": ["usable", "partial", "unusable", "not_collected"]},
+        "issues": {"$ref": "#/$defs/stringArray"}
+      },
+      "required": [
+        "source_id", "file_paths", "file_count", "total_bytes", "usable_file_count",
+        "structured_record_count", "formats", "retrieval_stability_counts",
+        "source_status", "profile_status", "issues"
+      ]
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "types": {"$ref": "#/$defs/stringArray"},
+        "non_null_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "distinct_sample_count": {"$ref": "#/$defs/nonNegativeInteger"}
+      },
+      "required": ["name", "types", "non_null_count", "distinct_sample_count"]
+    },
+    "recordGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "observed_record_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "sampled_record_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "fields": {"type": "array", "items": {"$ref": "#/$defs/field"}},
+        "candidate_key_fields": {"$ref": "#/$defs/stringArray"}
+      },
+      "required": [
+        "path", "observed_record_count", "sampled_record_count", "fields",
+        "candidate_key_fields"
+      ]
+    },
+    "shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["structured", "xml", "archive", "text", "binary", "unknown"]
+        },
+        "discovered_record_group_count": {"$ref": "#/$defs/nonNegativeInteger"},
+        "record_groups": {"type": "array", "items": {"$ref": "#/$defs/recordGroup"}},
+        "root_name": {"type": ["string", "null"]},
+        "member_count": {"type": ["integer", "null"], "minimum": 0},
+        "member_formats": {"$ref": "#/$defs/stringArray"},
+        "top_level_entries": {"$ref": "#/$defs/stringArray"},
+        "line_count": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "required": [
+        "kind", "discovered_record_group_count", "record_groups", "root_name", "member_count", "member_formats",
+        "top_level_entries", "line_count"
+      ]
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "source_id": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"$ref": "#/$defs/nonNegativeInteger"},
+        "format": {"type": "string", "minLength": 1},
+        "retrieval_stability": {
+          "enum": [
+            "immutable_repository", "mutable_repository",
+            "timestamped_snapshot", "untracked"
+          ]
+        },
+        "retrieval_urls": {"$ref": "#/$defs/stringArray"},
+        "content_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["structured_records", "domain_file", "archive", "documentation", "unknown"]
+          }
+        },
+        "parse_status": {"enum": ["parsed", "sampled", "unsupported", "placeholder", "invalid"]},
+        "shape": {"$ref": "#/$defs/shape"},
+        "issues": {"$ref": "#/$defs/stringArray"}
+      },
+      "required": [
+        "path", "source_id", "sha256", "bytes", "format",
+        "retrieval_stability", "retrieval_urls", "content_roles",
+        "parse_status", "shape", "issues"
+      ]
+    },
+    "retrievalStabilityCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "immutable_repository": {"$ref": "#/$defs/nonNegativeInteger"},
+        "mutable_repository": {"$ref": "#/$defs/nonNegativeInteger"},
+        "timestamped_snapshot": {"$ref": "#/$defs/nonNegativeInteger"},
+        "untracked": {"$ref": "#/$defs/nonNegativeInteger"}
+      },
+      "required": [
+        "immutable_repository", "mutable_repository",
+        "timestamped_snapshot", "untracked"
+      ]
+    }
+  }
+}

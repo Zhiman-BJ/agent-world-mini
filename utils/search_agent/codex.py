@@ -7,9 +7,56 @@ import shutil
 import subprocess
 import tempfile
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 _CODEX_LLM_API_KEY_ENV = "AGENT_WORLD_LLM_API_KEY"
+_PARENT_SESSION_ENV = (
+    "CODEX_THREAD_ID",
+    "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+    "CODEX_PERMISSION_PROFILE",
+)
+
+
+class CodexLaunchError(RuntimeError):
+    """Codex CLI 缺失或无法启动；重试同一配置不会恢复。"""
+
+    retryable = False
+
+
+class CodexTimeoutError(TimeoutError):
+    """单次 Agent 会话超时；现场可能已有进展，可以启动续跑轮次。"""
+
+    retryable = True
+
+
+class CodexProcessError(RuntimeError):
+    """Codex CLI 已启动，但以非零状态退出。"""
+
+    def __init__(self, message: str, *, retryable: bool) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
+def _process_failure_is_retryable(detail: str) -> bool:
+    lowered = detail.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "429",
+            "rate limit",
+            "temporarily unavailable",
+            "service unavailable",
+            "connection reset",
+            "connection refused",
+            "timed out",
+            "timeout",
+            "overloaded",
+            "502",
+            "503",
+            "504",
+        )
+    )
 
 
 def _toml_string(value: str) -> str:
@@ -41,6 +88,7 @@ class CodexAgentClient:
         network_access: bool = False,
         reasoning_effort: str | None = None,
         disabled_mcp_servers: tuple[str, ...] = (),
+        log_directory: Path | None = None,
     ):
         if sandbox not in {"read-only", "workspace-write", "danger-full-access"}:
             raise ValueError(f"不支持的 Codex sandbox 模式：{sandbox}")
@@ -54,6 +102,8 @@ class CodexAgentClient:
         self.network_access = network_access
         self.reasoning_effort = reasoning_effort
         self.disabled_mcp_servers = tuple(disabled_mcp_servers)
+        self.log_directory = log_directory
+        self._run_counter = 0
 
     def _llm_arguments(self, environment: dict[str, str]) -> list[str]:
         """生成本次 Codex 调用的模型参数，并把密钥只放入子进程环境。"""
@@ -126,7 +176,7 @@ class CodexAgentClient:
 
         executable = self.executable or shutil.which("codex")
         if not executable:
-            raise RuntimeError("未安装 Codex CLI，或者无法从 PATH 找到 codex")
+            raise CodexLaunchError("未安装 Codex CLI，或者无法从 PATH 找到 codex")
         if not prompt.strip():
             raise ValueError("Codex 提示词不能为空")
 
@@ -134,11 +184,33 @@ class CodexAgentClient:
         if not working_directory.is_dir():
             raise ValueError(f"Codex 工作目录不存在：{working_directory}")
 
-        with tempfile.TemporaryDirectory(prefix="agent-world-codex-") as temporary:
-            final_message = Path(temporary) / "last_message.txt"
-            stdout_log = Path(temporary) / "stdout.log"
-            stderr_log = Path(temporary) / "stderr.log"
+        if self.log_directory is None:
+            directory_context = tempfile.TemporaryDirectory(
+                prefix="agent-world-codex-"
+            )
+        else:
+            log_root = self.log_directory.resolve()
+            while True:
+                self._run_counter += 1
+                run_log_dir = log_root / f"run_{self._run_counter:02d}"
+                try:
+                    run_log_dir.mkdir(parents=True, exist_ok=False)
+                except FileExistsError:
+                    continue
+                break
+            directory_context = nullcontext(str(run_log_dir))
+
+        with directory_context as run_log_directory:
+            final_message = Path(run_log_directory) / "last_message.txt"
+            stdout_log = Path(run_log_directory) / "stdout.log"
+            stderr_log = Path(run_log_directory) / "stderr.log"
             environment = dict(os.environ)
+            # DataGen 启动的是独立研究 Agent，不是当前 IDE/Codex 会话的子回合。
+            # 继承这些标识会让 ``codex exec`` 误绑定父线程或父权限配置，出现
+            # 未执行任何工具就结束的情况。保留 CODEX_HOME 以继续使用认证和
+            # provider 配置，但显式移除父会话身份。
+            for name in _PARENT_SESSION_ENV:
+                environment.pop(name, None)
             environment.setdefault("NO_COLOR", "1")
 
             command = [executable]
@@ -210,7 +282,7 @@ class CodexAgentClient:
                             break
                         if time.monotonic() >= deadline:
                             self._terminate_process_group(process)
-                            raise RuntimeError(
+                            raise CodexTimeoutError(
                                 f"Codex 智能体在 {self.timeout_seconds} 秒后超时"
                             )
                         time.sleep(0.25)
@@ -218,27 +290,38 @@ class CodexAgentClient:
                         process.wait()
                 stdout = stdout_log.read_text(encoding="utf-8", errors="replace")
                 stderr = stderr_log.read_text(encoding="utf-8", errors="replace")
-            except RuntimeError:
+            except (CodexTimeoutError, CodexLaunchError, CodexProcessError):
                 raise
             except OSError as error:
                 if process is not None and process.poll() is None:
                     self._terminate_process_group(process)
-                raise RuntimeError(f"启动 Codex CLI 失败：{error}") from error
+                raise CodexLaunchError(f"启动 Codex CLI 失败：{error}") from error
+            except BaseException:
+                if process is not None and process.poll() is None:
+                    self._terminate_process_group(process)
+                raise
 
             if not stopped_at_checkpoint and process.returncode != 0:
                 detail = (stderr or stdout).strip()[-4000:]
-                raise RuntimeError(
-                    f"Codex 智能体执行失败，退出码为 {process.returncode}："
-                    f"{detail or '没有诊断输出'}"
+                detail = detail or "没有诊断输出"
+                raise CodexProcessError(
+                    f"Codex 智能体执行失败，退出码为 {process.returncode}：{detail}",
+                    retryable=_process_failure_is_retryable(detail),
                 )
             if not final_message.is_file():
                 if stopped_at_checkpoint:
                     return "已到达文件提交点。"
-                raise RuntimeError("Codex 智能体执行结束，但没有生成最终响应")
+                raise CodexProcessError(
+                    "Codex 智能体执行结束，但没有生成最终响应",
+                    retryable=False,
+                )
 
             response = final_message.read_text(encoding="utf-8").strip()
             if not response:
-                raise RuntimeError("Codex 智能体生成了空的最终响应")
+                raise CodexProcessError(
+                    "Codex 智能体生成了空的最终响应",
+                    retryable=False,
+                )
             return response
 
     @staticmethod
@@ -261,3 +344,11 @@ class CodexAgentClient:
             except (ProcessLookupError, PermissionError):
                 process.kill()
             process.wait(timeout=3)
+
+
+__all__ = [
+    "CodexAgentClient",
+    "CodexLaunchError",
+    "CodexProcessError",
+    "CodexTimeoutError",
+]

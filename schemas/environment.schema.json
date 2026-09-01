@@ -10,7 +10,7 @@
       "description": "客户提交的原始 GDSII 芯片版图文件。",
       "data_type": "raw",
       "storage_type": "file_collection",
-      "path": "layouts/*.gds",
+      "path": "raw/layouts/*.gds",
       "format": "gdsii",
       "writable": false
     },
@@ -25,6 +25,25 @@
       "writable": false,
       "source_resources": ["raw_layouts"],
       "entity_schema": {
+        "layout_file": {
+          "description": "一份可以被版图工具实际打开和处理的 GDSII 文件。",
+          "fields": {
+            "layout_file_id": {
+              "type": "string",
+              "description": "版图文件的稳定标识，供 cell.layout_file_id 引用。"
+            },
+            "file_path": {
+              "type": "string",
+              "description": "相对于 workspace 的实际 GDSII 文件路径。",
+              "pattern": "^raw/layouts/[^/]+\\.gds$"
+            },
+            "file_format": {
+              "type": "string",
+              "description": "该文件可交给对应解析器处理的注册格式。",
+              "const": "gdsii"
+            }
+          }
+        },
         "cell": {
           "description": "版图中的 cell 实体。",
           "fields": {
@@ -35,6 +54,10 @@
             "name": {
               "type": "string",
               "description": "版图文件中保存的 cell 名称。"
+            },
+            "layout_file_id": {
+              "type": "string",
+              "description": "该 cell 所属的版图文件，引用 layout_file.layout_file_id。"
             }
           }
         },
@@ -104,6 +127,14 @@
     }
   ],
   "rules": [
+    {
+      "description": "layout_file.file_path 必须指向 raw_layouts 覆盖的实际文件。",
+      "resources": ["raw_layouts", "layout_entities"]
+    },
+    {
+      "description": "cell.layout_file_id 必须引用存在的 layout_file.layout_file_id。",
+      "resources": ["layout_entities"]
+    },
     {
       "description": "geometry.cell_id 必须引用存在的 cell.cell_id。",
       "resources": ["layout_entities"]

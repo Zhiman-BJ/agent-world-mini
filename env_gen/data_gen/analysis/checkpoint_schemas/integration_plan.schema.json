@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/integration_plan.schema.json",
+  "title": "DataGen Integration Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "environment_id": {"$ref": "#/$defs/id"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "description": {"type": "string", "minLength": 1},
+    "record_sets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/recordSetPlan"}
+    },
+    "relationships": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/relationship"}
+    },
+    "filesystem_scopes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/scopePlan"}
+    },
+    "need_bindings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/needBinding"}
+    },
+    "source_decisions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/sourceDecision"}
+    }
+  },
+  "required": [
+    "schema_version", "seed_global_id", "seed_sha256", "environment_id", "name",
+    "description", "record_sets", "relationships", "filesystem_scopes",
+    "need_bindings", "source_decisions"
+  ],
+  "anyOf": [
+    {"properties": {"record_sets": {"minItems": 1}}},
+    {"properties": {"filesystem_scopes": {"minItems": 1}}}
+  ],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,127}$"},
+    "stringArray": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "fieldNameArray": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"}
+    },
+    "nonEmptyFieldNameArray": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"}
+    },
+    "fieldDefinition": {
+      "type": "object",
+      "required": ["type", "description", "nullable"],
+      "properties": {
+        "type": {"enum": ["string", "integer", "number", "boolean", "object", "array"]},
+        "description": {"type": "string", "minLength": 1},
+        "nullable": {"type": "boolean"},
+        "format": {"type": "string", "minLength": 1},
+        "pattern": {"type": "string"},
+        "minLength": {"type": "integer", "minimum": 0},
+        "maxLength": {"type": "integer", "minimum": 0},
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "exclusiveMinimum": {"type": "number"},
+        "exclusiveMaximum": {"type": "number"},
+        "multipleOf": {"type": "number", "exclusiveMinimum": 0},
+        "enum": {"type": "array", "minItems": 1, "uniqueItems": true},
+        "const": {},
+        "properties": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/fieldDefinition"}
+        },
+        "required": {"$ref": "#/$defs/fieldNameArray"},
+        "additionalProperties": {"const": false},
+        "items": {"$ref": "#/$defs/fieldDefinition"},
+        "minItems": {"type": "integer", "minimum": 0},
+        "maxItems": {"type": "integer", "minimum": 0},
+        "uniqueItems": {"type": "boolean"},
+        "reference": {"$ref": "#/$defs/fileReference"}
+      },
+      "additionalProperties": false
+    },
+    "fileReference": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "filesystem_path"},
+        "scope_id": {"$ref": "#/$defs/id"},
+        "target": {"enum": ["file", "directory"]}
+      },
+      "required": ["kind", "scope_id", "target"]
+    },
+    "identityStrategy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["source_key", "composite_key", "generated_hash", "none"]},
+        "fields": {"$ref": "#/$defs/fieldNameArray"},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["kind", "fields", "description"]
+    },
+    "recordSetPlan": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "record_set_id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "access": {"enum": ["read_only", "copy_on_write"]},
+        "key_fields": {"$ref": "#/$defs/fieldNameArray"},
+        "fields": {
+          "type": "object", "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,62}$"},
+          "additionalProperties": {"$ref": "#/$defs/fieldDefinition"}
+        },
+        "importance": {"enum": ["core", "supporting"]},
+        "source_ids": {"$ref": "#/$defs/stringArray"},
+        "source_paths": {"$ref": "#/$defs/stringArray"},
+        "merge_strategy": {
+          "enum": ["single_source", "union_compatible", "entity_resolution", "association", "deterministic_derived"]
+        },
+        "identity_strategy": {"$ref": "#/$defs/identityStrategy"},
+        "conflict_policy": {
+          "enum": ["not_applicable", "prefer_authoritative", "prefer_non_null", "reject_conflicts"]
+        },
+        "transformation": {"type": "string", "minLength": 1},
+        "transformation_id": {"$ref": "#/$defs/id"},
+        "standalone_reason": {"type": ["string", "null"], "minLength": 1}
+      },
+      "required": [
+        "record_set_id", "name", "description", "access", "key_fields", "fields",
+        "importance", "source_ids", "source_paths", "merge_strategy",
+        "identity_strategy", "conflict_policy", "transformation", "transformation_id",
+        "standalone_reason"
+      ]
+    },
+    "endpoint": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "record_set_id": {"$ref": "#/$defs/id"},
+        "fields": {"$ref": "#/$defs/nonEmptyFieldNameArray"}
+      },
+      "required": ["record_set_id", "fields"]
+    },
+    "relationship": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "relationship_id": {"$ref": "#/$defs/id"},
+        "description": {"type": "string", "minLength": 1},
+        "from": {"$ref": "#/$defs/endpoint"},
+        "to": {"$ref": "#/$defs/endpoint"},
+        "cardinality": {"enum": ["many_to_one", "one_to_one"]}
+      },
+      "required": ["relationship_id", "description", "from", "to", "cardinality"]
+    },
+    "structureNode": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": {"enum": ["file", "file_collection", "directory", "directory_collection"]},
+        "path": {"type": "string", "minLength": 1},
+        "format": {"type": "string", "minLength": 1},
+        "content_validation": {"enum": ["strict", "allow_invalid"]},
+        "layout": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/layoutNode"}}
+      },
+      "additionalProperties": false
+    },
+    "layoutNode": {
+      "type": "object",
+      "required": ["kind", "path", "description", "required"],
+      "properties": {
+        "kind": {"enum": ["file", "file_collection", "directory", "directory_collection"]},
+        "path": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "format": {"type": "string", "minLength": 1},
+        "content_validation": {"enum": ["strict", "allow_invalid"]},
+        "layout": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/layoutNode"}}
+      },
+      "additionalProperties": false
+    },
+    "scopePlan": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "scope_id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "access": {"enum": ["read_only", "copy_on_write"]},
+        "structure": {"$ref": "#/$defs/structureNode"},
+        "importance": {"enum": ["core", "supporting"]},
+        "source_ids": {"$ref": "#/$defs/stringArray"},
+        "source_paths": {"$ref": "#/$defs/stringArray"},
+        "materialization": {"enum": ["copy", "extract"]},
+        "transformation": {"type": "string", "minLength": 1},
+        "transformation_id": {"$ref": "#/$defs/id"},
+        "standalone_reason": {"type": ["string", "null"], "minLength": 1}
+      },
+      "required": [
+        "scope_id", "name", "description", "access", "structure", "importance",
+        "source_ids", "source_paths", "materialization", "transformation", "transformation_id",
+        "standalone_reason"
+      ]
+    },
+    "needBinding": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "need_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["realized", "partial", "unavailable", "not_applicable"]},
+        "record_set_ids": {"$ref": "#/$defs/stringArray"},
+        "scope_ids": {"$ref": "#/$defs/stringArray"},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["need_id", "status", "record_set_ids", "scope_ids", "description"]
+    },
+    "sourceDecision": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "decision": {"enum": ["core", "supporting", "evidence_only", "rejected"]},
+        "reason": {"type": "string", "minLength": 1}
+      },
+      "required": ["source_id", "decision", "reason"]
+    }
+  }
+}

@@ -1,186 +1,167 @@
 # DataGen
 
-DataGen 使用研究 Agent 从公开来源构建不带工具的环境。业务记录必须来自
-实际访问的来源。Agent 负责调研、下载和解释业务语义；Python 负责提取文件事实、
-计算丰富度、验证 Agent 声明和分类发布。
+DataGen 把一个简略环境 Seed 转换为可离线使用、可审计的 Agent-World 环境数据包。主流程包含
+一个准备阶段和五个业务阶段，详见 [`docs/PIPELINE_OVERVIEW_ZH.md`](docs/PIPELINE_OVERVIEW_ZH.md)。
 
-## 默认输出
+十环境最终产物的独立 HTML 位于
+[`reports/step1_environment_audit.html`](../../reports/step1_environment_audit.html)，无需启动服务即可
+直接打开。报告只展示发布后的实体、关系、资源文件、文件索引、来源血缘和最终校验，不展示
+场景候选或调研过程。生成方式和发布后审计树见总览文档的“发布后批量审计树”。
 
-未显式指定 `--output-dir` 时，生成现场和最终环境都写入 OSS：
+## 流程
 
 ```text
-/mnt/oss-bucket/sunshuo/AgentWorld/environment/data_gen_v2/
-├── rich/<seed_id>/
-├── not_rich/<seed_id>/
-├── failed/<seed_id>-<timestamp>/
-└── .building/
+Seed
+  ↓
+Step 0 选择 Seed 并准备运行上下文
+  ↓ selected_seed.json + run_config.json
+Step 1 场景研究
+  ↓ scenario_research.json
+Step 2 来源探索与代表性取样
+  ↓ source_plan.json + source_inventory.json
+Step 3 定向深采、物化与集成画像
+  ↓ integration_plan.json + records.sqlite + Filesystem Scopes
+Step 4 冻结事实并导出 environment.json
+  ↓
+Step 5 独立校验、哈希收口、原子发布
 ```
 
-不会再把新下载的数据写入仓库下的 `AgentWorldData`。`--output-dir` 只用于测试或
-临时调试，此时不自动增加质量分类目录。
+Step 1 把 Seed 具象化，但使用宽松 Schema；Step 2 用少量真实样本确认来源结构；Step 3 才按样本
+选择来源、定向补量、建立统一 Record Set 和 Filesystem Scope。场景研究不是来源白名单。
 
-## 代码结构
+## 目录结构
 
 ```text
-data_gen/
-├── __main__.py                         CLI 入口
-├── pipeline.py                         阶段顺序、循环、超时和失败现场
-├── internal_schemas/                   DataGen 内部检查点，不是跨阶段契约
-│   ├── research_request.schema.json
-│   ├── data_checkpoint.schema.json
-│   ├── source_inventory.schema.json
-│   ├── research_report.schema.json
-│   └── quality_profile.schema.json
+env_gen/data_gen/
+├── config.py
+├── run_pipeline.py
+├── analysis/
+│   ├── scenario_research.py
+│   ├── source_plan.py
+│   ├── entity_profiling.py
+│   ├── operation_candidates.py
+│   ├── composition_estimation.py
+│   ├── quality.py
+│   ├── validator.py
+│   └── checkpoint_schemas/
 ├── steps/
-│   ├── step01_build_research_request.py
-│   ├── step02_collect_source_data.py
-│   ├── step03_profile_collected_data.py
-│   ├── step04_evaluate_data_richness.py
-│   ├── step05_expand_source_data.py
-│   ├── step06_describe_environment.py
-│   ├── step07_validate_environment.py
-│   ├── step08_repair_environment.py
-│   └── step09_publish_environment.py
-└── analysis/
-    ├── entity_profiling.py
-    ├── capability_extraction.py
-    ├── task_space_estimation.py
-    └── record_extraction.py
+│   ├── step0_prepare_run.py
+│   ├── step1_research_scenario.py
+│   ├── step2_explore_sources.py
+│   ├── step3_integrate_data.py
+│   ├── step4_freeze_environment.py
+│   └── step5_validate_and_publish.py
+│   ├── exploration/     # Step 2 来源探索命令和 Prompt
+│   ├── integration/     # Step 3 集成命令、转换运行器和 Prompt
+│   ├── collection/      # 下载/Raw/兼容性支持命令
+│   │   ├── commands/
+│   │   └── support/
+│   └── common/
+│       ├── constants.py
+│       ├── control_io.py
+│       └── workspace_files.py
+└── docs/
 ```
 
-每个 Agent Prompt 都在使用它的步骤文件内。`generator.py`、`profiling.py`、
-`capabilities.py`、`composition.py` 和 `metadata.py` 只保留旧导入兼容，不是权威实现。
+## Step 1 产物
 
-## 生成流程
+`provenance/scenario_research.json` 包含：
+
+- 可快速识别场景的环境简述和详细说明；
+- 稳定业务实体及其关键属性；
+- Seed 参考工具和调研补充工具的语义说明；
+- 典型任务及其目标、过程和结果；
+- 后续数据方向、关键 HTTP(S) 来源和待确认问题。
+
+Step 1 使用轻量语义结构。身份、名称唯一性、参考工具与任务覆盖及来源 URL 格式由程序检查；
+最终字段、关系和文件工作区要等真实数据取得后再确定。
+
+## Step 2 命令
+
+Step 2 只做来源探索和代表性取样，不创建最终 Entity 或 SQLite 模型。Agent 通过
+`.datagen/explorectl` 写正式数据：
 
 ```text
-Step 01  Seed + 环境契约 -> research_request.json             Python
-Step 02  发现来源并下载首轮真实数据                          Agent 1 次
-Step 03  读取文件并生成 data_profile.json                    Python
-Step 04  计算 quality_profile.json 和数据缺口                 Python
-Step 05  按缺口追加真实数据，再回到 Step 03                  Agent 0～3 次
-Step 06  基于冻结文件声明 environment/sources/report          Agent 1 次
-Step 07  校验契约、路径、来源、字段和关系                     Python
-Step 08  只修复环境声明，再回到 Step 07                      Agent 0～2 次
-Step 09  发布到 rich/not_rich/failed                          Python
+save-source-plan   保存来源入口、精确 URL 和探索状态
+download           下载一个已登记精确 URL 的代表性样本
+download-batch     并发下载多个已登记精确 URL
+assess             重算来源画像和结构盲区
+finalize           ready/insufficient_public_data 收口
 ```
 
-扩展轮只能新增文件。已经下载的 raw/entity/derived 文件不能被删除或改写，新增
-分页必须保存为新 raw 文件。Step 06 以后业务文件完全冻结，环境描述和修复 Agent
-只能修改 `environment.json` 以及 `provenance` 下的声明文件。
+## Step 3 命令
 
-正常情况下会调用 Agent 2～5 次；理论上最多 7 次。这里的一次是一次 Agent 运行，
-Agent 在运行内部可以执行多次搜索、下载和文件检查。
-
-## 语义边界
-
-Python 可以可靠得到文件路径、格式、哈希、字段基础类型、记录数量、唯一值数量，
-也可以验证一个已声明外键的实际覆盖率。但 Python 不能仅凭字段名可靠判断文件的
-业务含义、实体边界或业务关系。
-
-因此 `data_profile.json` 中的关系是候选事实，不能直接成为最终契约。Step 06 的
-Agent 结合 Seed、来源和实际内容生成最终环境描述；Step 07 再用真实文件验证它。
-`analysis/record_extraction.py` 只为画像和校验提供兼容辅助，不再覆盖 Agent
-写出的 `environment.json`。如果 Step 06 失败，流水线会失败或进入声明修复，不会
-用启发式代码悄悄生成一份替代环境。
-
-## 采集规则
-
-默认 `AcquisitionPolicy`：
-
-- 官方结构化数据面总量不超过 50,000 条时尽量完整下载。
-- 更大的核心数据面按时间、类别、地域和数值区间稳定分层，目标为 25,000 条；
-  这个数字是下载策略，不是环境合格线。
-- 关系数据最多保留 100,000 条真实边，并优先取得全部被引用目标。
-- lookup、类别和定义表尽量完整下载；时间序列保留选中对象的完整时间范围。
-- 单个核心文件不超过 256 MiB 时完整下载。
-- raw 上限 512 MiB，完整 workspace 上限 768 MiB，raw 文件最多 200 个，
-  来源最多 50 个。
-- 默认最多四轮，总时限 1,800 秒；连续两轮没有新增能力、关系或组合链，且任务
-  容量增长低于 5% 时停止扩展。
-
-Agent 不能因为达到某个记录数就宣布完成。`collection_status=complete` 必须在
-`source_inventory.json` 中提供游标结束、官方总量取完、仓库枚举完毕或分层采集
-完成的证据。
-
-## 数据面清单
-
-`provenance/source_inventory.json` 记录每个已发现的数据面：
-
-- URL、数据面类型和核心/扩展优先级；
-- 实体和相关数据面；
-- page/offset/cursor/download 分页方式；
-- 官方总量、已采集页数和记录数；
-- pending/partial/complete/blocked 状态；
-- 实际 raw 文件及完成证据。
-
-清单由 `data_gen/internal_schemas/source_inventory.schema.json` 校验。已采集 URL 和
-raw 文件必须同时出现在 checkpoint 中，相关数据面 ID 必须真实存在。这些 Schema
-只约束 DataGen 内部检查点，不属于四个跨阶段正式产物。
-
-## 丰富度判定
-
-环境不再按实体总行数判定 rich。程序从实际数据抽取能力原子：
+Step 3 读取 Step 2 的实际样本，通过 `.datagen/integratectl` 选择来源、定向深采并物化最终资产：
 
 ```text
-资源或实体 + 操作族 + 证据字段/格式特征 + 支持数据范围
+save-plan          保存 Record Set、Filesystem Scope、关系和需求绑定
+download           对选中来源定向补采已登记 URL
+build-record-set   运行确定性转换并物化 SQLite 表
+build-scope        复制/解包真实文件工作区
+assess             重算集成度、关系、路径和多源连接
+save-field-review  对照 Raw 保存当前字段分布提示的核实证据
+finalize           integrated 收口
 ```
 
-随后按输入输出实体连接能力，枚举长度 2-5 的组合链。默认 rich 必须同时满足：
+Step 2 通过 `source_plan.research_refinements` 记录真实样本对 Step 1 假设的确认、修订、淘汰或新增
+结论。Step 3 的 integration plan 必须从这些实际样本长出来，而不是把每个来源机械变成一张表。
 
-- 独立能力原子不少于 24；
-- 至少 6 类操作族；
-- 至少 12 个独立业务字段或格式特征；
-- 至少 3 种可组合转换；
-- 至少 30 种工具链形状，其中长度至少为 3 的不少于 10 种；
-- 估算可实例化任务不少于 1,000 个；
-- 所有核心数据面都有带证据的 complete 状态。
-
-每种链最多贡献 100 个估算任务，避免一个巨大字段通过组合数爆炸绕过质量门。
-同一个数值字段可以支持 rank/compare/aggregate 三种操作，但丰富度中仍只算一个
-独立数据证据。
-
-详细结果写入 `provenance/quality_profile.json`，逐轮画像保存在
-`provenance/quality_history/`。`not_rich` 表示环境包本身合法，但不足以作为批量复杂
-任务的正式输入；它不会被伪装成 rich。
-
-## 最终目录
+## 运行态与发布数据
 
 ```text
-<environment>/
+<environment_root>/
 ├── environment.json
-├── workspace/
-├── provenance/
-│   ├── research_request.json
-│   ├── source_inventory.json
-│   ├── data_checkpoint.json
-│   ├── data_profile.json
-│   ├── quality_profile.json
-│   ├── quality_history/
-│   ├── acquisition_rounds/
-│   ├── sources.json
-│   └── research_report.json
-└── validation.json
+├── state/
+│   ├── records.sqlite
+│   └── filesystem_scopes/<scope_id>/
+└── provenance/
+    ├── raw/
+    ├── transformations/
+    └── *_profile.json
 ```
 
-`environment.json` 仍然只保存业务资源描述，不保存调研过程、质量分数或工具。
+采集期间只有 `workspace/raw/`；它在发布时冻结到 `provenance/raw/`，不会暴露给任务。结构化记录
+统一进入 `records.sqlite`，需要工具直接处理的文件或项目目录进入命名 Scope。Record 可以用声明了
+`filesystem_path` 的顶层字段保存 Scope 相对路径。v2 不再使用 `workspace/entities/`、
+`workspace/derived/` 或 `reports/` 作为最终资源类型。
+
+## 质量判断
+
+Step 3 每轮先运行 integration profile，再运行 environment quality profile。缺口可以触发定向补采、
+转换修复、Scope 拆分或移除无关资产；补采后必须重新物化并重新画像。Step 4/5 只冻结和复验，不再
+负责发现性下载。
+
+integration profile 同时输出有界字段频次、样本和形态，并提示异常偏斜或跨字段值域重叠。这类提示
+需要 Agent 回到 Raw 判断，不能由通用 Python 猜测领域语义；存在提示时，必须保存与当前画像哈希
+绑定的 `field_review.json` 后才能收口。发现抽取错误时只重建受影响的 Record Set。
+
+`quality_tier=rich` 的硬门槛来自：
+
+- 核心来源收口；
+- 场景数据需求具有真实来源、Record Set/Scope 和非空字段证据；
+- 必要领域文件实际存在；混合环境中的核心记录与核心文件具有真实路径索引；
+- 核心 Record Set 的记录深度和实际填充业务字段达到策略要求；
+- 关系闭合且 gap 在允许范围内。
+
+`operation_candidate_diagnostics` 和 `composition_estimate` 只描述数据潜力，不参与 rich 门槛，
+也不表示工具已实现、任务已生成或组合链已执行。
 
 ## 运行
 
 ```bash
-python -m env_gen.data_gen \
-  --seed-path seed_gen/theme_sources.json \
-  --seed-id openalex-publication-research \
-  --schema-path schemas/environment.schema.json
+PYTHONPATH=. python -m env_gen.data_gen \
+  --seed-path seed_gen/data/smithery_140_v1_0824.json \
+  --global-id smithery_sidneybissoli_ibge_br_mcp_8 \
+  --schema-path schemas/environment.schema.json \
+  --output-dir /tmp/ibge-env \
+  --overwrite
 ```
 
-`schemas/environment.schema.json` 是给 Agent 阅读的契约结构示例；运行时会自动使用同目录
-`schemas/validation/environment.schema.json` 做机器校验。若直接传入一个带 `$schema` 的自定义
-JSON Schema，则按传入文件校验。
+Web Search 默认开启，可用 `--no-enable-web-search` 关闭。网络下载仍由 Step 2 的受控命令执行。
 
-默认使用 `gpt-5.6-terra` 和 `high` 推理强度，并允许 Agent 在 workspace-write
-沙箱中通过网络命令访问公开来源。调试输出到本地临时目录时可以显式传：
+## 验证
 
 ```bash
---output-dir /tmp/agent-world/openalex
+PYTHONPATH=. python -m compileall -q env_gen/data_gen
+PYTHONPATH=. pytest -q
 ```

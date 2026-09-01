@@ -4,13 +4,13 @@
 Agent 声明，再由校验阶段核对；分析结果不能直接冒充最终环境契约。
 """
 
-from .capability_extraction import extract_capability_atoms, infer_closed_relations
+from .operation_candidates import build_operation_candidates, infer_closed_relations
 from .entity_profiling import profile_entity_groups, profile_workspace_files
-from .task_space_estimation import build_composition_profile
+from .composition_estimation import build_composition_estimate
 
 __all__ = [
-    "build_composition_profile",
-    "extract_capability_atoms",
+    "build_composition_estimate",
+    "build_operation_candidates",
     "infer_closed_relations",
     "profile_entity_groups",
     "profile_workspace_files",

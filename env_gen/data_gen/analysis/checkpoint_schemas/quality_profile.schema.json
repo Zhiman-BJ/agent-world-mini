@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/quality_profile.schema.json",
+  "title": "Step 2 Data Quality Assessment",
+  "description": "由真实 workspace 重算的数据充分性结论；操作候选和组合估算仅供诊断。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "const": "2.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "quality_tier": {"type": "string", "enum": ["rich", "not_rich"]},
+    "summary": {"type": "string", "minLength": 1},
+    "policy": {"$ref": "#/$defs/policy"},
+    "source_summary": {"$ref": "#/$defs/sourceSummary"},
+    "representation_profile": {"$ref": "#/$defs/representationProfile"},
+    "data_need_profile": {"$ref": "#/$defs/dataNeedProfile"},
+    "data_profile": {"$ref": "#/$defs/dataProfile"},
+    "relation_profile": {"$ref": "#/$defs/relationProfile"},
+    "operation_candidate_diagnostics": {"$ref": "#/$defs/operationDiagnostics"},
+    "composition_estimate": {"$ref": "#/$defs/compositionEstimate"},
+    "diagnostic_only": {"$ref": "#/$defs/diagnosticOnly"},
+    "quality_gaps": {"type": "array", "items": {"$ref": "#/$defs/gap"}}
+  },
+  "required": [
+    "schema_version", "seed_global_id", "seed_sha256", "quality_tier",
+    "summary", "policy", "source_summary", "representation_profile",
+    "data_need_profile", "data_profile", "relation_profile",
+    "operation_candidate_diagnostics", "composition_estimate",
+    "diagnostic_only", "quality_gaps"
+  ],
+  "$defs": {
+    "nonNegative": {"type": "integer", "minimum": 0},
+    "stringArray": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "min_entity_types": {"$ref": "#/$defs/nonNegative"},
+        "min_total_entity_records": {"$ref": "#/$defs/nonNegative"},
+        "min_substantial_entity_types": {"$ref": "#/$defs/nonNegative"},
+        "min_records_per_substantial_entity": {"$ref": "#/$defs/nonNegative"},
+        "min_core_entity_records": {"$ref": "#/$defs/nonNegative"},
+        "min_core_business_fields": {"$ref": "#/$defs/nonNegative"},
+        "min_data_need_coverage_percent": {"type": "integer", "minimum": 0, "maximum": 100},
+        "min_supported_data_need_count": {"$ref": "#/$defs/nonNegative"},
+        "max_unassessed_data_needs": {"$ref": "#/$defs/nonNegative"},
+        "min_closed_relations": {"$ref": "#/$defs/nonNegative"},
+        "max_relation_gaps": {"$ref": "#/$defs/nonNegative"}
+      },
+      "required": [
+        "min_entity_types", "min_total_entity_records", "min_substantial_entity_types",
+        "min_records_per_substantial_entity", "min_core_entity_records",
+        "min_core_business_fields", "min_data_need_coverage_percent",
+        "min_supported_data_need_count", "max_unassessed_data_needs",
+        "min_closed_relations", "max_relation_gaps"
+      ]
+    },
+    "sourceSummary": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "source_count": {"$ref": "#/$defs/nonNegative"},
+        "core_source_count": {"$ref": "#/$defs/nonNegative"},
+        "resolved_source_count": {"$ref": "#/$defs/nonNegative"},
+        "resolved_core_source_count": {"$ref": "#/$defs/nonNegative"},
+        "unresolved_source_ids": {"$ref": "#/$defs/stringArray"},
+        "unresolved_core_source_ids": {"$ref": "#/$defs/stringArray"}
+      },
+      "required": [
+        "source_count", "core_source_count", "resolved_source_count",
+        "resolved_core_source_count", "unresolved_source_ids",
+        "unresolved_core_source_ids"
+      ]
+    },
+    "representationProfile": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "data_mode": {"type": "string", "enum": ["structured_records", "file_native", "hybrid"]},
+        "data_mode_reason": {"type": "string", "minLength": 1},
+        "required_file_formats": {"$ref": "#/$defs/stringArray"},
+        "file_dependent_seed_paths": {"$ref": "#/$defs/stringArray"},
+        "available_file_formats": {"$ref": "#/$defs/stringArray"},
+        "indexed_file_formats": {"$ref": "#/$defs/stringArray"},
+        "missing_file_formats": {"$ref": "#/$defs/stringArray"},
+        "unindexed_file_formats": {"$ref": "#/$defs/stringArray"}
+      },
+      "required": [
+        "data_mode", "data_mode_reason", "required_file_formats",
+        "file_dependent_seed_paths", "available_file_formats",
+        "indexed_file_formats", "missing_file_formats", "unindexed_file_formats"
+      ]
+    },
+    "dataNeedProfile": {
+      "type": "object", "additionalProperties": true,
+      "required": [
+        "data_need_count", "supported_count", "partial_count", "blocked_count",
+        "unavailable_count", "not_applicable_count", "planned_count",
+        "missing_count", "unevidenced_count", "unassessed_count",
+        "weighted_coverage_percent", "data_needs"
+      ],
+      "properties": {
+        "data_need_count": {"$ref": "#/$defs/nonNegative"},
+        "weighted_coverage_percent": {"type": "integer", "minimum": 0, "maximum": 100},
+        "data_needs": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "dataProfile": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "entity_type_count": {"$ref": "#/$defs/nonNegative"},
+        "entity_record_count": {"$ref": "#/$defs/nonNegative"},
+        "substantial_entity_type_count": {"$ref": "#/$defs/nonNegative"},
+        "substantial_entity_types": {"$ref": "#/$defs/stringArray"},
+        "core_entity_coverage": {"type": "array", "items": {"type": "object"}},
+        "file_count": {"$ref": "#/$defs/nonNegative"},
+        "file_bytes": {"$ref": "#/$defs/nonNegative"},
+        "entities": {"type": "object"},
+        "files": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": [
+        "entity_type_count", "entity_record_count", "substantial_entity_type_count",
+        "substantial_entity_types", "core_entity_coverage", "file_count",
+        "file_bytes", "entities", "files"
+      ]
+    },
+    "relationProfile": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "closed_relation_count": {"$ref": "#/$defs/nonNegative"},
+        "relation_gap_count": {"$ref": "#/$defs/nonNegative"},
+        "relations": {"type": "array", "items": {"type": "object"}},
+        "relation_gaps": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": ["closed_relation_count", "relation_gap_count", "relations", "relation_gaps"]
+    },
+    "operationDiagnostics": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "candidate_count": {"$ref": "#/$defs/nonNegative"},
+        "operation_families": {"$ref": "#/$defs/stringArray"},
+        "candidates": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": ["candidate_count", "operation_families", "candidates"]
+    },
+    "compositionEstimate": {
+      "type": "object", "additionalProperties": true,
+      "required": [
+        "transition_shape_count", "chain_shape_count", "long_chain_shape_count",
+        "estimated_parameterized_cases", "chain_enumeration_limit",
+        "chain_enumeration_saturated", "stored_chain_count", "chains"
+      ]
+    },
+    "diagnosticOnly": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "operation_candidates": {"type": "boolean", "const": true},
+        "composition_estimate": {"type": "boolean", "const": true},
+        "note": {"type": "string", "minLength": 1}
+      },
+      "required": ["operation_candidates", "composition_estimate", "note"]
+    },
+    "gap": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "observed": {"type": ["integer", "boolean"]},
+        "required": {"type": ["integer", "boolean"]}
+      },
+      "required": ["code", "message", "action", "observed", "required"]
+    }
+  }
+}

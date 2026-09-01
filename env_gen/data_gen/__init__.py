@@ -1,31 +1,35 @@
-"""由研究 Agent 直接生成符合环境契约的数据包。"""
+"""DataGen 公共入口。"""
 
-from .acquisition import DEFAULT_OSS_OUTPUT_ROOT, AcquisitionPolicy
-from .pipeline import (
+from .config import (
+    CollectionPolicy,
+    DEFAULT_OSS_OUTPUT_ROOT,
     DEFAULT_REASONING_EFFORT,
     DEFAULT_RESEARCH_MODEL,
+    DEFAULT_SCHEMA_EXAMPLE,
+    DEFAULT_SEED_VALIDATION_SCHEMA,
+    DataGenConfig,
+)
+from .analysis.quality import RichnessPolicy
+from .analysis.environment_quality import EnvironmentQualityPolicy
+from .run_pipeline import (
     DataGenerationError,
     DataGenerationResult,
-    DataGenerator,
     InsufficientPublicDataError,
+    run_pipeline,
 )
-from .policy import ResearchPolicy, compile_research_request
-from .quality import RichnessPolicy
-from .validator import EnvironmentPackageValidator, ValidationIssue, ValidationReport
 
 __all__ = [
+    "CollectionPolicy",
+    "DEFAULT_OSS_OUTPUT_ROOT",
     "DEFAULT_REASONING_EFFORT",
     "DEFAULT_RESEARCH_MODEL",
-    "DEFAULT_OSS_OUTPUT_ROOT",
-    "AcquisitionPolicy",
+    "DEFAULT_SCHEMA_EXAMPLE",
+    "DEFAULT_SEED_VALIDATION_SCHEMA",
     "DataGenerationError",
     "DataGenerationResult",
-    "DataGenerator",
+    "DataGenConfig",
+    "EnvironmentQualityPolicy",
     "InsufficientPublicDataError",
-    "ResearchPolicy",
     "RichnessPolicy",
-    "compile_research_request",
-    "EnvironmentPackageValidator",
-    "ValidationIssue",
-    "ValidationReport",
+    "run_pipeline",
 ]

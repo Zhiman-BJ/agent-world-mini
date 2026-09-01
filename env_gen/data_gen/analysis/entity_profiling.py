@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import csv
 import json
 import math
 from pathlib import Path
 from typing import Any
+
+from .structured_io import count_structured_records
 
 
 _TEMPORAL_TOKENS = (
@@ -18,6 +19,42 @@ _TEXT_TOKENS = (
     "name", "title", "description", "summary", "body", "abstract", "text",
     "content", "message", "caption", "label",
 )
+_FILE_FORMAT_ALIASES = {
+    "gds": "gdsii",
+    "oas": "oasis",
+    "md": "markdown",
+    "sqlite3": "sqlite",
+    "db": "sqlite",
+    "tif": "tiff",
+    "jpeg": "jpg",
+}
+_FORMAT_OPERATION_ROLES = {
+    "xml": ("parse", "search", "edit", "validate"),
+    "gdsii": ("parse", "inspect_hierarchy", "edit", "aggregate_geometry", "render", "validate"),
+    "oasis": ("parse", "inspect_hierarchy", "edit", "aggregate_geometry", "render", "validate"),
+    "lef": ("parse", "inspect_hierarchy", "edit", "validate"),
+    "def": ("parse", "inspect_hierarchy", "edit", "validate"),
+    "liberty": ("parse", "search", "edit", "validate"),
+    "spice": ("parse", "search", "edit", "simulate", "validate"),
+    "touchstone": ("parse", "aggregate", "render", "simulate", "validate"),
+    "dxf": ("parse", "inspect_hierarchy", "edit", "render", "validate"),
+    "dwg": ("parse", "inspect_hierarchy", "edit", "render", "validate"),
+    "step": ("parse", "inspect_hierarchy", "edit", "render", "validate"),
+    "iges": ("parse", "inspect_hierarchy", "edit", "render", "validate"),
+    "stl": ("parse", "aggregate_geometry", "edit", "render", "validate"),
+    "obj": ("parse", "aggregate_geometry", "edit", "render", "validate"),
+    "geojson": ("parse", "search", "aggregate_geometry", "edit", "render", "validate"),
+    "shp": ("parse", "search", "aggregate_geometry", "edit", "render", "validate"),
+    "gpkg": ("parse", "search", "aggregate_geometry", "edit", "render", "validate"),
+    "pdf": ("read", "search", "render", "extract", "annotate"),
+    "svg": ("parse", "search", "edit", "render", "validate"),
+    "png": ("inspect", "edit", "render"),
+    "jpg": ("inspect", "edit", "render"),
+    "tiff": ("inspect", "edit", "render"),
+    "wav": ("inspect", "edit", "transcode"),
+    "mp3": ("inspect", "edit", "transcode"),
+    "mp4": ("inspect", "edit", "transcode"),
+}
 
 
 def _value_key(value: Any) -> str:
@@ -48,6 +85,16 @@ def _is_technical_field(field: str) -> bool:
     )
 
 
+def _is_file_reference_field(field: str) -> bool:
+    lowered = field.lower()
+    return lowered == "file_path" or lowered.endswith("_file_path")
+
+
+def _normalized_file_format(value: str) -> str:
+    suffix = Path(value).suffix.lower().lstrip(".") or "binary"
+    return _FILE_FORMAT_ALIASES.get(suffix, suffix)
+
+
 def _field_roles(
     field: str,
     value_type: str,
@@ -59,13 +106,19 @@ def _field_roles(
     non_empty = [value for value in values if value not in (None, "")]
     distinct = len({_value_key(value) for value in non_empty})
     roles: list[str] = []
-    technical = _is_technical_field(field)
-    if technical:
+    identifier = _is_technical_field(field)
+    file_reference = _is_file_reference_field(field)
+    technical = identifier or file_reference
+    if identifier:
         roles.append("identifier")
+    if file_reference and value_type == "string":
+        roles.append("file_reference")
     if any(token in lowered for token in _TEMPORAL_TOKENS):
         roles.append("temporal")
     if value_type in {"integer", "number"} and not technical and "temporal" not in roles:
         roles.append("numeric_measure")
+    if value_type == "boolean" and not technical and distinct > 1:
+        roles.append("boolean")
     if value_type == "string" and not technical and non_empty:
         average_length = sum(len(str(value)) for value in non_empty) / len(non_empty)
         category_ceiling = max(8, min(100, int(math.sqrt(max(record_count, 1)) * 4)))
@@ -95,7 +148,7 @@ def profile_entity_groups(
             values = [record.get(field) for record in records]
             non_empty = [value for value in values if value not in (None, "")]
             value_type = _primitive_type(values)
-            fields[field] = {
+            field_profile = {
                 "type": value_type,
                 "non_null_count": len(non_empty),
                 "non_null_ratio": round(len(non_empty) / len(records), 6),
@@ -107,6 +160,14 @@ def profile_entity_groups(
                     record_count=len(records),
                 ),
             }
+            if "file_reference" in field_profile["roles"]:
+                field_profile["file_formats"] = sorted(
+                    {
+                        _normalized_file_format(str(value))
+                        for value in non_empty
+                    }
+                )
+            fields[field] = field_profile
         primary_fields = [
             field
             for field, profile in fields.items()
@@ -121,27 +182,6 @@ def profile_entity_groups(
             "fields": fields,
         }
     return profiles
-
-
-def _json_record_count(path: Path) -> int | None:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return None
-    if isinstance(payload, list):
-        return len(payload)
-    if isinstance(payload, dict):
-        counts = [len(value) for value in payload.values() if isinstance(value, list)]
-        return sum(counts) if counts else 1
-    return 1
-
-
-def _csv_record_count(path: Path) -> int | None:
-    try:
-        with path.open("r", encoding="utf-8", newline="") as stream:
-            return max(0, sum(1 for _row in csv.reader(stream)) - 1)
-    except (OSError, UnicodeError, csv.Error):
-        return None
 
 
 def profile_workspace_files(
@@ -159,23 +199,28 @@ def profile_workspace_files(
             if not path.is_file():
                 continue
             suffix = path.suffix.lower().lstrip(".") or "binary"
+            format_name = _FILE_FORMAT_ALIASES.get(suffix, suffix)
             record_count: int | None = None
-            if suffix == "json":
-                record_count = _json_record_count(path)
-            elif suffix == "csv":
-                record_count = _csv_record_count(path)
+            if format_name in {
+                "json",
+                "jsonl",
+                "ndjson",
+                "csv",
+                "parquet",
+                "sqlite",
+            }:
+                record_count = count_structured_records(path)
             roles = ["inspect", "copy", "hash"]
-            if suffix in {"json", "jsonl", "csv", "tsv", "xml", "yaml", "yml", "sqlite"}:
+            if format_name in {"json", "jsonl", "csv", "tsv", "xml", "yaml", "yml", "sqlite"}:
                 roles.append("parse")
-            if suffix in {"txt", "md", "html", "htm", "json", "jsonl", "csv", "tsv", "xml", "yaml", "yml"}:
+            if format_name in {"txt", "markdown", "html", "htm", "json", "jsonl", "csv", "tsv", "xml", "yaml", "yml"}:
                 roles.extend(["read", "search"])
-            if suffix in {"gds", "gdsii"}:
-                roles.extend(["parse_gdsii", "inspect_hierarchy", "aggregate_geometry", "render"])
+            roles.extend(_FORMAT_OPERATION_ROLES.get(format_name, ()))
             profiles.append(
                 {
                     "path": relative,
                     "bucket": bucket_field.removesuffix("_files"),
-                    "format": suffix,
+                    "format": format_name,
                     "bytes": path.stat().st_size,
                     "record_count": record_count,
                     "operation_roles": list(dict.fromkeys(roles)),

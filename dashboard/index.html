@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f6f7">
+  <title>AgentWorld 环境数据工作台</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true">AW</span>
+        <div>
+          <p class="eyebrow">AGENTWORLD / ENVIRONMENT DATA</p>
+          <h1>环境数据工作台</h1>
+        </div>
+      </div>
+      <div class="snapshot-control">
+        <span class="snapshot-state" aria-hidden="true"></span>
+        <span id="snapshot-time">快照载入中</span>
+        <button class="icon-button" id="refresh-button" title="重新读取快照" aria-label="重新读取快照">↻</button>
+      </div>
+    </header>
+
+    <div class="workspace-layout">
+      <aside class="sidebar">
+        <div class="sidebar-heading">
+          <span>已发布环境</span>
+          <span id="environment-count">0</span>
+        </div>
+        <nav id="environment-nav" class="environment-nav" aria-label="环境列表"></nav>
+        <div class="sidebar-legend">
+          <p class="eyebrow">DATA LAYERS</p>
+          <div><i class="legend-swatch raw"></i><span>Raw</span><small>来源原貌</small></div>
+          <div><i class="legend-swatch entity"></i><span>Entity</span><small>规范业务记录</small></div>
+          <div><i class="legend-swatch derived"></i><span>Derived</span><small>确定性计算结果</small></div>
+          <div><i class="legend-swatch output"></i><span>Output</span><small>工具可写结果</small></div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="environment-header">
+          <div class="environment-copy">
+            <p class="eyebrow" id="environment-id">ENVIRONMENT</p>
+            <h2 id="environment-name">正在载入</h2>
+            <p id="environment-description"></p>
+          </div>
+          <div class="status-panel">
+            <span class="status-badge" id="quality-badge">UNKNOWN</span>
+            <strong id="validation-caption">验证状态载入中</strong>
+          </div>
+        </section>
+
+        <section class="metric-band" id="metric-grid" aria-label="环境核心指标"></section>
+
+        <section class="data-model-section" aria-labelledby="data-model-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">DATA MODEL</p>
+              <h3 id="data-model-title">这些数据分别代表什么</h3>
+            </div>
+            <span class="section-meta">从来源证据到工具可用数据</span>
+          </div>
+          <div class="data-journey" id="data-journey"></div>
+        </section>
+
+        <section class="content-section" aria-labelledby="lineage-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">LINEAGE</p>
+              <h3 id="lineage-title">资源血缘</h3>
+            </div>
+            <span class="section-meta" id="lineage-meta"></span>
+          </div>
+          <div id="lineage-board" class="lineage-board"></div>
+        </section>
+
+        <section class="content-section" aria-labelledby="raw-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">RAW EVIDENCE</p>
+              <h3 id="raw-title">原始来源与数据面</h3>
+            </div>
+            <span class="section-meta" id="surface-meta"></span>
+          </div>
+          <p class="section-intro">Raw 保存下载时的原始响应或文件，用于复核来源和重建实体。这里的记录数是来源数据面的采集量，不等于最终规范实体数量。</p>
+          <div id="surface-list" class="surface-list"></div>
+        </section>
+
+        <section class="content-section" aria-labelledby="non-entity-title">
+          <div class="section-heading resource-heading">
+            <div>
+              <p class="eyebrow">NON-ENTITY FILES</p>
+              <h3 id="non-entity-title">非实体文件说明</h3>
+            </div>
+            <div class="segmented-control compact" id="non-entity-filter" aria-label="非实体文件类型筛选">
+              <button class="active" data-filter="all">全部</button>
+              <button data-filter="raw">Raw</button>
+              <button data-filter="derived">Derived</button>
+              <button data-filter="output">Output</button>
+            </div>
+          </div>
+          <p class="section-intro">非 Entity 不等于无关文件。Raw 是可追溯的来源证据，Derived 是由业务数据确定性计算的辅助结果，Output 是工具运行时的写入目标。下面逐项解释契约角色与实际文件内容。</p>
+          <div class="file-summary-strip" id="non-entity-summary"></div>
+          <div id="non-entity-list" class="non-entity-list"></div>
+        </section>
+
+        <section class="content-section" aria-labelledby="entity-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">CANONICAL ENTITIES</p>
+              <h3 id="entity-title">规范实体字典</h3>
+            </div>
+            <span class="section-meta" id="entity-meta"></span>
+          </div>
+          <p class="section-intro">Entity 是从 Raw 确定性抽取的统一业务对象。每条记录拥有稳定主键、固定字段和一致类型，是后续搜索、筛选、比较和关系遍历工具的主要输入。</p>
+          <div id="entity-list" class="entity-list"></div>
+        </section>
+
+        <section class="split-layout">
+          <section class="content-section" aria-labelledby="relation-title">
+            <div class="section-heading">
+              <div><p class="eyebrow">RELATIONS</p><h3 id="relation-title">闭合关系</h3></div>
+              <span class="section-meta" id="relation-meta"></span>
+            </div>
+            <p class="section-intro">闭合表示每个非空外键都能找到唯一目标记录，因此工具可以稳定地从一个实体遍历到另一个实体。</p>
+            <div id="relation-list" class="relation-list"></div>
+          </section>
+          <section class="content-section" aria-labelledby="capability-title">
+            <div class="section-heading">
+              <div><p class="eyebrow">OPERATIONS</p><h3 id="capability-title">数据支持的操作</h3></div>
+              <span class="section-meta" id="capability-meta"></span>
+            </div>
+            <p class="section-intro">能力来自实际字段类型、字段变化和闭合关系，不是根据文件名推测。</p>
+            <div class="operation-summary" id="operation-summary"></div>
+            <div class="capability-list" id="capability-list"></div>
+          </section>
+        </section>
+
+        <section class="content-section" aria-labelledby="resources-title">
+          <div class="section-heading resource-heading">
+            <div>
+              <p class="eyebrow">RESOURCE INVENTORY</p>
+              <h3 id="resources-title">完整资源清单</h3>
+            </div>
+            <div class="segmented-control" id="resource-filter" aria-label="资源类型筛选">
+              <button class="active" data-filter="all">全部</button>
+              <button data-filter="raw">Raw</button>
+              <button data-filter="entity">Entity</button>
+              <button data-filter="derived">Derived</button>
+              <button data-filter="output">Output</button>
+            </div>
+          </div>
+          <div class="resource-table-wrap">
+            <table class="resource-table">
+              <thead>
+                <tr><th>资源</th><th>类型与作用</th><th>文件</th><th>血缘来源</th><th>路径</th><th>权限</th></tr>
+              </thead>
+              <tbody id="resource-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="audit-band" aria-labelledby="audit-title">
+          <div class="section-heading">
+            <div><p class="eyebrow">AUDIT</p><h3 id="audit-title">质量与审计</h3></div>
+          </div>
+          <div id="warning-list" class="warning-list"></div>
+        </section>
+
+        <footer class="footer-bar">
+          <span>AgentWorld Environment Data Workspace</span>
+          <span id="source-root"></span>
+        </footer>
+      </main>
+    </div>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/integration_profile.schema.json",
+  "title": "DataGen Integration Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "integration_tier": {"enum": ["integrated", "fragmented"]},
+    "summary": {"type": "string", "minLength": 1},
+    "asset_profile": {"type": "object"},
+    "connectivity_profile": {"type": "object"},
+    "relationship_profile": {"type": "object"},
+    "file_reference_profile": {"type": "object"},
+    "source_integration_profile": {"type": "object"},
+    "need_binding_profile": {"type": "object"},
+    "integration_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1},
+          "asset_ids": {
+            "type": "array", "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        },
+        "required": ["code", "message", "action", "asset_ids"]
+      }
+    }
+  },
+  "required": [
+    "schema_version", "seed_global_id", "seed_sha256", "integration_tier",
+    "summary", "asset_profile", "connectivity_profile", "relationship_profile",
+    "file_reference_profile", "source_integration_profile", "need_binding_profile",
+    "integration_gaps"
+  ]
+}

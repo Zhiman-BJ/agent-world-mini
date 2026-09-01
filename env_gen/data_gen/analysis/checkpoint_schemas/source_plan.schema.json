@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/source_plan.schema.json",
+  "title": "Agent-World Source Collection Plan",
+  "description": "把预调研需求、正式数据来源、采集状态、Raw 归属和结束证据绑定在一起的可审计计划。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "seed_global_id": {"$ref": "#/$defs/snakeCaseId"},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "summary": {"type": "string", "minLength": 1},
+    "data_mode": {
+      "type": "string",
+      "enum": ["structured_records", "file_native", "hybrid"]
+    },
+    "data_mode_reason": {"type": "string", "minLength": 1},
+    "research_deviation_note": {"type": ["string", "null"], "minLength": 1},
+    "deep_research_summary": {"type": "string", "minLength": 1},
+    "research_refinements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/researchRefinement"}
+    },
+    "required_file_formats": {
+      "description": "必须在最终 Filesystem Scope 中出现的领域文件格式；来源网页、API JSON 或文档格式若只用于抽取/解释记录，不应填写在这里。",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/formatName"}
+    },
+    "evidence_file_formats": {
+      "description": "仅作为来源证据或 Record Set 抽取输入保留的文件格式；不会触发最终 Scope 的质量门槛。",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/formatName"}
+    },
+    "file_dependent_seed_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/seedPath"}
+    },
+    "data_need_coverage": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/dataNeedCoverage"}
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/source"}
+    }
+  },
+  "required": [
+    "schema_version", "seed_global_id", "seed_sha256", "summary", "data_mode",
+    "data_mode_reason", "research_deviation_note", "deep_research_summary",
+    "research_refinements", "required_file_formats", "evidence_file_formats",
+    "file_dependent_seed_paths",
+    "data_need_coverage", "sources"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {"data_mode": {"const": "structured_records"}},
+        "required": ["data_mode"]
+      },
+      "then": {
+        "properties": {
+          "required_file_formats": {"maxItems": 0},
+          "file_dependent_seed_paths": {"maxItems": 0}
+        }
+      },
+      "else": {
+        "properties": {
+          "required_file_formats": {"minItems": 1},
+          "file_dependent_seed_paths": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "snakeCaseId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+    },
+    "formatName": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._+-]*$"
+    },
+    "seedPath": {
+      "type": "string",
+      "pattern": "^\\$\\.(?:environment\\.description|init_ref_tools\\[[0-9]+\\]|init_ref_tasks\\[[0-9]+\\]|others\\.data_directions\\[[0-9]+\\])$"
+    },
+    "researchRefinement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "refinement_id": {"$ref": "#/$defs/snakeCaseId"},
+        "finding_type": {
+          "type": "string",
+          "enum": ["entity", "relationship", "operation", "task", "data_requirement", "file_format"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["confirmed", "revised", "rejected", "new"]
+        },
+        "description": {"type": "string", "minLength": 1},
+        "evidence_source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/snakeCaseId"}
+        },
+        "impact_on_collection": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "refinement_id", "finding_type", "status", "description",
+        "evidence_source_ids", "impact_on_collection"
+      ]
+    },
+    "dataNeedCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "need_id": {"$ref": "#/$defs/snakeCaseId"},
+        "status": {
+          "type": "string",
+          "enum": [
+            "planned", "supported", "partial", "blocked", "unavailable",
+            "not_applicable"
+          ]
+        },
+        "source_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/snakeCaseId"}
+        },
+        "evidence_entity_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/snakeCaseId"}
+        },
+        "evidence_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+          }
+        },
+        "assessment": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "need_id", "status", "source_ids", "evidence_entity_types",
+        "evidence_fields", "assessment"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {"$ref": "#/$defs/snakeCaseId"},
+        "name": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri"},
+        "registered_urls": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "format": "uri"}
+        },
+        "priority": {"type": "string", "enum": ["core", "supporting"]},
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "paginated_api", "bulk_download", "repository", "file_collection",
+            "single_file", "documentation", "other"
+          ]
+        },
+        "scenario_source_lead_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/snakeCaseId"},
+            {"type": "null"}
+          ]
+        },
+        "discovery_note": {"type": "string", "minLength": 1},
+        "need_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/snakeCaseId"}
+        },
+        "target_entity_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/snakeCaseId"}
+        },
+        "retrieval": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["none", "page", "offset", "cursor", "download", "repository"]
+            },
+            "page_size": {"type": ["integer", "null"], "minimum": 1},
+            "units_collected": {"type": "integer", "minimum": 0},
+            "reported_total": {"type": ["integer", "null"], "minimum": 0}
+          },
+          "required": ["method", "page_size", "units_collected", "reported_total"]
+        },
+        "coverage_strategy": {
+          "type": "string",
+          "enum": ["exhaustive", "representative_sample", "metadata_only", "unavailable"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["planned", "in_progress", "complete", "blocked", "unavailable"]
+        },
+        "access_status": {
+          "type": "string",
+          "enum": [
+            "unknown", "public", "authentication_required", "forbidden",
+            "rate_limited", "unreachable", "not_found"
+          ]
+        },
+        "access_note": {"type": ["string", "null"]},
+        "record_count": {"type": "integer", "minimum": 0},
+        "raw_files": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^raw/(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+          }
+        },
+        "related_source_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/snakeCaseId"}
+        },
+        "status_evidence": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "cursor_exhausted", "reported_total_reached",
+                    "sampling_target_reached", "repository_enumerated",
+                    "source_unavailable", "no_usable_records",
+                    "local_budget_exceeded", "not_applicable"
+                  ]
+                },
+                "detail": {"type": "string", "minLength": 1}
+              },
+              "required": ["type", "detail"]
+            }
+          ]
+        }
+      },
+      "required": [
+        "source_id", "name", "url", "registered_urls", "priority", "source_type",
+        "scenario_source_lead_id", "discovery_note", "need_ids",
+        "target_entity_types", "retrieval", "coverage_strategy", "status",
+        "access_status", "access_note", "record_count", "raw_files",
+        "related_source_ids", "status_evidence"
+      ]
+    }
+  }
+}

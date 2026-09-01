@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/scenario_research.schema.json",
+  "title": "Environment Research Brief",
+  "description": "A concise semantic brief that enriches one environment Seed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "seed_global_id",
+    "seed_sha256",
+    "environment",
+    "entities",
+    "tools",
+    "tasks",
+    "research_notes"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "environment": {"$ref": "#/$defs/environment"},
+    "entities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/entity"}
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/namedDescription"}
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/namedDescription"}
+    },
+    "research_notes": {"$ref": "#/$defs/researchNotes"}
+  },
+  "$defs": {
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "description"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 20, "maxLength": 160},
+        "description": {"type": "string", "minLength": 80, "maxLength": 800}
+      }
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "namedDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 20}
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "key_attributes"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 20},
+        "key_attributes": {
+          "$ref": "#/$defs/nonEmptyStringArray",
+          "minItems": 1
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "description"],
+      "properties": {
+        "url": {"type": "string", "format": "uri"},
+        "description": {"type": "string", "minLength": 10}
+      }
+    },
+    "researchNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_directions", "sources", "open_questions"],
+      "properties": {
+        "data_directions": {
+          "$ref": "#/$defs/nonEmptyStringArray",
+          "minItems": 1
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source"}
+        },
+        "open_questions": {"$ref": "#/$defs/nonEmptyStringArray"}
+      }
+    }
+  }
+}
