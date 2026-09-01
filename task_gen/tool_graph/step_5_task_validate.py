@@ -7,7 +7,7 @@
 ====
 
 ``config``
-    使用 ``schema_dir/task.schema.json`` 等运行配置。
+    使用 ``schema_dir/validation/task.schema.json`` 等运行配置。
 
 ``run_dir``
     本次运行的独立目录。任务中的 state 路径都相对该目录解析，不把绝对路径
@@ -120,7 +120,7 @@
    Step 4 的其余语义规则（不泄漏答案、不拆成操作步骤、不绑定唯一解法、
    ``task_text`` 与 ``reference_answer`` 相互完整对应）仍然无法机械验证，
    本阶段不做也不假装做。这是当前流水线已知的质量缺口。
-10. **Schema**：仅当检查 1、2 均通过时，才用 ``task.schema.json`` 的 validator
+10. **Schema**：仅当检查 1、2 均通过时，才用 ``validation/task.schema.json`` 的 validator
    收集全部结构错误（用 ``iter_errors`` 而不是 ``validate``，一次给出全部问题）。
    检查 1 或 2 已失败时**跳过**本检查，并在 errors 末尾追加一条“因前序事实缺失
    跳过 Schema 校验”。
@@ -135,7 +135,7 @@
 
    本检查只判定结构，不重复检查 1–8 已覆盖的语义一致性。
 
-   实现注意：``task.schema.json`` 声明 ``$schema`` 为 draft 2020-12，而当前依赖
+   实现注意：``validation/task.schema.json`` 声明 ``$schema`` 为 draft 2020-12，而当前依赖
    固定为 ``jsonschema>=3.2``，该版本只提供到 ``Draft7Validator``，
    ``validators.validator_for`` 会隐式回退到 Draft7 并发出 DeprecationWarning。
    已确认 Draft7 能正确执行本 schema 用到的全部关键字（``required``、
@@ -186,7 +186,7 @@ Step 5 只返回带验证结果的完整候选列表，不在阶段函数内写�
 ============
 
 Step 5 不改变候选数量和顺序；每项都有固定形状的 task 和 validation；通过项符合
-task.schema.json，且 LLM 确认任务与真实调用链匹配、任务信息足够；失败项保留原始
+validation/task.schema.json，且 LLM 确认任务与真实调用链匹配、任务信息足够；失败项保留原始
 数据和原因；最终文件可按上述规则无歧义地从本阶段输出生成。
 """
 
@@ -208,7 +208,7 @@ def validate_tasks(stage_input: ValidateTasksInput) -> ValidateTasksOutput:
     """组装正式任务，并用一次 LLM 审查任务文本与真实调用链的语义一致性。"""
     environment = stage_input["environment"]
     public_tools = [_public_tool(tool) for tool in environment.get("tools", []) if isinstance(tool, dict)]
-    schema = _load_schema(stage_input["config"].schema_dir / "task.schema.json")
+    schema = _load_schema(stage_input["config"].schema_dir / "validation" / "task.schema.json")
     output: list[dict[str, Any]] = []
     review_items: list[tuple[int, str]] = []
     for source in stage_input["tasks"]:
