@@ -81,12 +81,20 @@ def _public_tools(environment: dict[str, Any], source: Path) -> list[dict[str, A
     return tools
 
 
-def _edges(value: Any, names: set[str], source: Path) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        raise ValueError(f"tool_graph 必须是 array：{source}")
+def _edges(value: Any, names: set[str], source: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if isinstance(value, list):  # historical bundles
+        raw_edges, raw_prerequisites = value, []
+    elif isinstance(value, dict):
+        raw_edges, raw_prerequisites = value.get("edges"), value.get("prerequisites")
+        if not isinstance(raw_prerequisites, list):
+            raise ValueError(f"tool_graph.prerequisites 必须是 array：{source}")
+    else:
+        raise ValueError(f"tool_graph 必须是 object：{source}")
+    if not isinstance(raw_edges, list):
+        raise ValueError(f"tool_graph.edges 必须是 array：{source}")
     result = []
     seen: set[tuple[str, str]] = set()
-    for index, edge in enumerate(value):
+    for index, edge in enumerate(raw_edges):
         if not isinstance(edge, dict):
             raise ValueError(f"tool_graph[{index}] 必须是 object：{source}")
         start, end, weight = edge.get("from_tool"), edge.get("to_tool"), edge.get("weight")
@@ -106,7 +114,26 @@ def _edges(value: Any, names: set[str], source: Path) -> list[dict[str, Any]]:
             "parameter_evidence": deepcopy(edge.get("parameter_evidence") or []),
             "state_evidence": deepcopy(edge.get("state_evidence") or []),
         })
-    return result
+    prerequisites = []
+    for index, item in enumerate(raw_prerequisites):
+        if not isinstance(item, dict) or set(item) != {"to_tool", "any_of"}:
+            raise ValueError(f"tool_graph.prerequisites[{index}] 非法：{source}")
+        target, alternatives = item["to_tool"], item["any_of"]
+        if target not in names or not isinstance(alternatives, list) or not alternatives:
+            raise ValueError(f"tool_graph.prerequisites[{index}] 非法：{source}")
+        checked = []
+        for alternative in alternatives:
+            if not isinstance(alternative, dict) or set(alternative) != {"all_of", "reason"}:
+                raise ValueError(f"tool_graph.prerequisites[{index}] alternative 非法：{source}")
+            required, reason = alternative["all_of"], alternative["reason"]
+            if (not isinstance(required, list) or not required or
+                    any(name not in names for name in required) or
+                    len(required) != len(set(required)) or
+                    not isinstance(reason, str) or not reason.strip()):
+                raise ValueError(f"tool_graph.prerequisites[{index}] alternative 非法：{source}")
+            checked.append({"all_of": required, "reason": reason})
+        prerequisites.append({"to_tool": target, "any_of": checked})
+    return result, prerequisites
 
 
 def _task(candidate: Any, public_tools: list[dict[str, Any]], source: Path, index: int) -> dict[str, Any]:
@@ -183,7 +210,7 @@ def pack_bundle(bundle_path: Path, meta: dict[str, Any] | None = None, view_id: 
     if not isinstance(environment_id, str) or not environment_id:
         raise ValueError(f"environment_id 非法：{bundle_path}")
     tools = _public_tools(environment, bundle_path)
-    edges = _edges(bundle.get("tool_graph", []), {tool["name"] for tool in tools}, bundle_path)
+    edges, prerequisites = _edges(bundle.get("tool_graph", []), {tool["name"] for tool in tools}, bundle_path)
     raw_tasks = bundle.get("tasks", [])
     if not isinstance(raw_tasks, list):
         raise ValueError(f"tasks 必须是 array：{bundle_path}")
@@ -210,6 +237,7 @@ def pack_bundle(bundle_path: Path, meta: dict[str, Any] | None = None, view_id: 
         "stage_timings_seconds": deepcopy(timings),
         "tools": tools,
         "edges": edges,
+        "prerequisites": prerequisites,
         "tasks": tasks,
         "counts": {
             "tools": len(tools),
@@ -440,10 +468,10 @@ TEMPLATE = r'''<!doctype html>
         <button class="icon-button" id="layout-button" title="重新计算图布局" aria-label="重新计算图布局">&#x21BB;</button>
       </div>
       <div class="legend">
-        <div class="legend-row"><strong>1 · 直接依赖</strong><span>A → B：调用 B 前应先调用 A；线越粗，直接依赖越强</span>
-          <span><i class="line-swatch" style="border-color:var(--graph);border-width:5px"></i>weight 3 强依赖</span>
-          <span><i class="line-swatch" style="border-color:var(--graph);border-width:3px"></i>weight 2 条件依赖</span>
-          <span><i class="line-swatch" style="border-color:var(--graph);border-width:1px"></i>weight 1 辅助依赖</span>
+        <div class="legend-row"><strong>1 · 直接下一跳</strong><span>A → B：A 完成后可直接调用 B；线越粗，关系越强</span>
+          <span><i class="line-swatch" style="border-color:var(--graph);border-width:5px"></i>weight 3 强直接关系</span>
+          <span><i class="line-swatch" style="border-color:var(--graph);border-width:3px"></i>weight 2 明确工作流转移</span>
+          <span><i class="line-swatch" style="border-color:var(--graph);border-width:1px"></i>weight 1 具体弱关系</span>
         </div>
         <div class="legend-row"><strong>2 · 候选链</strong>
           <span><i class="line-swatch" style="border-color:var(--chain)"></i>黑色箭头 = 候选链调用顺序（与灰色依赖边错开）</span>
@@ -554,7 +582,7 @@ TEMPLATE = r'''<!doctype html>
 
     function graphElements(run) {
       return [
-        ...run.tools.map(tool => ({ data: { id: tool.name, label: tool.name, displayLabel: tool.name, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema } })),
+        ...run.tools.map(tool => ({ data: { id: tool.name, label: tool.name, displayLabel: tool.name, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, prerequisites: run.prerequisites.filter(item => item.to_tool === tool.name) } })),
         ...run.edges.map(edge => ({ data: edge, classes: `base-edge weight-${edge.weight}` }))
       ];
     }
@@ -719,7 +747,7 @@ TEMPLATE = r'''<!doctype html>
         const d = event.target.data();
         const added = event.target.hasClass("llm-added-node")
           ? `<p class="detail-label">LLM 新增原因</p><p>${escapeHtml(d.llmReason || "无修订说明")}</p>` : "";
-        showGraphDetail(`<h3>工具详情 · ${escapeHtml(d.label)}</h3>${added}<p class="detail-label">工具描述</p><p>${escapeHtml(d.description || "无描述")}</p>${detailsJson("Input Schema", d.inputSchema)}${detailsJson("Output Schema", d.outputSchema)}`);
+        showGraphDetail(`<h3>工具详情 · ${escapeHtml(d.label)}</h3>${added}<p class="detail-label">工具描述</p><p>${escapeHtml(d.description || "无描述")}</p>${d.prerequisites?.length ? detailsJson("Prerequisite 历史约束", d.prerequisites) : ""}${detailsJson("Input Schema", d.inputSchema)}${detailsJson("Output Schema", d.outputSchema)}`);
       });
       state.cy.on("dbltap", "node", event => focusNode(event.target));
       state.cy.on("tap", "edge.base-edge", event => {

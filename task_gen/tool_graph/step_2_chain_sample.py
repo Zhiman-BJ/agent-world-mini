@@ -17,8 +17,8 @@
     ``inputSchema`` 和 ``outputSchema``。发送给 LLM 前必须移除 ``tools[].internal``。
 
 ``tool_graph``
-    Step 1 返回的有向带权边。边权只能是 1、2、3；Step 2 暂不读取
-    ``prerequisites``。``weight=3`` 的入边只用于确定起点，采样概率由配置单独提供。
+    Step 1 返回的 ``{"edges": [...], "prerequisites": [...]}``。边权只能是 1、2、3；
+    prerequisite 单独决定工具历史是否满足，采样概率由配置单独提供。
 
 配置
 ====
@@ -50,8 +50,8 @@
 ==========
 
 1. 本地校验工具名、边权、重复边和自环，并建立出边索引。
-2. 起点是没有任何 ``weight=3`` 入边的全部工具；Level 1/2 入边不影响起点资格。
-   起点集合为空时抛出 ``ValueError``，不退回任意工具。没有出边的合格起点可以产生
+2. 起点是没有 prerequisite 历史约束的全部工具。起点集合为空时抛出 ``ValueError``，
+   不退回任意工具。没有出边的合格起点可以产生
    单工具链，但会按链长规则参与后续筛选。
 3. 每次从合格起点均匀选择一个工具，沿当前节点的合法出边继续游走。出边选择只使用
    ``edge_sampling_probabilities``，不直接把 ``weight`` 当作概率。
@@ -189,10 +189,10 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
     probabilities = _sampling_probabilities(planning.get("edge_sampling_probabilities"))
     diversity_lambda = _nonnegative_float(planning, "diversity_lambda", 10.0)
 
-    adjacency, incoming_level3 = _graph(stage_input["tool_graph"], names)
-    roots = sorted(name for name in names if not incoming_level3[name])
+    adjacency, prerequisites = _graph(stage_input["tool_graph"], names)
+    roots = sorted(name for name in names if not prerequisites[name])
     if not roots:
-        raise ValueError("tool_graph 中不存在没有 weight=3 入边的合法起点")
+        raise ValueError("tool_graph 中不存在没有 prerequisite 的合法起点")
 
     rng = random.Random(seed)
     unique: dict[tuple[str, ...], int] = {}
@@ -202,6 +202,7 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
             rng,
             roots,
             adjacency,
+        prerequisites,
             probabilities,
             maximum,
             max_visits,
@@ -235,6 +236,7 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
         config.llm,
         minimum,
         maximum,
+        prerequisites,
     )
     reviewed = _deduplicate_reviewed_chains(reviewed)
     scored, logic_errors = _score_chains(
@@ -340,13 +342,17 @@ def _tools(environment: dict[str, Any]) -> tuple[set[str], list[dict[str, Any]]]
 
 
 def _graph(
-    edges: list[dict[str, Any]],
+    tool_graph: dict[str, Any],
     names: set[str],
-) -> tuple[dict[str, list[tuple[str, int]]], dict[str, set[str]]]:
-    if not isinstance(edges, list):
-        raise ValueError("tool_graph 必须是 array")
+) -> tuple[dict[str, list[tuple[str, int]]], dict[str, list[frozenset[str]]]]:
+    if not isinstance(tool_graph, dict):
+        raise ValueError("tool_graph 必须是 object")
+    edges = tool_graph.get("edges")
+    raw_prerequisites = tool_graph.get("prerequisites")
+    if not isinstance(edges, list) or not isinstance(raw_prerequisites, list):
+        raise ValueError("tool_graph.edges 和 prerequisites 必须是 array")
     adjacency = {name: [] for name in names}
-    incoming_level3 = {name: set() for name in names}
+    prerequisites: dict[str, list[frozenset[str]]] = {name: [] for name in names}
     seen: set[tuple[str, str]] = set()
     for edge in edges:
         if not isinstance(edge, dict):
@@ -362,17 +368,49 @@ def _graph(
             raise ValueError(f"tool_graph 重复边：{source} -> {target}")
         seen.add((source, target))
         adjacency[source].append((target, weight))
-        if weight == 3:
-            incoming_level3[target].add(source)
+    seen_targets: set[str] = set()
+    for item in raw_prerequisites:
+        if not isinstance(item, dict) or set(item) != {"to_tool", "any_of"} or item.get("to_tool") not in names:
+            raise ValueError("tool_graph prerequisite 目标工具非法")
+        target = item["to_tool"]
+        if target in seen_targets:
+            raise ValueError(f"tool_graph prerequisite 目标重复：{target}")
+        seen_targets.add(target)
+        alternatives = item.get("any_of")
+        if not isinstance(alternatives, list) or not alternatives:
+            raise ValueError(f"工具 {target} 的 prerequisite.any_of 必须是非空 array")
+        seen_alternatives: set[frozenset[str]] = set()
+        for alternative in alternatives:
+            if not isinstance(alternative, dict) or set(alternative) != {"all_of", "reason"}:
+                raise ValueError(f"工具 {target} 的 prerequisite alternative 字段非法")
+            required = alternative.get("all_of") if isinstance(alternative, dict) else None
+            if (
+                not isinstance(required, list)
+                or not required
+                or any(not isinstance(name, str) for name in required)
+                or len(required) != len(set(required))
+                or any(name not in names or name == target for name in required)
+            ):
+                raise ValueError(f"工具 {target} 的 prerequisite.all_of 非法")
+            if not isinstance(alternative["reason"], str) or not alternative["reason"].strip():
+                raise ValueError(f"工具 {target} 的 prerequisite reason 非法")
+            if any((source, target) not in seen for source in required):
+                raise ValueError(f"工具 {target} 的 prerequisite 来源必须有对应正边")
+            normalized = frozenset(required)
+            if normalized in seen_alternatives:
+                raise ValueError(f"工具 {target} 的 prerequisite alternative 重复")
+            seen_alternatives.add(normalized)
+            prerequisites[target].append(normalized)
     for options in adjacency.values():
         options.sort()
-    return adjacency, incoming_level3
+    return adjacency, prerequisites
 
 
 def _sample_one_chain(
     rng: random.Random,
     roots: list[str],
     adjacency: dict[str, list[tuple[str, int]]],
+    prerequisites: dict[str, list[frozenset[str]]],
     probabilities: dict[int, float],
     maximum: int,
     max_visits: int,
@@ -384,6 +422,7 @@ def _sample_one_chain(
             edge
             for edge in adjacency[chain[-1]]
             if visits.get(edge[0], 0) < max_visits
+            and _prerequisites_satisfied(edge[0], visits, prerequisites)
         ]
         if not options:
             break
@@ -395,6 +434,26 @@ def _sample_one_chain(
         chain.append(target)
         visits[target] = visits.get(target, 0) + 1
     return chain
+
+
+def _prerequisites_satisfied(
+    target: str,
+    visited: dict[str, int] | set[str],
+    prerequisites: dict[str, list[frozenset[str]]],
+) -> bool:
+    options = prerequisites.get(target)
+    return not options or any(option.issubset(visited) for option in options)
+
+
+def _chain_satisfies_prerequisites(
+    chain: list[str], prerequisites: dict[str, list[frozenset[str]]]
+) -> bool:
+    visited: set[str] = set()
+    for target in chain:
+        if not _prerequisites_satisfied(target, visited, prerequisites):
+            return False
+        visited.add(target)
+    return True
 
 
 def _chain_score(chain: list[str], adjacency: dict[str, list[tuple[str, int]]]) -> int:
@@ -441,11 +500,12 @@ def _review_chains(
     candidates: list[tuple[tuple[str, ...], int]],
     environment: dict[str, Any],
     public_tools: list[dict[str, Any]],
-    tool_graph: list[dict[str, Any]],
+    tool_graph: dict[str, Any],
     names: set[str],
     llm_config: dict[str, Any],
     minimum_length: int,
     maximum_length: int,
+    prerequisites: dict[str, list[frozenset[str]]],
 ) -> tuple[list[dict[str, Any]], int, int]:
     prompts = [
         _review_prompt(
@@ -488,6 +548,8 @@ def _review_chains(
                     raise ValueError("chain/reason 结构或工具名非法")
                 if not minimum_length <= len(value) <= maximum_length:
                     raise ValueError("review 后链长度超出规划范围")
+                if not _chain_satisfies_prerequisites(value, prerequisites):
+                    raise ValueError("review 后链违反 prerequisite 历史约束")
                 chain = value
                 reason = reason_value.strip()
             except Exception as review_error:
@@ -511,7 +573,7 @@ def _review_chains(
 def _review_prompt(
     environment: dict[str, Any],
     public_tools: list[dict[str, Any]],
-    tool_graph: list[dict[str, Any]],
+    tool_graph: dict[str, Any],
     chain: list[str],
     minimum_length: int,
     maximum_length: int,
@@ -534,7 +596,8 @@ def _review_prompt(
         f"修改后的 chain 必须包含 {minimum_length} 到 {maximum_length} 个工具；无法在此范围内修正时保持原链。\n"
         "优先使用 graph 中已有的边。允许加入 graph 中没有的边，但必须有公开工具描述、"
         "输入输出 Schema 或环境规则的充分具体依据；不能只凭字段同名、类型相容、主题"
-        "相似或理论可能性。不确定时保持原链。\n"
+        "相似或理论可能性。不确定时保持原链。修改后的链也必须满足 "
+        "tool_graph.prerequisites 的历史约束。\n"
         "只返回 JSON object：{\"chain\":[工具名],\"reason\":\"非空说明\"}。\n"
         + json.dumps(context, ensure_ascii=False, indent=2)
     )
@@ -556,7 +619,7 @@ def _score_chains(
     items: list[dict[str, Any]],
     environment: dict[str, Any],
     public_tools: list[dict[str, Any]],
-    tool_graph: list[dict[str, Any]],
+    tool_graph: dict[str, Any],
     llm_config: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], int]:
     prompts = [
@@ -608,7 +671,7 @@ def _score_chains(
 def _logic_score_prompt(
     environment: dict[str, Any],
     public_tools: list[dict[str, Any]],
-    tool_graph: list[dict[str, Any]],
+    tool_graph: dict[str, Any],
     item: dict[str, Any],
 ) -> str:
     context = {

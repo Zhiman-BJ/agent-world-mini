@@ -100,26 +100,39 @@ class BuildGraphOutput(TypedDict):
     """Step 1 新增工具直接依赖图。
 
     tool_graph:
-        直接前置边列表。每条边包含：
+        包含直接边和目标级历史前置约束：
         {
-            "from_tool": str,
-            "to_tool": str,
-            "weight": 1 | 2 | 3,
-            "reason": str,
+            "edges": [{
+                "from_tool": str,
+                "to_tool": str,
+                "weight": 1 | 2 | 3,
+                "reason": str,
+            }],
+            "prerequisites": [{
+                "to_tool": str,
+                "any_of": [{
+                    "all_of": list[str],
+                    "reason": str,
+                }],
+            }],
         }
 
         from_tool → to_tool 仅表示调用 to_tool 前应调用 from_tool。
         只保存直接关系，不保存传递关系；工具节点由 environment.tools 得到，不重复保存。
-        weight 表示依赖强度：3=强依赖，2=有条件的弱依赖，1=辅助性依赖；
-        它不是 LLM 置信度。
+        weight 只表示直接下一跳的关系等级：3=强直接关系，2=明确工作流转移，
+        1=有具体依据的弱关系；它不是硬前置、采样概率或 LLM 置信度。
         reason 是判定该边的必填依据。
+
+        prerequisites 独立表示执行目标工具前必须已经满足的工具历史。any_of 中任意
+        一个方案满足即可；一个方案的 all_of 中所有工具都必须已经执行。没有硬前置的
+        目标不出现在 prerequisites 中。不能从 weight=3 推导 prerequisite。
 
         LLM 必须对每个候选都明确表态：有依赖给 1/2/3，无依赖给 weight=0。
         weight=0 是有效输出但不成为边（图只保存真实存在的边），它的作用是
         审查完整性门禁 —— Step 1 要求每个目标覆盖全部候选，漏审即报错。
     """
 
-    tool_graph: list[dict[str, Any]]
+    tool_graph: dict[str, Any]
 
 
 class SampleChainsInput(TypedDict):
@@ -133,13 +146,14 @@ class SampleChainsInput(TypedDict):
         Step 0 读取的完整 environment.json。随机游走使用工具名；review 和逻辑性评分
         参考环境描述、resources、rules 和工具公开定义，不依赖 tools[].internal。
     tool_graph:
-        Step 1 产生的直接前置边列表，结构见 BuildGraphOutput.tool_graph。Step 2 暂不
-        消费 prerequisites；weight=3 的入边只用于确定起点，采样概率来自 config。
+        Step 1 产生的直接边和目标级 prerequisite 组合，结构见
+        BuildGraphOutput.tool_graph。Step 2 使用 prerequisite 决定起点和下一工具是否
+        可进入，使用 weight 计算链质量；采样概率来自 config。
     """
 
     config: Config
     environment: dict[str, Any]
-    tool_graph: list[dict[str, Any]]
+    tool_graph: dict[str, Any]
 
 
 class SampleChainsOutput(TypedDict):

@@ -1,8 +1,8 @@
 """Step 1：从环境的公开工具定义构建有证据的直接前置关系图。
 
-本文件只回答一个问题：对任意两个不同工具 ``A`` 和 ``B``，为了完成一个
-有意义的 ``B`` 调用，是否应先调用 ``A``。若成立，输出 ``A → B``、
-依赖强度和理由。本阶段不生成工具链，也不证明某条链一定可执行。
+本文件对任意两个不同工具 ``A`` 和 ``B`` 判断 ``B`` 能否作为 ``A`` 的直接下一跳，
+并独立判断调用 ``B`` 前必须满足的工具历史。本阶段不生成工具链，也不证明某条链
+一定可执行。
 
 输入 Schema（只列本阶段实际读取的字段）
 =======================================
@@ -61,34 +61,26 @@
 输出 Schema
 ===========
 
-只新增 ``tool_graph`` 一个键。工具节点已存在于 ``environment.tools``，
-不在图中重复保存，因此输出只有边。
+只新增 ``tool_graph`` 一个键。工具节点已存在于 ``environment.tools``，不重复保存。
 
 .. code-block:: text
 
     {
-      tool_graph : [                      [有向带权边列表。顺序稳定：
-                                           weight 降序 → from_tool 字典序 →
-                                           to_tool 字典序，便于重跑比较]
-        {
-          from_tool : str                 [前置工具名。必为 environment.tools
-                                           中已知的名字，且 != to_tool。
-                                           → Step 2 据此做带权随机游走]
-          to_tool   : str                 [目标工具名。由本阶段按当前目标填入，
-                                           不采信 LLM 返回的同名字段]
-          weight    : 1 | 2 | 3           [依赖强度，**不是** LLM 置信度。
-                                           图中只出现 1/2/3。LLM 也必须对无依赖的
-                                           候选显式返回 weight=0（用于审查完整性
-                                           门禁），但那不成为边。
-                                           → Step 2 用作转移概率（3:2:1）
-                                             和链 score 的累加项]
-          reason    : str                 [非空。判定该边的必填依据，
-                                           自然语言。→ Step 2 的 LLM 修订会读它]
-        }, ...
-      ]
+      tool_graph : {
+        edges: [
+          {from_tool: str, to_tool: str, weight: 1|2|3, reason: str}, ...
+        ],
+        prerequisites: [
+          {to_tool: str, any_of: [{all_of: [str, ...], reason: str}, ...]}, ...
+        ]
+      }
     }
 
-对输出的唯一结构保证：无自环、无重复 ``(from_tool, to_tool)``。
+``weight`` 只表示直接下一跳关系的等级，不表示 prerequisite、采样概率或置信度。
+``prerequisites`` 是独立的目标级历史约束；``any_of`` 中任一方案满足即可，每个方案的
+``all_of`` 必须全部已执行。不能从 ``weight=3`` 推导 prerequisite。
+
+输出保证无自环、无重复 ``(from_tool, to_tool)``，所有引用的工具均存在。
 
 **本阶段不对图的性质做任何要求或干预。** 不限制入度、不检查是否存在零入度
 工具、不做环检测、不做传递闭包消减。图允许有向环 —— 若 ``A → B`` 和
@@ -113,19 +105,19 @@ LLM 判出多少边就输出多少边。
 内部分工
 ========
 
-本阶段拆成六个各自可独立测试的环节，``build_graph`` 只做编排，不内联任何一环的
-逻辑。除 :func:`_request_dependencies` 外全部是确定性纯函数，可在无 LLM 的情况下
-单测：
+本阶段拆成六个各自可独立测试的环节，``build_graph`` 只做编排：
 
 ===========================  ====================  ==============================
 环节                          纯函数                 职责
 ===========================  ====================  ==============================
 :func:`_compact_tool_view`   是                    单个工具 → 紧凑公开视图
 :func:`_environment_context`  是                    环境级公开上下文（含 rules）
-:func:`_build_prompt`         是                    目标 + 候选 + 上下文 → prompt
-:func:`_request_dependencies` 否（唯一调 LLM）      一个目标 → 已解析的原始候选边
-:func:`_validate_edges`       是                    校验并归一化单个目标的边
-:func:`_assemble_graph`       是                    全目标截断、去重、排序、自查
+:func:`_build_evidence_prompt` 是                   目标 + 候选 + 上下文 → 事实分析 prompt
+:func:`_build_decision_prompt` 是                  事实分析 + 候选 → 分类 prompt
+:func:`_run_round`             否                    批量调用并按目标重试一次
+:func:`_validate_assessments`  是                    校验第一轮完整覆盖与证据
+:func:`_validate_decisions`    是                    校验第二轮边及 prerequisite
+:func:`_assemble_graph`        是                    合并并稳定排序最终对象
 ===========================  ====================  ==============================
 
 数据在环节间的形态固定为：
@@ -134,14 +126,14 @@ LLM 判出多少边就输出多少边。
 
     environment.tools
       → _compact_tool_view 逐个映射     → list[CompactTool]
-      → _build_prompt(目标, 候选, 环境)  → str
-      → _request_dependencies           → list[dict]（LLM 原样字段，未校验）
-      → _validate_edges(目标, 原始)      → list[Edge]（已补 to_tool，已校验）
-      → _assemble_graph(全部目标结果)    → list[Edge]（已截断、已排序）
+      → _build_evidence_prompt                 → str
+      → _run_round + _validate_assessments      → list[Assessment]
+      → _build_decision_prompt                 → str
+      → _run_round + _validate_decisions       → (list[Edge], list[Prerequisite])
+      → _assemble_graph                        → ToolGraph object
 
-``_validate_edges`` 是信任边界：在它之前的数据一律视为不可信 LLM 输出，
-在它之后的数据保证工具名有效、``weight`` 合法、``reason`` 非空、字段形状正确。
-``_assemble_graph`` 只处理已校验的边，不再重复做单条边的字段校验。
+两个 ``_run_round`` 调用都是信任边界：LLM 返回必须通过严格的字段、覆盖范围和语义
+一致性校验；失败目标只重试一次，仍失败则终止本阶段，避免部分图泄漏。
 
 公开视图的形态
 ==============
@@ -186,20 +178,19 @@ LLM 判出多少边就输出多少边。
 依赖语义
 ========
 
-``A → B`` 必须有一条具体的 ``reason``，说明 ``A`` 产生的参数或状态如何被
-``B`` 直接使用。仅字段同名、类型相同、工具主题相似，都不构成依赖。
-例如列表结果中的 ``severity`` 与更新工具的 ``severity`` 同名，不代表
-必须先调列表工具。
+``A → B`` 表示：假设 ``A`` 已成功，存在公开契约支持的具体任务，使 ``B`` 可以立即
+作为下一次工具调用；若中间还必须调用另一个工具，则不是直接边。判断时不得因为调用方
+也可能已知输入、或另有来源而降级。仅字段同名、类型相同或主题相似不构成关系。
 
 依据只用自然语言的 ``reason`` 承载，不再有结构化证据字段。上一轮实践表明
 ``parameter_evidence`` / ``state_evidence`` 无人消费，却要求 LLM 严格返回空数组、
 本地再逐项校验形状，成本大于收益。
 
-``weight`` 表示依赖强度，不是 LLM 对自己答案的置信度：
+``weight`` 只表示直接下一跳关系等级，不是 prerequisite、采样概率或置信度：
 
-* ``3``：强依赖。没有 ``A`` 产生的参数或状态，``B`` 在该任务中无法成立。
-* ``2``：条件依赖。在明确的有效任务场景中需要 ``A``，但 ``B`` 也可在其他场景独立调用。
-* ``1``：辅助依赖。``A`` 的产物会被 ``B`` 直接消费并能改善任务，但不是成功前提。
+* ``3``：强直接关系，A 的确定产物或状态使 B 成为紧接着的自然调用。
+* ``2``：明确工作流转移，A 与 B 属于清晰连续的业务步骤，但并非强绑定。
+* ``1``：有具体任务依据的弱直接关系；A 的确定功能可能生成 B 的需求或有效输入。
 * ``0``：**已审查，判定无依赖**。这是有效输出而非错误。
 
 ``weight=0`` 的作用是**完整性检查**：prompt 要求模型逐一审查全部候选，因此对
@@ -207,16 +198,15 @@ LLM 判出多少边就输出多少边。
 省略和"看过后否定"在只接受 1/2/3 的设计下无法区分。
 
 处理方式：``weight=0`` 的项计入审查完整性统计，但**不进入 tool_graph**
-（图只保存真实存在的边），也不要求 ``reason`` 非空。
+（图只保存真实存在的边）；只有正边要求 reason 非空。
 
 **完整性是硬门禁。** 每个目标必须对其全部候选（工具总数 - 1）都明确表态；
-漏审任何一个即报错，由 ``_target_edges`` 判定。理由是"看过后否定"和"根本没看"
+漏审任何一个即报错。理由是"看过后否定"和"根本没看"
 在输出里无法区分，而后者意味着该目标的判定不完整、整张图不可信。报错会触发
 单目标重试，重试后仍漏审则整阶段失败。
 
-实测踩过的坑：曾经只接受 1/2/3，结果模型对 ``list_test_runs`` 返回
-``weight: 0`` 表达"Level 0 无关系"，导致整阶段失败；更麻烦的是这类语义误解是
-**确定性**的，单目标重试必然重现同样的结果，重试只能救偶发的格式抖动。
+prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_of`` 方案和方案内
+``all_of`` 组合；不能从边权推导，也不能把所有 weight=3 来源自动合并为硬前置。
 
 处理要求
 ========
@@ -236,30 +226,22 @@ LLM 判出多少边就输出多少边。
    都必须按 ``environment.tools`` 的原始顺序，不依赖返回时序。
    prompt 可以说明"只列出真正必需的前置工具"，但本阶段不对返回条数做任何
    本地限制 —— 不截断入边，不干预图的密度。
-3. （``_build_prompt`` + ``_environment_context``）prompt 必须同时给出目标工具、
+3. （``_build_evidence_prompt``、``_build_decision_prompt`` + ``_environment_context``）prompt 必须同时给出目标工具、
    候选工具、环境公开上下文、上述反例和固定输出结构；候选不包含目标自身。
    环境上下文由 ``_environment_context`` 单独构造，包含环境 ``name``、
    ``description``、``resources`` 和 ``rules``；``rules`` 必须给出，因为跨资源的
    业务规则常常是状态依赖的唯一线索。
 
-   LLM 必须返回 ``{"dependencies": [...]}``；每项只包含 ``from_tool``、``weight``
-   和 ``reason``。``to_tool`` 由当前目标确定，不让 LLM 重复返回。
-   无前置关系时返回 ``{"dependencies": []}``。
-3a. （``_request_dependencies``）本函数是整个阶段唯一接触 LLM 的地方。它用
-   :func:`tool_graph.llm.infer` 发送 prompt，用
-   :func:`tool_graph.llm.parse_json_object` 解析回复，不自行剥离 ``` 围栏或
-   做括号匹配，并只做一件与结构有关的事：确认顶层存在 ``dependencies`` 且是
-   list，然后原样返回其元素。**不在此校验元素内容**，那是 ``_validate_edges``
-   的职责，两者不得合并。
-
-   ``MalformedJSONError`` 按下方失败行为处理；其消息会区分"模型没按格式回答"
-   和"输出被截断"，后者说明 ``llm.max_tokens`` 对本环境的工具数偏小。
-4. （``_validate_edges``）用本地确定性代码校验每一项：``from_tool`` 必须是
+   第一轮必须返回 ``{"assessments": [...]}``；第二轮必须返回
+   ``{"decisions": [...], "prerequisite_alternatives": [...]}``。
+3a. （``_run_round``）每轮通过 :func:`tool_graph.llm.infer` 批量调用 LLM，并用
+   :func:`tool_graph.llm.parse_json_object` 解析；每个失败目标只重试一次。
+   ``MalformedJSONError`` 等解析或语义错误不得被当作“无边”静默吞掉。
+4. （``_validate_assessments`` 与 ``_validate_decisions``）用本地确定性代码校验每一项：``from_tool`` 必须是
    ``environment.tools`` 中的已知工具名且不等于当前目标（自环在此就地丢弃，
    不留到装配阶段）、``weight`` 必须是 0/1/2/3 之一（``True`` 不算 1）。
-   ``weight=0`` 计入审查覆盖率后跳过，不要求 ``reason``；``weight`` 为 1/2/3 时
-   ``reason`` 必须是非空字符串。``to_tool`` 由本函数按当前目标填入，不采信 LLM
-   可能自带的同名字段。不得直接信任 LLM 输出。
+   第一轮要求全部候选都有事实判断；第二轮要求全部候选都有 0/1/2/3 分类，且
+   prerequisite 只能引用正边。不得直接信任 LLM 输出。
 5. （``_assemble_graph``）对同一 ``from_tool → to_tool`` 只保留一条边，
    严禁自环。边按 ``weight`` 降序、``from_tool`` 和 ``to_tool`` 字典序稳定输出。
    这两件事（去重、稳定排序）是装配的**全部**职责。
@@ -297,15 +279,9 @@ LLM 判出多少边就输出多少边。
 * ``_compact_tool_view``：工具缺少 ``name``、``description``、``inputSchema`` 或
   ``outputSchema`` 时抛异常。正常情况下 Step 0 的字段检查已经挡住，这里是
   防御性断言，不做兜底填充。
-* ``_request_dependencies``：``MalformedJSONError``、顶层缺 ``dependencies``
-  或它不是 list 时，抛出**包含目标工具名**的异常。绝不能把解析失败当成
-  "该目标没有前置边"静默返回空列表 —— 那会让一次格式错误伪装成一个真实的
-  图结构结论。
-* ``_validate_edges``：未知工具名、非法 ``weight``（0/1/2/3 之外）、
-  weight 为 1/2/3 但 ``reason`` 为空时，
+* ``_validate_assessments`` / ``_validate_decisions``：未知工具名、非法 ``weight``、
+  漏审、语义冲突或 prerequisite 结构非法时，
   抛出同时包含目标工具名和出错项的异常。
-* ``_target_edges``：该目标漏审任何候选时抛出 ``ValueError``，消息给出
-  已审查数/应审查数和漏审的工具名。
 * ``_assemble_graph``：本环节没有失败条件。它只做去重和排序，不校验图的性质，
   因此不会抛异常。
 
@@ -329,11 +305,8 @@ LLM 判出多少边就输出多少边。
 完成条件
 ========
 
-Step 1 完成时：每个工具都已作为目标被判定一次；所有边都经过
-``_validate_edges``，工具名、``weight`` 和非空 ``reason`` 均已本地校验；
-**每个目标都对其全部候选明确表过态**，审查完整性门禁通过；
-图中无自环和重复边，但允许有向环；输出顺序稳定，且不包含 ``internal``
-或任何工具实现细节。
+每个工具都作为目标完成两轮判定；所有候选均有明确结论并通过本地校验；图中无自环
+和重复边，prerequisite 引用合法；输出顺序稳定且不包含 ``internal`` 或工具实现细节。
 
 本阶段不保证图具备任何拓扑性质（零入度工具存在、无环、连通等）。
 """
@@ -341,7 +314,7 @@ Step 1 完成时：每个工具都已作为目标被判定一次；所有边都�
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 
 from .contracts import BuildGraphInput, BuildGraphOutput
 from .llm import BatchInferenceError, InferenceResult, MalformedJSONError, infer, parse_json_object
@@ -351,83 +324,121 @@ from .llm import BatchInferenceError, InferenceResult, MalformedJSONError, infer
 # 它不进入 tool_graph —— 图只保存真实存在的边。
 WEIGHTS = (0, 1, 2, 3)
 MAX_OUT_DEPTH = 3
+ASSESSMENT_CONNECTIONS = {
+    "required_input",
+    "optional_input",
+    "required_state",
+    "state_observation",
+    "workflow_transition",
+    "semantic_influence",
+    "none",
+}
+VALUE_ORIGINS = {
+    "generated",
+    "selected",
+    "derived",
+    "echoed",
+    "not_applicable",
+    "unknown",
+}
+ASSESSMENT_FIELDS = {
+    "from_tool",
+    "immediate_next",
+    "intermediate_tool_required",
+    "connection",
+    "value_origin",
+    "evidence",
+    "condition",
+}
 
 
 def build_graph(stage_input: BuildGraphInput) -> BuildGraphOutput:
-    """编排六个环节，返回只含 ``tool_graph`` 的输出。
-
-    自身不含建图逻辑：构造紧凑视图和环境上下文，按 ``environment.tools`` 顺序
-    为每个目标构造 prompt 并取回原始候选边，逐目标校验，最后统一装配。
-    """
+    """Analyze evidence, classify direct edges, and assemble the tool graph."""
     environment = stage_input["environment"]
     config = stage_input["config"]
-
-    tools = environment["tools"]
-    views = [_compact_tool_view(tool) for tool in tools]
+    views = [_compact_tool_view(tool) for tool in environment["tools"]]
     names = [view["name"] for view in views]
     context = _environment_context(environment)
-
-    # per-target selection：每个工具轮流做 to_tool，其余全部工具作为候选。
-    # 批量提交由 llm.max_concurrency 控制并发，但构造与消费顺序都按
-    # environment.tools 的原始顺序，不依赖返回时序。
-    prompts = [
-        _build_prompt(view, [other for other in views if other["name"] != view["name"]], context)
-        for view in views
+    candidates = [
+        [other for other in views if other["name"] != target["name"]]
+        for target in views
     ]
+
+    evidence_prompts = [
+        _build_evidence_prompt(target, candidate_set, context)
+        for target, candidate_set in zip(views, candidates)
+    ]
+    assessments = _run_round(
+        evidence_prompts,
+        names,
+        config.llm,
+        "事实分析",
+        lambda result, target: _validate_assessments(
+            target, _request_assessments(result, target), names
+        ),
+    )
+
+    decision_prompts = [
+        _build_decision_prompt(target, candidate_set, context, target_assessments)
+        for target, candidate_set, target_assessments in zip(views, candidates, assessments)
+    ]
+    assessment_by_target = dict(zip(names, assessments))
+    classified = _run_round(
+        decision_prompts,
+        names,
+        config.llm,
+        "关系分类",
+        lambda result, target: _validate_decisions(
+            target,
+            _request_json_object(result, target, "第二轮"),
+            assessment_by_target[target],
+            names,
+        ),
+    )
+    edges_by_target = {
+        name: result[0] for name, result in zip(names, classified)
+    }
+    prerequisites_by_target = {
+        name: result[1] for name, result in zip(names, classified)
+    }
+    return {
+        "tool_graph": _assemble_graph(
+            edges_by_target, prerequisites_by_target, names
+        )
+    }
+
+
+def _run_round(
+    prompts: list[str],
+    target_names: list[str],
+    llm_config: dict[str, Any],
+    round_name: str,
+    consume: Callable[[InferenceResult, str], Any],
+) -> list[Any]:
+    """Run one batch and retry only invalid targets once."""
     try:
-        results: list[InferenceResult | Exception] = list(infer(prompts, llm_config=config.llm))
+        results: list[InferenceResult | Exception] = list(infer(prompts, llm_config=llm_config))
     except BatchInferenceError as error:
         results = list(error.outcomes)
-    if len(results) != len(views):
-        raise ValueError("建图 LLM 返回数量与目标工具数量不一致")
+    if len(results) != len(target_names):
+        raise ValueError(f"建图{round_name}返回数量与目标工具数量不一致")
 
-    edges_by_target: dict[str, list[dict[str, Any]]] = {}
-    for index, (name, result) in enumerate(zip(names, results)):
+    output = []
+    for index, (target_name, result) in enumerate(zip(target_names, results)):
         try:
             if isinstance(result, Exception):
                 raise result
-            edges = _target_edges(result, name, set(names))
+            value = consume(result, target_name)
         except Exception:
-            # 单目标原子重试：一次格式错误不该让整阶段作废，因为本流水线没有
-            # 断点续跑，重来意味着其余目标的调用全部白费。只重发这一个 prompt，
-            # 第二次仍失败才整阶段报错。
-            # 单字符串 prompt，infer 返回单个 InferenceResult（不是列表）。
-            # 捕获 Exception 而非仅 ValueError：回复畸形时可能先撞上类型错误，
-            # 那同样是"这个目标的结果不可用"，应统一收敛成带目标名的报错。
             try:
-                retry = infer(prompts[index], llm_config=config.llm)
-                edges = _target_edges(retry, name, set(names))
+                retry = infer(prompts[index], llm_config=llm_config)
+                value = consume(retry, target_name)
             except Exception as error:
-                raise ValueError(f"目标工具 {name} 的建图结果非法：{error}") from error
-        edges_by_target[name] = edges
-
-    return {"tool_graph": _assemble_graph(edges_by_target, names)}
-
-
-def _target_edges(
-    result: InferenceResult,
-    target_name: str,
-    tool_names: set[str],
-) -> list[dict[str, Any]]:
-    """把一次 LLM 回复变成该目标的已校验边，并强制审查完整性。
-
-    完整性是**硬门禁**：prompt 要求逐一审查全部候选，因此每个候选都必须被明确
-    表态 —— 有依赖给 1/2/3，无依赖给 0。漏掉任何候选即报错，因为"看过后否定"和
-    "根本没看"无法区分，而后者意味着该目标的判定不完整，整张图也就不可信。
-
-    报错会触发 ``build_graph`` 的单目标重试；重试后仍漏审则整阶段失败。
-    """
-    edges, reviewed = _validate_edges(
-        target_name, _request_dependencies(result, target_name), tool_names
-    )
-    missing = sorted(tool_names - {target_name} - reviewed)
-    if missing:
-        expected = len(tool_names) - 1
-        raise ValueError(
-            f"目标 {target_name} 只审查了 {len(reviewed)}/{expected} 个候选，"
-            f"漏审 {len(missing)} 个：{', '.join(missing)}"
-        )
-    return edges
+                raise ValueError(
+                    f"目标工具 {target_name} 的{round_name}结果非法：{error}"
+                ) from error
+        output.append(value)
+    return output
 
 
 def _compact_tool_view(tool: dict[str, Any]) -> dict[str, Any]:
@@ -533,183 +544,365 @@ def _environment_context(environment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_prompt(
+def _build_evidence_prompt(
     target: dict[str, Any],
     candidates: list[dict[str, Any]],
     context: dict[str, Any],
 ) -> str:
-    """组装单个目标的 prompt；``candidates`` 已排除目标自身。
-
-    包含依赖语义说明、字段同名不构成依赖的反例，以及固定输出结构。
-    """
-    return PROMPT_TEMPLATE.format(
+    """Build the first-round prompt that extracts evidence without classifying it."""
+    return EVIDENCE_PROMPT_TEMPLATE.format(
         environment=json.dumps(context, ensure_ascii=False, indent=2),
         target=json.dumps(target, ensure_ascii=False, indent=2),
         candidates=json.dumps(candidates, ensure_ascii=False, indent=2),
-        target_name=target["name"],
     )
 
 
-PROMPT_TEMPLATE = """\
-你在分析一个工具环境的**直接前置依赖**。
+def _build_decision_prompt(
+    target: dict[str, Any],
+    candidates: list[dict[str, Any]],
+    context: dict[str, Any],
+    assessments: list[dict[str, Any]],
+) -> str:
+    """Build the second-round prompt that classifies validated evidence."""
+    return DECISION_PROMPT_TEMPLATE.format(
+        environment=json.dumps(context, ensure_ascii=False, indent=2),
+        target=json.dumps(target, ensure_ascii=False, indent=2),
+        candidates=json.dumps(candidates, ensure_ascii=False, indent=2),
+        assessments=json.dumps(assessments, ensure_ascii=False, indent=2),
+    )
 
-环境上下文（含资源与业务规则）：
+
+EVIDENCE_PROMPT_TEMPLATE = """\
+你在分析有向工具图中的候选关系 A -> B。本轮只提取可核对的事实，不决定是否连边，
+不分配 weight，也不判断 prerequisite。
+
+环境公开上下文：
 {environment}
 
-目标工具（本次要判定它的前置工具）：
+目标工具 B：
 {target}
 
-候选工具（不含目标自身）：
+候选工具 A（不含 B 自身）：
 {candidates}
 
-任务：从候选中找出为了完成一次**有意义的** `{target_name}` 调用，必须或应当
-先调用的工具。
+固定判断视角：假设某个候选工具 A 已经成功执行。只考虑公开工具契约能够支持的
+具体任务场景，判断在 B 的其他硬前置已经满足时，B 能否直接作为下一次工具调用。
+不要改问“B 在所有其他任务中能否独立执行”。调用方可能提前知道某个值、或者另一个
+工具也可能提供这个值，都不能否定当前 A -> B 路径中真实存在的数据或状态交接。
 
-判定标准
-- 必须存在具体依据：候选工具产生的**参数值**或**资源状态**被 `{target_name}`
-  直接使用。工具视图中 `out` 是输出字段路径，`in` 是参数名与类型。
-- 反例：仅字段同名、类型相同或主题相似**都不构成依赖**。例如某个列表工具的
-  输出里有 `severity`，而目标的参数也叫 `severity`，这不代表必须先调列表工具 ——
-  该值可以由用户直接给出。
-- 只要直接前置。若 A 是 B 的前置、B 是本目标的前置，而 A 对本目标没有独立的
-  直接依据，就不要列出 A。
-- 只列出真正必需的前置工具，不要为了凑数而列。
+对每个候选分别分析：
 
-weight 表示**依赖强度**，不是你对答案的置信度：
+1. immediate_next：A 成功后，不调用其他工具，B 是否可以成为合理的下一次调用。
+   从 A 返回的列表中选择一个元素，以及填写普通的人类可决定文本，不算调用其他工具。
+2. intermediate_tool_required：A 与 B 之间是否必须调用另一个工具完成查询、验证、
+   转换、解析或目标对象发现。若是，必须写 true。
+3. connection：只选择最具体的一项：
+   - required_input：A 的结果可填入 B 的必填输入；
+   - optional_input：A 的结果可填入 B 的可选输入；
+   - required_state：A 创建或建立了 B 本次执行所需的实体或状态；
+   - state_observation：B 会直接读取、核验或呈现 A 刚改变的状态；
+   - workflow_transition：没有直接字段交接，但两个工作块存在明确的直接衔接；
+   - semantic_influence：A 的具体结果会影响 B 的参数选择、范围或验证方式；
+   - none：以上均不成立。
+4. value_origin：相关值是 A 新生成的、从结果中选出的、计算派生的、仅回显输入的，
+   还是不适用或无法从公开契约确认。
+5. evidence：用一句话指出 A 的具体输出/状态和 B 的具体输入/行为。不能只写字段同名、
+   类型相同、共享资源或主题相近。
+6. condition：只有关系需要额外业务条件时填写该条件，否则返回 null。
 
-- **3 必要的数据或状态交接**：目标需要一个具体参数或状态，该候选的输出或状态能
-  直接提供它，且从当前公开环境看它是获得该参数的必要来源。例如目标必须使用某个
-  动态 ID，而该候选返回这个 ID。
-  不能仅因为字段类型相同、名称相似，或两者处理同一资源，就判为 3。
-- **2 任务块之间的工作流转移**：环境中的工具能明确组成几个不同的工作块，该候选
-  所在的块完成后，目标所在的块是合理的下一阶段。不要求目标使用它的具体字段，
-  但必须有明确的业务工作流关系。并列子任务之间可以双向成立；不能仅因为属于同一
-  主题就判为 2。
-- **1 可能的语义来源或弱关联**：该候选功能明确、目标需求明确，且存在至少一个合乎
-  逻辑的调用场景，在该场景中它的返回结果可能直接满足目标的某个输入，或明显影响
-  目标的参数选择、范围或验证方式 —— 但没有足够证据证明它是必要前置或固定的任务块
-  转移。不要求它每次都返回目标值。
-  只有能说明具体组合场景和影响方式时才给出，不要把所有主题相近、
-  字段相似或理论上无法排除的组合都列为 1。
+直接性规则：
+- A -> B 和 B -> A 必须分别判断，不能因为一个方向成立而补出反向关系。
+- 若 A -> B -> C，而 A 到 C 必须经过 B 的验证、转换、解析、选择或状态处理，
+  则 A 不是 C 的直接来源。
+- 如果 C 同时需要 A 和 B，分析 A -> C 时可以假定 B 已在更早位置完成；
+  但必须明确 A 自己为 C 提供了哪一项独立前置。
+- 仅仅“可能有帮助”“属于同一主题”或“某段文本理论上可以写进任意文本字段”，
+  connection 必须为 none。
 
-不建立边的情形（Level 0）：
-- 只有类型兼容或字段名称相似；
-- 只有共同读取同一资源，或属于同一业务主题；
-- 该工具的具体结果对目标工具无影响。
+必须恰好返回每一个候选一次，顺序与候选列表一致。只返回 JSON object：
 
-判断顺序：对每个候选依次问 —— 是否是必要的数据或状态交接（3）？是否是明确的
-任务块工作流转移（2）？是否存在具体、合理但非必要的语义来源（1）？否则不建边。
-
-只返回如下 JSON object，不要输出其他内容。每一个工具都要进行评判，不建边对应weight=0
-
-{{"dependencies": [
-  {{"from_tool": "候选工具名",
-    "weight": 0-3,
-    "reason": "具体说明该工具和目标工具的关联，以及为什么属于该等级"
+{{"assessments":[
+  {{
+    "from_tool":"候选工具名",
+    "immediate_next":true,
+    "intermediate_tool_required":false,
+    "connection":"required_input",
+    "value_origin":"selected",
+    "evidence":"候选输出中的某个动态值可直接填入目标的某个必填输入",
+    "condition":null
   }}
 ]}}
 
-每项只包含 from_tool、weight、reason 三个字段，不要添加其他字段。
+每项只能包含上述七个字段，不要输出其他内容。
 """
 
 
-def _request_dependencies(result: InferenceResult, target_name: str) -> list[dict[str, Any]]:
-    """只取出 ``dependencies`` 列表元素，不校验元素内容。
+DECISION_PROMPT_TEMPLATE = """\
+你在为有向工具图中的候选关系 A -> B 作最终分类。你会看到公开工具定义和上一轮的
+事实分析。本轮决定每条边的 weight，并为目标 B 汇总 prerequisite 完整组合。
 
-    这是本阶段唯一消费 LLM 输出的地方。只做与结构有关的一件事：确认顶层存在
-    ``dependencies`` 且是 list，然后原样返回其元素；元素内容交给
-    ``_validate_edges``。两者不合并，因为"模型没按格式回答"和"模型给了越界
-    结论"需要不同的处置（前者调 max_tokens 或改 prompt，后者查 prompt 语义）。
+环境公开上下文：
+{environment}
 
-    绝不能把解析失败当成"该目标没有前置边"返回空列表 —— 那会让一次格式错误
-    伪装成一个真实的图结构结论。
-    """
-    try:
-        payload = parse_json_object(result.text)
-    except MalformedJSONError as error:
-        raise ValueError(f"目标 {target_name} 的 LLM 回复无法解析：{error}") from error
-    if "dependencies" not in payload:
-        raise ValueError(f"目标 {target_name} 的 LLM 回复缺少 dependencies 字段")
-    raw_edges = payload["dependencies"]
-    if not isinstance(raw_edges, list):
-        raise ValueError(
-            f"目标 {target_name} 的 dependencies 必须是数组，实际是 {type(raw_edges).__name__}"
-        )
-    return raw_edges
+目标工具 B：
+{target}
+
+候选工具 A：
+{candidates}
+
+上一轮事实分析：
+{assessments}
+
+固定判断视角：假设 A 已成功执行，判断在一个由公开契约支持的具体路径中，B 是否适合
+作为下一次工具调用。不要因为 B 在别的任务中可以独立执行、调用方可能已经知道参数、
+或其他工具也能提供参数，而否定当前 A -> B 路径。
+
+先判断是否连边：
+- immediate_next=false，或者 intermediate_tool_required=true：weight=0。
+- connection=none，或者 evidence 只有字段同名、类型相同、共享资源、主题相近：weight=0。
+- 其他情况再判断 weight；全部候选判断完成后，再单独汇总 prerequisite 组合。
+
+prerequisite 只表示链历史约束：在本流水线生成的任务链中，执行 B 以前，哪些工具组合
+必须已经执行，才能取得 B 所需且不能作为自然任务输入直接提供的动态值、实体或资源状态。
+
+- prerequisite_alternatives 是任选关系：其中任意一个方案满足，B 就具备工具历史前置。
+- 每个方案的 all_of 是同时关系：该方案列出的工具必须全部已经执行。
+- 如果 A、B 必须共同准备目标 C，写一个 all_of=[A,B] 的方案。
+- 如果 A 或 D 任意一个都能独立准备目标 C，写两个方案：all_of=[A] 和 all_of=[D]。
+- A 只回显自己的输入值，不能仅据此进入 prerequisite 方案。
+- 可选输入、改善结果、辅助验证、影响选择或自然工作流不进入 prerequisite 方案。
+- 没有硬前置时 prerequisite_alternatives 返回空数组。
+- prerequisite 中出现的工具必须对目标存在 weight>0 的直接边，不能凭空引用候选。
+
+weight 只表示 B 作为 A 的直接下一跳有多强的依据，不表示 prerequisite、采样概率或
+模型置信度：
+
+- 3 强直接关系：A 产生或改变的具体值、实体或状态被 B 直接使用，关系明确。
+- 2 明确工作流转移：没有足够依据判为 3，但 A 完成的工作块与 B 开始的工作块存在
+  清楚、直接、常规的业务衔接。
+- 1 具体的弱关系：存在公开契约支持的合理场景，A 的具体结果会直接影响 B 的可选输入、
+  范围、判断或验证方式，但不是强交接或固定工作流。
+- 0 无直接关系：只存在主题、字段名、类型或共享资源关联，或者中间需要其他工具。
+
+weight 与 prerequisite 组合必须分别判断，不能把所有 weight=3 的来源自动合并成一个
+all_of 方案，也不能因为某条边不属于 prerequisite 就降低它本来明确的关系等级。
+
+反例：
+- A 返回 B 需要的动态 ID；即使调用方可能提前知道该 ID，当前选定路径仍可构成强交接。
+- A 只把调用 A 时已有的 ID 原样返回；回显本身不产生新的 prerequisite 方案。
+- A 与 C 属于同一个长任务，但必须先调用 B 完成验证或转换；A -> C 应为 weight=0。
+- A 的结果只是在理论上可能被写入 B 的任意文本字段，没有明确用途；应为 weight=0。
+
+每条边的 reason 必须说明 A 的哪项具体结果或状态被 B 如何使用、为什么能够直接相邻、
+以及为何属于该 weight。每个 prerequisite 方案的 reason 必须说明为什么 all_of 中的工具
+需要共同完成，以及不同方案为什么可以互相替代。不要复述规则，不要使用“可能相关”
+作为唯一理由。
+
+必须恰好返回每一个候选一次，顺序与候选列表一致。不连边也必须返回 weight=0。
+只返回 JSON object：
+
+{{
+  "decisions":[
+    {{
+      "from_tool":"候选工具名",
+      "weight":3,
+      "reason":"候选选出的动态标识可直接填入目标的必填标识参数；目标可立即操作该对象"
+    }}
+  ],
+  "prerequisite_alternatives":[
+    {{
+      "all_of":["候选工具名"],
+      "reason":"该方案产生目标本次调用不可从自然任务文本直接取得的动态标识"
+    }}
+  ]
+}}
+
+decisions 每项只能包含 from_tool、weight、reason；prerequisite_alternatives 每项只能
+包含 all_of、reason。不要输出其他字段。
+"""
 
 
-def _validate_edges(
+def _request_json_object(
+    result: InferenceResult,
     target_name: str,
-    raw_edges: list[dict[str, Any]],
-    tool_names: set[str],
-) -> tuple[list[dict[str, Any]], set[str]]:
-    """校验并归一化单个目标的边，填入 ``to_tool``；本阶段的信任边界。
+    round_name: str,
+) -> dict[str, Any]:
+    """Parse one LLM response without attempting lossy JSON repair."""
+    try:
+        return parse_json_object(result.text)
+    except MalformedJSONError as error:
+        raise ValueError(f"目标 {target_name} 的{round_name}回复无法解析：{error}") from error
 
-    在本函数之前的数据一律视为不可信 LLM 输出；之后的数据保证工具名有效、
-    ``weight`` 合法、``reason`` 非空。因此 ``_assemble_graph`` 不再重复单条边的
-    字段校验。
 
-    返回 ``(边列表, 已审查候选名集合)``。后者包含全部被明确表态的候选，
-    含 ``weight=0`` 的"已审查、无依赖"，用于完整性检查。
-    """
-    edges: list[dict[str, Any]] = []
+def _request_assessments(
+    result: InferenceResult,
+    target_name: str,
+) -> list[dict[str, Any]]:
+    payload = _request_json_object(result, target_name, "第一轮")
+    if set(payload) != {"assessments"} or not isinstance(payload["assessments"], list):
+        raise ValueError(f"目标 {target_name} 的第一轮回复必须只含 assessments 数组")
+    return payload["assessments"]
+
+
+def _validate_assessments(
+    target_name: str,
+    raw_assessments: list[dict[str, Any]],
+    tool_names: set[str] | list[str],
+) -> list[dict[str, Any]]:
+    """Validate the complete first-round evidence assessment for one target."""
+    if not isinstance(raw_assessments, list):
+        raise ValueError(f"目标 {target_name} 的 assessments 必须是 array")
+    expected_order = sorted(tool_names) if isinstance(tool_names, set) else list(tool_names)
+    expected_order = [name for name in expected_order if name != target_name]
+    expected = set(expected_order)
     reviewed: set[str] = set()
-    for index, raw in enumerate(raw_edges):
-        label = f"目标 {target_name} 的 dependencies[{index}]"
-        if not isinstance(raw, dict):
-            raise ValueError(f"{label} 必须是 object，实际是 {type(raw).__name__}")
+    validated: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_assessments):
+        label = f"目标 {target_name} 的 assessments[{index}]"
+        if not isinstance(item, dict) or set(item) != ASSESSMENT_FIELDS:
+            raise ValueError(f"{label} 字段必须恰好为 {sorted(ASSESSMENT_FIELDS)}")
+        source = item["from_tool"]
+        if source not in expected or source in reviewed:
+            raise ValueError(f"{label}.from_tool 未知、重复或为目标自身：{source!r}")
+        if type(item["immediate_next"]) is not bool:
+            raise ValueError(f"{label}.immediate_next 必须是 bool")
+        if type(item["intermediate_tool_required"]) is not bool:
+            raise ValueError(f"{label}.intermediate_tool_required 必须是 bool")
+        if item["immediate_next"] and item["intermediate_tool_required"]:
+            raise ValueError(f"{label} 的 immediate_next 与 intermediate_tool_required 冲突")
+        if item["connection"] not in ASSESSMENT_CONNECTIONS:
+            raise ValueError(f"{label}.connection 非法：{item['connection']!r}")
+        if item["value_origin"] not in VALUE_ORIGINS:
+            raise ValueError(f"{label}.value_origin 非法：{item['value_origin']!r}")
+        evidence = item["evidence"]
+        if not isinstance(evidence, str) or not evidence.strip():
+            raise ValueError(f"{label}.evidence 必须是非空字符串")
+        condition = item["condition"]
+        if condition is not None and not isinstance(condition, str):
+            raise ValueError(f"{label}.condition 必须是字符串或 null")
+        reviewed.add(source)
+        validated.append(item)
+    missing = sorted(expected - reviewed)
+    if missing:
+        raise ValueError(f"目标 {target_name} 的 assessments 漏审：{', '.join(missing)}")
+    order = {name: index for index, name in enumerate(expected_order)}
+    return sorted(validated, key=lambda item: order[item["from_tool"]])
 
-        from_tool = raw.get("from_tool")
-        if from_tool not in tool_names:
-            raise ValueError(f"{label}.from_tool 引用未知工具：{from_tool!r}")
-        # 自环就地丢弃，不留到装配阶段：目标自己不可能是自己的前置。
-        if from_tool == target_name:
-            continue
-        reviewed.add(from_tool)
 
-        weight = raw.get("weight")
-        if isinstance(weight, bool) or weight not in WEIGHTS:
-            raise ValueError(f"{label}.weight 必须是 0/1/2/3 之一，实际是 {weight!r}")
-        # weight=0 是有效输出，表示"已审查该候选，判定无依赖"。它是完整性信号，
-        # 不是错误：prompt 要求模型对每个候选都给出结论，据此才能确认没有漏审。
-        # 已计入 reviewed，但不进入 tool_graph —— 图只保存真实存在的边。
-        if weight == 0:
-            continue
+def _validate_decisions(
+    target_name: str,
+    payload: dict[str, Any],
+    assessments: list[dict[str, Any]],
+    tool_names: set[str] | list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Validate second-round edge decisions and target prerequisite alternatives."""
+    if not isinstance(payload, dict) or set(payload) != {
+        "decisions", "prerequisite_alternatives"
+    }:
+        raise ValueError(
+            f"目标 {target_name} 的第二轮结果必须只含 decisions 和 prerequisite_alternatives"
+        )
+    raw_decisions = payload["decisions"]
+    alternatives = payload["prerequisite_alternatives"]
+    if not isinstance(raw_decisions, list) or not isinstance(alternatives, list):
+        raise ValueError(f"目标 {target_name} 的第二轮数组字段非法")
 
-        reason = raw.get("reason")
-        if not isinstance(reason, str) or not reason.strip():
+    expected_order = sorted(tool_names) if isinstance(tool_names, set) else list(tool_names)
+    expected_order = [name for name in expected_order if name != target_name]
+    expected = set(expected_order)
+    assessment_by_source = {item["from_tool"]: item for item in assessments}
+    reviewed: set[str] = set()
+    positive: set[str] = set()
+    edges: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_decisions):
+        label = f"目标 {target_name} 的 decisions[{index}]"
+        if not isinstance(item, dict) or set(item) != {"from_tool", "weight", "reason"}:
+            raise ValueError(f"{label} 字段必须恰好为 from_tool、weight、reason")
+        source = item["from_tool"]
+        if source not in expected or source in reviewed:
+            raise ValueError(f"{label}.from_tool 未知、重复或为目标自身：{source!r}")
+        weight = item["weight"]
+        if type(weight) is not int or weight not in WEIGHTS:
+            raise ValueError(f"{label}.weight 必须是 0/1/2/3")
+        reason = item["reason"]
+        if not isinstance(reason, str) or (weight and not reason.strip()):
             raise ValueError(f"{label}.reason 必须是非空字符串")
-
-        edges.append(
-            {
-                "from_tool": from_tool,
-                # to_tool 由本地按当前目标填入，不采信 LLM 可能自带的同名字段。
+        assessment = assessment_by_source.get(source)
+        if assessment is None:
+            raise ValueError(f"{label} 在第一轮中不存在")
+        if weight and (
+            not assessment["immediate_next"]
+            or assessment["intermediate_tool_required"]
+            or assessment["connection"] == "none"
+        ):
+            raise ValueError(f"{label} 与第一轮的非直接判断冲突")
+        reviewed.add(source)
+        if weight:
+            positive.add(source)
+            edges.append({
+                "from_tool": source,
                 "to_tool": target_name,
                 "weight": weight,
                 "reason": reason.strip(),
-            }
-        )
-    return edges, reviewed
+            })
+    missing = sorted(expected - reviewed)
+    if missing:
+        raise ValueError(f"目标 {target_name} 的 decisions 漏审：{', '.join(missing)}")
+
+    normalized_alternatives: list[dict[str, Any]] = []
+    seen_alternatives: set[tuple[str, ...]] = set()
+    for index, item in enumerate(alternatives):
+        label = f"目标 {target_name} 的 prerequisite_alternatives[{index}]"
+        if not isinstance(item, dict) or set(item) != {"all_of", "reason"}:
+            raise ValueError(f"{label} 字段必须恰好为 all_of、reason")
+        required = item["all_of"]
+        if (
+            not isinstance(required, list)
+            or not required
+            or any(not isinstance(name, str) for name in required)
+            or len(required) != len(set(required))
+        ):
+            raise ValueError(f"{label}.all_of 必须是非空、无重复的工具名数组")
+        required_key = tuple(sorted(required))
+        if set(required_key) - positive:
+            raise ValueError(f"{label} 只能引用目标工具的正边")
+        if required_key in seen_alternatives:
+            continue
+        reason = item["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError(f"{label}.reason 必须是非空字符串")
+        seen_alternatives.add(required_key)
+        normalized_alternatives.append({
+            "all_of": list(required_key),
+            "reason": reason.strip(),
+        })
+
+    prerequisites = []
+    if normalized_alternatives:
+        prerequisites.append({
+            "to_tool": target_name,
+            "any_of": normalized_alternatives,
+        })
+    return edges, prerequisites
 
 
 def _assemble_graph(
     edges_by_target: dict[str, list[dict[str, Any]]],
+    prerequisites_by_target: dict[str, list[dict[str, Any]]],
     tool_names: list[str],
-) -> list[dict[str, Any]]:
-    """去重并稳定排序；这是装配的全部职责。
-
-    只接受已通过 ``_validate_edges`` 的边，不再重复单条边的字段校验。
-    不限制入度、不检查零入度工具、不检查环、不做传递闭包消减 —— 本阶段对图的
-    拓扑性质不作任何要求，LLM 判出多少边就输出多少边。
-    """
-    # 同一 (from_tool, to_tool) 只保留一条，保留首次出现的那条。
+) -> dict[str, Any]:
+    """Deduplicate and deterministically order validated graph records."""
     unique: dict[tuple[str, str], dict[str, Any]] = {}
     for target in tool_names:
         for edge in edges_by_target.get(target) or []:
             unique.setdefault((edge["from_tool"], edge["to_tool"]), edge)
-
-    # 稳定排序：weight 降序 → from_tool → to_tool，便于重跑 diff。
-    return sorted(
+    edges = sorted(
         unique.values(),
         key=lambda edge: (-edge["weight"], edge["from_tool"], edge["to_tool"]),
     )
+    prerequisites = [
+        item
+        for target in tool_names
+        for item in prerequisites_by_target.get(target) or []
+    ]
+    return {"edges": edges, "prerequisites": prerequisites}
