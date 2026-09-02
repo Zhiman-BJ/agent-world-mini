@@ -341,12 +341,19 @@ VALUE_ORIGINS = {
     "not_applicable",
     "unknown",
 }
+INPUT_AVAILABILITIES = {
+    "runtime_only",
+    "task_input",
+    "not_applicable",
+    "unknown",
+}
 ASSESSMENT_FIELDS = {
     "from_tool",
     "immediate_next",
     "intermediate_tool_required",
     "connection",
     "value_origin",
+    "input_availability",
     "evidence",
     "condition",
 }
@@ -626,9 +633,16 @@ EVIDENCE_PROMPT_TEMPLATE = """\
    - `echoed`：A 仅原样回显自己的输入；
    - `not_applicable`：当前关系不涉及值来源；
    - `unknown`：公开契约无法确认来源。
-5. evidence：用一句话指出 A 的具体输出/状态和 B 的具体输入/行为。不能只写字段同名、
+5. input_availability：只能填写以下四个字符串之一：
+   - `runtime_only`：B 需要的动态标识、句柄、实体或状态只能在工具运行后取得，不能作为
+     自然任务描述中的业务信息直接提供；
+   - `task_input`：名称、标题、描述、目标状态、分类、筛选条件等普通业务信息可以自然地
+     写在任务描述中；
+   - `not_applicable`：当前关系不涉及向 B 提供输入或所需状态；
+   - `unknown`：公开契约无法判断。
+6. evidence：用一句话指出 A 的具体输出/状态和 B 的具体输入/行为。不能只写字段同名、
    类型相同、共享资源或主题相近。
-6. condition：只有关系需要额外业务条件时填写该条件，否则返回 null。
+7. condition：只有关系需要额外业务条件时填写该条件，否则返回 null。
 
 直接性规则：
 - A -> B 和 B -> A 必须分别判断，不能因为一个方向成立而补出反向关系。
@@ -638,9 +652,16 @@ EVIDENCE_PROMPT_TEMPLATE = """\
   但必须明确 A 自己为 C 提供了哪一项独立前置。
 - 如果 B 创建新实体，且它的标识由调用方为新实体指定或重复标识会被拒绝，A 返回的
   已有实体标识不能当作 B 的 required_input；A 的其他结果仍可按实际用途判断。
+- 查询工具把调用时用于定位对象的键放进结果对象，即使字段嵌套或同时返回其他详情，
+  该定位键仍是 echoed，不是 selected；selected 只表示从 A 新返回的候选集合中作选择。
+- state_observation 的依据是 A 改变了 B 随后读取的状态，不是 A 回显的定位键；此时
+  value_origin 和 input_availability 均填 not_applicable。
 - A 的功能和具体结果能明确决定 B 的文本、范围或选择时，可以是 semantic_influence；
   但仅仅“可能有帮助”“属于同一主题”或“任意文本理论上都能写入文本字段”仍是 none。
-  evidence 必须写出该结果在 B 中的明确用途。
+  evidence 必须写出该结果在 B 中的明确用途。A 不必提供 B 的全部必填输入；其他输入
+  已满足时，只要 A 的确定结果确实会改变 B 的调用内容，仍是直接的弱关系。
+- semantic_influence 必须改变 B 的调用参数、范围或动作内容。对于无参数且行为固定的
+  查询，A 的结果不能改变 B 的调用；仅帮助解释或对照 B 的固定输出不算 semantic_influence。
 
 必须恰好返回每一个候选一次，顺序与候选列表一致。只返回 JSON object：
 
@@ -651,6 +672,7 @@ EVIDENCE_PROMPT_TEMPLATE = """\
     "intermediate_tool_required":false,
     "connection":"required_input",
     "value_origin":"selected",
+    "input_availability":"runtime_only",
     "evidence":"候选输出中的某个动态值可直接填入目标的某个必填输入",
     "condition":null
   }}
@@ -693,6 +715,11 @@ prerequisite 只表示链历史约束：在本流水线生成的任务链中，�
 - 如果 A、B 必须共同准备目标 C，写一个 all_of=[A,B] 的方案。
 - 如果 A 或 D 任意一个都能独立准备目标 C，写两个方案：all_of=[A] 和 all_of=[D]。
 - A 只回显自己的输入值，不能仅据此进入 prerequisite 方案。
+- 只有上一轮 input_availability=runtime_only，且值确由 A 生成、选择或推导的来源，才能
+  进入 prerequisite 方案。普通名称、标题、描述、分类、期望状态、筛选条件等可以自然
+  写进任务的业务信息，不构成全局硬前置。
+- “新标识不得重复”不等于必须先查询已有标识；如果调用方可以自行生成或指定新标识，
+  查询工具不是创建工具的 prerequisite。只有契约明确要求通过工具分配时才是硬前置。
 - 可选输入、改善结果、辅助验证、影响选择或自然工作流不进入 prerequisite 方案。
 - 没有硬前置时 prerequisite_alternatives 返回空数组。
 - prerequisite 中出现的工具必须对目标存在 weight>0 的直接边，不能凭空引用候选。
@@ -713,6 +740,8 @@ all_of 方案，也不能因为某条边不属于 prerequisite 就降低它本�
 等级上限必须遵守：semantic_influence 最多为 1；workflow_transition 和 optional_input
 最多为 2；如果唯一依据是 A 回显调用 A 时已有的值（value_origin=echoed），最多为 1；
 value_origin=unknown 时也最多为 1。不能只因某字段可填入 B 的必填参数就突破这些上限。
+state_observation 表示 A 已实际改变状态且 B 直接读取该新状态，必须为 3；用于定位状态
+的标识即使来自 A 的输入回显，也不能降低这项状态关系。
 
 反例：
 - A 返回 B 需要的动态 ID；即使调用方可能提前知道该 ID，当前选定路径仍可构成强交接。
@@ -801,6 +830,10 @@ def _validate_assessments(
             raise ValueError(f"{label}.connection 非法：{item['connection']!r}")
         if item["value_origin"] not in VALUE_ORIGINS:
             raise ValueError(f"{label}.value_origin 非法：{item['value_origin']!r}")
+        if item["input_availability"] not in INPUT_AVAILABILITIES:
+            raise ValueError(
+                f"{label}.input_availability 非法：{item['input_availability']!r}"
+            )
         evidence = item["evidence"]
         if not isinstance(evidence, str) or not evidence.strip():
             raise ValueError(f"{label}.evidence 必须是非空字符串")
@@ -878,6 +911,8 @@ def _validate_decisions(
                 f"{label}.weight 超过 {assessment['connection']}/"
                 f"{assessment['value_origin']} 的上限 {maximum_weight}"
             )
+        if assessment["connection"] == "state_observation" and weight != 3:
+            raise ValueError(f"{label}.state_observation 必须使用 weight=3")
         reviewed.add(source)
         if weight:
             positive.add(source)
@@ -908,6 +943,22 @@ def _validate_decisions(
         required_key = tuple(sorted(required))
         if set(required_key) - positive:
             raise ValueError(f"{label} 只能引用目标工具的正边")
+        invalid_sources = [
+            name for name in required_key
+            if assessment_by_source[name]["connection"] not in {
+                "required_input", "required_state"
+            }
+            or assessment_by_source[name]["input_availability"] != "runtime_only"
+            or assessment_by_source[name]["value_origin"] not in {
+                "generated", "selected", "derived"
+            }
+        ]
+        if invalid_sources:
+            raise ValueError(
+                f"{label} 只能引用 required_input/required_state、"
+                f"input_availability=runtime_only 且由来源工具产生的输入："
+                f"{', '.join(invalid_sources)}"
+            )
         if required_key in seen_alternatives:
             continue
         reason = item["reason"]

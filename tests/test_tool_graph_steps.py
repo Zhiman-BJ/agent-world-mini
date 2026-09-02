@@ -96,6 +96,9 @@ class GraphBuildTest(unittest.TestCase):
             "intermediate_tool_required": intermediate,
             "connection": connection,
             "value_origin": "selected" if connection != "none" else "not_applicable",
+            "input_availability": (
+                "runtime_only" if connection != "none" else "not_applicable"
+            ),
             "evidence": f"evidence for {source}",
             "condition": None,
         }
@@ -108,6 +111,7 @@ class GraphBuildTest(unittest.TestCase):
                 "intermediate_tool_required": False,
                 "connection": "required_input",
                 "value_origin": "selected",
+                "input_availability": "runtime_only",
                 "evidence": "a returns the identifier required by b",
                 "condition": None,
             },
@@ -117,6 +121,7 @@ class GraphBuildTest(unittest.TestCase):
                 "intermediate_tool_required": True,
                 "connection": "none",
                 "value_origin": "not_applicable",
+                "input_availability": "not_applicable",
                 "evidence": "another tool must convert the result before b",
                 "condition": None,
             },
@@ -125,6 +130,32 @@ class GraphBuildTest(unittest.TestCase):
         assessments = graph_build._validate_assessments("b", raw, {"a", "b", "c"})
 
         self.assertEqual(assessments, raw)
+
+    def test_rejects_task_input_as_prerequisite(self) -> None:
+        assessments = [self._assessment("a") | {"input_availability": "task_input"}]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 3, "reason": "a supplies b's name"}],
+            "prerequisite_alternatives": [{
+                "all_of": ["a"],
+                "reason": "a supplies a name that can be stated in the task",
+            }],
+        }
+
+        with self.assertRaisesRegex(ValueError, "runtime_only"):
+            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+
+    def test_rejects_non_required_connection_as_prerequisite(self) -> None:
+        assessments = [self._assessment("a", connection="semantic_influence")]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 1, "reason": "a influences b"}],
+            "prerequisite_alternatives": [{
+                "all_of": ["a"],
+                "reason": "semantic influence is not a hard prerequisite",
+            }],
+        }
+
+        with self.assertRaisesRegex(ValueError, "required_input|required_state"):
+            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
 
     def test_evidence_prompt_names_every_allowed_value_origin_literal(self) -> None:
         prompt = graph_build._build_evidence_prompt(
@@ -140,6 +171,7 @@ class GraphBuildTest(unittest.TestCase):
             "intermediate_tool_required": True,
             "connection": "required_input",
             "value_origin": "selected",
+            "input_availability": "runtime_only",
             "evidence": "claims both direct and indirect",
             "condition": None,
         }]
@@ -251,6 +283,15 @@ class GraphBuildTest(unittest.TestCase):
         }
         edges, _prerequisites = graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
         self.assertEqual(edges[0]["weight"], 3)
+
+    def test_rejects_weak_state_observation(self) -> None:
+        assessments = [self._assessment("a", connection="state_observation") | {"value_origin": "echoed"}]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 1, "reason": "incorrect downgrade"}],
+            "prerequisite_alternatives": [],
+        }
+        with self.assertRaisesRegex(ValueError, "state_observation"):
+            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
 
     def test_rejects_weight_above_connection_strength(self) -> None:
         for connection, weight in (("semantic_influence", 2), ("workflow_transition", 3), ("optional_input", 3)):
