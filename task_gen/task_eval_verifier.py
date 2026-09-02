@@ -6,6 +6,7 @@ import ast
 import hashlib
 import json
 from pathlib import Path
+import re
 import tempfile
 from typing import Any, Callable
 
@@ -25,8 +26,7 @@ _BANNED_CALLS = {
 }
 _BANNED_NODES = (
     ast.AsyncFunctionDef, ast.Await, ast.ClassDef, ast.Delete, ast.Global, ast.Import,
-    ast.ImportFrom, ast.Nonlocal, ast.Raise, ast.Try, ast.With, ast.AsyncWith,
-    ast.Yield, ast.YieldFrom,
+    ast.ImportFrom, ast.Nonlocal, ast.Raise, ast.With, ast.AsyncWith,
 )
 InferFn = Callable[..., InferenceResult]
 
@@ -315,6 +315,7 @@ def run_verifier(
             not isinstance(ref, str) or not _valid_evidence_ref(ref, evidence) for ref in result["evidence_refs"]
         ):
             raise ValueError("verifier 返回了无效 evidence_refs")
+        result["evidence_refs"] = list(dict.fromkeys(result["evidence_refs"]))
     if seen != requirements:
         raise ValueError("verifier 未返回每一项 requirement 的结果")
     results = payload["results"]
@@ -322,9 +323,10 @@ def run_verifier(
     if semantic_results and semantic_infer_fn is None:
         raise ValueError("verifier 包含 semantic_requirement，但未提供语义评审器")
     if semantic_infer_fn is not None:
+        requirements_by_id = {item["id"]: item for item in package["requirements"]}
         for item in semantic_results:
             response = semantic_infer_fn(
-                _semantic_prompt(item, evidence),
+                _semantic_prompt(item, evidence, requirements_by_id[item["requirement_id"]]),
                 llm_config=llm_config or {},
             )
             semantic = _parse_semantic_result(response.text)
@@ -342,9 +344,9 @@ def _parse_semantic_result(text: str) -> dict[str, str]:
     try:
         value = parse_json_object(text)
     except ValueError:
-        import re
-
         match = re.fullmatch(r"\s*status\s*:\s*(pass|fail|indeterminate)\s+reason\s*:\s*(.+?)\s*", text, re.I | re.S)
+        if not match:
+            match = re.fullmatch(r"\s*(pass|fail|indeterminate)\s*[：:]\s*(.+?)\s*", text, re.I | re.S)
         if not match:
             raise
         value = {"status": match.group(1).lower(), "reason": match.group(2).strip()}
@@ -353,7 +355,11 @@ def _parse_semantic_result(text: str) -> dict[str, str]:
     return value
 
 
-def _semantic_prompt(result: dict[str, Any], evidence: dict[str, Any]) -> str:
+def _semantic_prompt(
+    result: dict[str, Any],
+    evidence: dict[str, Any],
+    requirement: dict[str, Any],
+) -> str:
     refs = result["evidence_refs"]
     selected: dict[str, Any] = {
         "answer": evidence.get("answer", "") if "answer" in refs else "",
@@ -374,11 +380,21 @@ def _semantic_prompt(result: dict[str, Any], evidence: dict[str, Any]) -> str:
         elif reference.startswith(("initial:", "final:")):
             state, path = reference.split(":", 1)
             key = state + "_files"
-            selected[key].extend(item for item in evidence.get(key, []) if item.get("path") == path)
+            item = next((item for item in evidence.get(key, []) if item.get("path") == path), None)
+            if item is not None:
+                item = dict(item)
+                if state == "final" and "text" not in item and "json" not in item:
+                    initial = next((candidate for candidate in evidence.get("initial_files", [])
+                                    if candidate.get("path") == path), None)
+                    if initial is not None and initial.get("sha256") == item.get("sha256"):
+                        item.update({field: initial[field] for field in ("text", "json", "truncated")
+                                     if field in initial})
+                selected[key].append(item)
     return json.dumps({
         "role": "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。",
         "requirement_id": result["requirement_id"],
         "claim": result["reason"],
+        "requirement": requirement,
         "evidence_refs": refs,
         "evidence": selected,
         "response_contract": {
@@ -414,6 +430,7 @@ def generate_verifier(
     llm_config: dict[str, Any],
     infer_fn: InferFn = infer,
     previous_failure: str | None = None,
+    previous_verifier: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Ask the model for a constrained verifier package, then validate it."""
     request = {
@@ -426,6 +443,8 @@ def generate_verifier(
                 "source 不得导入模块、访问路径、启动进程、写文件或硬编码参考执行的动态 ID。",
                 "不得把参考执行中偶然出现的具体 ID、时间戳或固定文本值当作通用通过条件；只能检查任务要求及证据结构。",
                 "工具调用链只是可用证据，不是标准答案；任务未明确要求时，不得把调用某个工具、调用顺序或调用次数作为成功条件。",
+                "业务名称、路径和枚举值按任务语义匹配；除任务明确指定父路径或字面格式外，不得照搬参考执行的完整字符串作为唯一条件。",
+                "公开工具若只返回计算结果且没有写入能力，不得虚构输出文件；任务未明确要求落盘时，工具结果和最终回答可以证明结果已生成并保留。",
                 "路径和数据结构只能使用 reference_evidence 中明确出现的事实，不得猜测。",
                 "文件只有元数据而没有 text/json 时，表示正文未放进生成提示；运行时仍可按该路径读取。",
                 "需要自然语言判断时调用 ctx.semantic_requirement(id, claim, evidence_refs)。",
@@ -468,6 +487,8 @@ def generate_verifier(
         }
     if previous_failure:
         request["previous_failure"] = previous_failure
+    if previous_verifier:
+        request["previous_verifier"] = previous_verifier
     response = infer_fn(
         json.dumps(request, ensure_ascii=False),
         llm_config=llm_config,
@@ -541,12 +562,14 @@ def prepare_verifier(
         raise ValueError("attempts 必须大于 0")
     history: list[dict[str, Any]] = []
     previous_failure: str | None = None
+    previous_verifier: dict[str, Any] | None = None
     for index in range(attempts):
         package: dict[str, Any] | None = None
         try:
             package = generate_verifier(
                 task, environment, reference_evidence, llm_config, infer_fn,
                 previous_failure=previous_failure,
+                previous_verifier=previous_verifier,
             )
             calibration = calibrate_verifier(
                 package, reference_evidence, empty_evidence,
@@ -554,6 +577,8 @@ def prepare_verifier(
             )
         except Exception as error:
             previous_failure = f"{type(error).__name__}: {error}"
+            if package is not None:
+                previous_verifier = package
             history.append({
                 "attempt": index + 1,
                 "error": previous_failure,

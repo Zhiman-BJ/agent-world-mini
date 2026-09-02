@@ -11,7 +11,9 @@ from unittest.mock import patch
 from task_gen.task_eval import (
     DEFAULT_INPUT_ROOT,
     _TaskEvalCodexClient,
+    _agent_prompt,
     _result_counts,
+    _run_agent,
     evaluate_case,
     load_cases,
     main,
@@ -151,6 +153,32 @@ class TaskEvalTest(unittest.TestCase):
         evidence = json.loads(prompts[0])["evidence"]
         self.assertEqual(evidence["answer"], "clear")
         self.assertEqual(evidence["calls"], [])
+        self.assertEqual(json.loads(prompts[0])["requirement"]["pass_condition"], "clear")
+
+    def test_semantic_evidence_deduplicates_refs_and_reuses_initial_content(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "source is valid", "required": True,
+                               "evidence_channels": ["workspace"], "pass_condition": "valid", "fail_condition": "invalid"}],
+            "source": "def verify(ctx):\n"
+            "    ctx.semantic_requirement('R1', 'source is valid', ['final:source.txt', 'final:source.txt'])\n",
+        }
+        prompts: list[str] = []
+
+        def semantic_infer(prompt: str, **_: object) -> InferenceResult:
+            prompts.append(prompt)
+            return InferenceResult('{"status":"pass","reason":"valid"}', {}, "test")
+
+        results = run_verifier(package, {
+            "answer": "", "calls": [], "changed_paths": [],
+            "initial_files": [{"path": "source.txt", "sha256": "same", "text": "content"}],
+            "final_files": [{"path": "source.txt", "sha256": "same"}],
+        }, semantic_infer_fn=semantic_infer)
+
+        request = json.loads(prompts[0])
+        self.assertEqual(results[0]["evidence_refs"], ["final:source.txt"])
+        self.assertEqual(len(request["evidence"]["final_files"]), 1)
+        self.assertEqual(request["evidence"]["final_files"][0]["text"], "content")
 
     def test_semantic_result_accepts_unambiguous_status_reason_text(self) -> None:
         package = {
@@ -170,6 +198,13 @@ class TaskEvalTest(unittest.TestCase):
 
         self.assertEqual(results[0]["status"], "pass")
         self.assertEqual(results[0]["reason"], "the answer is clear")
+
+        colon_results = run_verifier(
+            package,
+            {"answer": "clear", "calls": [], "changed_paths": [], "initial_files": [], "final_files": []},
+            semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult("pass：clear answer", {}, "test"),
+        )
+        self.assertEqual(colon_results[0]["status"], "pass")
 
     def test_verifier_runtime_does_not_use_process_working_directory_as_workspace(self) -> None:
         package = {
@@ -228,6 +263,31 @@ class TaskEvalTest(unittest.TestCase):
             "source": "def verify(ctx):\n"
             "    value = next(filter(lambda item: item == 1, [1]), None)\n"
             "    ctx.pass_requirement('R1', str(value), [])\n",
+        }
+
+        validate_verifier(package)
+
+    def test_verifier_allows_local_try_blocks(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "x", "required": True,
+                               "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+            "source": "def verify(ctx):\n"
+            "    try:\n        value = 1\n"
+            "    except ValueError:\n        value = 0\n"
+            "    ctx.pass_requirement('R1', str(value), [])\n",
+        }
+
+        validate_verifier(package)
+
+    def test_verifier_allows_local_generator_helpers(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "x", "required": True,
+                               "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+            "source": "def verify(ctx):\n"
+            "    def values():\n        yield 1\n"
+            "    ctx.pass_requirement('R1', str(list(values())), [])\n",
         }
 
         validate_verifier(package)
@@ -396,6 +456,7 @@ class TaskEvalTest(unittest.TestCase):
         prompts: list[str] = []
 
         def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
             prompts.append(prompt)
             return InferenceResult(json.dumps(next(responses)), {}, "test")
 
@@ -413,6 +474,34 @@ class TaskEvalTest(unittest.TestCase):
         self.assertIn("参考执行未通过", attempts[0]["error"])
         self.assertIsNone(attempts[1]["error"])
         self.assertIn("previous_failure", json.loads(prompts[1]))
+        self.assertEqual(json.loads(prompts[1])["previous_verifier"], bad)
+
+    def test_agent_prompt_states_the_tool_call_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            case = load_cases(self._write_case_at(root / "source"))[0]
+
+            prompt = json.loads(_agent_prompt(case, 7))
+
+            self.assertIn("7", prompt["role"])
+            self.assertIn("tool calls", prompt["role"])
+
+    def test_run_agent_propagates_llm_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            captured: dict[str, object] = {}
+
+            class FakeClient:
+                def __init__(self, *_args: object, **kwargs: object):
+                    captured.update(kwargs)
+
+                def run(self, _prompt: str, *, working_directory: Path) -> str:
+                    return str(working_directory)
+
+            with patch("task_gen.task_eval._TaskEvalCodexClient", FakeClient):
+                _run_agent("task", root, root / "server.json", root / "trace", {"timeout_seconds": 321})
+
+            self.assertEqual(captured["timeout_seconds"], 321)
 
     def test_cli_rejects_nonpositive_max_tool_calls(self) -> None:
         with patch("sys.argv", ["task-eval", "--max-tool-calls", "0"]):

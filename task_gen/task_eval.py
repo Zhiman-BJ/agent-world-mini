@@ -136,6 +136,7 @@ def evaluate_case(
     tool_result_max_bytes: int = 65536,
     agent_run_fn: AgentRunFn | None = None,
     judge_infer_fn: InferFn = infer,
+    verifier_output: Path | None = None,
 ) -> dict[str, Any]:
     """Let one Codex agent solve a task with environment MCP tools, then judge it."""
     if max_tool_calls < 1:
@@ -176,6 +177,15 @@ def evaluate_case(
             llm_config,
             infer_fn=judge_infer_fn,
         )
+        if verifier_output is not None:
+            verifier_output.parent.mkdir(parents=True, exist_ok=True)
+            verifier_output.write_text(json.dumps({
+                "source_run": case.source_run.name,
+                "task_id": case.task.get("task_id"),
+                "environment_id": case.task.get("environment_id"),
+                "verifier": verifier,
+                "calibration": calibration,
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="task-eval-mcp-") as temporary:
         server_config = Path(temporary) / "server.json"
         trace = Path(temporary) / "calls.jsonl"
@@ -191,7 +201,7 @@ def evaluate_case(
         run_agent = agent_run_fn or (lambda prompt, cwd, config, call_trace: _run_agent(
             prompt, cwd, config, call_trace, llm_config,
         ))
-        answer = run_agent(_agent_prompt(case), workspace, server_config, trace).strip()
+        answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
         if not answer:
             raise ValueError("Codex Agent 未提交最终答案")
         calls = _read_trace(trace)
@@ -230,6 +240,7 @@ def evaluate_case(
         "judge_response": judge_response,
         "evaluation": evaluation,
         "outcome": evaluation.get("outcome", "pass" if evaluation.get("passed") else "fail"),
+        "attribution": evaluation.get("attribution"),
         "verifier": verifier,
         "calibration": calibration,
         "verifier_attempts": verifier_attempts,
@@ -237,7 +248,7 @@ def evaluate_case(
     }
 
 
-def _agent_prompt(case: EvalCase) -> str:
+def _agent_prompt(case: EvalCase, max_tool_calls: int) -> str:
     return json.dumps({
         "role": (
             "You are the agent responsible for completing this task in the provided task workspace. "
@@ -246,7 +257,8 @@ def _agent_prompt(case: EvalCase) -> str:
             "environment MCP tools so they are auditable. Never guess internal identifiers; discover them from list, "
             "search, read, or workspace evidence and use business errors to correct invalid calls. Do not stop at a "
             "plan. Complete the task, verify the result with the environment tools when useful, then return only the "
-            "final user-facing answer."
+            f"final user-facing answer. You may make at most {max_tool_calls} environment tool calls, so reserve "
+            "calls for every required state change and use direct workspace inspection for read-only verification when useful."
         ),
         "task": case.task.get("task_text"),
         "environment": _public_environment(case.environment),
@@ -265,6 +277,7 @@ def _run_agent(
         server,
         server_config,
         model=str(llm_config["model"]) if llm_config.get("model") else None,
+        timeout_seconds=int(llm_config.get("timeout_seconds", 1800)),
         sandbox="workspace-write",
         network_access=False,
     )
@@ -357,11 +370,16 @@ def run_evaluation(
         raise ValueError("没有找到可评测任务")
     run_dir = output_root.expanduser().resolve() / datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     run_dir.mkdir(parents=True)
+    verifier_dir = run_dir / "verifiers"
+    verifier_dir.mkdir()
+    task_result_dir = run_dir / "task_results"
+    task_result_dir.mkdir()
 
     def run(case: EvalCase) -> dict[str, Any]:
-        workspace = run_dir / "workspaces" / f"{case.source_run.name}__{case.task['task_id']}"
+        filename = f"{case.source_run.name}__{case.task['task_id']}"
+        workspace = run_dir / "workspaces" / filename
         try:
-            return evaluate_case(
+            result = evaluate_case(
                 case,
                 workspace,
                 llm_config,
@@ -370,10 +388,11 @@ def run_evaluation(
                 tool_max_memory_bytes=int(execution_config.get("tool_max_memory_bytes", 2 * 1024 * 1024 * 1024)),
                 tool_max_write_bytes=int(execution_config.get("tool_max_write_bytes", 256 * 1024 * 1024)),
                 tool_result_max_bytes=int(execution_config.get("tool_result_max_bytes", 65536)),
+                verifier_output=verifier_dir / f"{filename}.json",
             )
         except Exception as error:
             verifier_error = isinstance(error, VerifierPreparationError)
-            return {
+            result = {
                 "source_run": case.source_run.name,
                 "task_id": case.task.get("task_id"),
                 "environment_id": case.task.get("environment_id"),
@@ -383,25 +402,13 @@ def run_evaluation(
                 "verifier_attempts": error.attempts if verifier_error else None,
                 "error": f"{type(error).__name__}: {error}",
             }
+        (task_result_dir / f"{filename}.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8",
+        )
+        return result
 
     with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
         results = list(executor.map(run, cases))
-    verifier_dir = run_dir / "verifiers"
-    verifier_dir.mkdir()
-    for item in results:
-        verifier = item.get("verifier")
-        if isinstance(verifier, dict):
-            filename = f"{item['source_run']}__{item['task_id']}.json"
-            (verifier_dir / filename).write_text(
-                json.dumps({
-                    "source_run": item["source_run"],
-                    "task_id": item["task_id"],
-                    "environment_id": item["environment_id"],
-                    "verifier": verifier,
-                    "calibration": item.get("calibration"),
-                }, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
     counts = _result_counts(results)
     payload = {
         "input_root": str(input_root.expanduser().resolve()),
