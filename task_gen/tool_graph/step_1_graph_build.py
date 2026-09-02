@@ -415,7 +415,7 @@ def _run_round(
     round_name: str,
     consume: Callable[[InferenceResult, str], Any],
 ) -> list[Any]:
-    """Run one batch and retry only invalid targets once."""
+    """Run one batch and retry all invalid targets together once."""
     try:
         results: list[InferenceResult | Exception] = list(infer(prompts, llm_config=llm_config))
     except BatchInferenceError as error:
@@ -423,21 +423,36 @@ def _run_round(
     if len(results) != len(target_names):
         raise ValueError(f"建图{round_name}返回数量与目标工具数量不一致")
 
-    output = []
+    output: list[Any] = [None] * len(target_names)
+    invalid: list[int] = []
     for index, (target_name, result) in enumerate(zip(target_names, results)):
         try:
             if isinstance(result, Exception):
                 raise result
-            value = consume(result, target_name)
+            output[index] = consume(result, target_name)
         except Exception:
-            try:
-                retry = infer(prompts[index], llm_config=llm_config)
-                value = consume(retry, target_name)
-            except Exception as error:
-                raise ValueError(
-                    f"目标工具 {target_name} 的{round_name}结果非法：{error}"
-                ) from error
-        output.append(value)
+            invalid.append(index)
+    if not invalid:
+        return output
+
+    try:
+        retries: list[InferenceResult | Exception] = list(infer(
+            [prompts[index] for index in invalid], llm_config=llm_config
+        ))
+    except BatchInferenceError as error:
+        retries = list(error.outcomes)
+    if len(retries) != len(invalid):
+        raise ValueError(f"建图{round_name}重试返回数量不一致")
+    for index, retry in zip(invalid, retries):
+        target_name = target_names[index]
+        try:
+            if isinstance(retry, Exception):
+                raise retry
+            output[index] = consume(retry, target_name)
+        except Exception as error:
+            raise ValueError(
+                f"目标工具 {target_name} 的{round_name}结果非法：{error}"
+            ) from error
     return output
 
 
@@ -621,8 +636,11 @@ EVIDENCE_PROMPT_TEMPLATE = """\
   则 A 不是 C 的直接来源。
 - 如果 C 同时需要 A 和 B，分析 A -> C 时可以假定 B 已在更早位置完成；
   但必须明确 A 自己为 C 提供了哪一项独立前置。
-- 仅仅“可能有帮助”“属于同一主题”或“某段文本理论上可以写进任意文本字段”，
-  connection 必须为 none。
+- 如果 B 创建新实体，且它的标识由调用方为新实体指定或重复标识会被拒绝，A 返回的
+  已有实体标识不能当作 B 的 required_input；A 的其他结果仍可按实际用途判断。
+- A 的功能和具体结果能明确决定 B 的文本、范围或选择时，可以是 semantic_influence；
+  但仅仅“可能有帮助”“属于同一主题”或“任意文本理论上都能写入文本字段”仍是 none。
+  evidence 必须写出该结果在 B 中的明确用途。
 
 必须恰好返回每一个候选一次，顺序与候选列表一致。只返回 JSON object：
 
@@ -691,6 +709,10 @@ weight 只表示 B 作为 A 的直接下一跳有多强的依据，不表示 pre
 
 weight 与 prerequisite 组合必须分别判断，不能把所有 weight=3 的来源自动合并成一个
 all_of 方案，也不能因为某条边不属于 prerequisite 就降低它本来明确的关系等级。
+
+等级上限必须遵守：semantic_influence 最多为 1；workflow_transition 和 optional_input
+最多为 2；如果唯一依据是 A 回显调用 A 时已有的值（value_origin=echoed），最多为 1；
+value_origin=unknown 时也最多为 1。不能只因某字段可填入 B 的必填参数就突破这些上限。
 
 反例：
 - A 返回 B 需要的动态 ID；即使调用方可能提前知道该 ID，当前选定路径仍可构成强交接。
@@ -841,6 +863,18 @@ def _validate_decisions(
             or assessment["connection"] == "none"
         ):
             raise ValueError(f"{label} 与第一轮的非直接判断冲突")
+        maximum_weight = {
+            "semantic_influence": 1,
+            "workflow_transition": 2,
+            "optional_input": 2,
+        }.get(assessment["connection"], 3)
+        if assessment["value_origin"] in {"echoed", "unknown"}:
+            maximum_weight = min(maximum_weight, 1)
+        if weight > maximum_weight:
+            raise ValueError(
+                f"{label}.weight 超过 {assessment['connection']}/"
+                f"{assessment['value_origin']} 的上限 {maximum_weight}"
+            )
         reviewed.add(source)
         if weight:
             positive.add(source)

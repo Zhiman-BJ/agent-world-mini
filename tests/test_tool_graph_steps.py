@@ -234,6 +234,37 @@ class GraphBuildTest(unittest.TestCase):
         )
         self.assertEqual([edge["from_tool"] for edge in edges], ["a"])
 
+    def test_rejects_strong_required_input_edge_from_echoed_value(self) -> None:
+        assessments = [self._assessment("a") | {"value_origin": "echoed"}]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 3, "reason": "echoed id fills b"}],
+            "prerequisite_alternatives": [],
+        }
+        with self.assertRaisesRegex(ValueError, "echoed"):
+            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+
+    def test_rejects_weight_above_connection_strength(self) -> None:
+        for connection, weight in (("semantic_influence", 2), ("workflow_transition", 3), ("optional_input", 3)):
+            assessments = [self._assessment("a", connection=connection)]
+            raw = {
+                "decisions": [{"from_tool": "a", "weight": weight, "reason": "too strong"}],
+                "prerequisite_alternatives": [],
+            }
+            with self.subTest(connection=connection), self.assertRaisesRegex(ValueError, "上限"):
+                graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+
+    def test_prompts_distinguish_new_entity_ids_and_supported_text_influence(self) -> None:
+        evidence = graph_build._build_evidence_prompt(
+            {"name": "b"}, [{"name": "a"}], {"name": "environment"}
+        )
+        decision = graph_build._build_decision_prompt(
+            {"name": "b"}, [{"name": "a"}], {"name": "environment"}, [self._assessment("a")]
+        )
+        self.assertIn("新实体", evidence)
+        self.assertIn("明确用途", evidence)
+        self.assertIn("回显", decision)
+        self.assertIn("最多为 1", decision)
+
     def test_builds_graph_from_separate_evidence_and_decision_rounds(self) -> None:
         names = ("a", "b", "c", "d")
         first_round = []
@@ -326,7 +357,7 @@ class GraphBuildTest(unittest.TestCase):
 
         with patch(
             "task_gen.tool_graph.step_1_graph_build.infer",
-            side_effect=[first_batch, retry, second_batch],
+            side_effect=[first_batch, [retry], second_batch],
         ) as mocked:
             output = build_graph({"config": Config(), "environment": graph_environment()})
 
