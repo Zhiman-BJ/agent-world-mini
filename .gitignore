@@ -13,6 +13,10 @@ artifacts/
 cross_audit*.json
 *_progress*.json
 
+# Local working documents
+docs/
+task_gen/tool_graph/AGENTS.md
+
 # One-off server recovery and scheduling scripts
 training/run_gpu4_*.sh
 training/run_parallel_mcpmark_back_gpus.sh
