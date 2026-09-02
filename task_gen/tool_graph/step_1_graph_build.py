@@ -726,6 +726,8 @@ prerequisite 只表示链历史约束：在本流水线生成的任务链中，�
 - 只有上一轮 input_availability=runtime_only，且值确由 A 生成、选择或推导的来源，才能
   进入 prerequisite 方案。普通名称、标题、描述、分类、期望状态、筛选条件等可以自然
   写进任务的业务信息，不构成全局硬前置。
+- state_observation 表示 B 可以观察 A 刚完成的变更，但 B 本身并不以 A 为全局硬前置，
+  不能进入 prerequisite；required_state 才表示 A 建立了 B 本次执行不可缺少的状态。
 - “新标识不得重复”不等于必须先查询已有标识；如果调用方可以自行生成或指定新标识，
   查询工具不是创建工具的 prerequisite。只有契约明确要求通过工具分配时才是硬前置。
 - 可选输入、改善结果、辅助验证、影响选择或自然工作流不进入 prerequisite 方案。
