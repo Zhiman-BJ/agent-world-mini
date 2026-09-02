@@ -868,7 +868,10 @@ def _validate_decisions(
             "workflow_transition": 2,
             "optional_input": 2,
         }.get(assessment["connection"], 3)
-        if assessment["value_origin"] in {"echoed", "unknown"}:
+        if assessment["value_origin"] == "unknown" or (
+            assessment["value_origin"] == "echoed"
+            and assessment["connection"] in {"required_input", "optional_input"}
+        ):
             maximum_weight = min(maximum_weight, 1)
         if weight > maximum_weight:
             raise ValueError(

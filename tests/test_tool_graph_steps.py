@@ -243,6 +243,15 @@ class GraphBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "echoed"):
             graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
 
+    def test_allows_strong_state_observation_even_when_identifier_is_echoed(self) -> None:
+        assessments = [self._assessment("a", connection="state_observation") | {"value_origin": "echoed"}]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 3, "reason": "b reads state changed by a"}],
+            "prerequisite_alternatives": [],
+        }
+        edges, _prerequisites = graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+        self.assertEqual(edges[0]["weight"], 3)
+
     def test_rejects_weight_above_connection_strength(self) -> None:
         for connection, weight in (("semantic_influence", 2), ("workflow_transition", 3), ("optional_input", 3)):
             assessments = [self._assessment("a", connection=connection)]
