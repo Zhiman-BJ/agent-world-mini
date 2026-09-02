@@ -126,6 +126,13 @@ class GraphBuildTest(unittest.TestCase):
 
         self.assertEqual(assessments, raw)
 
+    def test_evidence_prompt_names_every_allowed_value_origin_literal(self) -> None:
+        prompt = graph_build._build_evidence_prompt(
+            {"name": "b"}, [{"name": "a"}], {"name": "environment"}
+        )
+        for value in graph_build.VALUE_ORIGINS:
+            self.assertIn(f"`{value}`", prompt)
+
     def test_rejects_contradictory_first_round_assessment(self) -> None:
         raw = [{
             "from_tool": "a",

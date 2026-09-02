@@ -604,8 +604,13 @@ EVIDENCE_PROMPT_TEMPLATE = """\
    - workflow_transition：没有直接字段交接，但两个工作块存在明确的直接衔接；
    - semantic_influence：A 的具体结果会影响 B 的参数选择、范围或验证方式；
    - none：以上均不成立。
-4. value_origin：相关值是 A 新生成的、从结果中选出的、计算派生的、仅回显输入的，
-   还是不适用或无法从公开契约确认。
+4. value_origin：只能填写以下六个字符串之一：
+   - `generated`：A 新生成该值或实体；
+   - `selected`：从 A 的结果中选择该值或实体；
+   - `derived`：根据 A 的结果计算或推导；
+   - `echoed`：A 仅原样回显自己的输入；
+   - `not_applicable`：当前关系不涉及值来源；
+   - `unknown`：公开契约无法确认来源。
 5. evidence：用一句话指出 A 的具体输出/状态和 B 的具体输入/行为。不能只写字段同名、
    类型相同、共享资源或主题相近。
 6. condition：只有关系需要额外业务条件时填写该条件，否则返回 null。
