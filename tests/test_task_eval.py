@@ -11,9 +11,19 @@ from unittest.mock import patch
 from task_gen.task_eval import (
     DEFAULT_INPUT_ROOT,
     _TaskEvalCodexClient,
+    _result_counts,
     evaluate_case,
     load_cases,
     main,
+)
+from task_gen.task_eval_verifier import (
+    aggregate_results,
+    build_evidence,
+    calibrate_verifier,
+    generate_verifier,
+    prepare_verifier,
+    run_verifier,
+    validate_verifier,
 )
 from task_gen.task_eval_mcp import call_environment_tool, serve
 from task_gen.tool_graph.llm import InferenceResult
@@ -23,8 +33,396 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TaskEvalTest(unittest.TestCase):
+    def test_build_evidence_contains_bounded_files_and_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = root / "initial"
+            final = root / "final"
+            initial.mkdir()
+            final.mkdir()
+            (initial / "value.json").write_text('{"value": 7}', encoding="utf-8")
+            (final / "value.json").write_text('{"value": 8}', encoding="utf-8")
+
+            evidence = build_evidence(
+                initial,
+                final,
+                [{"tool": "read_value", "result": {"success": True}, "error": None}],
+                "The value is 8.",
+                4096,
+            )
+
+            self.assertEqual(evidence["answer"], "The value is 8.")
+            self.assertEqual(evidence["changed_paths"], [{"path": "value.json", "change": "modified"}])
+            self.assertEqual(evidence["final_files"][0]["json"], {"value": 8})
+            self.assertNotIn("mtime", json.dumps(evidence))
+
+    def test_build_evidence_keeps_small_json_for_later_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = root / "initial"
+            final = root / "final"
+            initial.mkdir()
+            final.mkdir()
+            for directory in (initial, final):
+                (directory / "a-large.txt").write_text("x" * 100, encoding="utf-8")
+                (directory / "z-state.json").write_text('{"state": "kept"}', encoding="utf-8")
+
+            evidence = build_evidence(initial, final, [], "", 32)
+
+            state = next(item for item in evidence["final_files"] if item["path"] == "z-state.json")
+            self.assertEqual(state["json"], {"state": "kept"})
+
+    def test_build_evidence_prioritizes_changed_file_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = root / "initial"
+            final = root / "final"
+            initial.mkdir()
+            final.mkdir()
+            (initial / "a-state.json").write_text('{"padding":"xxxxxxxxxxxxxxxx"}', encoding="utf-8")
+            (final / "a-state.json").write_text('{"padding":"xxxxxxxxxxxxxxxx"}', encoding="utf-8")
+            (initial / "z-result.md").write_text("old", encoding="utf-8")
+            (final / "z-result.md").write_text("final result", encoding="utf-8")
+
+            evidence = build_evidence(initial, final, [], "", 16)
+
+            result = next(item for item in evidence["final_files"] if item["path"] == "z-result.md")
+            self.assertEqual(result["text"], "final result")
+            self.assertFalse(result["truncated"])
+
+    def test_verifier_runtime_executes_deterministic_requirement_in_sandbox(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "The answer reports 8.", "required": True,
+                "evidence_channels": ["answer"],
+                "pass_condition": "answer equals The value is 8.",
+                "fail_condition": "answer is different.",
+            }],
+            "source": "def verify(ctx):\n"
+            "    if ctx.answer() == 'The value is 8.':\n"
+            "        ctx.pass_requirement('R1', 'answer matches', ['answer'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'answer differs', ['answer'])\n",
+        }
+        validate_verifier(package)
+
+        results = run_verifier(package, {"answer": "The value is 8.", "calls": [], "changed_paths": []})
+
+        self.assertEqual(results[0]["status"], "pass")
+        self.assertEqual(results[0]["requirement_id"], "R1")
+
+    def test_final_read_reuses_unchanged_initial_content(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "content", "required": True,
+                               "evidence_channels": ["workspace"], "pass_condition": "x", "fail_condition": "missing"}],
+            "source": "def verify(ctx):\n"
+            "    if ctx.read_text('source.txt', 'final') == 'content':\n"
+            "        ctx.pass_requirement('R1', 'found', ['final:source.txt'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'missing', ['final:source.txt'])\n",
+        }
+        evidence = {
+            "answer": "", "calls": [], "changed_paths": [],
+            "initial_files": [{"path": "source.txt", "sha256": "same", "text": "content"}],
+            "final_files": [{"path": "source.txt", "sha256": "same"}],
+        }
+
+        self.assertEqual(run_verifier(package, evidence)[0]["status"], "pass")
+
+    def test_semantic_prompt_contains_only_referenced_evidence(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "answer is clear", "required": True,
+                               "evidence_channels": ["answer"], "pass_condition": "clear", "fail_condition": "unclear"}],
+            "source": "def verify(ctx):\n    ctx.semantic_requirement('R1', 'answer is clear', ['answer'])\n",
+        }
+        prompts: list[str] = []
+
+        def semantic_infer(prompt: str, **_: object) -> InferenceResult:
+            prompts.append(prompt)
+            return InferenceResult('{"status":"pass","reason":"clear"}', {}, "test")
+
+        run_verifier(package, {
+            "answer": "clear", "calls": [{"tool": "unused"}],
+            "changed_paths": [], "initial_files": [], "final_files": [],
+        }, semantic_infer_fn=semantic_infer)
+        evidence = json.loads(prompts[0])["evidence"]
+        self.assertEqual(evidence["answer"], "clear")
+        self.assertEqual(evidence["calls"], [])
+
+    def test_semantic_result_accepts_unambiguous_status_reason_text(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "answer is clear", "required": True,
+                               "evidence_channels": ["answer"], "pass_condition": "clear", "fail_condition": "unclear"}],
+            "source": "def verify(ctx):\n    ctx.semantic_requirement('R1', 'answer is clear', ['answer'])\n",
+        }
+
+        results = run_verifier(
+            package,
+            {"answer": "clear", "calls": [], "changed_paths": [], "initial_files": [], "final_files": []},
+            semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult(
+                "status: pass reason: the answer is clear", {}, "test",
+            ),
+        )
+
+        self.assertEqual(results[0]["status"], "pass")
+        self.assertEqual(results[0]["reason"], "the answer is clear")
+
+    def test_verifier_runtime_does_not_use_process_working_directory_as_workspace(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "x", "required": True,
+                               "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+            "source": "def verify(ctx):\n    ctx.pass_requirement('R1', 'ok', [])\n",
+        }
+        with patch("task_gen.task_eval_verifier._call_tool", return_value={
+            "kind": None, "result": {"results": [{
+                "requirement_id": "R1", "status": "pass", "reason": "ok", "evidence_refs": [],
+            }]}, "error": None,
+        }) as call_tool:
+            run_verifier(package, {"answer": "", "calls": [], "changed_paths": []})
+
+        workspace = call_tool.call_args.args[2]
+        self.assertNotEqual(workspace, Path.cwd())
+        self.assertTrue(workspace.name.startswith("task-verifier-"))
+
+    def test_verifier_rejects_imports_and_missing_requirement_results(self) -> None:
+        unsafe = {
+            "schema_version": "1", "requirements": [],
+            "source": "import os\ndef verify(ctx):\n    ctx.pass_requirement('R1', os.getcwd())",
+        }
+        with self.assertRaises(ValueError):
+            validate_verifier(unsafe)
+
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "x", "required": True,
+                               "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+            "source": "def verify(ctx):\n    pass",
+        }
+        with self.assertRaises(ValueError):
+            run_verifier(package, {"answer": "", "calls": [], "changed_paths": []})
+
+    def test_verifier_rejects_context_internals_and_reflection(self) -> None:
+        for source in (
+            "def verify(ctx):\n    ctx.evidence['answer'] = 'fake'\n    ctx.pass_requirement('R1', 'x', [])\n",
+            "def verify(ctx):\n    getattr(ctx, 'results').clear()\n    ctx.pass_requirement('R1', 'x', [])\n",
+        ):
+            package = {
+                "schema_version": "1",
+                "requirements": [{"id": "R1", "claim": "x", "required": True,
+                                   "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+                "source": source,
+            }
+            with self.assertRaises(ValueError):
+                validate_verifier(package)
+
+    def test_verifier_allows_local_lambda_expressions(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "x", "required": True,
+                               "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+            "source": "def verify(ctx):\n"
+            "    value = next(filter(lambda item: item == 1, [1]), None)\n"
+            "    ctx.pass_requirement('R1', str(value), [])\n",
+        }
+
+        validate_verifier(package)
+
+    def test_aggregate_results_preserves_indeterminate_and_required_semantics(self) -> None:
+        requirements = [
+            {"id": "R1", "required": True},
+            {"id": "R2", "required": True},
+            {"id": "R3", "required": False},
+        ]
+        result = aggregate_results(requirements, [
+            {"requirement_id": "R1", "status": "pass"},
+            {"requirement_id": "R2", "status": "indeterminate"},
+            {"requirement_id": "R3", "status": "fail"},
+        ])
+        self.assertEqual(result["outcome"], "indeterminate")
+        self.assertFalse(result["passed"])
+
+    def test_generate_and_calibrate_verifier_uses_reference_then_rejects_empty(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "The answer reports 8.", "required": True,
+                "evidence_channels": ["answer"],
+                "pass_condition": "answer equals The value is 8.",
+                "fail_condition": "answer is different.",
+            }],
+            "source": "def verify(ctx):\n"
+            "    if ctx.answer() == 'The value is 8.':\n"
+            "        ctx.pass_requirement('R1', 'answer matches', ['answer'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'answer differs', ['answer'])\n",
+        }
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            self.assertIn("Return the current value.", prompt)
+            self.assertNotIn("internal", prompt)
+            request = json.loads(prompt)
+            self.assertEqual(set(request["response_contract"]["requirements"][0]), {
+                "id", "claim", "required", "evidence_channels", "pass_condition", "fail_condition",
+            })
+            self.assertTrue(any(key.startswith("read_json") for key in request["verifier_context_api"]))
+            self.assertTrue(any("硬编码" in rule and "参考执行" in rule for rule in request["rules"]))
+            self.assertTrue(any("工具调用" in rule and "成功条件" in rule for rule in request["rules"]))
+            return InferenceResult(json.dumps(package), {}, "test-model")
+
+        generated = generate_verifier(
+            {"task_text": "Return the current value."},
+            {"tools": [{"name": "read_value"}]},
+            {"answer": "The value is 8.", "calls": [], "changed_paths": []},
+            {},
+            infer_fn=fake_infer,
+        )
+        calibration = calibrate_verifier(
+            generated,
+            {"answer": "The value is 8.", "calls": [], "changed_paths": []},
+            {"answer": "", "calls": [], "changed_paths": []},
+        )
+        self.assertEqual(calibration["status"], "calibrated")
+        self.assertEqual(calibration["reference"]["outcome"], "pass")
+        self.assertEqual(calibration["empty"]["outcome"], "fail")
+
+    def test_calibration_rejects_any_required_criterion_that_passes_empty_evidence(self) -> None:
+        requirements = [{
+            "id": requirement_id, "claim": requirement_id, "required": True,
+            "evidence_channels": ["answer"], "pass_condition": "present", "fail_condition": "absent",
+        } for requirement_id in ("R1", "R2")]
+        package = {
+            "schema_version": "1",
+            "requirements": requirements,
+            "source": "def verify(ctx):\n"
+            "    if ctx.answer():\n"
+            "        ctx.pass_requirement('R1', 'present', ['answer'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'absent', ['answer'])\n"
+            "    ctx.pass_requirement('R2', 'always passes', [])\n",
+        }
+
+        with self.assertRaisesRegex(ValueError, "空证据.*R2"):
+            calibrate_verifier(
+                package,
+                {"answer": "ok", "calls": [], "changed_paths": []},
+                {"answer": "", "calls": [], "changed_paths": []},
+            )
+
+    def test_generate_verifier_prompt_omits_unchanged_file_content(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "result exists", "required": True,
+                "evidence_channels": ["workspace"], "pass_condition": "exists", "fail_condition": "missing",
+            }],
+            "source": "def verify(ctx):\n    ctx.indeterminate_requirement('R1', 'not implemented')\n",
+        }
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            evidence = json.loads(prompt)["reference_evidence"]
+            unchanged = next(item for item in evidence["initial_files"] if item["path"] == "input.txt")
+            changed = next(item for item in evidence["final_files"] if item["path"] == "result.txt")
+            self.assertNotIn("text", unchanged)
+            self.assertEqual(changed["text"], "result")
+            return InferenceResult(json.dumps(package), {}, "test")
+
+        generate_verifier(
+            {"task_text": "create result"}, {}, {
+                "answer": "done", "calls": [],
+                "changed_paths": [{"path": "result.txt", "change": "added"}],
+                "initial_files": [{"path": "input.txt", "text": "large input", "size": 11, "sha256": "x"}],
+                "final_files": [
+                    {"path": "input.txt", "text": "large input", "size": 11, "sha256": "x"},
+                    {"path": "result.txt", "text": "result", "size": 6, "sha256": "y"},
+                ],
+            }, {}, infer_fn=fake_infer,
+        )
+
+    def test_generate_verifier_supplies_fixed_schema_version_when_model_omits_it(self) -> None:
+        package = {
+            "requirements": [{
+                "id": "R1", "claim": "x", "required": True, "evidence_channels": ["answer"],
+                "pass_condition": "x", "fail_condition": "not x",
+            }],
+            "source": "def verify(ctx):\n    ctx.indeterminate_requirement('R1', 'missing')\n",
+        }
+        generated = generate_verifier(
+            {"task_text": "x"}, {}, {}, {},
+            infer_fn=lambda *_args, **_kwargs: InferenceResult(json.dumps(package), {}, "test"),
+        )
+        self.assertEqual(generated["schema_version"], "1")
+
+    def test_generate_verifier_unwraps_response_contract(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "x", "required": True, "evidence_channels": ["answer"],
+                "pass_condition": "x", "fail_condition": "not x",
+            }],
+            "source": "def verify(ctx):\n    ctx.indeterminate_requirement('R1', 'missing')\n",
+        }
+        generated = generate_verifier(
+            {"task_text": "x"}, {}, {}, {},
+            infer_fn=lambda *_args, **_kwargs: InferenceResult(
+                json.dumps({"response_contract": package}), {}, "test",
+            ),
+        )
+
+        self.assertEqual(generated, package)
+
+    def test_prepare_verifier_retries_until_reference_calibrates(self) -> None:
+        requirement = {
+            "id": "R1", "claim": "answer is 8", "required": True,
+            "evidence_channels": ["answer"], "pass_condition": "is 8", "fail_condition": "not 8",
+        }
+        bad = {
+            "schema_version": "1", "requirements": [requirement],
+            "source": "def verify(ctx):\n    ctx.fail_requirement('R1', 'wrong', ['answer'])\n",
+        }
+        good = {
+            "schema_version": "1", "requirements": [requirement],
+            "source": "def verify(ctx):\n"
+            "    if ctx.answer():\n"
+            "        ctx.pass_requirement('R1', 'ok', ['answer'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'empty', ['answer'])\n",
+        }
+        responses = iter([bad, good])
+        prompts: list[str] = []
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            prompts.append(prompt)
+            return InferenceResult(json.dumps(next(responses)), {}, "test")
+
+        package, calibration, attempts = prepare_verifier(
+            {"task_text": "return 8"}, {"tools": [{"name": "read_value"}]},
+            {"answer": "8", "calls": [], "changed_paths": []},
+            {"answer": "", "calls": [], "changed_paths": []},
+            {}, attempts=2,
+            infer_fn=fake_infer,
+        )
+
+        self.assertEqual(package, good)
+        self.assertEqual(calibration["status"], "calibrated")
+        self.assertEqual(len(attempts), 2)
+        self.assertIn("参考执行未通过", attempts[0]["error"])
+        self.assertIsNone(attempts[1]["error"])
+        self.assertIn("previous_failure", json.loads(prompts[1]))
+
     def test_cli_rejects_nonpositive_max_tool_calls(self) -> None:
         with patch("sys.argv", ["task-eval", "--max-tool-calls", "0"]):
+            with self.assertRaises(SystemExit) as raised:
+                main()
+
+        self.assertEqual(raised.exception.code, 2)
+
+    def test_cli_rejects_nonpositive_llm_timeout(self) -> None:
+        with patch("sys.argv", ["task-eval", "--llm-timeout-seconds", "0"]):
             with self.assertRaises(SystemExit) as raised:
                 main()
 
@@ -33,17 +431,18 @@ class TaskEvalTest(unittest.TestCase):
     def test_defaults_to_this_repository_task_runs(self) -> None:
         self.assertEqual(DEFAULT_INPUT_ROOT, ROOT / "runs/taskgen")
 
-    def test_eval_codex_client_is_read_only_and_adds_only_session_mcp(self) -> None:
+    def test_eval_codex_client_auto_approves_isolated_workspace_tools(self) -> None:
         client = _TaskEvalCodexClient(
             Path("/tmp/task_eval_mcp.py"),
             Path("/tmp/server.json"),
             model="test-model",
-            sandbox="read-only",
+            sandbox="workspace-write",
         )
 
         arguments = client._llm_arguments({})
 
-        self.assertEqual(client.sandbox, "read-only")
+        self.assertEqual(client.sandbox, "workspace-write")
+        self.assertTrue(client.approve_for_me)
         self.assertNotIn("--approve-for-me", arguments)
         self.assertIn("mcp_servers={}", arguments)
         self.assertIn(
@@ -56,6 +455,19 @@ class TaskEvalTest(unittest.TestCase):
             arguments,
         )
 
+    def test_result_counts_do_not_treat_error_null_as_infrastructure_failure(self) -> None:
+        counts = _result_counts([
+            {"outcome": "pass", "error": None},
+            {"outcome": "fail", "error": None},
+            {"outcome": "indeterminate", "error": None},
+            {"outcome": "infrastructure_error", "error": "boom"},
+        ])
+        self.assertEqual(counts, {
+            "passed_count": 1,
+            "failed_count": 1,
+            "indeterminate_count": 1,
+            "infrastructure_error_count": 1,
+        })
     def test_load_cases_reads_tasks_with_their_environment_and_initial_state(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

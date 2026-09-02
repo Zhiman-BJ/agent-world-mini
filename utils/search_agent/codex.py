@@ -84,6 +84,7 @@ class CodexAgentClient:
         executable: str | None = None,
         timeout_seconds: int = 1800,
         sandbox: str = "workspace-write",
+        approve_for_me: bool = False,
         enable_web_search: bool = False,
         network_access: bool = False,
         reasoning_effort: str | None = None,
@@ -98,6 +99,7 @@ class CodexAgentClient:
         self.executable = executable
         self.timeout_seconds = timeout_seconds
         self.sandbox = sandbox
+        self.approve_for_me = approve_for_me
         self.enable_web_search = enable_web_search
         self.network_access = network_access
         self.reasoning_effort = reasoning_effort
@@ -256,19 +258,18 @@ class CodexAgentClient:
                 command.extend(
                     ["--config", "sandbox_workspace_write.network_access=true"]
                 )
-            command.extend(
-                [
-                    "--ephemeral",
-                    "--skip-git-repo-check",
-                    "--sandbox",
-                    self.sandbox,
-                    "--cd",
-                    str(working_directory),
-                    "--output-last-message",
-                    str(final_message),
-                    "-",  # 从 stdin 读取提示词，避免把提示词拼接成 shell 命令。
-                ]
-            )
+            command.extend(["--ephemeral", "--skip-git-repo-check"])
+            if self.approve_for_me:
+                command.append("--approve-for-me")
+            else:
+                command.extend(["--sandbox", self.sandbox])
+            command.extend([
+                "--cd",
+                str(working_directory),
+                "--output-last-message",
+                str(final_message),
+                "-",  # 从 stdin 读取提示词，避免把提示词拼接成 shell 命令。
+            ])
 
             process: subprocess.Popen[str] | None = None
             stopped_at_checkpoint = False

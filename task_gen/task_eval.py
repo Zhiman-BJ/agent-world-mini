@@ -23,6 +23,13 @@ from .tool_graph.step_3_chain_execute import (
     _tools,
     _workspace_signature,
 )
+from .task_eval_verifier import (
+    aggregate_results,
+    build_evidence,
+    prepare_verifier,
+    run_verifier,
+    VerifierPreparationError,
+)
 
 
 DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"
@@ -34,6 +41,7 @@ class _TaskEvalCodexClient(CodexAgentClient):
     """Add this evaluation's temporary MCP server to one Codex invocation."""
 
     def __init__(self, server: Path, server_config: Path, **options: Any):
+        options["approve_for_me"] = True
         super().__init__(**options)
         self.server = server.resolve()
         self.server_config = server_config.resolve()
@@ -58,6 +66,7 @@ class EvalCase:
     task: dict[str, Any]
     environment: dict[str, Any]
     initial_state: Path
+    reference_state: Path | None
 
 
 def load_cases(input_root: Path) -> list[EvalCase]:
@@ -100,7 +109,18 @@ def load_cases(input_root: Path) -> list[EvalCase]:
                 raise ValueError(f"初态路径不得包含符号链接：{initial_state}")
             if task.get("environment_id") != environment_id:
                 raise ValueError(f"任务 environment_id 与环境不一致：{source_run}")
-            cases.append(EvalCase(source_run, task, environment, initial_state))
+            reference_state = None
+            reference_relative = task.get("reference", {}).get("final_state")
+            if isinstance(reference_relative, str) and reference_relative:
+                reference_path = Path(reference_relative)
+                reference_state = (source_run / reference_path).resolve()
+                if reference_path.is_absolute() or not reference_state.is_relative_to(source_run.resolve()):
+                    raise ValueError(f"参考终态路径越界：{reference_relative}")
+                if not reference_state.is_dir():
+                    raise ValueError(f"参考终态不存在：{reference_state}")
+                if any(path.is_symlink() for path in [reference_state, *reference_state.rglob("*")]):
+                    raise ValueError(f"参考终态路径不得包含符号链接：{reference_state}")
+            cases.append(EvalCase(source_run, task, environment, initial_state, reference_state))
     return cases
 
 
@@ -132,6 +152,30 @@ def evaluate_case(
     ]
     if case.task.get("available_tools") != expected_tools:
         raise ValueError("task.available_tools 与环境公开工具契约不一致")
+    verifier: dict[str, Any] | None = None
+    calibration: dict[str, Any] | None = None
+    verifier_attempts: list[dict[str, Any]] = []
+    if case.reference_state is not None:
+        reference_evidence = build_evidence(
+            case.initial_state,
+            case.reference_state,
+            case.task.get("reference", {}).get("tool_calls", []),
+            case.task.get("reference", {}).get("answer", ""),
+            tool_result_max_bytes,
+        )
+        verifier_environment = {
+            **_public_environment(case.environment),
+            "tools": case.task.get("available_tools", []),
+        }
+        empty_evidence = build_evidence(case.initial_state, case.initial_state, [], "", tool_result_max_bytes)
+        verifier, calibration, verifier_attempts = prepare_verifier(
+            case.task,
+            verifier_environment,
+            reference_evidence,
+            empty_evidence,
+            llm_config,
+            infer_fn=judge_infer_fn,
+        )
     with tempfile.TemporaryDirectory(prefix="task-eval-mcp-") as temporary:
         server_config = Path(temporary) / "server.json"
         trace = Path(temporary) / "calls.jsonl"
@@ -155,12 +199,23 @@ def evaluate_case(
     if _workspace_signature(case.initial_state) != source_signature:
         raise ValueError("来源初态在评测期间被修改")
     changes = _workspace_changes(source_signature, _workspace_signature(workspace))
-    judge_response = judge_infer_fn(
-        _judge_prompt(case.task, case.environment, answer, calls, changes, tool_result_max_bytes),
-        llm_config=llm_config,
-    ).text
-    evaluation = parse_json_object(judge_response)
-    _validate_evaluation(evaluation)
+    if verifier is not None:
+        actual_evidence = build_evidence(case.initial_state, workspace, calls, answer, tool_result_max_bytes)
+        requirement_results = run_verifier(
+            verifier,
+            actual_evidence,
+            semantic_infer_fn=judge_infer_fn,
+            llm_config=llm_config,
+        )
+        evaluation = aggregate_results(verifier["requirements"], requirement_results)
+        judge_response = json.dumps(evaluation, ensure_ascii=False)
+    else:
+        judge_response = judge_infer_fn(
+            _judge_prompt(case.task, case.environment, answer, calls, changes, tool_result_max_bytes),
+            llm_config=llm_config,
+        ).text
+        evaluation = parse_json_object(judge_response)
+        _validate_evaluation(evaluation)
     return {
         "source_run": case.source_run.name,
         "task_id": case.task.get("task_id"),
@@ -174,6 +229,10 @@ def evaluate_case(
         "reference_answer": case.task.get("reference", {}).get("answer"),
         "judge_response": judge_response,
         "evaluation": evaluation,
+        "outcome": evaluation.get("outcome", "pass" if evaluation.get("passed") else "fail"),
+        "verifier": verifier,
+        "calibration": calibration,
+        "verifier_attempts": verifier_attempts,
         "error": None,
     }
 
@@ -206,7 +265,7 @@ def _run_agent(
         server,
         server_config,
         model=str(llm_config["model"]) if llm_config.get("model") else None,
-        sandbox="read-only",
+        sandbox="workspace-write",
         network_access=False,
     )
     return client.run(prompt, working_directory=workspace)
@@ -313,27 +372,56 @@ def run_evaluation(
                 tool_result_max_bytes=int(execution_config.get("tool_result_max_bytes", 65536)),
             )
         except Exception as error:
+            verifier_error = isinstance(error, VerifierPreparationError)
             return {
                 "source_run": case.source_run.name,
                 "task_id": case.task.get("task_id"),
                 "environment_id": case.task.get("environment_id"),
                 "task_text": case.task.get("task_text"),
+                "outcome": "indeterminate" if verifier_error else "infrastructure_error",
+                "attribution": "verifier" if verifier_error else "infrastructure",
+                "verifier_attempts": error.attempts if verifier_error else None,
                 "error": f"{type(error).__name__}: {error}",
             }
 
     with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
         results = list(executor.map(run, cases))
-    passed = sum(item.get("evaluation", {}).get("passed") is True for item in results)
+    verifier_dir = run_dir / "verifiers"
+    verifier_dir.mkdir()
+    for item in results:
+        verifier = item.get("verifier")
+        if isinstance(verifier, dict):
+            filename = f"{item['source_run']}__{item['task_id']}.json"
+            (verifier_dir / filename).write_text(
+                json.dumps({
+                    "source_run": item["source_run"],
+                    "task_id": item["task_id"],
+                    "environment_id": item["environment_id"],
+                    "verifier": verifier,
+                    "calibration": item.get("calibration"),
+                }, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+    counts = _result_counts(results)
     payload = {
         "input_root": str(input_root.expanduser().resolve()),
         "model": llm_config.get("model"),
         "task_count": len(results),
-        "passed_count": passed,
-        "failed_count": len(results) - passed,
+        **counts,
         "results": results,
     }
     (run_dir / "results.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return run_dir
+
+
+def _result_counts(results: list[dict[str, Any]]) -> dict[str, int]:
+    outcomes = [item.get("outcome") for item in results]
+    return {
+        "passed_count": sum(outcome == "pass" for outcome in outcomes),
+        "failed_count": sum(outcome == "fail" for outcome in outcomes),
+        "indeterminate_count": sum(outcome == "indeterminate" for outcome in outcomes),
+        "infrastructure_error_count": sum(outcome == "infrastructure_error" for outcome in outcomes),
+    }
 
 
 def main() -> None:
@@ -347,6 +435,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int)
     parser.add_argument("--max-tool-calls", type=int, default=20)
     parser.add_argument("--max-concurrency", type=int, default=1)
+    parser.add_argument("--llm-timeout-seconds", type=int)
     arguments = parser.parse_args()
     if arguments.limit is not None and arguments.limit < 1:
         parser.error("--limit 必须大于 0")
@@ -354,11 +443,16 @@ def main() -> None:
         parser.error("--max-tool-calls 必须大于 0")
     if arguments.max_concurrency < 1:
         parser.error("--max-concurrency 必须大于 0")
+    if arguments.llm_timeout_seconds is not None and arguments.llm_timeout_seconds < 1:
+        parser.error("--llm-timeout-seconds 必须大于 0")
     config = load_config(arguments.config, {"model": arguments.model, "backend": arguments.backend})
+    llm_config = dict(config.llm)
+    if arguments.llm_timeout_seconds is not None:
+        llm_config["timeout_seconds"] = arguments.llm_timeout_seconds
     run_dir = run_evaluation(
         arguments.input_root,
         arguments.output_root,
-        config.llm,
+        llm_config,
         config.execution,
         limit=arguments.limit,
         environment_id=arguments.environment_id,
