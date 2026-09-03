@@ -686,7 +686,7 @@ EVIDENCE_PROMPT_TEMPLATE = """\
   }}
 ]}}
 
-每项只能包含上述七个字段，不要输出其他内容。
+每项只能包含上述八个字段，不要输出其他内容。
 """
 
 
@@ -844,6 +844,16 @@ def _validate_assessments(
             raise ValueError(
                 f"{label}.input_availability 非法：{item['input_availability']!r}"
             )
+        if item["connection"] == "state_observation" and (
+            not item["immediate_next"]
+            or item["intermediate_tool_required"]
+            or item["value_origin"] != "not_applicable"
+            or item["input_availability"] != "not_applicable"
+        ):
+            raise ValueError(
+                f"{label}.state_observation 必须直接相邻，且值来源和输入可见性均为"
+                "not_applicable"
+            )
         evidence = item["evidence"]
         if not isinstance(evidence, str) or not evidence.strip():
             raise ValueError(f"{label}.evidence 必须是非空字符串")
@@ -953,6 +963,9 @@ def _validate_decisions(
         required_key = tuple(sorted(required))
         if set(required_key) - positive:
             raise ValueError(f"{label} 只能引用目标工具的正边")
+        reason = item["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError(f"{label}.reason 必须是非空字符串")
         invalid_sources = [
             name for name in required_key
             if assessment_by_source[name]["connection"] not in {
@@ -971,9 +984,6 @@ def _validate_decisions(
             )
         if required_key in seen_alternatives:
             continue
-        reason = item["reason"]
-        if not isinstance(reason, str) or not reason.strip():
-            raise ValueError(f"{label}.reason 必须是非空字符串")
         seen_alternatives.add(required_key)
         normalized_alternatives.append({
             "all_of": list(required_key),

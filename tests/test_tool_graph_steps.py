@@ -179,6 +179,18 @@ class GraphBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "immediate_next"):
             graph_build._validate_assessments("b", raw, {"a", "b"})
 
+    def test_rejects_unclassifiable_state_observation_assessment(self) -> None:
+        for change in (
+            {"immediate_next": False},
+            {"value_origin": "unknown"},
+            {"input_availability": "runtime_only"},
+        ):
+            raw = [self._assessment("a", connection="state_observation") | change]
+            with self.subTest(change=change), self.assertRaisesRegex(
+                ValueError, "state_observation"
+            ):
+                graph_build._validate_assessments("b", raw, ["a", "b"])
+
     def test_rejects_incomplete_first_round_assessments(self) -> None:
         with self.assertRaisesRegex(ValueError, "漏审"):
             graph_build._validate_assessments("b", [], {"a", "b"})
@@ -266,6 +278,18 @@ class GraphBuildTest(unittest.TestCase):
         )
         self.assertEqual([edge["from_tool"] for edge in edges], ["a"])
 
+    def test_rejects_malformed_reason_before_deduplicating_prerequisites(self) -> None:
+        assessments = [self._assessment("a")]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 3, "reason": "a prepares b"}],
+            "prerequisite_alternatives": [
+                {"all_of": ["a"], "reason": "valid first copy"},
+                {"all_of": ["a"], "reason": ""},
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "reason"):
+            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+
     def test_rejects_strong_required_input_edge_from_echoed_value(self) -> None:
         assessments = [self._assessment("a") | {"value_origin": "echoed"}]
         raw = {
@@ -292,6 +316,25 @@ class GraphBuildTest(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "state_observation"):
             graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+
+    def test_rejects_state_observation_as_prerequisite(self) -> None:
+        assessments = [self._assessment("a", connection="state_observation") | {
+            "value_origin": "not_applicable",
+            "input_availability": "not_applicable",
+        }]
+        raw = {
+            "decisions": [{"from_tool": "a", "weight": 3, "reason": "b observes a's state"}],
+            "prerequisite_alternatives": [{
+                "all_of": ["a"], "reason": "observation is not a hard prerequisite",
+            }],
+        }
+        with self.assertRaisesRegex(ValueError, "required_input|required_state"):
+            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+        prompt = graph_build._build_decision_prompt(
+            {"name": "b"}, [{"name": "a"}], {"name": "environment"}, assessments
+        )
+        self.assertIn("state_observation", prompt)
+        self.assertIn("不能进入 prerequisite", prompt)
 
     def test_rejects_weight_above_connection_strength(self) -> None:
         for connection, weight in (("semantic_influence", 2), ("workflow_transition", 3), ("optional_input", 3)):
