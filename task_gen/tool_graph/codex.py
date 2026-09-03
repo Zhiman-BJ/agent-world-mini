@@ -84,7 +84,7 @@ class CodexAgentClient:
         executable: str | None = None,
         timeout_seconds: int = 1800,
         sandbox: str = "workspace-write",
-        approve_for_me: bool = False,
+        bypass_approvals_and_sandbox: bool = False,
         enable_web_search: bool = False,
         network_access: bool = False,
         reasoning_effort: str | None = None,
@@ -99,7 +99,7 @@ class CodexAgentClient:
         self.executable = executable
         self.timeout_seconds = timeout_seconds
         self.sandbox = sandbox
-        self.approve_for_me = approve_for_me
+        self.bypass_approvals_and_sandbox = bypass_approvals_and_sandbox
         self.enable_web_search = enable_web_search
         self.network_access = network_access
         self.reasoning_effort = reasoning_effort
@@ -259,8 +259,8 @@ class CodexAgentClient:
                     ["--config", "sandbox_workspace_write.network_access=true"]
                 )
             command.extend(["--ephemeral", "--skip-git-repo-check"])
-            if self.approve_for_me:
-                command.append("--approve-for-me")
+            if self.bypass_approvals_and_sandbox:
+                command.append("--dangerously-bypass-approvals-and-sandbox")
             else:
                 command.extend(["--sandbox", self.sandbox])
             command.extend([

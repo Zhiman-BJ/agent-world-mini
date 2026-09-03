@@ -43,7 +43,7 @@ class _TaskEvalCodexClient(CodexAgentClient):
     """Add this evaluation's temporary MCP server to one Codex invocation."""
 
     def __init__(self, server: Path, server_config: Path, **options: Any):
-        options["approve_for_me"] = True
+        options["bypass_approvals_and_sandbox"] = True
         super().__init__(**options)
         self.server = server.resolve()
         self.server_config = server_config.resolve()
@@ -69,11 +69,12 @@ class EvalCase:
     environment: dict[str, Any]
     initial_state: Path
     reference_state: Path | None
+    reference_calls: list[dict[str, Any]]
 
 
 def load_cases(input_root: Path) -> list[EvalCase]:
     """Read tasks from the latest complete run for each environment."""
-    latest: dict[str, tuple[Path, Path, dict[str, Any]]] = {}
+    latest: dict[str, tuple[Path, Path, dict[str, Any], dict[str, Any]]] = {}
     for tasks_path in sorted(input_root.expanduser().resolve().glob("*/tasks.json")):
         source_run = tasks_path.parent
         bundle_path = source_run / "intermediate/step_5_bundle.json"
@@ -88,13 +89,18 @@ def load_cases(input_root: Path) -> list[EvalCase]:
             raise ValueError(f"环境缺少 environment_id：{source_run}")
         previous = latest.get(environment_id)
         if previous is None or source_run.name > previous[0].name:
-            latest[environment_id] = (source_run, tasks_path, environment)
+            latest[environment_id] = (source_run, tasks_path, environment, bundle)
 
     cases: list[EvalCase] = []
-    for environment_id, (source_run, tasks_path, environment) in sorted(latest.items()):
+    for environment_id, (source_run, tasks_path, environment, bundle) in sorted(latest.items()):
         tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
         if not isinstance(tasks, list):
             raise ValueError(f"无效的正式任务 run：{source_run}")
+        bundle_tasks = {
+            candidate.get("task_id"): candidate
+            for candidate in bundle.get("tasks", [])
+            if isinstance(candidate, dict) and isinstance(candidate.get("task_id"), str)
+        }
         for task in tasks:
             if not isinstance(task, dict) or not isinstance(task.get("initial_state"), str):
                 raise ValueError(f"无效任务：{source_run}")
@@ -122,7 +128,15 @@ def load_cases(input_root: Path) -> list[EvalCase]:
                     raise ValueError(f"参考终态不存在：{reference_state}")
                 if any(path.is_symlink() for path in [reference_state, *reference_state.rglob("*")]):
                     raise ValueError(f"参考终态路径不得包含符号链接：{reference_state}")
-            cases.append(EvalCase(source_run, task, environment, initial_state, reference_state))
+            execution = bundle_tasks.get(task_id, {}).get("execution", {})
+            bundle_calls = execution.get("tool_calls") if isinstance(execution, dict) else None
+            reference_calls = (
+                bundle_calls if isinstance(bundle_calls, list)
+                else task.get("reference", {}).get("tool_calls", [])
+            )
+            cases.append(EvalCase(
+                source_run, task, environment, initial_state, reference_state, reference_calls,
+            ))
     return cases
 
 
@@ -167,7 +181,7 @@ def evaluate_case(
         reference_evidence = build_evidence(
             case.initial_state,
             case.reference_state,
-            case.task.get("reference", {}).get("tool_calls", []),
+            case.reference_calls,
             case.task.get("reference", {}).get("answer", ""),
             tool_result_max_bytes,
         )
@@ -179,7 +193,7 @@ def evaluate_case(
         cache_path = None
         if verifier_cache is not None:
             fingerprint_payload = {
-                "version": 7,
+                "version": 8,
                 "task": case.task,
                 "environment": verifier_environment,
                 "reference_evidence": reference_evidence,
@@ -205,6 +219,9 @@ def evaluate_case(
                 empty_evidence,
                 llm_config,
                 infer_fn=judge_infer_fn,
+                initial_state=case.initial_state,
+                final_state=case.reference_state,
+                tools=list(tools.values()),
             )
             if cache_path is not None:
                 cache_path.write_text(json.dumps({
@@ -259,6 +276,7 @@ def evaluate_case(
         raise ValueError("来源初态在评测期间被修改")
     changes = _workspace_changes(source_signature, _workspace_signature(workspace))
     verifier_error = None
+    verifier_tool_calls: list[dict[str, Any]] = []
     if verifier is not None:
         actual_evidence = build_evidence(case.initial_state, workspace, calls, answer, tool_result_max_bytes)
         try:
@@ -267,6 +285,10 @@ def evaluate_case(
                 actual_evidence,
                 semantic_infer_fn=judge_infer_fn,
                 llm_config=llm_config,
+                task_text=str(case.task.get("task_text") or ""),
+                initial_state=case.initial_state,
+                final_state=workspace,
+                tools=list(tools.values()),
             )
             failed_results = [item for item in requirement_results if item["status"] != "pass"]
             if failed_results:
@@ -281,6 +303,7 @@ def evaluate_case(
                 reviewed_by_id = {item["requirement_id"]: item for item in reviewed}
                 requirement_results = [reviewed_by_id.get(item["requirement_id"], item) for item in requirement_results]
             evaluation = aggregate_results(verifier["requirements"], requirement_results)
+            verifier_tool_calls = actual_evidence.get("verifier_calls", [])
         except Exception as error:
             verifier_error = f"{type(error).__name__}: {error}"
             evaluation = {
@@ -306,6 +329,7 @@ def evaluate_case(
         "agent_response": answer,
         "agent_attempts": agent_attempt,
         "tool_calls": calls,
+        "verifier_tool_calls": verifier_tool_calls,
         "workspace_changes": changes,
         "agent_answer": answer,
         "reference_answer": case.task.get("reference", {}).get("answer"),

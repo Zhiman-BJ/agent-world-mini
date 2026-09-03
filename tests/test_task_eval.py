@@ -157,10 +157,9 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(evidence["answer"], "clear")
         self.assertEqual(evidence["calls"], [])
         self.assertEqual(json.loads(prompts[0])["requirement"]["pass_condition"], "clear")
-        self.assertIn("未明确要求落盘", role)
-        self.assertIn("最终回答不能替代", role)
-        self.assertIn("不得擅自要求该结果必须为 true", role)
-        self.assertIn("不得要求引用中包含原文全文", role)
+        self.assertIn("按任务动词要求的状态变化", role)
+        self.assertIn("最终回答不能补足状态证据", role)
+        self.assertIn("技术 ID、路径、序列化格式和措辞不是业务结果", role)
 
     def test_semantic_evidence_deduplicates_refs_and_reuses_initial_content(self) -> None:
         package = {
@@ -271,13 +270,13 @@ class TaskEvalTest(unittest.TestCase):
         with patch("task_gen.task_eval_verifier._call_tool", return_value={
             "kind": None, "result": {"results": [{
                 "requirement_id": "R1", "status": "pass", "reason": "ok", "evidence_refs": [],
-            }]}, "error": None,
+            }], "verifier_calls": []}, "error": None,
         }) as call_tool:
             run_verifier(package, {"answer": "", "calls": [], "changed_paths": []})
 
         workspace = call_tool.call_args.args[2]
         self.assertNotEqual(workspace, Path.cwd())
-        self.assertTrue(workspace.name.startswith("task-verifier-"))
+        self.assertTrue(workspace.parent.name.startswith("task-verifier-"))
 
     def test_verifier_rejects_imports_and_missing_requirement_results(self) -> None:
         unsafe = {
@@ -385,20 +384,16 @@ class TaskEvalTest(unittest.TestCase):
                 "id", "claim", "required", "evidence_channels", "pass_condition", "fail_condition",
             })
             self.assertTrue(any(key.startswith("read_json") for key in request["verifier_context_api"]))
-            self.assertTrue(any("硬编码" in rule and "参考执行" in rule for rule in request["rules"]))
-            self.assertTrue(any("工具调用" in rule and "成功条件" in rule for rule in request["rules"]))
-            self.assertTrue(any("最终业务状态" in rule and "新建" in rule for rule in request["rules"]))
-            self.assertTrue(any("标点" in rule and "下划线" in rule for rule in request["rules"]))
-            self.assertTrue(any("每项 requirement" in rule and "恰好一次" in rule for rule in request["rules"]))
-            self.assertTrue(any("没有返回值" in rule and "最终回答" in rule for rule in request["rules"]))
-            self.assertTrue(any("字段" in rule and "业务对象" in rule for rule in request["rules"]))
-            self.assertTrue(any("多个业务标识" in rule and "分隔" in rule for rule in request["rules"]))
-            self.assertTrue(any("检查结果" in rule and "true" in rule for rule in request["rules"]))
-            self.assertTrue(any("可回溯" in rule and "原文全文" in rule for rule in request["rules"]))
-            self.assertTrue(any("initial" in rule and "final" in rule for rule in request["rules"]))
-            self.assertTrue(any("分句" in rule and "传播" in rule for rule in request["rules"]))
-            self.assertTrue(any("自然语言内容" in rule and "固定短语" in rule for rule in request["rules"]))
-            self.assertTrue(any("整个任务不得通过" in rule and "保持不变" in rule for rule in request["rules"]))
+            principles = request["judging_principles"]
+            requirements = request["construction_requirements"]
+            self.assertTrue(any("唯一权威" in rule and "参考调用链" in rule for rule in principles))
+            self.assertTrue(any("内部过程" in rule and "调用顺序" in rule for rule in principles))
+            self.assertTrue(any("同一业务对象" in rule and "字段" in rule for rule in principles))
+            self.assertTrue(any("业务身份" in rule and "动态 ID" in rule for rule in principles))
+            self.assertTrue(any("每项 requirement" in rule and "恰好" in rule for rule in requirements))
+            self.assertTrue(any("没有返回值" in rule for rule in requirements))
+            self.assertTrue(any("initial" in rule and "final" in rule for rule in requirements))
+            self.assertTrue(any("任务不得整体通过" in rule and "保持不变" in rule for rule in requirements))
             return InferenceResult(json.dumps(package), {}, "test-model")
 
         generated = generate_verifier(
@@ -557,7 +552,7 @@ class TaskEvalTest(unittest.TestCase):
                 confirm_all=True,
             )
         self.assertEqual(requests[0]["task"], "The brief must contain organized action items.")
-        self.assertIn("原任务是唯一权威", requests[0]["role"])
+        self.assertIn("原任务是成功标准的唯一权威", requests[0]["role"])
         self.assertIn("原子子项", requests[0]["role"])
         self.assertIn("忽略这些加码", requests[0]["role"])
 
@@ -726,7 +721,7 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("7", prompt["role"])
             self.assertIn("tool calls", prompt["role"])
 
-    def test_task_evaluation_uses_local_codex_and_defaults_to_fifty_calls(self) -> None:
+    def test_task_evaluation_uses_isolated_codex_and_defaults_to_fifty_calls(self) -> None:
         self.assertEqual(_TaskEvalCodexClient.__mro__[1].__module__, "task_gen.tool_graph.codex")
         self.assertEqual(evaluate_case.__kwdefaults__["max_tool_calls"], 50)
         self.assertEqual(run_evaluation.__kwdefaults__["max_tool_calls"], 50)
@@ -765,7 +760,7 @@ class TaskEvalTest(unittest.TestCase):
     def test_defaults_to_this_repository_task_runs(self) -> None:
         self.assertEqual(DEFAULT_INPUT_ROOT, ROOT / "runs/taskgen")
 
-    def test_eval_codex_client_auto_approves_isolated_workspace_tools(self) -> None:
+    def test_eval_codex_client_bypasses_approval_for_isolated_workspace_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             arguments_path = root / "arguments.txt"
@@ -789,7 +784,8 @@ class TaskEvalTest(unittest.TestCase):
             client.run("work", working_directory=root)
 
             arguments = arguments_path.read_text(encoding="utf-8").splitlines()
-            self.assertIn("--approve-for-me", arguments)
+            self.assertIn("--dangerously-bypass-approvals-and-sandbox", arguments)
+            self.assertNotIn("--approve-for-me", arguments)
             self.assertNotIn("--sandbox", arguments)
             self.assertIn("mcp_servers={}", arguments)
 

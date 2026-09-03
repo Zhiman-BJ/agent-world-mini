@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import tempfile
 from typing import Any, Callable
 
@@ -18,6 +19,7 @@ _STATUSES = {"pass", "fail", "indeterminate"}
 _CHANNELS = {"answer", "tool_trace", "workspace"}
 _CONTEXT_METHODS = {
     "answer", "calls", "changed_paths", "files", "file", "read_text", "read_json",
+    "call_tool", "verifier_calls",
     "pass_requirement", "fail_requirement", "indeterminate_requirement", "semantic_requirement",
 }
 _BANNED_CALLS = {
@@ -191,9 +193,20 @@ def validate_verifier(package: dict[str, Any]) -> None:
 
 
 _RUNTIME = r'''
+import contextlib
+from copy import deepcopy
+import io
+import json
+from pathlib import Path
+import shutil
+from types import SimpleNamespace
+
 class VerifierContext:
-    def __init__(self, evidence):
-        self._evidence = evidence
+    def __init__(self, arguments):
+        self._evidence = arguments["evidence"]
+        self._tools = {tool["name"]: tool for tool in arguments.get("tools", [])}
+        self._max_tool_calls = arguments.get("max_tool_calls", 50)
+        self._verifier_calls = []
         self._results = []
 
     def answer(self):
@@ -215,6 +228,12 @@ class VerifierContext:
         return None
 
     def read_text(self, path, state="final"):
+        target = self._state_path(path, state)
+        if target is not None and target.is_file():
+            try:
+                return target.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                return None
         item = self.file(path, state)
         value = None if item is None else item.get("text")
         if value is None and state == "final":
@@ -224,6 +243,12 @@ class VerifierContext:
         return value
 
     def read_json(self, path, state="final"):
+        text = self.read_text(path, state)
+        if text is not None:
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return None
         item = self.file(path, state)
         value = None if item is None else item.get("json")
         if value is None and state == "final":
@@ -231,6 +256,48 @@ class VerifierContext:
             if initial is not None and item is not None and initial.get("sha256") == item.get("sha256"):
                 value = initial.get("json")
         return value
+
+    def _state_path(self, path, state):
+        if state not in ("initial", "final") or not isinstance(path, str):
+            return None
+        relative = Path(path)
+        if relative.is_absolute():
+            return None
+        root = (Path("/workspace") / state).resolve()
+        target = (root / relative).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return None
+        return target
+
+    def call_tool(self, name, arguments):
+        if len(self._verifier_calls) >= self._max_tool_calls:
+            raise ValueError("verifier 工具调用次数已达到上限")
+        tool = self._tools.get(name)
+        if tool is None or not isinstance(arguments, dict):
+            raise ValueError("未知工具或工具参数不是 object")
+        index = len(self._verifier_calls)
+        workspace = Path("/workspace/.verifier_calls") / str(index)
+        shutil.copytree(Path("/workspace/final"), workspace)
+        namespace = {"json": json}
+        result = None
+        error = None
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                exec(tool["internal"]["code"], namespace)
+                runner = namespace.get("run")
+                if not callable(runner):
+                    raise ValueError("工具没有定义 run(arguments, context)")
+                result = runner(deepcopy(arguments), SimpleNamespace(workspace_root=workspace))
+        except BaseException as exception:
+            error = f"{type(exception).__name__}: {exception}"
+        record = {"tool": name, "arguments": deepcopy(arguments), "result": result, "error": error}
+        self._verifier_calls.append(record)
+        return deepcopy(record)
+
+    def verifier_calls(self):
+        return deepcopy(self._verifier_calls)
 
     def _record(self, requirement_id, status, reason, evidence_refs):
         self._results.append({
@@ -258,9 +325,9 @@ def _runner_source(source: str) -> str:
     return _RUNTIME + "\n" + source + r'''
 
 def run(arguments, context):
-    ctx = VerifierContext(arguments["evidence"])
+    ctx = VerifierContext(arguments)
     verify(ctx)
-    return {"results": ctx._results}
+    return {"results": ctx._results, "verifier_calls": ctx._verifier_calls}
 '''
 
 
@@ -273,6 +340,12 @@ def _valid_evidence_ref(reference: str, evidence: dict[str, Any]) -> bool:
         except ValueError:
             return False
         return 0 <= index < len(evidence.get("calls", []))
+    if reference.startswith("verifier_call:"):
+        try:
+            index = int(reference.split(":", 1)[1])
+        except ValueError:
+            return False
+        return 0 <= index < len(evidence.get("verifier_calls", []))
     for prefix, key in (("initial:", "initial_files"), ("final:", "final_files")):
         if reference.startswith(prefix):
             path = reference[len(prefix):]
@@ -291,17 +364,38 @@ def run_verifier(
     memory_limit: int = 512 * 1024 * 1024,
     semantic_infer_fn: InferFn | None = None,
     llm_config: dict[str, Any] | None = None,
+    task_text: str | None = None,
+    initial_state: Path | None = None,
+    final_state: Path | None = None,
+    tools: list[dict[str, Any]] | None = None,
+    max_tool_calls: int = 50,
 ) -> list[dict[str, Any]]:
     """Execute generated verifier code in the existing bubblewrap sandbox."""
     validate_verifier(package)
     with tempfile.TemporaryDirectory(prefix="task-verifier-") as temporary:
-        outcome = _call_tool(_runner_source(package["source"]), {"evidence": evidence}, Path(temporary), timeout,
-                             memory_limit, 1024 * 1024)
+        runtime = Path(temporary) / "runtime"
+        runtime.mkdir()
+        for name, state in (("initial", initial_state), ("final", final_state)):
+            target = runtime / name
+            if state is None:
+                target.mkdir()
+            else:
+                shutil.copytree(state.resolve(), target)
+        outcome = _call_tool(
+            _runner_source(package["source"]),
+            {"evidence": evidence, "tools": tools or [], "max_tool_calls": max_tool_calls},
+            runtime,
+            timeout,
+            memory_limit,
+            256 * 1024 * 1024,
+        )
     if outcome.get("kind") is not None:
         raise ValueError(f"verifier 执行失败：{outcome.get('error')}")
     payload = outcome.get("result")
-    if not isinstance(payload, dict) or set(payload) != {"results"} or not isinstance(payload["results"], list):
+    if (not isinstance(payload, dict) or set(payload) != {"results", "verifier_calls"}
+            or not isinstance(payload["results"], list) or not isinstance(payload["verifier_calls"], list)):
         raise ValueError("verifier 返回结构非法")
+    evidence["verifier_calls"] = payload["verifier_calls"]
     requirements = {item["id"] for item in package["requirements"]}
     seen: set[str] = set()
     for result in payload["results"]:
@@ -329,7 +423,7 @@ def run_verifier(
     if semantic_infer_fn is not None:
         requirements_by_id = {item["id"]: item for item in package["requirements"]}
         prompts = [
-            _semantic_prompt(item, evidence, requirements_by_id[item["requirement_id"]])
+            _semantic_prompt(item, evidence, requirements_by_id[item["requirement_id"]], task_text)
             for item in semantic_results
         ]
         responses = semantic_infer_fn(
@@ -387,6 +481,7 @@ def _semantic_prompt(
     selected: dict[str, Any] = {
         "answer": evidence.get("answer", "") if "answer" in refs else "",
         "calls": [],
+        "verifier_calls": [],
         "changed_paths": [],
         "initial_files": [],
         "final_files": [],
@@ -395,6 +490,9 @@ def _semantic_prompt(
         if reference.startswith("tool_call:"):
             index = int(reference.split(":", 1)[1])
             selected["calls"].append(evidence["calls"][index])
+        elif reference.startswith("verifier_call:"):
+            index = int(reference.split(":", 1)[1])
+            selected["verifier_calls"].append(evidence["verifier_calls"][index])
         elif reference.startswith("workspace_change:"):
             path = reference.split(":", 1)[1]
             selected["changed_paths"].extend(
@@ -413,21 +511,25 @@ def _semantic_prompt(
                         item.update({field: initial[field] for field in ("text", "json", "truncated")
                                      if field in initial})
                 selected[key].append(item)
-    role = "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。"
+    role = (
+        "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。"
+        "只有引用证据直接、完整地证明要求时才通过；证据缺失、截断或相互冲突时返回 indeterminate，"
+        "证据明确反驳要求时返回 fail。理由只能陈述引用证据实际显示的事实，且事实必须属于同一业务对象、"
+        "交付物、时间范围和字段，不能借用其他对象上的同名信息。"
+    )
     if task_text is not None:
         role += (
-            "依据原任务判断引用证据是否满足当前原子子项对应的任务目标，原任务是唯一权威。"
-            "原子子项不包含任务中的其他目标是正常的；不得因遗漏无关目标而失败。"
-            "生成的 pass_condition、fail_condition 或代码若加入原任务对应分句未要求的日期、数值、格式、载体或操作方式，"
-            "忽略这些加码，按原任务实际要求裁决；不要把契约设计本身作为单独的成败条件。"
+            "原任务是成功标准的唯一权威；参考执行、原子子项和生成代码只是核验辅助。"
+            "当前原子子项不包含其他任务目标是正常的，不得因遗漏无关目标而失败。"
+            "若原子子项或代码加入原任务对应分句未要求的限定、格式、载体或操作方式，忽略这些加码。"
+            "限定条件只作用于它直接修饰的对象或动作，不得传播给其他目标。"
         )
     role += (
-        "只有引用证据直接证明要求时才通过；不得用最终回答补足任务明确要求写入文件或持久业务状态的缺失内容；"
-        "但任务只要求生成、计算并呈现结果，未明确要求落盘或持久化时，工具调用结果和最终回答可以共同作为证据。"
-        "空标题、空字段或仅声称已完成都不算内容。任务要求某份简报、文件或备注包含或整理内容时，"
-        "只有该载体正文能证明完成，最终回答不能替代。任务只要求提供或保留某项检查结果时，"
-        "不得擅自要求该结果必须为 true、成功或通过。可回溯证据引用可以由业务标识、说话人、时间或位置等信息完成定位；"
-        "任务未明确要求逐字引文时，不得要求引用中包含原文全文。"
+        "按任务动词要求的状态变化判断结果；要求写入或改变持久状态时，最终回答不能补足状态证据，"
+        "只要求查询、计算或呈现时，工具结果和最终回答可以共同证明。"
+        "技术 ID、路径、序列化格式和措辞不是业务结果，除非原任务明确指定。"
+        "精确值、计数、路径、哈希、枚举和布尔值等结构化事实应与证据严格一致；自然语言仅判断含义是否满足。"
+        "要求交付内容时，空字段、占位内容或仅声称完成不算交付。"
     )
     return json.dumps({
         "role": role,
@@ -474,35 +576,37 @@ def generate_verifier(
     """Ask the model for a constrained verifier package, then validate it."""
     request = {
             "role": "你为一次真实任务执行生成审核 verifier。只根据任务文本定义成功条件。",
-            "rules": [
-                "先把任务拆成全部必需的原子要求，每项必须有唯一 id。",
-                "只定义用户要求的成功结果；不要把发现信息、选择工具或其他内部操作过程另立为成功条件。",
+            "judging_principles": [
+                "原任务文本是成功标准的唯一权威；参考回答、参考调用链和参考最终状态只是一条已知可行证据路径，不是必须复现的标准答案。",
+                "判断任务要求的结果和状态变化，不把发现信息、选择工具、调用顺序或调用次数等内部过程另立为成功条件，除非原任务明确要求该过程。",
+                "按任务动词区分创建、修改、删除、保持、查询、计算和呈现；需要持久化的结果必须由最终状态证明，纯查询、计算或呈现可以由工具结果与最终回答共同证明。",
+                "证据必须直接支持要求，并绑定到同一业务对象、交付物、时间范围和字段；不得用其他对象上的同名信息拼接证明。",
+                "业务身份独立于技术表示。任务未明确指定时，不把动态 ID、内部路径、序列化格式、字段承载方式、标识顺序或参考措辞当作通过条件。",
+                "限定条件只作用于它直接修饰的对象或动作，不得传播到其他并列目标。",
+                "路径、哈希、ID、数量、枚举、布尔值、精确引文及结构化字段等确定性事实用代码严格核对；自然语言的含义、质量和等价表达才交给 semantic_requirement。",
+                "任务要求交付内容时必须存在实质内容；空字段、占位内容或仅声称已完成不能通过，除非任务明确允许无内容并要求说明该状态。",
+                "所有实际状态变化都必须能由任务目标或完成目标所必需的工具语义解释；无关、破坏性或相互冲突的副作用不能通过。",
+                "证据不足、截断或冲突时返回 indeterminate；证据明确反驳要求时返回 fail。reason 只能陈述 evidence_refs 实际证明的事实。",
+            ],
+            "construction_requirements": [
+                "先完整拆出任务的全部必需原子要求：所有要求的并集覆盖整个任务，每项只表达一个可独立判断的目标，并具有唯一 id。",
+                "除任务原子要求外，增加一项 required 的执行完整性要求，检查实际状态变化是否都与任务目标相关且没有破坏无关状态。",
                 "为每项给出 claim、evidence_channels、pass_condition 和 fail_condition。",
-                "source 只能定义 verify(ctx)，只能调用 VerifierContext 的公开方法。",
-                "source 不得导入模块、访问路径、启动进程、写文件或硬编码参考执行的动态 ID。",
-                "不得把参考执行中偶然出现的具体 ID、时间戳或固定文本值当作通用通过条件；只能检查任务要求及证据结构。",
-                "工具调用链只是可用证据，不是标准答案；任务未明确要求时，不得把调用某个工具、调用顺序或调用次数作为成功条件。",
-                "只检查任务要求的最终业务状态。只有任务明确要求创建、新增或追加时才能要求相对初态新增；登记、整理、归档或设置不得自动解释为必须新建。",
-                "业务名称按语义匹配，忽略不影响含义的大小写、空白、标点和下划线差异；确定性代码难以可靠归一时使用 semantic_requirement。",
-                "路径和枚举值按任务语义匹配；除任务明确指定父路径或字面格式外，不得照搬参考执行的完整字符串作为唯一条件。",
-                "公开工具若只返回计算结果且没有写入能力，不得虚构输出文件；任务未明确要求落盘时，工具结果、工具参数、最终回答和最终状态可以共同证明结果已生成。参考调用轨迹可能没有返回值，不能因此要求工具必须有返回值。",
-                "任务只要求提供或保留某项检查结果时，不得擅自要求该结果必须为 true、成功或通过；应保留工具实际返回的结果。",
-                "任务只要求可回溯的证据引用时，业务标识、说话人、时间或位置等可定位信息即可构成引用；除非任务明确要求逐字引文，不得强制引用包含原文全文。",
-                "任务未指定的技术字段（例如内部 ID、source_reference、作者、文件名）不得作为通过条件；只有在该字段用于识别任务要求的业务对象时，才按其指向的对象核对。",
-                "同一字段承载多个业务标识时，只能分别核对任务明确指定的标识，不得要求参考执行中的字段选择、标识顺序、完整字符串或逗号、加号等分隔格式。",
-                "日期、名称、数值等限定词只约束其所在分句明确修饰的业务对象，不得传播到同段的其他动作或产物。",
-                "任务要求交付物包含或整理某类内容时，空标题、空字段不能算完成；没有相应内容时，交付物必须明确说明无。",
-                "凡把相对初态新增或变化作为通过条件，evidence_refs 必须同时引用相关 initial 和 final 证据，不得让语义审核凭未引用的初态推断。",
-                "路径和数据结构只能使用 reference_evidence 中明确出现的事实，不得猜测。",
-                "文件只有元数据而没有 text/json 时，表示正文未放进生成提示；运行时仍可按该路径读取。",
-                "需要自然语言判断时调用 ctx.semantic_requirement(id, claim, evidence_refs)。",
-                "备注、评论、说明、摘要等自然语言内容是否表达某个含义，必须使用 semantic_requirement；不得用固定短语、关键词或参考措辞的子串匹配直接判定成败。",
-                "确定性事实优先在 source 中直接比较证据。",
-                "source 的每条执行路径必须记录每项 requirement 的结果恰好一次，不能遗漏或重复记录。",
-                "evidence_refs 只能使用列出的精确格式和当前证据中存在的索引或路径；工具引用必须从 ctx.calls() 的实际索引生成，不得写 tool_trace 或 workspace 等占位符。",
-                "source 保持紧凑，复用局部 helper，不要在代码中重复 requirements 的长篇说明。",
-                "空回答、无工具调用且 workspace 无变化时，整个任务不得通过；仅要求保持不变的子项可凭同一路径 initial/final 哈希一致单独通过。",
+                "source 只能定义 verify(ctx)，只能调用 VerifierContext 的公开方法；不得导入模块、直接访问路径、启动进程或写文件。",
+                "不得硬编码参考执行中的偶然值。路径和数据结构只能使用 reference_evidence 明确提供的事实，不得猜测。",
+                "凡把相对初态新增、删除、变化或保持作为条件，必须同时引用相关 initial 和 final 证据。",
+                "自然语言含义使用 semantic_requirement；确定性事实直接用 source 判断，不得用关键词或参考措辞子串替代语义判断。",
+                "semantic_requirement 会直接记录该 requirement 的结果请求且没有返回值；调用后不得再用 pass/fail/indeterminate 重复记录同一 id，也不得把它放进布尔表达式。",
+                "call_tool 只能补充核验已有状态或核对 Agent 已提交的结果，不能单独证明 Agent 执行过任务或交付了任务要求的结果；查询、计算或呈现型要求仍须同时引用 Agent 的原始调用、最终回答或实际状态证据。",
+                "source 每条执行路径必须恰好记录每项 requirement 一次；evidence_refs 必须使用规定格式，并指向实际引用的证据。",
+                "source 保持紧凑；空回答、无工具调用且 workspace 无变化时，除保持不变的单项要求外，任务不得整体通过。",
                 "只输出符合 schema 的 JSON，不要 markdown。",
+            ],
+            "runtime_capabilities": [
+                "verifier 可以通过 read_text/read_json 只读访问完整的 initial 和 final workspace；路径必须是 workspace 内的相对路径。",
+                "verifier 可以通过 call_tool 在 final workspace 的一次性副本中调用环境工具；每次调用使用独立副本，任何写入都不会改变被审核终态。审核调用只能核验，不能替 Agent 补做任务或单独证明 Agent 已交付结果。",
+                "工具调用是可引用证据而不是标准答案；任务未要求时，不能强制特定工具、顺序或次数。",
+                "最终回答不能替代任务明确要求写入文件或持久业务状态的证据。",
             ],
             "task": task.get("task_text"),
             "environment": environment,
@@ -514,7 +618,9 @@ def generate_verifier(
                 "files(state='final')": "返回 initial 或 final 文件元数据数组",
                 "file(path, state='final')": "按相对路径返回文件元数据或 None",
                 "read_text(path, state='final')": "返回有界 UTF-8 文本或 None",
-                "read_json(path, state='final')": "返回完整纳入证据包的 JSON 值或 None",
+                "read_json(path, state='final')": "从完整 initial/final workspace 读取 JSON，失败时返回 None",
+                "call_tool(name, arguments)": "在 final 的独立副本调用环境工具，返回 tool/arguments/result/error 记录",
+                "verifier_calls()": "返回当前 verifier 已执行的补充工具调用记录",
                 "pass_requirement(id, reason, refs)": "记录确定通过",
                 "fail_requirement(id, reason, refs)": "记录确定失败",
                 "indeterminate_requirement(id, reason, refs=[])": "记录证据不足",
@@ -522,7 +628,7 @@ def generate_verifier(
             },
             "evidence_reference_formats": [
                 "answer", "tool_call:N", "initial:relative/path", "final:relative/path",
-                "workspace_change:relative/path",
+                "workspace_change:relative/path", "verifier_call:N",
             ],
             "response_contract": {
                 "schema_version": "1",
@@ -671,10 +777,15 @@ def calibrate_verifier(
     infer_fn: InferFn = infer,
     task_text: str | None = None,
     confirm_all: bool = False,
+    initial_state: Path | None = None,
+    final_state: Path | None = None,
+    tools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Require the reference to pass and empty evidence not to pass required criteria."""
     reference_results = run_verifier(
         package, reference_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
+        task_text=task_text,
+        initial_state=initial_state, final_state=final_state, tools=tools,
     )
     reference_raw = aggregate_results(package["requirements"], reference_results)
     confirmation = None
@@ -687,6 +798,7 @@ def calibrate_verifier(
     elif "semantic_requirement" in package["source"]:
         confirmation_results = run_verifier(
             package, reference_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
+            task_text=task_text, initial_state=initial_state, final_state=final_state, tools=tools,
         )
         confirmation = aggregate_results(package["requirements"], confirmation_results)
         reference = confirmation
@@ -699,18 +811,18 @@ def calibrate_verifier(
     counterfactual = None
     if task_text is not None:
         counterfactual_evidence = _counterfactual_evidence(reference_evidence, task_text)
-        def accept_semantics(prompt: str | list[str], **_: Any) -> InferenceResult | list[InferenceResult]:
-            result = InferenceResult('{"status":"pass","reason":"只校准确定性分支"}', {}, "calibration")
-            return [result for _ in prompt] if isinstance(prompt, list) else result
-
         counterfactual_results = run_verifier(
-            package, counterfactual_evidence, semantic_infer_fn=accept_semantics, llm_config=llm_config,
+            package, counterfactual_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
+            task_text=task_text,
+            initial_state=initial_state, final_state=final_state, tools=tools,
         )
         counterfactual = aggregate_results(package["requirements"], counterfactual_results)
         if counterfactual["outcome"] != "pass":
             raise ValueError("参考执行反事实校准未通过：" + json.dumps(counterfactual_results, ensure_ascii=False))
     empty_results = run_verifier(
         package, empty_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
+        task_text=task_text,
+        initial_state=initial_state, final_state=initial_state, tools=tools,
     )
     empty = aggregate_results(package["requirements"], empty_results)
     required = {item["id"] for item in package["requirements"] if item["required"]}
@@ -741,8 +853,13 @@ def calibrate_verifier(
         "reference_raw": reference_raw,
         "reference": reference,
         "reference_confirmation": confirmation,
+        "reference_verifier_calls": reference_evidence.get("verifier_calls", []),
         "counterfactual": counterfactual,
+        "counterfactual_verifier_calls": (
+            counterfactual_evidence.get("verifier_calls", []) if task_text is not None else []
+        ),
         "empty": empty,
+        "empty_verifier_calls": empty_evidence.get("verifier_calls", []),
         "status": "calibrated",
     }
 
@@ -756,6 +873,9 @@ def prepare_verifier(
     *,
     attempts: int = 3,
     infer_fn: InferFn = infer,
+    initial_state: Path | None = None,
+    final_state: Path | None = None,
+    tools: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     """Generate and calibrate, retaining each failed attempt for diagnostics."""
     if attempts < 1:
@@ -774,6 +894,9 @@ def prepare_verifier(
                 llm_config=llm_config, infer_fn=infer_fn,
                 task_text=str(task.get("task_text") or ""),
                 confirm_all=True,
+                initial_state=initial_state,
+                final_state=final_state,
+                tools=tools,
             )
         except Exception as error:
             previous_failure = f"{type(error).__name__}: {error}"[:4000]
