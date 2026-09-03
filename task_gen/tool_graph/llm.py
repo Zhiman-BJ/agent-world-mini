@@ -24,7 +24,7 @@ from typing import Any, overload
 from uuid import uuid4
 
 from utils.llm import LLMClient
-from utils.search_agent.codex import CodexAgentClient
+from .codex import CodexAgentClient
 
 
 Message = dict[str, str]

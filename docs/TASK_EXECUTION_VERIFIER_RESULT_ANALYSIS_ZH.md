@@ -110,8 +110,8 @@ Happyscribe task9 的中文“未提供明确行动项”都由 raw fail 修正�
 
 - `max_concurrency=16`：verifier 语义请求吞吐较高，但同时启动真实 Codex Agent 会触发审批服务
   503。当前机器更适合 4-8 路执行 Agent；16 路可用于纯 LLM 审核，不宜作为稳定默认值。
-- `max_tool_calls=20`：当前应保留。Happyscribe task9 曾用满 20 次；Finstat task7 的失败轮在
-  第 15 次遇到 429，修正提示后用 13 次完成。降低额度会直接损害复杂任务。
+- 历史试跑使用 `max_tool_calls=20`：Happyscribe task9 曾用满 20 次；Finstat task7 的失败轮在
+  第 15 次遇到 429，修正提示后用 13 次完成。当前默认值已提高到 50，命令行仍可覆盖。
 - `timeout_seconds=1800`：本轮没有任务因该上限超时，足以覆盖复杂工具链。
 - `tool_result_max_bytes=65536`：偏小。三份长转写同时进入证据时，第三份会被截断，导致部分
   引用完整性判断变为 indeterminate，并增加 verifier 重试。后续应改为按 requirement 定向加载

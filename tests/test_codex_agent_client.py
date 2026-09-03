@@ -73,25 +73,6 @@ class CodexAgentClientTests(unittest.TestCase):
             self.assertTrue(raised.exception.retryable)
             self.assertIn("started", (logs / "run_01/stderr.log").read_text())
 
-    def test_auto_approval_uses_cli_managed_workspace_sandbox(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            arguments = root / "arguments.txt"
-            command = executable(
-                root / "fake-codex",
-                f'printf "%s\\n" "$@" > {arguments}\n'
-                'output=""\nwhile [ "$#" -gt 0 ]; do\n'
-                '  if [ "$1" = "--output-last-message" ]; then shift; output="$1"; fi\n'
-                '  shift\ndone\ncat >/dev/null\necho done > "$output"\n',
-            )
-            client = CodexAgentClient(executable=str(command), approve_for_me=True)
-
-            client.run("work", working_directory=root)
-
-            received = arguments.read_text(encoding="utf-8").splitlines()
-            self.assertIn("--approve-for-me", received)
-            self.assertNotIn("--sandbox", received)
-
 
 if __name__ == "__main__":
     unittest.main()

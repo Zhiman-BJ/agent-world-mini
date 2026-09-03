@@ -14,8 +14,7 @@ import sys
 import tempfile
 from typing import Any, Callable
 
-from utils.search_agent.codex import CodexAgentClient
-
+from .tool_graph.codex import CodexAgentClient
 from .tool_graph.llm import InferenceResult, infer, parse_json_object
 from .tool_graph.run_io import load_config
 from .tool_graph.step_3_chain_execute import (
@@ -132,7 +131,7 @@ def evaluate_case(
     workspace: Path,
     llm_config: dict[str, Any],
     *,
-    max_tool_calls: int = 20,
+    max_tool_calls: int = 50,
     agent_attempts: int = 3,
     tool_timeout_seconds: int = 300,
     tool_max_memory_bytes: int = 2 * 1024 * 1024 * 1024,
@@ -435,7 +434,7 @@ def run_evaluation(
     *,
     limit: int | None = None,
     environment_id: str | None = None,
-    max_tool_calls: int = 20,
+    max_tool_calls: int = 50,
     max_concurrency: int = 1,
 ) -> Path:
     cases = load_cases(input_root)
@@ -520,7 +519,7 @@ def main() -> None:
     parser.add_argument("--backend")
     parser.add_argument("--environment-id")
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--max-tool-calls", type=int, default=20)
+    parser.add_argument("--max-tool-calls", type=int, default=50)
     parser.add_argument("--max-concurrency", type=int, default=1)
     parser.add_argument("--llm-timeout-seconds", type=int)
     arguments = parser.parse_args()

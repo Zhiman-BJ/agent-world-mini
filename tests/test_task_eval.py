@@ -17,6 +17,7 @@ from task_gen.task_eval import (
     evaluate_case,
     load_cases,
     main,
+    run_evaluation,
 )
 from task_gen.task_eval_verifier import (
     _counterfactual_evidence,
@@ -725,6 +726,11 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("7", prompt["role"])
             self.assertIn("tool calls", prompt["role"])
 
+    def test_task_evaluation_uses_local_codex_and_defaults_to_fifty_calls(self) -> None:
+        self.assertEqual(_TaskEvalCodexClient.__mro__[1].__module__, "task_gen.tool_graph.codex")
+        self.assertEqual(evaluate_case.__kwdefaults__["max_tool_calls"], 50)
+        self.assertEqual(run_evaluation.__kwdefaults__["max_tool_calls"], 50)
+
     def test_run_agent_propagates_llm_timeout(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -760,28 +766,32 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(DEFAULT_INPUT_ROOT, ROOT / "runs/taskgen")
 
     def test_eval_codex_client_auto_approves_isolated_workspace_tools(self) -> None:
-        client = _TaskEvalCodexClient(
-            Path("/tmp/task_eval_mcp.py"),
-            Path("/tmp/server.json"),
-            model="test-model",
-            sandbox="workspace-write",
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            arguments_path = root / "arguments.txt"
+            executable = root / "fake-codex"
+            executable.write_text(
+                "#!/usr/bin/env bash\nset -eu\n"
+                f'printf "%s\\n" "$@" > {arguments_path}\n'
+                'output=""\nwhile [ "$#" -gt 0 ]; do\n'
+                '  if [ "$1" = "--output-last-message" ]; then shift; output="$1"; fi\n'
+                '  shift\ndone\ncat >/dev/null\necho done > "$output"\n',
+                encoding="utf-8",
+            )
+            executable.chmod(0o755)
+            client = _TaskEvalCodexClient(
+                root / "task_eval_mcp.py",
+                root / "server.json",
+                executable=str(executable),
+                sandbox="workspace-write",
+            )
 
-        arguments = client._llm_arguments({})
+            client.run("work", working_directory=root)
 
-        self.assertEqual(client.sandbox, "workspace-write")
-        self.assertTrue(client.approve_for_me)
-        self.assertNotIn("--approve-for-me", arguments)
-        self.assertIn("mcp_servers={}", arguments)
-        self.assertIn(
-            "mcp_servers.agent_world_eval.command=" + json.dumps(os.sys.executable),
-            arguments,
-        )
-        self.assertIn(
-            "mcp_servers.agent_world_eval.args="
-            + json.dumps(["/tmp/task_eval_mcp.py", "/tmp/server.json"]),
-            arguments,
-        )
+            arguments = arguments_path.read_text(encoding="utf-8").splitlines()
+            self.assertIn("--approve-for-me", arguments)
+            self.assertNotIn("--sandbox", arguments)
+            self.assertIn("mcp_servers={}", arguments)
 
     def test_result_counts_do_not_treat_error_null_as_infrastructure_failure(self) -> None:
         counts = _result_counts([
