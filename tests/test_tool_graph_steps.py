@@ -180,12 +180,21 @@ class GraphBuildTest(unittest.TestCase):
             graph_build._validate_assessments("b", raw, {"a", "b"})
 
     def test_rejects_unclassifiable_state_observation_assessment(self) -> None:
+        baseline = self._assessment("a", connection="state_observation") | {
+            "value_origin": "not_applicable",
+            "input_availability": "not_applicable",
+        }
+        self.assertEqual(
+            graph_build._validate_assessments("b", [baseline], ["a", "b"]),
+            [baseline],
+        )
+
         for change in (
             {"immediate_next": False},
             {"value_origin": "unknown"},
             {"input_availability": "runtime_only"},
         ):
-            raw = [self._assessment("a", connection="state_observation") | change]
+            raw = [baseline | change]
             with self.subTest(change=change), self.assertRaisesRegex(
                 ValueError, "state_observation"
             ):
@@ -299,8 +308,11 @@ class GraphBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "echoed"):
             graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
 
-    def test_allows_strong_state_observation_even_when_identifier_is_echoed(self) -> None:
-        assessments = [self._assessment("a", connection="state_observation") | {"value_origin": "echoed"}]
+    def test_allows_strong_state_observation(self) -> None:
+        assessments = [self._assessment("a", connection="state_observation") | {
+            "value_origin": "not_applicable",
+            "input_availability": "not_applicable",
+        }]
         raw = {
             "decisions": [{"from_tool": "a", "weight": 3, "reason": "b reads state changed by a"}],
             "prerequisite_alternatives": [],
@@ -309,7 +321,10 @@ class GraphBuildTest(unittest.TestCase):
         self.assertEqual(edges[0]["weight"], 3)
 
     def test_rejects_weak_state_observation(self) -> None:
-        assessments = [self._assessment("a", connection="state_observation") | {"value_origin": "echoed"}]
+        assessments = [self._assessment("a", connection="state_observation") | {
+            "value_origin": "not_applicable",
+            "input_availability": "not_applicable",
+        }]
         raw = {
             "decisions": [{"from_tool": "a", "weight": 1, "reason": "incorrect downgrade"}],
             "prerequisite_alternatives": [],
