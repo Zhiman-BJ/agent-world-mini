@@ -17,6 +17,23 @@ seed_gen/
 - `data/prepared_environments_10.json`：整理过程中的小规模参考样例。
 - `data/smithery_servers.json`：保留 Smithery 列表接口原字段的完整快照。
 - `data/smithery_servers_report.json`：完整快照的分页、数量和 SHA-256 校验信息。
+
+### 从列表快照续爬环境种子
+
+`catalog.py` 不再调用 LLM 整理目录项。它读取按 `useCount` 降序保存的
+`data/smithery_servers.json`，默认取前 1000 条并仅请求每个服务的详情，直接
+写成环境种子契约数组：
+
+```powershell
+python -m seed_gen.catalog `
+  --source seed_gen/data/smithery_servers.json `
+  --output seed_gen/data/smithery_1000_v1_0902.json `
+  --limit 1000
+```
+
+详情中的工具参数和来源字段原样保留；`iconUrl` 不写入种子核心数据，所有其余
+详情元数据置于 `others.source_metadata`。该过程不调用 LLM，也不需要任何模型配置；
+Smithery API 的鉴权仍按接口要求使用 `SMITHERY_API_KEY`。
 - `data/theme_sources.json`：内置主题来源。
 
 环境种子格式见 `../schemas/环境种子契约-v1.0.md` 和

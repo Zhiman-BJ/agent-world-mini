@@ -4,18 +4,21 @@ import json
 import os
 import random
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from utils.io import extract_json_object, write_json
-from utils.llm import LLMClient
+from utils.io import write_json
 from seed_gen.themes import CURATED_THEME_SEEDS, ThemeSeed, theme_from_catalog
 
 
 SMITHERY_API = "https://api.smithery.ai/servers"
+SEED_GEN_DATA = Path(__file__).resolve().parent / "data"
+DEFAULT_SERVER_SNAPSHOT = SEED_GEN_DATA / "smithery_servers.json"
+DEFAULT_SEED_OUTPUT = SEED_GEN_DATA / "smithery_1000_v1_0902.json"
 
 
 def _get_json(url: str) -> dict[str, object]:
@@ -38,6 +41,13 @@ def _normal_name(value: str) -> str:
     words = re.findall(r"[a-z0-9]+", value.lower())
     ignored = {"mcp", "server", "tool", "tools", "official", "integration"}
     return " ".join(word for word in words if word not in ignored)
+
+
+def _global_id_name(value: str) -> str:
+    normalized = re.sub(r"[^0-9a-zA-Z]+", "_", value).strip("_").lower()
+    if not normalized:
+        raise ValueError(f"qualifiedName cannot form a global ID: {value!r}")
+    return normalized
 
 
 def _existing_themes(output_root: Path) -> tuple[set[str], set[str]]:
@@ -84,90 +94,132 @@ def _read_server_detail(server: dict[str, object]) -> dict[str, object] | None:
     qualified_name = str(server.get("qualifiedName") or "").strip()
     if not qualified_name:
         return None
-    try:
-        detail = _get_json(f"{SMITHERY_API}/{quote(qualified_name, safe='')}")
-    except (OSError, ValueError):
-        return None
+    detail: dict[str, object] | None = None
+    for attempt in range(3):
+        try:
+            detail = _get_json(f"{SMITHERY_API}/{quote(qualified_name, safe='')}")
+            break
+        except (OSError, ValueError):
+            if attempt == 2:
+                return None
     tools = detail.get("tools") or []
-    if not isinstance(tools, list) or not any(isinstance(tool, dict) and tool.get("name") for tool in tools):
-        return None
+    if not isinstance(tools, list):
+        tools = []
     merged = dict(server)
     merged.update({key: value for key, value in detail.items() if value not in (None, "", [], {})})
     merged["tools"] = [tool for tool in tools if isinstance(tool, dict) and tool.get("name")]
     return merged
 
 
-def _organize_environment(item: dict[str, object], llm: LLMClient) -> dict[str, object]:
-    if not llm.enabled:
-        return item | {"organizationStatus": "raw_catalog_record"}
-    tool_clues = [
-        {
-            "name": str(tool.get("name") or ""),
-            "description": str(tool.get("description") or "")[:500],
-        }
-        for tool in item.get("tools", [])
-        if isinstance(tool, dict) and tool.get("name")
+def _load_server_snapshot(path: Path, limit: int = 1000) -> list[dict[str, object]]:
+    """Load the existing list snapshot; never request the list endpoint again."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        payload = payload.get("servers") or payload.get("environments")
+    if not isinstance(payload, list):
+        raise ValueError(f"Smithery snapshot must be a JSON list: {path}")
+    servers = [item for item in payload if isinstance(item, dict) and str(item.get("qualifiedName") or "").strip()]
+    servers.sort(key=lambda item: (-int(item.get("useCount") or 0), str(item["qualifiedName"]).casefold()))
+    return servers[:limit] if limit > 0 else servers
+
+
+def _snake_key(value: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
+
+
+def _seed_from_detail(
+    detail: dict[str, object], index: int, *, organization_status: str = "catalog_detail"
+) -> dict[str, object]:
+    """Project a Smithery detail response into the environment-seed contract."""
+    qualified_name = str(detail.get("qualifiedName") or "").strip()
+    description = str(detail.get("description") or "").strip()
+    if not qualified_name or not description:
+        raise ValueError("Smithery detail must contain qualifiedName and description")
+    tools = [
+        deepcopy(tool)
+        for tool in detail.get("tools", [])
+        if isinstance(tool, dict)
+        and str(tool.get("name") or "").strip()
+        and isinstance(tool.get("description"), str)
+        and tool["description"].strip()
     ]
-    try:
-        organized = extract_json_object(llm.complete_json(
-            "Organize this MCP description for a later research agent and return JSON. Its tools are capability clues, not a required final tool list.",
-            json.dumps({
-                "name": item.get("displayName") or item.get("qualifiedName"),
-                "description": item.get("description", ""),
-                "tools": tool_clues,
-                "return": {
-                    "business_description": "brief description of the real service or workflow",
-                    "data_directions": ["types of real public data likely to support this environment"],
-                },
-            }, ensure_ascii=False),
-        ))
-    except (OSError, RuntimeError, ValueError, TypeError, KeyError):
-        return item | {"organizationStatus": "agent_failed"}
-    result = dict(item)
-    result["description"] = str(organized.get("business_description") or item.get("description") or "")
-    result["dataDirections"] = [str(value) for value in organized.get("data_directions", []) if str(value).strip()]
-    result["organizationStatus"] = "agent_organized"
-    return result
+    metadata: dict[str, object] = {}
+    for key, value in detail.items():
+        if key in {"qualifiedName", "description", "tools", "iconUrl"}:
+            continue
+        metadata[_snake_key(key)] = deepcopy(value)
+    return {
+        "global_id": f"smithery_{_global_id_name(qualified_name)}_{index}",
+        "schema_version": "1.0",
+        "environment": {
+            "basic_info": {
+                "source": "smithery",
+                "url": f"https://smithery.ai/servers/{qualified_name}",
+                "name": qualified_name,
+                "index": index,
+            },
+            "description": description,
+            "domain": {"level1": "general", "level2": None, "level3": None},
+        },
+        "init_ref_tools": tools,
+        "init_ref_tasks": [],
+        "others": {
+            "source_metadata": metadata,
+            "data_directions": deepcopy(detail.get("dataDirections") or []),
+            "organization_status": organization_status,
+        },
+    }
 
 
 def prepare_smithery_catalog(
-    output_file: Path,
-    query: str = "",
-    limit: int = 0,
-    llm: LLMClient | None = None,
+    output_file: Path = DEFAULT_SEED_OUTPUT,
+    source_file: Path = DEFAULT_SERVER_SNAPSHOT,
+    limit: int = 1000,
+    workers: int = 8,
 ) -> dict[str, object]:
-    servers: list[dict[str, object]] = []
-    seen_themes: set[str] = set()
-    for item in _smithery_servers(query):
-        theme_key = _normal_name(str(item.get("displayName") or item.get("qualifiedName") or ""))
-        if (
-            item.get("inactive")
-            or item.get("unlisted")
-            or len(str(item.get("description") or "")) < 40
-            or not theme_key
-            or theme_key in seen_themes
-        ):
-            continue
-        seen_themes.add(theme_key)
-        servers.append(item)
-    if limit > 0:
-        servers = servers[:limit]
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        detailed = [item for item in pool.map(_read_server_detail, servers) if item is not None]
-    organizer = llm or LLMClient()
+    """Crawl details for the top snapshot entries and write seed-contract JSON.
+
+    This path is deliberately deterministic and does not instantiate or call an
+    LLM.  The pre-crawled list controls ordering; only per-server detail pages
+    are fetched from Smithery.
+    """
+    servers = _load_server_snapshot(source_file, limit)
+    details: list[dict[str, object] | None] = [None] * len(servers)
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = {pool.submit(_read_server_detail, server): index for index, server in enumerate(servers)}
+        for completed, future in enumerate(as_completed(futures), start=1):
+            details[futures[future]] = future.result()
+            print(f"[catalog] fetched detail {completed}/{len(servers)}", flush=True)
     entries: list[dict[str, object]] = []
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for index, entry in enumerate(pool.map(lambda item: _organize_environment(item, organizer), detailed), start=1):
-            entries.append(entry)
-            print(f"[catalog] organized {index}/{len(detailed)}: {entry.get('qualifiedName', 'unknown')}", flush=True)
-    payload = {
-        "catalog": "smithery",
+    fallback_count = 0
+    skipped_count = 0
+    for rank, detail in enumerate(details, start=1):
+        status = "catalog_detail"
+        if detail is None:
+            # Keep every one of the selected top-ranked environments even when
+            # its detail endpoint is unavailable.  The list record still gives
+            # us a traceable description and an honest empty tool reference.
+            detail = servers[rank - 1]
+            status = "catalog_list_fallback"
+            fallback_count += 1
+        try:
+            # Keep the rank in the sorted snapshot as the seed index, even when
+            # an individual detail request fails and the output has a gap.
+            entries.append(_seed_from_detail(detail, rank, organization_status=status))
+        except (TypeError, ValueError):
+            skipped_count += 1
+            continue
+    write_json(output_file, entries)
+    return {
+        "source": str(source_file),
+        "output": str(output_file),
+        "snapshot_candidates": len(servers),
         "prepared": len(entries),
-        "agent_organized": sum(item.get("organizationStatus") == "agent_organized" for item in entries),
-        "environments": entries,
+        "reference_tools": sum(len(item["init_ref_tools"]) for item in entries),
+        "detail_successes": len(entries) - fallback_count,
+        "list_fallbacks": fallback_count,
+        "skipped_invalid_records": skipped_count,
     }
-    write_json(output_file, payload)
-    return {key: value for key, value in payload.items() if key != "environments"}
 
 
 def load_prepared_catalog(path: Path) -> list[ThemeSeed]:
@@ -275,3 +327,17 @@ def discover_smithery_themes(
 
 def output_slug(seed: ThemeSeed) -> str:
     return re.sub(r"[^a-z0-9]+", "-", seed.theme_id.lower()).strip("-")[:80]
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Crawl Smithery detail pages into environment-seed v1 JSON")
+    parser.add_argument("--source", type=Path, default=DEFAULT_SERVER_SNAPSHOT, help="pre-crawled Smithery list JSON")
+    parser.add_argument("--output", type=Path, default=DEFAULT_SEED_OUTPUT, help="environment-seed output JSON")
+    parser.add_argument("--limit", type=int, default=1000, help="number of top useCount entries to continue crawling")
+    parser.add_argument("--workers", type=int, default=8)
+    args = parser.parse_args()
+    if args.limit < 1 or args.workers < 1:
+        parser.error("--limit and --workers must be positive")
+    print(json.dumps(prepare_smithery_catalog(args.output, args.source, args.limit, args.workers), ensure_ascii=False, indent=2))
