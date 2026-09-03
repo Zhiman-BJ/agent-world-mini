@@ -356,6 +356,10 @@ def _parse_semantic_result(text: str) -> dict[str, str]:
     try:
         value = parse_json_object(text)
     except ValueError:
+        chinese = re.fullmatch(r"\s*(通过|失败|无法判断|不确定)\s*[：:]\s*(.+?)\s*", text, re.S)
+        if chinese:
+            status = {"通过": "pass", "失败": "fail", "无法判断": "indeterminate", "不确定": "indeterminate"}
+            return {"status": status[chinese.group(1)], "reason": chinese.group(2).strip()}
         match = re.fullmatch(r"\s*status\s*:\s*(pass|fail|indeterminate)\s+reason\s*:\s*(.+?)\s*", text, re.I | re.S)
         if not match:
             match = re.fullmatch(r"\s*(?:status|状态)\s*[：:]\s*(pass|fail|indeterminate)\s+(?:reason|理由)\s*[：:]\s*(.+?)\s*", text, re.I | re.S)
@@ -409,16 +413,24 @@ def _semantic_prompt(
                         item.update({field: initial[field] for field in ("text", "json", "truncated")
                                      if field in initial})
                 selected[key].append(item)
+    role = "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。"
+    if task_text is not None:
+        role += (
+            "依据原任务判断引用证据是否满足当前原子子项对应的任务目标，原任务是唯一权威。"
+            "原子子项不包含任务中的其他目标是正常的；不得因遗漏无关目标而失败。"
+            "生成的 pass_condition、fail_condition 或代码若加入原任务对应分句未要求的日期、数值、格式、载体或操作方式，"
+            "忽略这些加码，按原任务实际要求裁决；不要把契约设计本身作为单独的成败条件。"
+        )
+    role += (
+        "只有引用证据直接证明要求时才通过；不得用最终回答补足任务明确要求写入文件或持久业务状态的缺失内容；"
+        "但任务只要求生成、计算并呈现结果，未明确要求落盘或持久化时，工具调用结果和最终回答可以共同作为证据。"
+        "空标题、空字段或仅声称已完成都不算内容。任务要求某份简报、文件或备注包含或整理内容时，"
+        "只有该载体正文能证明完成，最终回答不能替代。任务只要求提供或保留某项检查结果时，"
+        "不得擅自要求该结果必须为 true、成功或通过。可回溯证据引用可以由业务标识、说话人、时间或位置等信息完成定位；"
+        "任务未明确要求逐字引文时，不得要求引用中包含原文全文。"
+    )
     return json.dumps({
-        "role": (
-            "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。只有引用证据直接证明要求时才通过；"
-            "如果提供了原任务文本，原任务是唯一权威，生成的 requirement 不得删减或弱化它。"
-            "不得用最终回答补足任务明确要求写入文件或持久业务状态的缺失内容；但任务只要求生成、计算并呈现结果，"
-            "未明确要求落盘或持久化时，工具调用结果和最终回答可以共同作为证据。空标题、空字段或仅声称已完成都不算内容。"
-            "任务要求某份简报、文件或备注包含或整理内容时，只有该载体正文能证明完成，最终回答不能替代。"
-            "任务只要求提供或保留某项检查结果时，不得擅自要求该结果必须为 true、成功或通过。"
-            "可回溯证据引用可以由业务标识、说话人、时间或位置等信息完成定位；任务未明确要求逐字引文时，不得要求引用中包含原文全文。"
-        ),
+        "role": role,
         "task": task_text,
         "requirement_id": result["requirement_id"],
         "claim": result["reason"],
@@ -484,11 +496,12 @@ def generate_verifier(
                 "路径和数据结构只能使用 reference_evidence 中明确出现的事实，不得猜测。",
                 "文件只有元数据而没有 text/json 时，表示正文未放进生成提示；运行时仍可按该路径读取。",
                 "需要自然语言判断时调用 ctx.semantic_requirement(id, claim, evidence_refs)。",
+                "备注、评论、说明、摘要等自然语言内容是否表达某个含义，必须使用 semantic_requirement；不得用固定短语、关键词或参考措辞的子串匹配直接判定成败。",
                 "确定性事实优先在 source 中直接比较证据。",
                 "source 的每条执行路径必须记录每项 requirement 的结果恰好一次，不能遗漏或重复记录。",
                 "evidence_refs 只能使用列出的精确格式和当前证据中存在的索引或路径；工具引用必须从 ctx.calls() 的实际索引生成，不得写 tool_trace 或 workspace 等占位符。",
                 "source 保持紧凑，复用局部 helper，不要在代码中重复 requirements 的长篇说明。",
-                "空回答、无工具调用且 workspace 无变化时，每一项 required 要求都不得通过。",
+                "空回答、无工具调用且 workspace 无变化时，整个任务不得通过；仅要求保持不变的子项可凭同一路径 initial/final 哈希一致单独通过。",
                 "只输出符合 schema 的 JSON，不要 markdown。",
             ],
             "task": task.get("task_text"),
@@ -663,24 +676,26 @@ def calibrate_verifier(
     reference_results = run_verifier(
         package, reference_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
     )
-    reference = aggregate_results(package["requirements"], reference_results)
-    if reference["outcome"] != "pass":
-        raise ValueError("参考执行未通过冻结 verifier：" + json.dumps(reference_results, ensure_ascii=False))
+    reference_raw = aggregate_results(package["requirements"], reference_results)
     confirmation = None
     if confirm_all:
         confirmation_results = _confirm_results_semantically(
             package, reference_results, reference_evidence, infer_fn, llm_config, task_text or "",
         )
         confirmation = aggregate_results(package["requirements"], confirmation_results)
-        if confirmation["outcome"] != "pass":
-            raise ValueError("参考执行逐项语义二次确认未通过：" + json.dumps(confirmation_results, ensure_ascii=False))
+        reference = confirmation
     elif "semantic_requirement" in package["source"]:
         confirmation_results = run_verifier(
             package, reference_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
         )
         confirmation = aggregate_results(package["requirements"], confirmation_results)
-        if confirmation["outcome"] != "pass":
-            raise ValueError("参考执行语义二次确认未通过：" + json.dumps(confirmation_results, ensure_ascii=False))
+        reference = confirmation
+    else:
+        reference = reference_raw
+    if reference["outcome"] != "pass":
+        raise ValueError("参考执行语义二次确认未通过：" + json.dumps(
+            confirmation_results if confirmation is not None else reference_results, ensure_ascii=False,
+        ))
     counterfactual = None
     if task_text is not None:
         counterfactual_evidence = _counterfactual_evidence(reference_evidence, task_text)
@@ -723,6 +738,7 @@ def calibrate_verifier(
     if empty["outcome"] == "pass":
         raise ValueError("空证据错误通过了整个任务")
     return {
+        "reference_raw": reference_raw,
         "reference": reference,
         "reference_confirmation": confirmation,
         "counterfactual": counterfactual,

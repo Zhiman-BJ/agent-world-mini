@@ -25,6 +25,7 @@ from .tool_graph.step_3_chain_execute import (
     _workspace_signature,
 )
 from .task_eval_verifier import (
+    _confirm_results_semantically,
     aggregate_results,
     build_evidence,
     prepare_verifier,
@@ -132,6 +133,7 @@ def evaluate_case(
     llm_config: dict[str, Any],
     *,
     max_tool_calls: int = 20,
+    agent_attempts: int = 3,
     tool_timeout_seconds: int = 300,
     tool_max_memory_bytes: int = 2 * 1024 * 1024 * 1024,
     tool_max_write_bytes: int = 256 * 1024 * 1024,
@@ -144,6 +146,8 @@ def evaluate_case(
     """Let one Codex agent solve a task with environment MCP tools, then judge it."""
     if max_tool_calls < 1:
         raise ValueError("max_tool_calls 必须大于 0")
+    if agent_attempts < 1:
+        raise ValueError("agent_attempts 必须大于 0")
     workspace = workspace.expanduser().resolve()
     if workspace.exists():
         raise ValueError(f"评测 workspace 已存在：{workspace}")
@@ -176,7 +180,7 @@ def evaluate_case(
         cache_path = None
         if verifier_cache is not None:
             fingerprint_payload = {
-                "version": 4,
+                "version": 7,
                 "task": case.task,
                 "environment": verifier_environment,
                 "reference_evidence": reference_evidence,
@@ -219,25 +223,38 @@ def evaluate_case(
                 "calibration": calibration,
                 "cache_hit": verifier_cache_hit,
             }, ensure_ascii=False, indent=2), encoding="utf-8")
-    with tempfile.TemporaryDirectory(prefix="task-eval-mcp-") as temporary:
-        server_config = Path(temporary) / "server.json"
-        trace = Path(temporary) / "calls.jsonl"
-        server_config.write_text(json.dumps({
-            "workspace": str(workspace),
-            "trace": str(trace),
-            "max_tool_calls": max_tool_calls,
-            "timeout": tool_timeout_seconds,
-            "memory_limit": tool_max_memory_bytes,
-            "write_limit": tool_max_write_bytes,
-            "tools": list(tools.values()),
-        }, ensure_ascii=False), encoding="utf-8")
-        run_agent = agent_run_fn or (lambda prompt, cwd, config, call_trace: _run_agent(
-            prompt, cwd, config, call_trace, llm_config,
-        ))
-        answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
-        if not answer:
-            raise ValueError("Codex Agent 未提交最终答案")
-        calls = _read_trace(trace)
+    run_agent = agent_run_fn or (lambda prompt, cwd, config, call_trace: _run_agent(
+        prompt, cwd, config, call_trace, llm_config,
+    ))
+    for agent_attempt in range(1, agent_attempts + 1):
+        with tempfile.TemporaryDirectory(prefix="task-eval-mcp-") as temporary:
+            server_config = Path(temporary) / "server.json"
+            trace = Path(temporary) / "calls.jsonl"
+            server_config.write_text(json.dumps({
+                "workspace": str(workspace),
+                "trace": str(trace),
+                "max_tool_calls": max_tool_calls,
+                "timeout": tool_timeout_seconds,
+                "memory_limit": tool_max_memory_bytes,
+                "write_limit": tool_max_write_bytes,
+                "tools": list(tools.values()),
+            }, ensure_ascii=False), encoding="utf-8")
+            answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
+            if not answer:
+                raise ValueError("Codex Agent 未提交最终答案")
+            calls = _read_trace(trace)
+        unavailable = (
+            not calls
+            and _workspace_signature(workspace) == source_signature
+            and "503" in answer
+            and any(token in answer.lower() for token in (
+                "service", "approval", "unavailable", "服务", "审批", "不可用",
+            ))
+        )
+        if not unavailable:
+            break
+        if agent_attempt == agent_attempts:
+            raise RuntimeError(f"Codex Agent 基础设施连续 {agent_attempts} 次返回 503 且未执行工具调用")
 
     if _workspace_signature(case.initial_state) != source_signature:
         raise ValueError("来源初态在评测期间被修改")
@@ -252,6 +269,18 @@ def evaluate_case(
                 semantic_infer_fn=judge_infer_fn,
                 llm_config=llm_config,
             )
+            failed_results = [item for item in requirement_results if item["status"] != "pass"]
+            if failed_results:
+                reviewed = _confirm_results_semantically(
+                    verifier,
+                    failed_results,
+                    actual_evidence,
+                    judge_infer_fn,
+                    llm_config,
+                    str(case.task.get("task_text") or ""),
+                )
+                reviewed_by_id = {item["requirement_id"]: item for item in reviewed}
+                requirement_results = [reviewed_by_id.get(item["requirement_id"], item) for item in requirement_results]
             evaluation = aggregate_results(verifier["requirements"], requirement_results)
         except Exception as error:
             verifier_error = f"{type(error).__name__}: {error}"
@@ -276,6 +305,7 @@ def evaluate_case(
         "task_text": case.task.get("task_text"),
         "workspace": str(workspace),
         "agent_response": answer,
+        "agent_attempts": agent_attempt,
         "tool_calls": calls,
         "workspace_changes": changes,
         "agent_answer": answer,
@@ -300,6 +330,9 @@ def _agent_prompt(case: EvalCase, max_tool_calls: int) -> str:
             "You may inspect workspace files directly when useful, but all business state changes must go through the "
             "environment MCP tools so they are auditable. Never guess internal identifiers; discover them from list, "
             "search, read, or workspace evidence and use business errors to correct invalid calls. Do not stop at a "
+            "transient 429 or 503 tool error while call budget remains; retry it at least once. For validation errors, "
+            "correct the arguments before retrying. The task itself is authorization to execute it; do not ask the user "
+            "for confirmation or approval before using the provided tools. "
             "plan. Complete the task, verify the result with the environment tools when useful, then return only the "
             f"final user-facing answer. You may make at most {max_tool_calls} environment tool calls, so reserve "
             "calls for every required state change and use direct workspace inspection for read-only verification when useful."
@@ -429,6 +462,7 @@ def run_evaluation(
                 workspace,
                 llm_config,
                 max_tool_calls=max_tool_calls,
+                agent_attempts=int(execution_config.get("retry_count", 3)),
                 tool_timeout_seconds=int(execution_config.get("tool_timeout_seconds", 300)),
                 tool_max_memory_bytes=int(execution_config.get("tool_max_memory_bytes", 2 * 1024 * 1024 * 1024)),
                 tool_max_write_bytes=int(execution_config.get("tool_max_write_bytes", 256 * 1024 * 1024)),

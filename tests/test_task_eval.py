@@ -157,7 +157,6 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(evidence["calls"], [])
         self.assertEqual(json.loads(prompts[0])["requirement"]["pass_condition"], "clear")
         self.assertIn("未明确要求落盘", role)
-        self.assertIn("原任务是唯一权威", role)
         self.assertIn("最终回答不能替代", role)
         self.assertIn("不得擅自要求该结果必须为 true", role)
         self.assertIn("不得要求引用中包含原文全文", role)
@@ -253,6 +252,13 @@ class TaskEvalTest(unittest.TestCase):
             semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult("状态：fail 理由：unsupported", {}, "test"),
         )
         self.assertEqual(chinese_results[0]["status"], "fail")
+
+        translated_results = run_verifier(
+            package,
+            {"answer": "clear", "calls": [], "changed_paths": [], "initial_files": [], "final_files": []},
+            semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult("通过：answer is supported", {}, "test"),
+        )
+        self.assertEqual(translated_results[0]["status"], "pass")
 
     def test_verifier_runtime_does_not_use_process_working_directory_as_workspace(self) -> None:
         package = {
@@ -390,6 +396,8 @@ class TaskEvalTest(unittest.TestCase):
             self.assertTrue(any("可回溯" in rule and "原文全文" in rule for rule in request["rules"]))
             self.assertTrue(any("initial" in rule and "final" in rule for rule in request["rules"]))
             self.assertTrue(any("分句" in rule and "传播" in rule for rule in request["rules"]))
+            self.assertTrue(any("自然语言内容" in rule and "固定短语" in rule for rule in request["rules"]))
+            self.assertTrue(any("整个任务不得通过" in rule and "保持不变" in rule for rule in request["rules"]))
             return InferenceResult(json.dumps(package), {}, "test-model")
 
         generated = generate_verifier(
@@ -548,6 +556,9 @@ class TaskEvalTest(unittest.TestCase):
                 confirm_all=True,
             )
         self.assertEqual(requests[0]["task"], "The brief must contain organized action items.")
+        self.assertIn("原任务是唯一权威", requests[0]["role"])
+        self.assertIn("原子子项", requests[0]["role"])
+        self.assertIn("忽略这些加码", requests[0]["role"])
 
     def test_calibration_allows_empty_evidence_to_pass_only_preservation_subrequirement(self) -> None:
         requirements = [{
@@ -699,7 +710,7 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(package, good)
         self.assertEqual(calibration["status"], "calibrated")
         self.assertEqual(len(attempts), 2)
-        self.assertIn("参考执行未通过", attempts[0]["error"])
+        self.assertIn("参考执行", attempts[0]["error"])
         self.assertIsNone(attempts[1]["error"])
         self.assertIn("previous_failure", json.loads(prompts[1]))
         self.assertNotIn("previous_verifier", json.loads(prompts[1]))
@@ -891,6 +902,8 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(len(agent_calls), 1)
             self.assertEqual(agent_calls[0][1], root / "evaluation")
             self.assertIn("environment MCP tools", agent_calls[0][0])
+            self.assertIn("429 or 503", agent_calls[0][0])
+            self.assertIn("do not ask the user", agent_calls[0][0])
             judge = json.loads(judge_prompts[0])
             self.assertEqual(judge["workspace_changes"], [])
             self.assertEqual(judge["environment_resources"], [])
@@ -930,6 +943,89 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(result["attribution"], "verifier")
             self.assertIn("无效 evidence_refs", result["error"])
             self.assertEqual(result["agent_answer"], "The value is 7.")
+
+    def test_evaluate_case_semantically_reviews_only_failed_verifier_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            input_root = self._write_case_at(root / "source")
+            task_path = root / "source/tasks.json"
+            task = json.loads(task_path.read_text(encoding="utf-8"))[0]
+            reference = root / "source/tasks/task1/reference"
+            reference.mkdir()
+            (reference / "value.txt").write_text("7", encoding="utf-8")
+            task["reference"]["final_state"] = "tasks/task1/reference"
+            task_path.write_text(json.dumps([task]), encoding="utf-8")
+            case = load_cases(input_root)[0]
+            package = {
+                "schema_version": "1",
+                "requirements": [{
+                    "id": "R1", "claim": "value returned", "required": True,
+                    "evidence_channels": ["answer"],
+                    "pass_condition": "answer contains value", "fail_condition": "answer omits value",
+                }],
+                "source": "def verify(ctx):\n"
+                "    ctx.fail_requirement('R1', 'overfit check failed', ['answer'])\n",
+            }
+            prompts: list[dict[str, object]] = []
+
+            def semantic_judge(prompt: str, **_: object) -> InferenceResult:
+                prompts.append(json.loads(prompt))
+                return InferenceResult('{"status":"pass","reason":"answer contains 7"}', {}, "test")
+
+            with patch("task_gen.task_eval.prepare_verifier", return_value=(package, {}, [])):
+                result = evaluate_case(
+                    case, root / "evaluation", {},
+                    agent_run_fn=lambda *_args: "The value is 7.", judge_infer_fn=semantic_judge,
+                )
+
+            self.assertEqual(result["outcome"], "pass")
+            self.assertEqual(prompts[0]["task"], "Return the current value.")
+            self.assertEqual(result["evaluation"]["requirements"][0]["reason"], "answer contains 7")
+
+    def test_evaluate_case_retries_transient_503_before_any_tool_call(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = root / "initial"
+            initial.mkdir()
+            (initial / "value.txt").write_text("7", encoding="utf-8")
+            case = load_cases(self._write_case(root, initial))[0]
+            attempts = 0
+
+            def flaky_agent(_prompt: str, _workspace: Path, _config: Path, trace: Path) -> str:
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    return "Approval service temporarily unavailable (503)."
+                trace.write_text(json.dumps({
+                    "tool": "read_value", "arguments": {},
+                    "result": {"success": True, "data": {"value": 7}}, "error": None,
+                }) + "\n", encoding="utf-8")
+                return "The value is 7."
+
+            result = evaluate_case(
+                case, root / "evaluation", {}, agent_run_fn=flaky_agent,
+                judge_infer_fn=lambda *_args, **_kwargs: InferenceResult(
+                    '{"passed":true,"score":100,"analysis":"ok"}', {}, "test",
+                ),
+            )
+
+            self.assertEqual(attempts, 2)
+            self.assertEqual(result["agent_attempts"], 2)
+            self.assertEqual(len(result["tool_calls"]), 1)
+
+    def test_evaluate_case_raises_infrastructure_error_after_repeated_503(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = root / "initial"
+            initial.mkdir()
+            (initial / "value.txt").write_text("7", encoding="utf-8")
+            case = load_cases(self._write_case(root, initial))[0]
+
+            with self.assertRaisesRegex(RuntimeError, "基础设施连续 2 次"):
+                evaluate_case(
+                    case, root / "evaluation", {}, agent_attempts=2,
+                    agent_run_fn=lambda *_args: "环境服务暂时不可用（503）。",
+                )
 
     def test_evaluate_case_reuses_calibrated_verifier_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
