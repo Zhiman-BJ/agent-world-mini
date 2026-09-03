@@ -19,6 +19,7 @@ from task_gen.task_eval import (
     main,
 )
 from task_gen.task_eval_verifier import (
+    _counterfactual_evidence,
     aggregate_results,
     build_evidence,
     calibrate_verifier,
@@ -151,9 +152,15 @@ class TaskEvalTest(unittest.TestCase):
             "changed_paths": [], "initial_files": [], "final_files": [],
         }, semantic_infer_fn=semantic_infer)
         evidence = json.loads(prompts[0])["evidence"]
+        role = json.loads(prompts[0])["role"]
         self.assertEqual(evidence["answer"], "clear")
         self.assertEqual(evidence["calls"], [])
         self.assertEqual(json.loads(prompts[0])["requirement"]["pass_condition"], "clear")
+        self.assertIn("未明确要求落盘", role)
+        self.assertIn("原任务是唯一权威", role)
+        self.assertIn("最终回答不能替代", role)
+        self.assertIn("不得擅自要求该结果必须为 true", role)
+        self.assertIn("不得要求引用中包含原文全文", role)
 
     def test_semantic_evidence_deduplicates_refs_and_reuses_initial_content(self) -> None:
         package = {
@@ -180,6 +187,33 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(len(request["evidence"]["final_files"]), 1)
         self.assertEqual(request["evidence"]["final_files"][0]["text"], "content")
 
+    def test_multiple_semantic_requirements_are_inferred_as_one_batch(self) -> None:
+        requirements = [{
+            "id": rid, "claim": rid, "required": True,
+            "evidence_channels": ["answer"], "pass_condition": "yes", "fail_condition": "no",
+        } for rid in ("R1", "R2")]
+        package = {
+            "schema_version": "1", "requirements": requirements,
+            "source": "def verify(ctx):\n"
+            "    ctx.semantic_requirement('R1', 'one', ['answer'])\n"
+            "    ctx.semantic_requirement('R2', 'two', ['answer'])\n",
+        }
+        calls: list[object] = []
+
+        def batch_infer(prompts: object, **_: object) -> list[InferenceResult]:
+            calls.append(prompts)
+            return [InferenceResult('{"status":"pass","reason":"ok"}', {}, "test") for _ in prompts]
+
+        results = run_verifier(
+            package,
+            {"answer": "yes", "calls": [], "changed_paths": [], "initial_files": [], "final_files": []},
+            semantic_infer_fn=batch_infer,
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertIsInstance(calls[0], list)
+        self.assertEqual([item["status"] for item in results], ["pass", "pass"])
+
     def test_semantic_result_accepts_unambiguous_status_reason_text(self) -> None:
         package = {
             "schema_version": "1",
@@ -205,6 +239,20 @@ class TaskEvalTest(unittest.TestCase):
             semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult("pass：clear answer", {}, "test"),
         )
         self.assertEqual(colon_results[0]["status"], "pass")
+
+        reason_results = run_verifier(
+            package,
+            {"answer": "clear", "calls": [], "changed_paths": [], "initial_files": [], "final_files": []},
+            semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult("fail 理由：answer is unsupported", {}, "test"),
+        )
+        self.assertEqual(reason_results[0]["status"], "fail")
+
+        chinese_results = run_verifier(
+            package,
+            {"answer": "clear", "calls": [], "changed_paths": [], "initial_files": [], "final_files": []},
+            semantic_infer_fn=lambda *_args, **_kwargs: InferenceResult("状态：fail 理由：unsupported", {}, "test"),
+        )
+        self.assertEqual(chinese_results[0]["status"], "fail")
 
     def test_verifier_runtime_does_not_use_process_working_directory_as_workspace(self) -> None:
         package = {
@@ -332,6 +380,16 @@ class TaskEvalTest(unittest.TestCase):
             self.assertTrue(any(key.startswith("read_json") for key in request["verifier_context_api"]))
             self.assertTrue(any("硬编码" in rule and "参考执行" in rule for rule in request["rules"]))
             self.assertTrue(any("工具调用" in rule and "成功条件" in rule for rule in request["rules"]))
+            self.assertTrue(any("最终业务状态" in rule and "新建" in rule for rule in request["rules"]))
+            self.assertTrue(any("标点" in rule and "下划线" in rule for rule in request["rules"]))
+            self.assertTrue(any("每项 requirement" in rule and "恰好一次" in rule for rule in request["rules"]))
+            self.assertTrue(any("没有返回值" in rule and "最终回答" in rule for rule in request["rules"]))
+            self.assertTrue(any("字段" in rule and "业务对象" in rule for rule in request["rules"]))
+            self.assertTrue(any("多个业务标识" in rule and "分隔" in rule for rule in request["rules"]))
+            self.assertTrue(any("检查结果" in rule and "true" in rule for rule in request["rules"]))
+            self.assertTrue(any("可回溯" in rule and "原文全文" in rule for rule in request["rules"]))
+            self.assertTrue(any("initial" in rule and "final" in rule for rule in request["rules"]))
+            self.assertTrue(any("分句" in rule and "传播" in rule for rule in request["rules"]))
             return InferenceResult(json.dumps(package), {}, "test-model")
 
         generated = generate_verifier(
@@ -372,6 +430,154 @@ class TaskEvalTest(unittest.TestCase):
                 {"answer": "ok", "calls": [], "changed_paths": []},
                 {"answer": "", "calls": [], "changed_paths": []},
             )
+
+    def test_counterfactual_evidence_changes_technical_ids_and_reference_format(self) -> None:
+        evidence = {
+            "answer": "done", "calls": [{
+                "tool": "post", "arguments": {
+                    "account_id": "account_1", "entry_id": "je_1", "source_reference": "TX-1",
+                    "description": "Accrual entry",
+                },
+            }], "changed_paths": [],
+            "initial_files": [{"path": "ledger.json", "json": {"account_id": "account_1"}}],
+            "final_files": [{
+                "path": "ledger.json", "sha256": "x", "text": "old",
+                "json": {
+                    "account_id": "account_1", "entry_id": "je_1", "source_reference": "TX-1",
+                    "description": "Accrual entry",
+                },
+            }],
+        }
+
+        changed = _counterfactual_evidence(evidence, "Post a balanced entry.")
+
+        self.assertNotEqual(changed["calls"][0]["arguments"]["entry_id"], "je_1")
+        self.assertEqual(changed["calls"][0]["arguments"]["account_id"], "account_1")
+        self.assertEqual(changed["calls"][0]["arguments"]["source_reference"], "counterfactual_reference")
+        self.assertIn("TX-1", changed["calls"][0]["arguments"]["description"])
+        self.assertEqual(
+            changed["calls"][0]["arguments"]["entry_id"],
+            changed["final_files"][0]["json"]["entry_id"],
+        )
+        self.assertIn("counterfactual_reference", changed["final_files"][0]["text"])
+        self.assertIn("TX-1", changed["final_files"][0]["json"]["description"])
+
+    def test_calibration_rejects_verifier_bound_to_reference_metadata_format(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "balanced entry exists", "required": True,
+                "evidence_channels": ["workspace"],
+                "pass_condition": "entry exists", "fail_condition": "entry missing",
+            }],
+            "source": "def verify(ctx):\n"
+            "    ledger = ctx.read_json('ledger.json') or {}\n"
+            "    if ledger.get('source_reference') == 'TX-1':\n"
+            "        ctx.pass_requirement('R1', 'found', ['final:ledger.json'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'missing', ['final:ledger.json'])\n",
+        }
+        reference = {
+            "answer": "done", "calls": [], "changed_paths": [], "initial_files": [],
+            "final_files": [{
+                "path": "ledger.json", "sha256": "x",
+                "text": '{"source_reference":"TX-1","description":"entry"}',
+                "json": {"source_reference": "TX-1", "description": "entry"},
+            }],
+        }
+        empty = {
+            "answer": "", "calls": [], "changed_paths": [], "initial_files": [],
+            "final_files": [{"path": "ledger.json", "sha256": "x", "text": "{}", "json": {}}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "反事实"):
+            calibrate_verifier(package, reference, empty, task_text="Post a balanced entry.")
+
+    def test_calibration_requires_semantic_reference_confirmation(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "brief has content", "required": True,
+                "evidence_channels": ["answer"],
+                "pass_condition": "content present", "fail_condition": "content absent",
+            }],
+            "source": "def verify(ctx):\n"
+            "    if ctx.answer():\n"
+            "        ctx.semantic_requirement('R1', 'brief has content', ['answer'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'empty', ['answer'])\n",
+        }
+        responses = iter([
+            InferenceResult('{"status":"pass","reason":"yes"}', {}, "test"),
+            InferenceResult('{"status":"fail","reason":"no"}', {}, "test"),
+        ])
+
+        with self.assertRaisesRegex(ValueError, "二次确认"):
+            calibrate_verifier(
+                package,
+                {"answer": "brief", "calls": [], "changed_paths": []},
+                {"answer": "", "calls": [], "changed_paths": []},
+                infer_fn=lambda *_args, **_kwargs: next(responses),
+            )
+
+    def test_calibration_can_confirm_deterministic_results_semantically(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "brief states no actions", "required": True,
+                "evidence_channels": ["answer"],
+                "pass_condition": "explicitly states none", "fail_condition": "empty section",
+            }],
+            "source": "def verify(ctx):\n"
+            "    ctx.pass_requirement('R1', 'section exists', ['answer'])\n",
+        }
+
+        requests: list[dict[str, object]] = []
+
+        def reject_empty_section(prompt: str, **_: object) -> InferenceResult:
+            requests.append(json.loads(prompt))
+            return InferenceResult('{"status":"fail","reason":"section is empty"}', {}, "test")
+
+        with self.assertRaisesRegex(ValueError, "二次确认"):
+            calibrate_verifier(
+                package,
+                {"answer": "## Actions", "calls": [], "changed_paths": []},
+                {"answer": "", "calls": [], "changed_paths": []},
+                infer_fn=reject_empty_section,
+                task_text="The brief must contain organized action items.",
+                confirm_all=True,
+            )
+        self.assertEqual(requests[0]["task"], "The brief must contain organized action items.")
+
+    def test_calibration_allows_empty_evidence_to_pass_only_preservation_subrequirement(self) -> None:
+        requirements = [{
+            "id": "R1", "claim": "record changed", "required": True,
+            "evidence_channels": ["answer"], "pass_condition": "changed", "fail_condition": "unchanged",
+        }, {
+            "id": "R2", "claim": "source preserved", "required": True,
+            "evidence_channels": ["workspace"], "pass_condition": "same", "fail_condition": "changed",
+        }]
+        package = {
+            "schema_version": "1", "requirements": requirements,
+            "source": "def verify(ctx):\n"
+            "    if ctx.answer():\n"
+            "        ctx.pass_requirement('R1', 'changed', ['answer'])\n"
+            "    else:\n"
+            "        ctx.fail_requirement('R1', 'unchanged', ['answer'])\n"
+            "    ctx.pass_requirement('R2', 'preserved', ['initial:source.txt', 'final:source.txt'])\n",
+        }
+        file_evidence = [{"path": "source.txt", "sha256": "same"}]
+
+        calibration = calibrate_verifier(
+            package,
+            {"answer": "done", "calls": [], "changed_paths": [],
+             "initial_files": file_evidence, "final_files": file_evidence},
+            {"answer": "", "calls": [], "changed_paths": [],
+             "initial_files": file_evidence, "final_files": file_evidence},
+        )
+
+        self.assertEqual(calibration["empty"]["outcome"], "fail")
+        self.assertEqual(calibration["empty"]["requirements"][1]["status"], "pass")
 
     def test_generate_verifier_prompt_omits_unchanged_file_content(self) -> None:
         package = {
@@ -417,6 +623,26 @@ class TaskEvalTest(unittest.TestCase):
         )
         self.assertEqual(generated["schema_version"], "1")
 
+    def test_generate_verifier_normalizes_unambiguous_evidence_channel_aliases(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "x", "required": True,
+                "evidence_channels": ["files", "tool_calls", "final_answer"],
+                "pass_condition": "x", "fail_condition": "not x",
+            }],
+            "source": "def verify(ctx):\n    ctx.indeterminate_requirement('R1', 'missing')\n",
+        }
+
+        generated = generate_verifier(
+            {"task_text": "x"}, {}, {}, {},
+            infer_fn=lambda *_args, **_kwargs: InferenceResult(json.dumps(package), {}, "test"),
+        )
+
+        self.assertEqual(generated["requirements"][0]["evidence_channels"], [
+            "workspace", "tool_trace", "answer",
+        ])
+
     def test_generate_verifier_unwraps_response_contract(self) -> None:
         package = {
             "schema_version": "1",
@@ -457,6 +683,8 @@ class TaskEvalTest(unittest.TestCase):
 
         def fake_infer(prompt: str, **_: object) -> InferenceResult:
             request = json.loads(prompt)
+            if "verifier_context_api" not in request:
+                return InferenceResult('{"status":"pass","reason":"reference satisfies requirement"}', {}, "test")
             prompts.append(prompt)
             return InferenceResult(json.dumps(next(responses)), {}, "test")
 
@@ -474,7 +702,7 @@ class TaskEvalTest(unittest.TestCase):
         self.assertIn("参考执行未通过", attempts[0]["error"])
         self.assertIsNone(attempts[1]["error"])
         self.assertIn("previous_failure", json.loads(prompts[1]))
-        self.assertEqual(json.loads(prompts[1])["previous_verifier"], bad)
+        self.assertNotIn("previous_verifier", json.loads(prompts[1]))
 
     def test_agent_prompt_states_the_tool_call_budget(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -667,6 +895,84 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(judge["workspace_changes"], [])
             self.assertEqual(judge["environment_resources"], [])
             self.assertEqual((root / "evaluation/value.txt").read_text(encoding="utf-8"), "7")
+
+    def test_evaluate_case_attributes_actual_verifier_crash_to_verifier(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            input_root = self._write_case_at(root / "source")
+            task_path = root / "source/tasks.json"
+            task = json.loads(task_path.read_text(encoding="utf-8"))[0]
+            reference = root / "source/tasks/task1/reference"
+            reference.mkdir()
+            (reference / "value.txt").write_text("7", encoding="utf-8")
+            task["reference"]["final_state"] = "tasks/task1/reference"
+            task_path.write_text(json.dumps([task]), encoding="utf-8")
+            case = load_cases(input_root)[0]
+            package = {
+                "schema_version": "1",
+                "requirements": [{
+                    "id": "R1", "claim": "value read", "required": True,
+                    "evidence_channels": ["tool_trace"],
+                    "pass_condition": "read call exists", "fail_condition": "read call missing",
+                }],
+                "source": "def verify(ctx):\n"
+                "    ctx.pass_requirement('R1', 'read', ['tool_call:0'])\n",
+            }
+
+            with patch("task_gen.task_eval.prepare_verifier", return_value=(package, {}, [])):
+                result = evaluate_case(
+                    case,
+                    root / "evaluation", {},
+                    agent_run_fn=lambda *_args: "The value is 7.",
+                )
+
+            self.assertEqual(result["outcome"], "indeterminate")
+            self.assertEqual(result["attribution"], "verifier")
+            self.assertIn("无效 evidence_refs", result["error"])
+            self.assertEqual(result["agent_answer"], "The value is 7.")
+
+    def test_evaluate_case_reuses_calibrated_verifier_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            input_root = self._write_case_at(root / "source")
+            task_path = root / "source/tasks.json"
+            task = json.loads(task_path.read_text(encoding="utf-8"))[0]
+            reference = root / "source/tasks/task1/reference"
+            reference.mkdir()
+            (reference / "value.txt").write_text("7", encoding="utf-8")
+            task["reference"]["final_state"] = "tasks/task1/reference"
+            task_path.write_text(json.dumps([task]), encoding="utf-8")
+            case = load_cases(input_root)[0]
+            package = {
+                "schema_version": "1",
+                "requirements": [{
+                    "id": "R1", "claim": "value returned", "required": True,
+                    "evidence_channels": ["answer"],
+                    "pass_condition": "answer exists", "fail_condition": "answer missing",
+                }],
+                "source": "def verify(ctx):\n"
+                "    if ctx.answer():\n"
+                "        ctx.pass_requirement('R1', 'present', ['answer'])\n"
+                "    else:\n"
+                "        ctx.fail_requirement('R1', 'missing', ['answer'])\n",
+            }
+            cache = root / "cache"
+
+            with patch("task_gen.task_eval.prepare_verifier", return_value=(package, {"status": "calibrated"}, [])) as prepare:
+                first = evaluate_case(
+                    case, root / "evaluation-1", {}, verifier_cache=cache,
+                    agent_run_fn=lambda *_args: "The value is 7.",
+                )
+            with patch("task_gen.task_eval.prepare_verifier", side_effect=AssertionError("cache miss")):
+                second = evaluate_case(
+                    case, root / "evaluation-2", {}, verifier_cache=cache,
+                    agent_run_fn=lambda *_args: "The value is 7.",
+                )
+
+            prepare.assert_called_once()
+            self.assertFalse(first["verifier_cache_hit"])
+            self.assertTrue(second["verifier_cache_hit"])
+            self.assertEqual(len(list(cache.glob("*.json"))), 1)
 
     def test_evaluate_case_rejects_source_state_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

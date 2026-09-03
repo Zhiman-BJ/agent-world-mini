@@ -28,7 +28,7 @@ _BANNED_NODES = (
     ast.AsyncFunctionDef, ast.Await, ast.ClassDef, ast.Delete, ast.Global, ast.Import,
     ast.ImportFrom, ast.Nonlocal, ast.Raise, ast.With, ast.AsyncWith,
 )
-InferFn = Callable[..., InferenceResult]
+InferFn = Callable[..., InferenceResult | list[InferenceResult]]
 
 
 class VerifierPreparationError(ValueError):
@@ -148,6 +148,10 @@ def validate_verifier(package: dict[str, Any]) -> None:
         if not isinstance(requirement["required"], bool):
             raise ValueError("requirement.required 必须是 boolean")
         channels = requirement["evidence_channels"]
+        aliases = {"files": "workspace", "tool_calls": "tool_trace", "final_answer": "answer"}
+        if isinstance(channels, list):
+            requirement["evidence_channels"] = list(dict.fromkeys(aliases.get(channel, channel) for channel in channels))
+            channels = requirement["evidence_channels"]
         if not isinstance(channels, list) or any(channel not in _CHANNELS for channel in channels):
             raise ValueError("requirement.evidence_channels 非法")
         if any(not isinstance(requirement[key], str) or not requirement[key].strip()
@@ -324,11 +328,19 @@ def run_verifier(
         raise ValueError("verifier 包含 semantic_requirement，但未提供语义评审器")
     if semantic_infer_fn is not None:
         requirements_by_id = {item["id"]: item for item in package["requirements"]}
-        for item in semantic_results:
-            response = semantic_infer_fn(
-                _semantic_prompt(item, evidence, requirements_by_id[item["requirement_id"]]),
-                llm_config=llm_config or {},
-            )
+        prompts = [
+            _semantic_prompt(item, evidence, requirements_by_id[item["requirement_id"]])
+            for item in semantic_results
+        ]
+        responses = semantic_infer_fn(
+            prompts if len(prompts) > 1 else prompts[0],
+            llm_config=llm_config or {},
+        ) if prompts else []
+        if isinstance(responses, InferenceResult):
+            responses = [responses]
+        if not isinstance(responses, list) or len(responses) != len(semantic_results):
+            raise ValueError("语义评审返回数量与请求不一致")
+        for item, response in zip(semantic_results, responses):
             semantic = _parse_semantic_result(response.text)
             if set(semantic) != {"status", "reason"} or semantic["status"] not in _STATUSES:
                 raise ValueError("语义评审结果结构非法")
@@ -346,7 +358,13 @@ def _parse_semantic_result(text: str) -> dict[str, str]:
     except ValueError:
         match = re.fullmatch(r"\s*status\s*:\s*(pass|fail|indeterminate)\s+reason\s*:\s*(.+?)\s*", text, re.I | re.S)
         if not match:
+            match = re.fullmatch(r"\s*(?:status|状态)\s*[：:]\s*(pass|fail|indeterminate)\s+(?:reason|理由)\s*[：:]\s*(.+?)\s*", text, re.I | re.S)
+        if not match:
             match = re.fullmatch(r"\s*(pass|fail|indeterminate)\s*[：:]\s*(.+?)\s*", text, re.I | re.S)
+        if not match:
+            match = re.fullmatch(r"\s*(pass|fail|indeterminate)\s+(?:reason|理由)\s*[：:]\s*(.+?)\s*", text, re.I | re.S)
+        if not match:
+            match = re.fullmatch(r"\s*(pass|fail|indeterminate)\s+(.+?)\s*", text, re.I | re.S)
         if not match:
             raise
         value = {"status": match.group(1).lower(), "reason": match.group(2).strip()}
@@ -359,6 +377,7 @@ def _semantic_prompt(
     result: dict[str, Any],
     evidence: dict[str, Any],
     requirement: dict[str, Any],
+    task_text: str | None = None,
 ) -> str:
     refs = result["evidence_refs"]
     selected: dict[str, Any] = {
@@ -391,7 +410,16 @@ def _semantic_prompt(
                                      if field in initial})
                 selected[key].append(item)
     return json.dumps({
-        "role": "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。",
+        "role": (
+            "你是单项任务要求的语义核验器，只判断给定要求，不新增要求。只有引用证据直接证明要求时才通过；"
+            "如果提供了原任务文本，原任务是唯一权威，生成的 requirement 不得删减或弱化它。"
+            "不得用最终回答补足任务明确要求写入文件或持久业务状态的缺失内容；但任务只要求生成、计算并呈现结果，"
+            "未明确要求落盘或持久化时，工具调用结果和最终回答可以共同作为证据。空标题、空字段或仅声称已完成都不算内容。"
+            "任务要求某份简报、文件或备注包含或整理内容时，只有该载体正文能证明完成，最终回答不能替代。"
+            "任务只要求提供或保留某项检查结果时，不得擅自要求该结果必须为 true、成功或通过。"
+            "可回溯证据引用可以由业务标识、说话人、时间或位置等信息完成定位；任务未明确要求逐字引文时，不得要求引用中包含原文全文。"
+        ),
+        "task": task_text,
         "requirement_id": result["requirement_id"],
         "claim": result["reason"],
         "requirement": requirement,
@@ -430,7 +458,6 @@ def generate_verifier(
     llm_config: dict[str, Any],
     infer_fn: InferFn = infer,
     previous_failure: str | None = None,
-    previous_verifier: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Ask the model for a constrained verifier package, then validate it."""
     request = {
@@ -443,12 +470,24 @@ def generate_verifier(
                 "source 不得导入模块、访问路径、启动进程、写文件或硬编码参考执行的动态 ID。",
                 "不得把参考执行中偶然出现的具体 ID、时间戳或固定文本值当作通用通过条件；只能检查任务要求及证据结构。",
                 "工具调用链只是可用证据，不是标准答案；任务未明确要求时，不得把调用某个工具、调用顺序或调用次数作为成功条件。",
-                "业务名称、路径和枚举值按任务语义匹配；除任务明确指定父路径或字面格式外，不得照搬参考执行的完整字符串作为唯一条件。",
-                "公开工具若只返回计算结果且没有写入能力，不得虚构输出文件；任务未明确要求落盘时，工具结果和最终回答可以证明结果已生成并保留。",
+                "只检查任务要求的最终业务状态。只有任务明确要求创建、新增或追加时才能要求相对初态新增；登记、整理、归档或设置不得自动解释为必须新建。",
+                "业务名称按语义匹配，忽略不影响含义的大小写、空白、标点和下划线差异；确定性代码难以可靠归一时使用 semantic_requirement。",
+                "路径和枚举值按任务语义匹配；除任务明确指定父路径或字面格式外，不得照搬参考执行的完整字符串作为唯一条件。",
+                "公开工具若只返回计算结果且没有写入能力，不得虚构输出文件；任务未明确要求落盘时，工具结果、工具参数、最终回答和最终状态可以共同证明结果已生成。参考调用轨迹可能没有返回值，不能因此要求工具必须有返回值。",
+                "任务只要求提供或保留某项检查结果时，不得擅自要求该结果必须为 true、成功或通过；应保留工具实际返回的结果。",
+                "任务只要求可回溯的证据引用时，业务标识、说话人、时间或位置等可定位信息即可构成引用；除非任务明确要求逐字引文，不得强制引用包含原文全文。",
+                "任务未指定的技术字段（例如内部 ID、source_reference、作者、文件名）不得作为通过条件；只有在该字段用于识别任务要求的业务对象时，才按其指向的对象核对。",
+                "同一字段承载多个业务标识时，只能分别核对任务明确指定的标识，不得要求参考执行中的字段选择、标识顺序、完整字符串或逗号、加号等分隔格式。",
+                "日期、名称、数值等限定词只约束其所在分句明确修饰的业务对象，不得传播到同段的其他动作或产物。",
+                "任务要求交付物包含或整理某类内容时，空标题、空字段不能算完成；没有相应内容时，交付物必须明确说明无。",
+                "凡把相对初态新增或变化作为通过条件，evidence_refs 必须同时引用相关 initial 和 final 证据，不得让语义审核凭未引用的初态推断。",
                 "路径和数据结构只能使用 reference_evidence 中明确出现的事实，不得猜测。",
                 "文件只有元数据而没有 text/json 时，表示正文未放进生成提示；运行时仍可按该路径读取。",
                 "需要自然语言判断时调用 ctx.semantic_requirement(id, claim, evidence_refs)。",
                 "确定性事实优先在 source 中直接比较证据。",
+                "source 的每条执行路径必须记录每项 requirement 的结果恰好一次，不能遗漏或重复记录。",
+                "evidence_refs 只能使用列出的精确格式和当前证据中存在的索引或路径；工具引用必须从 ctx.calls() 的实际索引生成，不得写 tool_trace 或 workspace 等占位符。",
+                "source 保持紧凑，复用局部 helper，不要在代码中重复 requirements 的长篇说明。",
                 "空回答、无工具调用且 workspace 无变化时，每一项 required 要求都不得通过。",
                 "只输出符合 schema 的 JSON，不要 markdown。",
             ],
@@ -487,8 +526,6 @@ def generate_verifier(
         }
     if previous_failure:
         request["previous_failure"] = previous_failure
-    if previous_verifier:
-        request["previous_verifier"] = previous_verifier
     response = infer_fn(
         json.dumps(request, ensure_ascii=False),
         llm_config=llm_config,
@@ -516,6 +553,102 @@ def _generation_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     return compact
 
 
+def _counterfactual_evidence(evidence: dict[str, Any], task_text: str) -> dict[str, Any]:
+    """Change incidental identifiers and reference formatting without changing business state."""
+    variant = json.loads(json.dumps(evidence, ensure_ascii=False))
+    stable_ids: set[str] = set()
+    initial_objects: set[str] = set()
+
+    def collect_ids(value: Any, key: str = "") -> None:
+        if isinstance(value, dict):
+            initial_objects.add(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            for item_key, item in value.items():
+                collect_ids(item, item_key)
+        elif isinstance(value, list):
+            for item in value:
+                collect_ids(item, key)
+        elif key == "id" or key.endswith("_id") or key.endswith("_ids"):
+            stable_ids.add(str(value))
+
+    for record in variant.get("initial_files", []):
+        if "json" in record:
+            collect_ids(record["json"])
+
+    def changed_id(value: Any) -> Any:
+        if str(value) in stable_ids or str(value) in task_text:
+            return value
+        if isinstance(value, str):
+            return "counterfactual_" + value
+        if type(value) is int:
+            return value + 1_000_000_000
+        return value
+
+    def rewrite(value: Any, key: str = "", move_reference: bool = False) -> Any:
+        if isinstance(value, dict):
+            original = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            rewritten = {
+                item_key: rewrite(item, item_key, move_reference)
+                for item_key, item in value.items()
+            }
+            if (move_reference and original not in initial_objects
+                    and isinstance(value.get("source_reference"), str)
+                    and isinstance(value.get("description"), str)):
+                reference = value["source_reference"]
+                rewritten["source_reference"] = "counterfactual_reference"
+                rewritten["description"] = f"{value['description']} [references: {reference}]"
+            return rewritten
+        if isinstance(value, list):
+            if key.endswith("_ids"):
+                return [changed_id(item) for item in value]
+            return [rewrite(item, key, move_reference) for item in value]
+        if key == "source_reference" and isinstance(value, str):
+            return f"trace[{value}]"
+        if (key == "id" or key.endswith("_id")) and isinstance(value, (str, int)) and not isinstance(value, bool):
+            return changed_id(value)
+        return value
+
+    variant["calls"] = rewrite(variant.get("calls", []), move_reference=True)
+    for state in ("initial_files", "final_files"):
+        for record in variant.get(state, []):
+            if "json" in record:
+                record["json"] = rewrite(record["json"], move_reference=state == "final_files")
+                record["text"] = json.dumps(record["json"], ensure_ascii=False)
+                record["truncated"] = False
+    return variant
+
+
+def _confirm_results_semantically(
+    package: dict[str, Any],
+    results: list[dict[str, Any]],
+    evidence: dict[str, Any],
+    infer_fn: InferFn,
+    llm_config: dict[str, Any] | None,
+    task_text: str,
+) -> list[dict[str, Any]]:
+    requirements = {item["id"]: item for item in package["requirements"]}
+    prompts = [
+        _semantic_prompt(
+            {**result, "reason": requirements[result["requirement_id"]]["claim"]},
+            evidence,
+            requirements[result["requirement_id"]],
+            task_text,
+        )
+        for result in results
+    ]
+    responses = infer_fn(prompts if len(prompts) > 1 else prompts[0], llm_config=llm_config or {})
+    if isinstance(responses, InferenceResult):
+        responses = [responses]
+    if not isinstance(responses, list) or len(responses) != len(results):
+        raise ValueError("语义二次确认返回数量与请求不一致")
+    confirmed = []
+    for result, response in zip(results, responses):
+        semantic = _parse_semantic_result(response.text)
+        if semantic["status"] not in _STATUSES or not semantic["reason"].strip():
+            raise ValueError("语义二次确认结果结构非法")
+        confirmed.append({**result, **semantic})
+    return confirmed
+
+
 def calibrate_verifier(
     package: dict[str, Any],
     reference_evidence: dict[str, Any],
@@ -523,6 +656,8 @@ def calibrate_verifier(
     *,
     llm_config: dict[str, Any] | None = None,
     infer_fn: InferFn = infer,
+    task_text: str | None = None,
+    confirm_all: bool = False,
 ) -> dict[str, Any]:
     """Require the reference to pass and empty evidence not to pass required criteria."""
     reference_results = run_verifier(
@@ -531,17 +666,66 @@ def calibrate_verifier(
     reference = aggregate_results(package["requirements"], reference_results)
     if reference["outcome"] != "pass":
         raise ValueError("参考执行未通过冻结 verifier：" + json.dumps(reference_results, ensure_ascii=False))
+    confirmation = None
+    if confirm_all:
+        confirmation_results = _confirm_results_semantically(
+            package, reference_results, reference_evidence, infer_fn, llm_config, task_text or "",
+        )
+        confirmation = aggregate_results(package["requirements"], confirmation_results)
+        if confirmation["outcome"] != "pass":
+            raise ValueError("参考执行逐项语义二次确认未通过：" + json.dumps(confirmation_results, ensure_ascii=False))
+    elif "semantic_requirement" in package["source"]:
+        confirmation_results = run_verifier(
+            package, reference_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
+        )
+        confirmation = aggregate_results(package["requirements"], confirmation_results)
+        if confirmation["outcome"] != "pass":
+            raise ValueError("参考执行语义二次确认未通过：" + json.dumps(confirmation_results, ensure_ascii=False))
+    counterfactual = None
+    if task_text is not None:
+        counterfactual_evidence = _counterfactual_evidence(reference_evidence, task_text)
+        def accept_semantics(prompt: str | list[str], **_: Any) -> InferenceResult | list[InferenceResult]:
+            result = InferenceResult('{"status":"pass","reason":"只校准确定性分支"}', {}, "calibration")
+            return [result for _ in prompt] if isinstance(prompt, list) else result
+
+        counterfactual_results = run_verifier(
+            package, counterfactual_evidence, semantic_infer_fn=accept_semantics, llm_config=llm_config,
+        )
+        counterfactual = aggregate_results(package["requirements"], counterfactual_results)
+        if counterfactual["outcome"] != "pass":
+            raise ValueError("参考执行反事实校准未通过：" + json.dumps(counterfactual_results, ensure_ascii=False))
     empty_results = run_verifier(
         package, empty_evidence, semantic_infer_fn=infer_fn, llm_config=llm_config,
     )
     empty = aggregate_results(package["requirements"], empty_results)
     required = {item["id"] for item in package["requirements"] if item["required"]}
-    passed_empty = [item["requirement_id"] for item in empty_results
-                    if item["requirement_id"] in required and item["status"] == "pass"]
-    if passed_empty:
-        raise ValueError("空证据错误通过 required 要求：" + ", ".join(passed_empty))
+    files = {
+        state: {item.get("path"): item.get("sha256") for item in empty_evidence.get(f"{state}_files", [])}
+        for state in ("initial", "final")
+    }
+
+    def proves_preservation(result: dict[str, Any]) -> bool:
+        refs = result["evidence_refs"]
+        if not refs or any(not ref.startswith(("initial:", "final:")) for ref in refs):
+            return False
+        initial = {ref[8:] for ref in refs if ref.startswith("initial:")}
+        final = {ref[6:] for ref in refs if ref.startswith("final:")}
+        return bool(initial) and initial == final and all(
+            files["initial"].get(path) == files["final"].get(path) is not None for path in initial
+        )
+
+    invalid_empty = [
+        item["requirement_id"] for item in empty_results
+        if item["requirement_id"] in required and item["status"] == "pass" and not proves_preservation(item)
+    ]
+    if invalid_empty:
+        raise ValueError("空证据错误通过非保留型 required 要求：" + ", ".join(invalid_empty))
+    if empty["outcome"] == "pass":
+        raise ValueError("空证据错误通过了整个任务")
     return {
         "reference": reference,
+        "reference_confirmation": confirmation,
+        "counterfactual": counterfactual,
         "empty": empty,
         "status": "calibrated",
     }
@@ -562,23 +746,21 @@ def prepare_verifier(
         raise ValueError("attempts 必须大于 0")
     history: list[dict[str, Any]] = []
     previous_failure: str | None = None
-    previous_verifier: dict[str, Any] | None = None
     for index in range(attempts):
         package: dict[str, Any] | None = None
         try:
             package = generate_verifier(
                 task, environment, reference_evidence, llm_config, infer_fn,
                 previous_failure=previous_failure,
-                previous_verifier=previous_verifier,
             )
             calibration = calibrate_verifier(
                 package, reference_evidence, empty_evidence,
                 llm_config=llm_config, infer_fn=infer_fn,
+                task_text=str(task.get("task_text") or ""),
+                confirm_all=True,
             )
         except Exception as error:
-            previous_failure = f"{type(error).__name__}: {error}"
-            if package is not None:
-                previous_verifier = package
+            previous_failure = f"{type(error).__name__}: {error}"[:4000]
             history.append({
                 "attempt": index + 1,
                 "error": previous_failure,

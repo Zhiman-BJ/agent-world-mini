@@ -6,6 +6,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -28,6 +29,7 @@ from .task_eval_verifier import (
     build_evidence,
     prepare_verifier,
     run_verifier,
+    validate_verifier,
     VerifierPreparationError,
 )
 
@@ -137,6 +139,7 @@ def evaluate_case(
     agent_run_fn: AgentRunFn | None = None,
     judge_infer_fn: InferFn = infer,
     verifier_output: Path | None = None,
+    verifier_cache: Path | None = None,
 ) -> dict[str, Any]:
     """Let one Codex agent solve a task with environment MCP tools, then judge it."""
     if max_tool_calls < 1:
@@ -156,6 +159,7 @@ def evaluate_case(
     verifier: dict[str, Any] | None = None
     calibration: dict[str, Any] | None = None
     verifier_attempts: list[dict[str, Any]] = []
+    verifier_cache_hit = False
     if case.reference_state is not None:
         reference_evidence = build_evidence(
             case.initial_state,
@@ -169,14 +173,42 @@ def evaluate_case(
             "tools": case.task.get("available_tools", []),
         }
         empty_evidence = build_evidence(case.initial_state, case.initial_state, [], "", tool_result_max_bytes)
-        verifier, calibration, verifier_attempts = prepare_verifier(
-            case.task,
-            verifier_environment,
-            reference_evidence,
-            empty_evidence,
-            llm_config,
-            infer_fn=judge_infer_fn,
-        )
+        cache_path = None
+        if verifier_cache is not None:
+            fingerprint_payload = {
+                "version": 4,
+                "task": case.task,
+                "environment": verifier_environment,
+                "reference_evidence": reference_evidence,
+            }
+            fingerprint = hashlib.sha256(json.dumps(
+                fingerprint_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            ).encode()).hexdigest()
+            verifier_cache.mkdir(parents=True, exist_ok=True)
+            cache_path = verifier_cache / f"{fingerprint}.json"
+        if cache_path is not None and cache_path.is_file():
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if cached.get("fingerprint") != fingerprint:
+                raise ValueError(f"verifier 缓存指纹不一致：{cache_path}")
+            verifier = cached.get("verifier")
+            calibration = cached.get("calibration")
+            validate_verifier(verifier)
+            verifier_cache_hit = True
+        else:
+            verifier, calibration, verifier_attempts = prepare_verifier(
+                case.task,
+                verifier_environment,
+                reference_evidence,
+                empty_evidence,
+                llm_config,
+                infer_fn=judge_infer_fn,
+            )
+            if cache_path is not None:
+                cache_path.write_text(json.dumps({
+                    "fingerprint": fingerprint,
+                    "verifier": verifier,
+                    "calibration": calibration,
+                }, ensure_ascii=False, indent=2), encoding="utf-8")
         if verifier_output is not None:
             verifier_output.parent.mkdir(parents=True, exist_ok=True)
             verifier_output.write_text(json.dumps({
@@ -185,6 +217,7 @@ def evaluate_case(
                 "environment_id": case.task.get("environment_id"),
                 "verifier": verifier,
                 "calibration": calibration,
+                "cache_hit": verifier_cache_hit,
             }, ensure_ascii=False, indent=2), encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="task-eval-mcp-") as temporary:
         server_config = Path(temporary) / "server.json"
@@ -209,15 +242,25 @@ def evaluate_case(
     if _workspace_signature(case.initial_state) != source_signature:
         raise ValueError("来源初态在评测期间被修改")
     changes = _workspace_changes(source_signature, _workspace_signature(workspace))
+    verifier_error = None
     if verifier is not None:
         actual_evidence = build_evidence(case.initial_state, workspace, calls, answer, tool_result_max_bytes)
-        requirement_results = run_verifier(
-            verifier,
-            actual_evidence,
-            semantic_infer_fn=judge_infer_fn,
-            llm_config=llm_config,
-        )
-        evaluation = aggregate_results(verifier["requirements"], requirement_results)
+        try:
+            requirement_results = run_verifier(
+                verifier,
+                actual_evidence,
+                semantic_infer_fn=judge_infer_fn,
+                llm_config=llm_config,
+            )
+            evaluation = aggregate_results(verifier["requirements"], requirement_results)
+        except Exception as error:
+            verifier_error = f"{type(error).__name__}: {error}"
+            evaluation = {
+                "outcome": "indeterminate",
+                "passed": False,
+                "attribution": "verifier",
+                "requirements": [],
+            }
         judge_response = json.dumps(evaluation, ensure_ascii=False)
     else:
         judge_response = judge_infer_fn(
@@ -244,7 +287,8 @@ def evaluate_case(
         "verifier": verifier,
         "calibration": calibration,
         "verifier_attempts": verifier_attempts,
-        "error": None,
+        "verifier_cache_hit": verifier_cache_hit,
+        "error": verifier_error,
     }
 
 
@@ -374,6 +418,7 @@ def run_evaluation(
     verifier_dir.mkdir()
     task_result_dir = run_dir / "task_results"
     task_result_dir.mkdir()
+    verifier_cache = output_root.expanduser().resolve() / "verifier_cache"
 
     def run(case: EvalCase) -> dict[str, Any]:
         filename = f"{case.source_run.name}__{case.task['task_id']}"
@@ -389,6 +434,7 @@ def run_evaluation(
                 tool_max_write_bytes=int(execution_config.get("tool_max_write_bytes", 256 * 1024 * 1024)),
                 tool_result_max_bytes=int(execution_config.get("tool_result_max_bytes", 65536)),
                 verifier_output=verifier_dir / f"{filename}.json",
+                verifier_cache=verifier_cache,
             )
         except Exception as error:
             verifier_error = isinstance(error, VerifierPreparationError)
