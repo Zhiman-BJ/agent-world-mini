@@ -1600,7 +1600,7 @@ def prepare_verifier(
     empty_evidence: dict[str, Any],
     llm_config: dict[str, Any],
     *,
-    attempts: int = 5,
+    attempts: int = 3,
     infer_fn: InferFn = infer,
     initial_state: Path | None = None,
     final_state: Path | None = None,
