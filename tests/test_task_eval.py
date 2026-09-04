@@ -21,6 +21,7 @@ from task_gen.task_eval import (
 )
 from task_gen.task_eval_verifier import (
     _counterfactual_evidence,
+    assess_task_reference_conflict,
     aggregate_results,
     build_evidence,
     calibrate_verifier,
@@ -230,6 +231,145 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(review_verifier_implementation(
             specification, package, {}, {}, {}, infer_fn=fake_infer,
         ), expected)
+
+    def test_calibration_ablation_rejects_pass_using_an_undeclared_channel(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer"], "pass_condition": "Answer contains the value.",
+                "fail_condition": "Answer contradicts the value.",
+                "indeterminate_condition": "Answer is absent.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated change.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        package = {
+            "schema_version": "1", "requirements": [{
+                "id": item["id"], "claim": item["claim"], "required": True,
+                "evidence_channels": item["evidence_channels"],
+                "pass_condition": item["pass_condition"], "fail_condition": item["fail_condition"],
+            } for item in specification["requirements"]],
+            "source": (
+                "def verify(ctx):\n"
+                "    if ctx.answer() or ctx.calls():\n"
+                "        refs = ['answer'] if ctx.answer() else ['tool_call:0']\n"
+                "        ctx.pass_requirement('R1', 'present', refs)\n"
+                "    else:\n"
+                "        ctx.indeterminate_requirement('R1', 'absent')\n"
+                "    if ctx.file('state.json', 'initial') and ctx.file('state.json', 'final'):\n"
+                "        ctx.pass_requirement('R2', 'unchanged', ['initial:state.json', 'final:state.json'])\n"
+                "    else:\n"
+                "        ctx.indeterminate_requirement('R2', 'state unavailable')\n"
+            ),
+        }
+        files = [{"path": "state.json", "sha256": "same"}]
+        reference = {
+            "answer": "8", "calls": [{"tool": "read_value", "result": {"value": 8}}],
+            "changed_paths": [], "initial_files": files, "final_files": files,
+        }
+        empty = {"answer": "", "calls": [], "changed_paths": [], "initial_files": files, "final_files": files}
+
+        with self.assertRaisesRegex(ValueError, "证据消融.*R1"):
+            calibrate_verifier(package, reference, empty, specification=specification)
+
+    def test_calibration_ablation_accepts_independently_sufficient_remaining_channel(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer", "tool_trace"],
+                "pass_condition": "Either direct evidence independently proves value 8.",
+                "fail_condition": "Available evidence contradicts value 8.",
+                "indeterminate_condition": "Neither evidence class is available.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated change.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        package = {
+            "schema_version": "1", "requirements": [{
+                "id": item["id"], "claim": item["claim"], "required": True,
+                "evidence_channels": item["evidence_channels"],
+                "pass_condition": item["pass_condition"], "fail_condition": item["fail_condition"],
+            } for item in specification["requirements"]],
+            "source": (
+                "def verify(ctx):\n"
+                "    if ctx.answer():\n"
+                "        ctx.pass_requirement('R1', 'answer proves 8', ['answer'])\n"
+                "    elif ctx.calls():\n"
+                "        ctx.pass_requirement('R1', 'read result proves 8', ['tool_call:0'])\n"
+                "    else:\n"
+                "        ctx.indeterminate_requirement('R1', 'absent')\n"
+                "    if ctx.file('state.json', 'initial') and ctx.file('state.json', 'final'):\n"
+                "        ctx.pass_requirement('R2', 'unchanged', ['initial:state.json', 'final:state.json'])\n"
+                "    else:\n"
+                "        ctx.indeterminate_requirement('R2', 'state unavailable')\n"
+            ),
+        }
+        files = [{"path": "state.json", "sha256": "same"}]
+        reference = {
+            "answer": "8", "calls": [{"tool": "read_value", "result": {"value": 8}}],
+            "changed_paths": [], "initial_files": files, "final_files": files,
+        }
+        empty = {"answer": "", "calls": [], "changed_paths": [], "initial_files": files, "final_files": files}
+
+        calibration = calibrate_verifier(
+            package, reference, empty, specification=specification,
+            infer_fn=lambda *_args, **_kwargs: InferenceResult(
+                '{"status":"pass","reason":"remaining evidence independently proves value 8"}', {}, "test",
+            ),
+        )
+
+        self.assertEqual({item["channel"] for item in calibration["ablations"]}, {
+            "answer", "tool_trace", "workspace",
+        })
+
+    def test_task_reference_conflict_is_assessed_without_candidate_verifier(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Use transaction ABC."}],
+            "requirements": [{
+                "id": "R1", "claim": "Transaction ABC is used.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "persistent_state",
+                "evidence_channels": ["workspace"], "pass_condition": "Final state uses ABC.",
+                "fail_condition": "Final state uses a different transaction.",
+                "indeterminate_condition": "Final state is unavailable.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated change.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        assessment = {"conflict": True, "issues": [{
+            "requirement_id": "R1", "task_clause_ids": ["C1"],
+            "claim": "Transaction ABC is used.", "evidence_refs": ["final:ledger.json"],
+            "message": "Reference final state uses transaction ABCD instead of ABC.",
+        }]}
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertNotIn("verifier", request)
+            self.assertNotIn("candidate", json.dumps(request))
+            return InferenceResult(json.dumps(assessment), {}, "test")
+
+        self.assertEqual(assess_task_reference_conflict(
+            {"task_text": "Use transaction ABC."}, specification,
+            {"final_files": [{"path": "ledger.json"}]}, {}, infer_fn=fake_infer,
+        ), assessment)
 
     def test_build_evidence_contains_bounded_files_and_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -1071,6 +1071,32 @@ def _confirm_results_semantically(
     return confirmed
 
 
+def _evidence_channel(reference: str) -> str | None:
+    if reference == "answer":
+        return "answer"
+    if reference.startswith(("tool_call:", "verifier_call:")):
+        return "tool_trace"
+    if reference.startswith(("initial:", "final:", "workspace_change:")):
+        return "workspace"
+    return None
+
+
+def _ablate_evidence(evidence: dict[str, Any], channel: str) -> dict[str, Any]:
+    ablated = json.loads(json.dumps(evidence, ensure_ascii=False))
+    ablated.pop("verifier_calls", None)
+    if channel == "answer":
+        ablated["answer"] = ""
+    elif channel == "tool_trace":
+        ablated["calls"] = []
+    elif channel == "workspace":
+        ablated["changed_paths"] = []
+        ablated["initial_files"] = []
+        ablated["final_files"] = []
+    else:
+        raise ValueError(f"未知证据渠道：{channel}")
+    return ablated
+
+
 def calibrate_verifier(
     package: dict[str, Any],
     reference_evidence: dict[str, Any],
@@ -1083,6 +1109,7 @@ def calibrate_verifier(
     initial_state: Path | None = None,
     final_state: Path | None = None,
     tools: list[dict[str, Any]] | None = None,
+    specification: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Require the reference to pass and empty evidence not to pass required criteria."""
     reference_results = run_verifier(
@@ -1152,6 +1179,69 @@ def calibrate_verifier(
         raise ValueError("空证据错误通过非保留型 required 要求：" + ", ".join(invalid_empty))
     if empty["outcome"] == "pass":
         raise ValueError("空证据错误通过了整个任务")
+    ablations: list[dict[str, Any]] = []
+    if specification is not None:
+        validate_verification_spec(specification)
+        spec_requirements = {item["id"]: item for item in specification["requirements"]}
+        if package["requirements"] != _frozen_requirements(specification):
+            raise ValueError("verifier requirements 与消融规格不一致")
+        channels = sorted({
+            channel
+            for requirement in specification["requirements"]
+            if requirement["outcome_type"] != "preservation"
+            for channel in requirement["evidence_channels"]
+        })
+        for channel in channels:
+            ablated_evidence = _ablate_evidence(reference_evidence, channel)
+            try:
+                ablated_results = run_verifier(
+                    package,
+                    ablated_evidence,
+                    semantic_infer_fn=infer_fn,
+                    llm_config=llm_config,
+                    task_text=task_text,
+                    initial_state=None if channel == "workspace" else initial_state,
+                    final_state=None if channel == "workspace" else final_state,
+                    tools=[] if channel == "tool_trace" else tools,
+                )
+            except Exception as error:
+                raise ValueError(f"证据消融 {channel} 执行失败：{error}") from error
+            affected = {
+                item["id"] for item in specification["requirements"]
+                if item["outcome_type"] != "preservation" and channel in item["evidence_channels"]
+            }
+            survivors = [
+                item for item in ablated_results
+                if item["requirement_id"] in affected and item["status"] == "pass"
+            ]
+            unsupported: list[str] = []
+            semantically_reviewable: list[dict[str, Any]] = []
+            for result in survivors:
+                remaining = set(spec_requirements[result["requirement_id"]]["evidence_channels"]) - {channel}
+                cited = {_evidence_channel(ref) for ref in result["evidence_refs"]}
+                if not result["evidence_refs"] or None in cited or not cited <= remaining:
+                    unsupported.append(result["requirement_id"])
+                else:
+                    semantically_reviewable.append(result)
+            if semantically_reviewable:
+                confirmed = _confirm_results_semantically(
+                    package, semantically_reviewable, ablated_evidence,
+                    infer_fn, llm_config, task_text or "",
+                )
+                unsupported.extend(
+                    item["requirement_id"] for item in confirmed if item["status"] != "pass"
+                )
+            if unsupported:
+                raise ValueError(
+                    f"证据消融 {channel} 后要求仍无充分证据通过：" + ", ".join(sorted(set(unsupported)))
+                )
+            ablations.append({
+                "channel": channel,
+                "results": ablated_results,
+                "independently_supported": [
+                    item["requirement_id"] for item in semantically_reviewable
+                ],
+            })
     return {
         "reference_raw": reference_raw,
         "reference": reference,
@@ -1163,8 +1253,67 @@ def calibrate_verifier(
         ),
         "empty": empty,
         "empty_verifier_calls": empty_evidence.get("verifier_calls", []),
+        "ablations": ablations,
         "status": "calibrated",
     }
+
+
+def assess_task_reference_conflict(
+    task: dict[str, Any],
+    specification: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Determine whether task authority and known-good evidence are themselves incompatible."""
+    validate_verification_spec(specification)
+    request = {
+        "role": (
+            "你判断任务文本与参考证据本身是否冲突。忽略任何 verifier 实现及其判断，只逐项检查"
+            "任务明确要求的业务结果是否被参考证据直接反驳，或参考证据是否根本无法证明该结果。"
+            "只有能指出具体任务条款和具体证据时才能报告冲突；证据只是采用了不同工具、顺序、"
+            "动态 ID、存储表示或等价措辞，不构成冲突。"
+        ),
+        "task": task.get("task_text"),
+        "specification": specification,
+        "reference_evidence": _generation_evidence(reference_evidence),
+        "response_contract": {
+            "conflict": "boolean；仅当 issues 非空时为 true",
+            "issues": [{
+                "requirement_id": "R1",
+                "task_clause_ids": ["C1"],
+                "claim": "发生冲突的任务要求",
+                "evidence_refs": ["final:relative/path 或 tool_call:N 或 answer"],
+                "message": "参考证据如何明确反驳或无法证明该要求",
+            }],
+        },
+    }
+    assessment = parse_json_object(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text)
+    if not isinstance(assessment, dict) or set(assessment) != {"conflict", "issues"}:
+        raise ValueError("task-reference conflict assessment 结构非法")
+    if not isinstance(assessment["conflict"], bool) or not isinstance(assessment["issues"], list):
+        raise ValueError("task-reference conflict assessment 字段非法")
+    if assessment["conflict"] != bool(assessment["issues"]):
+        raise ValueError("task-reference conflict assessment 的 conflict 与 issues 矛盾")
+    requirements = {item["id"]: item for item in specification["requirements"]}
+    for issue in assessment["issues"]:
+        if not isinstance(issue, dict) or set(issue) != {
+            "requirement_id", "task_clause_ids", "claim", "evidence_refs", "message",
+        }:
+            raise ValueError("task-reference conflict issue 结构非法")
+        requirement = requirements.get(issue["requirement_id"])
+        if (requirement is None or not isinstance(issue["task_clause_ids"], list)
+                or set(issue["task_clause_ids"]) - set(requirement["task_clause_ids"])
+                or not isinstance(issue["claim"], str) or not issue["claim"].strip()
+                or not isinstance(issue["message"], str) or not issue["message"].strip()
+                or not isinstance(issue["evidence_refs"], list) or not issue["evidence_refs"]
+                or any(not isinstance(ref, str) or not _valid_evidence_ref(ref, reference_evidence)
+                       for ref in issue["evidence_refs"])):
+            raise ValueError("task-reference conflict issue 内容非法")
+    return assessment
 
 
 def prepare_verifier(
