@@ -927,8 +927,9 @@ def generate_proof_plan(
             "partial 证据中的缺失永远不具有决定性。每个证据源必须声明 completeness 和 absence_is_conclusive。",
             "task 可定义成功条件；environment_contract 可解释或定位；reference_observation 只能定位或举例，不能成为 criterion。",
             "定义业务不变量和明确破坏，不枚举允许的实现方式，也不把参考 workspace diff 当作变化白名单。",
-            "共享对象必须显式绑定；原子要求独立判断，但不能由不同对象分别拼成整体成功。",
-            "binding 表示满足要求的同一见证对象，不表示结果只能有一个；任务未明确限制数量时，不得增加恰好一个或其他数量上限。",
+            "binding 是逻辑变量：同一 binding ID 在所有 requirement 中必须解析为同一个具体见证，不能逐项另选对象。",
+            "binding 不表示候选只能有一个；应寻找能同时满足相关要求的完整见证赋值，任务未明确限制数量时不得增加数量上限。",
+            "若多个同类对象可以共同承载任务结果，应绑定其候选集合，并允许不同要求由集合中的不同成员满足。",
         ],
         "task": task.get("task_text"),
         "environment": environment,
@@ -984,6 +985,8 @@ def review_proof_plan(
             "还是只证明 Agent 没按参考方式执行？后者必须拒绝。检查对象身份不依赖被审核属性、"
             "partial 证据缺失只能 indeterminate、参考观察没有变成成功条件、多项要求仍绑定同一"
             "业务对象、没有引入任务未规定的数量上限，并且执行完整性没有把参考变化作为白名单。"
+            "同一 binding ID 本身就表示跨 requirement 复用同一逻辑见证，不得仅因存在多个候选而拒绝；"
+            "但若任务允许多个同类对象共同承载结果，也不得强迫所有内容位于同一个成员。"
             "任何可能把正确替代实现判为 fail 的路径都必须拒绝。"
         ),
         "task": task.get("task_text"),
@@ -1597,7 +1600,7 @@ def prepare_verifier(
     empty_evidence: dict[str, Any],
     llm_config: dict[str, Any],
     *,
-    attempts: int = 3,
+    attempts: int = 5,
     infer_fn: InferFn = infer,
     initial_state: Path | None = None,
     final_state: Path | None = None,
@@ -1673,7 +1676,7 @@ def prepare_verifier(
                 "requirement_ids": [],
                 "message": f"{type(error).__name__}: {error}"[:4000],
             }
-            previous_plan_issues = [issue]
+            previous_plan_issues = [*(previous_plan_issues or []), issue]
             history.append({
                 "stage": "proof_plan", "attempt": index + 1,
                 "error": issue["message"], "proof_plan": candidate_plan, "review": None,
@@ -1688,7 +1691,7 @@ def prepare_verifier(
             proof_plan = candidate_plan
             proof_plan_review = review
             break
-        previous_plan_issues = review["issues"]
+        previous_plan_issues = [*(previous_plan_issues or []), *review["issues"]]
     if proof_plan is None or proof_plan_review is None:
         raise VerifierPreparationError(history)
 

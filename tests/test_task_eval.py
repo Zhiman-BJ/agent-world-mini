@@ -1233,29 +1233,40 @@ class TaskEvalTest(unittest.TestCase):
         specification = {"schema_version": "1", "task_clauses": [], "requirements": []}
         first = {"schema_version": "1", "version": "first"}
         second = {"schema_version": "1", "version": "second"}
-        issue = {
+        third = {"schema_version": "1", "version": "third"}
+        first_issue = {
             "code": "inconclusive_failure", "task_clause_ids": ["C1"],
             "requirement_ids": ["R1"], "message": "Partial evidence cannot prove failure.",
+        }
+        second_issue = {
+            "code": "wrong_binding", "task_clause_ids": ["C2"],
+            "requirement_ids": ["R2"], "message": "Requirements must share one witness.",
         }
         package = {"schema_version": "1", "requirements": [], "source": "def verify(ctx):\n    return\n"}
 
         with patch("task_gen.task_eval_verifier.generate_verification_spec", return_value=specification), \
              patch("task_gen.task_eval_verifier.review_verification_spec", return_value={"approved": True, "issues": []}), \
-             patch("task_gen.task_eval_verifier.generate_proof_plan", side_effect=[first, second]) as generate, \
+             patch("task_gen.task_eval_verifier.generate_proof_plan", side_effect=[first, second, third]) as generate, \
              patch("task_gen.task_eval_verifier.review_proof_plan", side_effect=[
-                 {"approved": False, "issues": [issue]}, {"approved": True, "issues": []},
+                 {"approved": False, "issues": [first_issue]},
+                 {"approved": False, "issues": [second_issue]},
+                 {"approved": True, "issues": []},
              ]), \
              patch("task_gen.task_eval_verifier.generate_verifier", return_value=package), \
              patch("task_gen.task_eval_verifier.review_verifier_implementation", return_value={"approved": True, "issues": []}), \
              patch("task_gen.task_eval_verifier.calibrate_verifier", return_value={"status": "calibrated"}):
             _package, calibration, history = prepare_verifier(
-                {"task_text": "return 8"}, {}, {}, {}, {}, attempts=2,
+                {"task_text": "return 8"}, {}, {}, {}, {}, attempts=3,
             )
 
         self.assertIsNone(generate.call_args_list[0].kwargs["previous_issues"])
-        self.assertEqual(generate.call_args_list[1].kwargs["previous_issues"], [issue])
-        self.assertEqual(calibration["proof_plan"], second)
-        self.assertEqual(history[1]["review"]["issues"], [issue])
+        self.assertEqual(generate.call_args_list[1].kwargs["previous_issues"], [first_issue])
+        self.assertEqual(
+            generate.call_args_list[2].kwargs["previous_issues"],
+            [first_issue, second_issue],
+        )
+        self.assertEqual(calibration["proof_plan"], third)
+        self.assertEqual(history[1]["review"]["issues"], [first_issue])
 
     def test_prepare_verifier_raises_distinct_task_reference_conflict(self) -> None:
         specification = {"schema_version": "1", "task_clauses": [], "requirements": []}
