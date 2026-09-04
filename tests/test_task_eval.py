@@ -210,6 +210,7 @@ class TaskEvalTest(unittest.TestCase):
             request = json.loads(prompt)
             self.assertEqual(request["reference_evidence"]["answer"], "8")
             self.assertIn("不等于任务没有完成", " ".join(request["principles"]))
+            self.assertTrue(any("数量" in item and "上限" in item for item in request["principles"]))
             return InferenceResult(json.dumps(plan), {}, "test")
 
         self.assertEqual(generate_proof_plan(
@@ -260,6 +261,7 @@ class TaskEvalTest(unittest.TestCase):
         def fake_infer(prompt: str, **_: object) -> InferenceResult:
             request = json.loads(prompt)
             self.assertIn("没按参考方式执行", request["role"])
+            self.assertIn("数量上限", request["role"])
             self.assertEqual(request["reference_evidence"]["calls"], [])
             return InferenceResult(json.dumps(review), {}, "test")
 
@@ -301,8 +303,9 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(request["specification"], specification)
             self.assertEqual(request["proof_plan"], proof_plan)
             self.assertNotIn("reference_evidence", request)
+            self.assertIn("getattr", " ".join(request["implementation_principles"]))
             self.assertEqual(set(request["response_contract"]), {"source"})
-            return InferenceResult(source, {}, "test")
+            return InferenceResult(json.dumps({"source": source, "notes": "ignored"}), {}, "test")
 
         with patch("task_gen.task_eval_verifier.validate_proof_plan"):
             package = generate_verifier(

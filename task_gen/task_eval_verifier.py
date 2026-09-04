@@ -928,6 +928,7 @@ def generate_proof_plan(
             "task 可定义成功条件；environment_contract 可解释或定位；reference_observation 只能定位或举例，不能成为 criterion。",
             "定义业务不变量和明确破坏，不枚举允许的实现方式，也不把参考 workspace diff 当作变化白名单。",
             "共享对象必须显式绑定；原子要求独立判断，但不能由不同对象分别拼成整体成功。",
+            "binding 表示满足要求的同一见证对象，不表示结果只能有一个；任务未明确限制数量时，不得增加恰好一个或其他数量上限。",
         ],
         "task": task.get("task_text"),
         "environment": environment,
@@ -982,7 +983,8 @@ def review_proof_plan(
             "你独立审核证明计划，不修改它。对每个 fail 条件追问：证据究竟证明任务失败，"
             "还是只证明 Agent 没按参考方式执行？后者必须拒绝。检查对象身份不依赖被审核属性、"
             "partial 证据缺失只能 indeterminate、参考观察没有变成成功条件、多项要求仍绑定同一"
-            "业务对象，并且执行完整性没有把参考变化作为白名单。任何可能把正确替代实现判为 fail 的路径都必须拒绝。"
+            "业务对象、没有引入任务未规定的数量上限，并且执行完整性没有把参考变化作为白名单。"
+            "任何可能把正确替代实现判为 fail 的路径都必须拒绝。"
         ),
         "task": task.get("task_text"),
         "environment": environment,
@@ -1047,6 +1049,7 @@ def generate_verifier(
                 "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
                 "source 只能定义 verify(ctx)，不得导入模块、启动进程、直接打开路径或写文件。",
                 "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失、数量、路径或常量。",
+                "只能使用 verifier_context_api 和普通 Python 表达式；不得使用 getattr、反射或其他动态访问绕过静态校验。",
             ],
             "environment": environment,
             "specification": specification,
@@ -1081,8 +1084,9 @@ def generate_verifier(
             generated = {"source": source}
         if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
             generated = generated["response_contract"]
-        if not isinstance(generated, dict) or set(generated) != {"source"}:
+        if not isinstance(generated, dict) or not isinstance(generated.get("source"), str):
             raise ValueError("verifier implementation 必须只返回 source")
+        generated = {"source": generated["source"].rstrip()}
         package = {
             "schema_version": "1",
             "requirements": _frozen_requirements(specification),
