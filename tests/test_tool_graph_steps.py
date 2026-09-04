@@ -207,8 +207,12 @@ class ChainSampleTest(unittest.TestCase):
             "random_seed": 42,
         })
 
+        rounds = 0
+
         def fake_infer(prompts, **_kwargs):
-            if "逻辑性评分" in prompts[0]:
+            nonlocal rounds
+            rounds += 1
+            if rounds % 2 == 0:
                 return [InferenceResult(
                     '{"score":5,"reason":"objective and chain align"}', {}, "test",
                 ) for _ in prompts]
@@ -239,10 +243,13 @@ class ChainSampleTest(unittest.TestCase):
     def test_review_prompt_uses_objective_first_principles(self) -> None:
         graph = [{"from_tool": "a", "to_tool": "b", "weight": 1}]
         captured: list[str] = []
+        rounds = 0
 
         def fake_infer(prompts, **_kwargs):
+            nonlocal rounds
+            rounds += 1
             captured.extend(prompts)
-            if "逻辑性评分" in prompts[0]:
+            if rounds == 2:
                 return [InferenceResult(
                     '{"score":5,"reason":"objective and chain align"}', {}, "test",
                 )]
