@@ -192,14 +192,13 @@ class ExecuteChainsInput(TypedDict):
         完整 environment.json。LLM 只可看到环境元数据、resources、rules
         和工具公开字段；只有隔离执行器可读取 tools[].internal.code。
     tasks:
-        Step 2 创建的任务候选，每项至少包含 task_id 和完整 chain。
+        Step 2 创建的任务候选，每项至少包含 task_id、完整 chain 和非空 objective。
 
     Step 3 从 ``config.environment_dir / "workspace"`` 读取源 workspace，
-    不接收 Step 0 产出的全局 initial_state。LLM 先根据公开环境、全部公开工具定义
-    和完整 chain 形成一次内部任务意图；逐工具填参时接收该意图、完整 chain、
-    当前工具 inputSchema、本次已完成调用结果和上次失败原因。内部任务意图不写入
-    Bundle；真实结果优先于意图。公开资源和真实 result 可以作为事实，未观察到的
-    既有状态不得编造；标题、说明、评论、署名等任务创作值可以合理生成。
+    不接收 Step 0 产出的全局 initial_state。逐工具填参时接收 objective、完整 chain、
+    当前工具 inputSchema、本次已完成调用结果和上次失败原因。真实结果优先于目标模板中
+    尚未绑定的变量。公开资源和真实 result 可以作为事实，未观察到的既有状态不得编造；
+    完成目标所需的新内容可以合理生成。
     LLM 不接收 internal.code 或整个 workspace 内容。
     """
 
