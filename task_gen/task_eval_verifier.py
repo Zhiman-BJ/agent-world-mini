@@ -714,6 +714,8 @@ def generate_verification_spec(
     specification = parse_json_object(infer_fn(
         json.dumps(request, ensure_ascii=False), llm_config=llm_config,
     ).text)
+    if set(specification) == {"response_contract"} and isinstance(specification["response_contract"], dict):
+        specification = specification["response_contract"]
     validate_verification_spec(specification)
     return specification
 
@@ -966,6 +968,8 @@ def generate_proof_plan(
     plan = parse_json_object(infer_fn(
         json.dumps(request, ensure_ascii=False), llm_config=llm_config,
     ).text)
+    if set(plan) == {"response_contract"} and isinstance(plan["response_contract"], dict):
+        plan = plan["response_contract"]
     validate_proof_plan(plan, specification)
     return plan
 
