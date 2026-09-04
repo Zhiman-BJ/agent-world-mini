@@ -10,6 +10,7 @@ from task_gen.tool_graph.contracts import Config
 from task_gen.tool_graph.llm import InferenceResult
 from task_gen.tool_graph.step_0_environment_load import load_environment
 from task_gen.tool_graph.step_1_graph_build import build_graph
+from task_gen.tool_graph import step_2_chain_sample
 from task_gen.tool_graph.step_2_chain_sample import _select_diverse_chains, sample_chains
 
 
@@ -174,6 +175,23 @@ class ChainSampleTest(unittest.TestCase):
             ("a", "p", "q", "r"),
         ])
 
+    def test_post_review_selection_preserves_logic_score_then_diversifies(self) -> None:
+        candidates = [
+            {"chain": ["a", "x", "y", "z"], "score": 10, "logic_score": 5},
+            {"chain": ["b", "x", "y", "z"], "score": 9, "logic_score": 5},
+            {"chain": ["a", "p", "q", "r"], "score": 1, "logic_score": 5},
+            {"chain": ["m", "n"], "score": 100, "logic_score": 4},
+        ]
+
+        selected = step_2_chain_sample._select_final_chains(
+            candidates, count=2, diversity_lambda=10,
+        )
+
+        self.assertEqual([item["chain"] for item in selected], [
+            ["a", "x", "y", "z"],
+            ["a", "p", "q", "r"],
+        ])
+
     def test_samples_deterministically_reviews_and_deduplicates(self) -> None:
         graph = [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
@@ -190,12 +208,17 @@ class ChainSampleTest(unittest.TestCase):
         })
 
         def fake_infer(prompts, **_kwargs):
+            if "逻辑性评分" in prompts[0]:
+                return [InferenceResult(
+                    '{"score":5,"reason":"objective and chain align"}', {}, "test",
+                ) for _ in prompts]
             # Force every review to the same valid chain to verify post-review deduplication.
-            return [InferenceResult(
-                '{"chain":["a","b","c","a","b","d","b","c"],"reason":"valid"}',
-                {},
-                "test",
-            ) for _ in prompts]
+            return [InferenceResult(json.dumps({
+                "accepted": True,
+                "chain": ["a", "b", "c", "a", "b", "d", "b", "c"],
+                "objective": "Create one coherent business record from an available item.",
+                "reason": "The calls jointly support one result.",
+            }), {}, "test") for _ in prompts]
 
         with patch("task_gen.tool_graph.step_2_chain_sample.infer", side_effect=fake_infer):
             first = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
@@ -205,16 +228,30 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(len(first["tasks"]), 1)
         self.assertEqual(first["tasks"][0]["chain"], ["a", "b", "c", "a", "b", "d", "b", "c"])
+        self.assertEqual(
+            first["tasks"][0]["objective"],
+            "Create one coherent business record from an available item.",
+        )
         self.assertTrue(first["sampling_report"]["short_chain_fallback"])
         self.assertEqual(first["sampling_report"]["attempt_count"], 100)
+        self.assertEqual(first["sampling_report"]["post_review_unique_chain_count"], 1)
 
-    def test_review_prompt_requires_required_identifiers_to_come_from_prior_results(self) -> None:
+    def test_review_prompt_uses_objective_first_principles(self) -> None:
         graph = [{"from_tool": "a", "to_tool": "b", "weight": 1}]
         captured: list[str] = []
 
         def fake_infer(prompts, **_kwargs):
             captured.extend(prompts)
-            return [InferenceResult('{"chain":["a","b"],"reason":"valid"}', {}, "test")]
+            if "逻辑性评分" in prompts[0]:
+                return [InferenceResult(
+                    '{"score":5,"reason":"objective and chain align"}', {}, "test",
+                )]
+            return [InferenceResult(json.dumps({
+                "accepted": True,
+                "chain": ["a", "b"],
+                "objective": "Produce one supported business result.",
+                "reason": "Both calls contribute.",
+            }), {}, "test")]
 
         with patch("task_gen.tool_graph.step_2_chain_sample.infer", side_effect=fake_infer):
             sample_chains({
@@ -224,12 +261,13 @@ class ChainSampleTest(unittest.TestCase):
                 }),
                 "environment": graph_environment(), "tool_graph": graph,
             })
-        prompt = "".join(captured)
-        self.assertIn("必填标识", prompt)
-        self.assertIn("插入能产生该标识的发现工具", prompt)
-        self.assertIn("2 到 2 个工具", prompt)
+        review_prompt = captured[0]
+        self.assertIn("统一、自然、可验证的业务目标", review_prompt)
+        self.assertIn("不假设尚未观察到的运行时事实", review_prompt)
+        self.assertNotIn("必填标识", review_prompt)
+        self.assertIn("2 到 2 个工具", review_prompt)
 
-    def test_bad_review_falls_back_to_original_chain(self) -> None:
+    def test_bad_review_is_rejected_instead_of_falling_back(self) -> None:
         graph = [{"from_tool": "a", "to_tool": "b", "weight": 3}]
         config = Config(planning={
             "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
@@ -240,10 +278,10 @@ class ChainSampleTest(unittest.TestCase):
             return_value=[InferenceResult("not json", {}, "test")],
         ):
             output = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-        self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
-        self.assertIsNotNone(output["tasks"][0]["llm_review"]["error"])
+        self.assertEqual(output["tasks"], [])
+        self.assertEqual(output["sampling_report"]["review_error_count"], 1)
 
-    def test_reviewed_chain_outside_length_limit_falls_back_to_original(self) -> None:
+    def test_reviewed_chain_outside_length_limit_is_rejected(self) -> None:
         graph = [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "b", "to_tool": "c", "weight": 3},
@@ -254,11 +292,41 @@ class ChainSampleTest(unittest.TestCase):
         })
         with patch(
             "task_gen.tool_graph.step_2_chain_sample.infer",
-            return_value=[InferenceResult('{"chain":["a","b","c"],"reason":"too long"}', {}, "test")],
+            return_value=[InferenceResult(json.dumps({
+                "accepted": True,
+                "chain": ["a", "b", "c"],
+                "objective": "Produce one supported business result.",
+                "reason": "The longer chain is required.",
+            }), {}, "test")],
         ):
             output = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-        self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
-        self.assertIn("长度", output["tasks"][0]["llm_review"]["error"])
+        self.assertEqual(output["tasks"], [])
+        self.assertEqual(output["sampling_report"]["review_error_count"], 1)
+
+    def test_explicit_review_rejection_does_not_enter_scoring(self) -> None:
+        graph = [{"from_tool": "a", "to_tool": "b", "weight": 3}]
+        response = InferenceResult(json.dumps({
+            "accepted": False,
+            "chain": [],
+            "objective": None,
+            "reason": "The calls cannot form one supported business objective.",
+        }), {}, "test")
+        with patch(
+            "task_gen.tool_graph.step_2_chain_sample.infer", return_value=[response],
+        ) as mocked:
+            output = sample_chains({
+                "config": Config(planning={
+                    "sample_count": 1, "review_count": 1, "keep_top_count": 1,
+                    "min_chain_length": 2, "max_chain_length": 2,
+                    "max_tool_visits": 1, "random_seed": 1,
+                }),
+                "environment": graph_environment(),
+                "tool_graph": graph,
+            })
+
+        self.assertEqual(mocked.call_count, 1)
+        self.assertEqual(output["tasks"], [])
+        self.assertEqual(output["sampling_report"]["review_rejected_count"], 1)
 
     def test_rejects_graph_without_eligible_root(self) -> None:
         graph = [
@@ -316,7 +384,12 @@ class ChainSampleTest(unittest.TestCase):
             if len(calls) == 1:
                 chains = [["a", "b", "d"], ["a", "c", "d"]]
                 return [
-                    InferenceResult(json.dumps({"chain": chains[index], "reason": "keep"}), {}, "test")
+                    InferenceResult(json.dumps({
+                        "accepted": True,
+                        "chain": chains[index],
+                        "objective": f"Complete supported business objective {index}.",
+                        "reason": "Both calls contribute.",
+                    }), {}, "test")
                     for index, _prompt in enumerate(prompts)
                 ]
             return [
@@ -332,8 +405,9 @@ class ChainSampleTest(unittest.TestCase):
             })
 
         self.assertEqual(len(calls), 2)
-        self.assertTrue(any("逻辑性评分" in prompt for prompt in calls[1]))
+        self.assertIn("Complete supported business objective 0.", calls[1][0])
         self.assertEqual(output["tasks"][0]["logic_score"], 5)
+        self.assertEqual(output["tasks"][0]["objective"], "Complete supported business objective 0.")
 
 
 if __name__ == "__main__":

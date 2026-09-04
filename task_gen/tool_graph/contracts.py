@@ -143,7 +143,7 @@ class SampleChainsInput(TypedDict):
 
 
 class SampleChainsOutput(TypedDict):
-    """Step 2 创建经过采样、多样性筛选、LLM review 和逻辑性评分的任务候选。
+    """Step 2 创建经过采样、整链 review、目标生成和逻辑性评分的任务候选。
 
     tasks:
         最终去重后的任务候选列表，默认先处理最多 20 条，再选出最多 10 条交给 Step 3。
@@ -151,6 +151,7 @@ class SampleChainsOutput(TypedDict):
         {
             "task_id": str,
             "chain": list[str],
+            "objective": str,
             "score": int,
             "llm_review": {
                 "original_chain": list[str],
@@ -161,13 +162,15 @@ class SampleChainsOutput(TypedDict):
             "logic_reason": str,
         }
         task_id 按最终顺序使用 task1、task2……；chain 是 LLM review 后的完整链，
+        objective 是 review 同时确定的业务目标模板，供 Step 3 至 Step 5 共同使用。
         工具名必须存在于 environment.tools。review 可以在有充分公开契约依据时加入
         graph 中没有的相邻边，因此本阶段不以 graph 边存在性作为 review 结果的硬校验。
-        score 是 review 前原始链的边权总和；logic_score 是 0–5 的任务适配性评分。
+        review 明确拒绝或输出无效时不保留候选。score 是 review 前原始链的边权总和；
+        logic_score 是 0–5 的任务适配性评分。
 
     sampling_report:
         记录尝试次数、唯一原始链数、观测最长链长度、短链回退、review 数量、review
-        修改/失败数量、逻辑评分分布和最终数量，用于评估采样与筛选配置。
+        修改/拒绝/失败数量、review 后唯一链数、逻辑评分分布、最终边覆盖和最终数量。
     """
 
     tasks: list[dict[str, Any]]
