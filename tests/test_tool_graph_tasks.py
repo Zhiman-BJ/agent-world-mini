@@ -302,8 +302,9 @@ class ValidateTasksTest(unittest.TestCase):
         def fake_infer(prompts, **_kwargs):
             captured.extend(prompts)
             return [InferenceResult(json.dumps({
-                "chain_matches_task": True,
-                "task_has_required_information": True,
+                "execution_matches_objective": True,
+                "task_matches_objective": True,
+                "task_is_usable": True,
                 "errors": [],
             }), {}, "test") for _ in prompts]
 
@@ -313,9 +314,11 @@ class ValidateTasksTest(unittest.TestCase):
                 "environment": environment(), "tasks": [self.candidate()],
             })["tasks"][0]
         self.assertTrue(candidate["validation"]["passed"], candidate["validation"]["errors"])
-        self.assertTrue(candidate["validation"]["chain_matches_task"])
-        self.assertTrue(candidate["validation"]["task_has_required_information"])
+        self.assertTrue(candidate["validation"]["execution_matches_objective"])
+        self.assertTrue(candidate["validation"]["task_matches_objective"])
+        self.assertTrue(candidate["validation"]["task_is_usable"])
         self.assertNotIn("internal", candidate["task"]["available_tools"][0])
+        self.assertNotIn("objective", candidate["task"])
         self.assertEqual(candidate["task"]["reference"]["tool_calls"], [
             {"tool": "write_data", "arguments": {"value": "new"}},
         ] * 6)
@@ -324,13 +327,15 @@ class ValidateTasksTest(unittest.TestCase):
         })
         self.assertNotIn("SECRET", captured[0])
         self.assertIn('"result"', captured[0])
+        self.assertIn('"objective"', captured[0])
         self.assertNotIn("The data file was updated.", captured[0])
 
-    def test_rejects_semantic_mismatch_without_weakening_review(self) -> None:
+    def test_rejects_execution_that_does_not_achieve_objective(self) -> None:
         response = InferenceResult(json.dumps({
-            "chain_matches_task": False,
-            "task_has_required_information": True,
-            "errors": ["The task asks for an email, but the trace only updates a file."],
+            "execution_matches_objective": False,
+            "task_matches_objective": True,
+            "task_is_usable": True,
+            "errors": ["The trace does not achieve the fixed objective."],
         }), {}, "test")
         with patch("task_gen.tool_graph.step_5_task_validate.infer", return_value=[response]):
             result = validate_tasks({
@@ -338,9 +343,25 @@ class ValidateTasksTest(unittest.TestCase):
                 "environment": environment(), "tasks": [self.candidate()],
             })["tasks"][0]
         self.assertFalse(result["validation"]["passed"])
-        self.assertFalse(result["validation"]["chain_matches_task"])
-        self.assertTrue(result["validation"]["task_has_required_information"])
-        self.assertIn("only updates a file", result["validation"]["errors"][0])
+        self.assertFalse(result["validation"]["execution_matches_objective"])
+        self.assertTrue(result["validation"]["task_matches_objective"])
+        self.assertIn("does not achieve", result["validation"]["errors"][0])
+
+    def test_rejects_task_that_changes_objective(self) -> None:
+        response = InferenceResult(json.dumps({
+            "execution_matches_objective": True,
+            "task_matches_objective": False,
+            "task_is_usable": True,
+            "errors": ["The task asks for a different business result."],
+        }), {}, "test")
+        with patch("task_gen.tool_graph.step_5_task_validate.infer", return_value=[response]):
+            result = validate_tasks({
+                "config": self.config, "run_dir": self.run_dir,
+                "environment": environment(), "tasks": [self.candidate()],
+            })["tasks"][0]
+        self.assertFalse(result["validation"]["passed"])
+        self.assertTrue(result["validation"]["execution_matches_objective"])
+        self.assertFalse(result["validation"]["task_matches_objective"])
 
     def test_missing_step_four_field_skips_llm_review(self) -> None:
         candidate = self.candidate()
@@ -356,8 +377,9 @@ class ValidateTasksTest(unittest.TestCase):
 
     def test_rejects_invalid_llm_review_shape(self) -> None:
         response = InferenceResult(json.dumps({
-            "chain_matches_task": "yes",
-            "task_has_required_information": True,
+            "execution_matches_objective": "yes",
+            "task_matches_objective": True,
+            "task_is_usable": True,
             "errors": [],
         }), {}, "test")
         with patch("task_gen.tool_graph.step_5_task_validate.infer", return_value=[response]):
@@ -366,7 +388,19 @@ class ValidateTasksTest(unittest.TestCase):
                 "environment": environment(), "tasks": [self.candidate()],
             })["tasks"][0]
         self.assertFalse(result["validation"]["passed"])
-        self.assertIn("chain_matches_task", "\n".join(result["validation"]["errors"]))
+        self.assertIn("execution_matches_objective", "\n".join(result["validation"]["errors"]))
+
+    def test_missing_objective_skips_llm_review(self) -> None:
+        candidate = self.candidate()
+        del candidate["objective"]
+        with patch("task_gen.tool_graph.step_5_task_validate.infer") as mocked:
+            result = validate_tasks({
+                "config": self.config, "run_dir": self.run_dir,
+                "environment": environment(), "tasks": [candidate],
+            })["tasks"][0]
+        mocked.assert_not_called()
+        self.assertFalse(result["validation"]["passed"])
+        self.assertIn("objective", "\n".join(result["validation"]["errors"]))
 
     def test_rejects_reviewed_chain_shorter_than_six_calls(self) -> None:
         candidate = self.candidate()

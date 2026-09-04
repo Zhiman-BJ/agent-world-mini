@@ -320,7 +320,7 @@ class ValidateTasksInput(TypedDict):
     environment:
         完整环境，用于填写并核对 environment_id、resources 和公开工具定义。
     tasks:
-        Step 4 扩充后的全部流水线候选，直接包含 task_text、reference_answer、
+        Step 4 扩充后的全部流水线候选，直接包含 objective、task_text、reference_answer、
         resource_constraints 和 compose_error；任务级 initial/final workspace 路径
         也随候选保存，不需要额外中间数组或按 task_id 关联。
     """
@@ -360,15 +360,16 @@ class ValidateTasksOutput(TypedDict):
             },
             "validation": {
                 "passed": bool,
-                "chain_matches_task": bool,
-                "task_has_required_information": bool,
+                "execution_matches_objective": bool,
+                "task_matches_objective": bool,
+                "task_is_usable": bool,
                 "errors": list[str],
             },
         }
 
         每个候选都保留同样的 task 键形状和 validation。Step 5 只做字段整理、前序
-        状态检查、Schema 检查，以及一次独立 LLM 语义审查：任务文本是否与真实成功
-        调用链匹配、是否包含完成任务所需的不可自行发现信息。失败项保留候选，
+        状态检查、Schema 检查，以及一次独立 LLM 语义审查：执行是否实现 objective、
+        task_text 是否保持 objective、任务是否自然且包含必要业务信息。失败项保留候选，
         不猜测、不修补、不重放工具链、不比较 workspace 字节、不去重。
 
         最终导出由 run_io.finish_run 机械完成：通过项只导出内部 task 字典，
