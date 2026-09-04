@@ -264,7 +264,7 @@ class ComposeTasksInput(TypedDict):
     environment:
         完整环境，用于理解环境说明、资源、规则和工具含义。
     tasks:
-        Step 3 扩充后的任务候选，包含 chain、execution 及任务级 workspace 路径；
+        Step 3 扩充后的任务候选，包含 objective、chain、execution 及任务级 workspace 路径；
         Step 4 不把 workspace、文件内容或状态差异放入 LLM 上下文，但不禁止本地代码
         访问任务级 workspace。
     """
@@ -289,13 +289,13 @@ class ComposeTasksOutput(TypedDict):
             } | None,
             "compose_error": str | None,
         }
-        task_text 只描述自然、明确、以业务结果为中心的目标，不把参考链拆成操作步骤，
-        不泄漏答案、执行结果、内部 ID 或指定工具调用顺序；允许多个相关交付要求，
-        但无法形成自然目标时应记录 compose_error。
+        task_text 把 objective 和真实成功执行转写为自然、明确、以业务结果为中心的任务；
+        可以实例化未知对象，但不能改变目标或把执行结果倒写成事前要求。无法保持目标时
+        应记录 compose_error。
 
         成功转写时前三项有值且 compose_error=None。Step 4 在生成 task_text 后还有一次
-        不落盘的反思调用；执行失败或转写失败时前三项为
-        None，compose_error 保存原因。三个列表只使用 environment.resources 中的
+        不落盘的反思调用；反思失败时保留初稿并继续，不写 compose_error。执行失败或其他
+        转写轮次失败时未生成的字段为 None，compose_error 保存原因。三个列表只使用 environment.resources 中的
         resource_id；模型可漏列，漏列项不补全，由使用方按“未列出即禁止修改”的
         默认规则处理。列表不得交叉，不得引用未知 resource_id，writable=false 的
         资源不得进入 should_modify 或 can_modify。约束只到 resource 粒度。

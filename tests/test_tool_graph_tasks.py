@@ -64,6 +64,7 @@ def successful_candidate() -> dict:
     }
     return {
         "task_id": "task1", "chain": ["write_data"] * 6,
+        "objective": "Update the requested business data.",
         "execution": {
             "success": True,
             "tool_calls": [dict(call) for _ in range(6)],
@@ -112,16 +113,22 @@ class ComposeTasksTest(unittest.TestCase):
         self.assertNotIn("SECRET", "".join(captured))
         self.assertNotIn("initial_state", "".join(captured))
         self.assertNotIn("final_state", "".join(captured))
+        self.assertIn('"objective"', captured[0])
+        self.assertIn('"objective"', captured[1])
+        self.assertNotIn('"objective"', captured[2])
+        self.assertNotIn('"objective"', captured[3])
         self.assertNotIn("Update the data file.", captured[0])
-        self.assertIn("发生在写入之前", captured[0])
-        self.assertIn("用户可表达的业务要求", captured[0])
-        self.assertIn("执行实现产生的参数不得写入任务", captured[0])
-        self.assertIn("以最终业务结果为中心", captured[0])
+        self.assertIn("既定目标和真实成功执行", captured[0])
+        self.assertIn("执行前必须给出的业务信息", captured[0])
         self.assertIn("Update the data file.", captured[1])
         self.assertIn("自然、结果导向", captured[1])
         self.assertNotIn("This text must be ignored", captured[2])
         self.assertIn("Update the data file.", captured[2])
-        self.assertIn("The data file was updated.", captured[3])
+        self.assertIn('"tool_calls"', captured[2])
+        self.assertNotIn('"tools"', captured[2])
+        self.assertIn('"resources"', captured[3])
+        self.assertNotIn('"tool_calls"', captured[3])
+        self.assertNotIn("The data file was updated.", captured[3])
 
     def test_reflection_revision_is_used_before_following_rounds(self) -> None:
         captured: list[str] = []
@@ -153,10 +160,17 @@ class ComposeTasksTest(unittest.TestCase):
         self.assertIn("Draft task.", captured[1])
         self.assertIn("Complete the requested business result.", captured[2])
 
-    def test_invalid_reflection_stops_following_rounds(self) -> None:
+    def test_invalid_reflection_keeps_draft_and_continues(self) -> None:
         responses = iter([
             InferenceResult(json.dumps({"task_text": "Draft task.", "error": None}), {}, "test"),
             InferenceResult(json.dumps({"analyze": "missing decision", "need_revision": "no", "task_text": ""}), {}, "test"),
+            InferenceResult(json.dumps({
+                "reference_answer": "The requested result was completed.", "error": None,
+            }), {}, "test"),
+            InferenceResult(json.dumps({
+                "resource_constraints": {"should_modify": ["data"], "can_modify": [], "must_not_modify": []},
+                "error": None,
+            }), {}, "test"),
         ])
         with patch("task_gen.tool_graph.step_4_task_compose.infer", side_effect=lambda prompts, **_k: [next(responses) for _ in prompts]) as mocked:
             task = compose_tasks({
@@ -164,10 +178,51 @@ class ComposeTasksTest(unittest.TestCase):
                 "tasks": [successful_candidate()],
             })["tasks"][0]
 
-        self.assertEqual(mocked.call_count, 2)
+        self.assertEqual(mocked.call_count, 4)
         self.assertEqual(task["task_text"], "Draft task.")
-        self.assertIsNone(task["reference_answer"])
-        self.assertIn("任务文本反思", task["compose_error"])
+        self.assertEqual(task["reference_answer"], "The requested result was completed.")
+        self.assertEqual(task["resource_constraints"]["should_modify"], ["data"])
+        self.assertIsNone(task["compose_error"])
+
+    def test_reflection_batch_failure_keeps_draft_and_continues(self) -> None:
+        replies = iter([
+            [InferenceResult(json.dumps({"task_text": "Draft task.", "error": None}), {}, "test")],
+            RuntimeError("reflection unavailable"),
+            [InferenceResult(json.dumps({
+                "reference_answer": "The requested result was completed.", "error": None,
+            }), {}, "test")],
+            [InferenceResult(json.dumps({
+                "resource_constraints": {"should_modify": ["data"], "can_modify": [], "must_not_modify": []},
+                "error": None,
+            }), {}, "test")],
+        ])
+
+        def fake_infer(_prompts, **_kwargs):
+            reply = next(replies)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        with patch("task_gen.tool_graph.step_4_task_compose.infer", side_effect=fake_infer) as mocked:
+            task = compose_tasks({
+                "config": Config(), "environment": environment(),
+                "tasks": [successful_candidate()],
+            })["tasks"][0]
+
+        self.assertEqual(mocked.call_count, 4)
+        self.assertEqual(task["task_text"], "Draft task.")
+        self.assertEqual(task["reference_answer"], "The requested result was completed.")
+        self.assertIsNone(task["compose_error"])
+
+    def test_missing_objective_skips_composition(self) -> None:
+        value = successful_candidate()
+        del value["objective"]
+        with patch("task_gen.tool_graph.step_4_task_compose.infer") as mocked:
+            task = compose_tasks({
+                "config": Config(), "environment": environment(), "tasks": [value],
+            })["tasks"][0]
+        mocked.assert_not_called()
+        self.assertIn("objective", task["compose_error"])
 
     def test_keeps_task_text_when_reference_answer_generation_fails(self) -> None:
         responses = iter([
