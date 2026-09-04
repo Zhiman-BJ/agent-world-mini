@@ -926,6 +926,7 @@ def generate_proof_plan(
             "pass 需要充分证据；fail 需要明确反证，或完整权威证据源中的决定性缺失；其余一律 indeterminate。",
             "partial 证据中的缺失永远不具有决定性。每个证据源必须声明 completeness 和 absence_is_conclusive。",
             "task 可定义成功条件；environment_contract 可解释或定位；reference_observation 只能定位或举例，不能成为 criterion。",
+            "证明计划必须精确适配当前任务和环境契约；环境契约明确声明的路径、字段、枚举和稳定标识可以且应当作为确定事实使用。",
             "定义业务不变量和明确破坏，不枚举允许的实现方式，也不把参考 workspace diff 当作变化白名单。",
             "binding 是逻辑变量：同一 binding ID 在所有 requirement 中必须解析为同一个具体见证，不能逐项另选对象。",
             "binding 不表示候选只能有一个；应寻找能同时满足相关要求的完整见证赋值，任务未明确限制数量时不得增加数量上限。",
@@ -987,6 +988,8 @@ def review_proof_plan(
             "业务对象、没有引入任务未规定的数量上限，并且执行完整性没有把参考变化作为白名单。"
             "同一 binding ID 本身就表示跨 requirement 复用同一逻辑见证，不得仅因存在多个候选而拒绝；"
             "但若任务允许多个同类对象共同承载结果，也不得强迫所有内容位于同一个成员。"
+            "当前环境契约明确声明的路径、字段、枚举和稳定标识是 verifier 应使用的确定事实，不是 reference_overfit；"
+            "只有参考执行独有、且任务或环境契约未规定的动态值、调用过程和措辞才属于 reference_overfit。"
             "任何可能把正确替代实现判为 fail 的路径都必须拒绝。"
         ),
         "task": task.get("task_text"),
@@ -1050,8 +1053,9 @@ def generate_verifier(
                 "持久状态要求必须读取初态和终态；最终回答不能替代落盘结果。",
                 "call_tool 只用于核验终态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
                 "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
+                "verifier 是当前任务和环境的专用实现；应精确使用环境契约声明的路径、数据结构、字段、枚举和稳定标识，这不属于参考过拟合。",
                 "source 只能定义 verify(ctx)，不得导入模块、启动进程、直接打开路径或写文件。",
-                "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失、数量、路径或常量。",
+                "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失或数量约束；环境契约中的路径和常量可以直接使用。",
                 "只能使用 verifier_context_api 和普通 Python 表达式；不得使用 getattr、反射或其他动态访问绕过静态校验。",
             ],
             "environment": environment,
@@ -1208,6 +1212,7 @@ def review_verifier_implementation(
             "Every pass path cites evidence sufficient for the frozen pass condition.",
             "Fail and indeterminate paths follow the frozen evidence boundaries.",
             "No reference-specific tool, order, generated identifier, path, representation, or wording is required.",
+            "Paths, fields, enums, and stable identifiers declared by the current environment contract are required specialization, not reference overfitting.",
             "Semantic judgments are not replaced by substring heuristics; deterministic facts are not delegated unnecessarily.",
         ],
         "specification": specification,

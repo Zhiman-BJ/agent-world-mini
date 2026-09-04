@@ -211,6 +211,10 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(request["reference_evidence"]["answer"], "8")
             self.assertIn("不等于任务没有完成", " ".join(request["principles"]))
             self.assertTrue(any("数量" in item and "上限" in item for item in request["principles"]))
+            self.assertTrue(any(
+                "环境契约" in item and "路径" in item and "枚举" in item and "稳定标识" in item
+                for item in request["principles"]
+            ))
             return InferenceResult(json.dumps(plan), {}, "test")
 
         self.assertEqual(generate_proof_plan(
@@ -262,6 +266,8 @@ class TaskEvalTest(unittest.TestCase):
             request = json.loads(prompt)
             self.assertIn("没按参考方式执行", request["role"])
             self.assertIn("数量上限", request["role"])
+            self.assertIn("环境契约", request["role"])
+            self.assertIn("reference_overfit", request["role"])
             self.assertEqual(request["reference_evidence"]["calls"], [])
             return InferenceResult(json.dumps(review), {}, "test")
 
@@ -304,6 +310,10 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(request["proof_plan"], proof_plan)
             self.assertNotIn("reference_evidence", request)
             self.assertIn("getattr", " ".join(request["implementation_principles"]))
+            self.assertTrue(any(
+                "环境契约" in item and "精确使用" in item and "枚举" in item
+                for item in request["implementation_principles"]
+            ))
             self.assertEqual(set(request["response_contract"]), {"source"})
             return InferenceResult(json.dumps({"source": source, "notes": "ignored"}), {}, "test")
 
@@ -399,6 +409,10 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(request["specification"], specification)
             self.assertEqual(request["verifier"], package)
             self.assertIn("exactly once", " ".join(request["review_dimensions"]))
+            self.assertTrue(any(
+                "environment contract" in item.lower() and "not reference overfitting" in item.lower()
+                for item in request["review_dimensions"]
+            ))
             return InferenceResult(json.dumps(expected), {}, "test")
 
         self.assertEqual(review_verifier_implementation(
