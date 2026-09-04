@@ -90,9 +90,12 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("task_clauses", request["response_contract"])
             self.assertTrue(any("共同对象" in item and "同一" in item for item in request["principles"]))
             self.assertTrue(any("并列" in item and "分别" in item for item in request["principles"]))
+            integrity_rule = next(item for item in request["principles"] if "execution_integrity" in item)
+            self.assertIn("无关、破坏性或冲突", integrity_rule)
+            self.assertNotIn("必要", integrity_rule)
             self.assertEqual(request["previous_issues"], previous_issues)
             self.assertIn("逐项解决", request["revision_instruction"])
-            return InferenceResult(json.dumps(specification), {}, "test")
+            return InferenceResult(json.dumps({"response_contract": specification}), {}, "test")
 
         generated = generate_verification_spec(
             {"task_text": "Return the current value."},
@@ -167,7 +170,7 @@ class TaskEvalTest(unittest.TestCase):
             "requirements": [{
                 "id": "R1", "claim": "The value is returned.", "required": True,
                 "task_clause_ids": ["C1"], "outcome_type": "query",
-                "evidence_channels": ["answer"], "pass_condition": "The answer contains the value.",
+                "evidence_channels": ["answer", "tool_trace"], "pass_condition": "The answer contains the value.",
                 "fail_condition": "The answer contradicts the value.",
                 "indeterminate_condition": "The answer is absent.",
             }, {
@@ -183,7 +186,8 @@ class TaskEvalTest(unittest.TestCase):
             "requirements": [{
                 "requirement_id": "R1", "binding_ids": [],
                 "evidence_sources": [{
-                    "channel": "answer", "locator": "Agent final answer", "provenance": "task",
+                    "channel": "verifier_tool_call", "locator": "Agent final answer",
+                    "provenance": "verifier_observation",
                     "use": "criterion", "completeness": "partial",
                     "absence_is_conclusive": False, "basis": "An absent answer proves no value.",
                 }],
@@ -215,12 +219,16 @@ class TaskEvalTest(unittest.TestCase):
                 "环境契约" in item and "路径" in item and "枚举" in item and "稳定标识" in item
                 for item in request["principles"]
             ))
-            return InferenceResult(json.dumps(plan), {}, "test")
+            self.assertIn("call_tool", request["response_contract"]["requirements"][0]["evidence_sources"][0]["channel"])
+            return InferenceResult(json.dumps({"response_contract": plan}), {}, "test")
 
-        self.assertEqual(generate_proof_plan(
+        generated = generate_proof_plan(
             {"task_text": "Return the value."}, {}, specification, reference, {},
             infer_fn=fake_infer,
-        ), plan)
+        )
+        plan["requirements"][0]["evidence_sources"][0]["channel"] = "tool_trace"
+        plan["requirements"][0]["evidence_sources"][0]["provenance"] = "environment_contract"
+        self.assertEqual(generated, plan)
 
     def test_validate_proof_plan_rejects_conclusive_absence_from_partial_evidence(self) -> None:
         specification = {
@@ -314,6 +322,18 @@ class TaskEvalTest(unittest.TestCase):
                 "环境契约" in item and "精确使用" in item and "枚举" in item
                 for item in request["implementation_principles"]
             ))
+            self.assertTrue(any(
+                "Schema" in item and "未声明" in item and "猜测" in item
+                for item in request["implementation_principles"]
+            ))
+            self.assertTrue(any(
+                "明确反驳" in item and "indeterminate" in item
+                for item in request["implementation_principles"]
+            ))
+            self.assertTrue(any(
+                "重复" in item and "额外副作用" in item and "无关、破坏性或冲突" in item
+                for item in request["implementation_principles"]
+            ))
             self.assertEqual(set(request["response_contract"]), {"source"})
             return InferenceResult(json.dumps({"source": source, "notes": "ignored"}), {}, "test")
 
@@ -365,6 +385,42 @@ class TaskEvalTest(unittest.TestCase):
             )
 
         self.assertEqual(package["source"], source.rstrip())
+
+    def test_generate_verifier_accepts_fenced_python_source(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer"], "pass_condition": "The value is present.",
+                "fail_condition": "The value is absent.",
+                "indeterminate_condition": "The answer cannot be read.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated changes exist.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Changes cannot be attributed.",
+            }],
+        }
+        source = (
+            "def verify(ctx):\n"
+            "    ctx.indeterminate_requirement('R1', 'unknown')\n"
+            "    ctx.indeterminate_requirement('R2', 'unknown')"
+        )
+
+        with patch("task_gen.task_eval_verifier.validate_proof_plan"):
+            package = generate_verifier(
+                {"task_text": "Return the value."}, {}, {}, {},
+                infer_fn=lambda *_a, **_k: InferenceResult(
+                    f"```python\n{source}\n```", {}, "test",
+                ),
+                specification=specification,
+                proof_plan={"schema_version": "1"},
+            )
+
+        self.assertEqual(package["source"], source)
 
     def test_review_verifier_implementation_rejects_unproven_pass_path(self) -> None:
         specification = {
