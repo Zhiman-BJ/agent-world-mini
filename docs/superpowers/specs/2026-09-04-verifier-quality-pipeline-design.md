@@ -52,13 +52,34 @@ structured review of:
 Any review issue rejects the specification. The next attempt receives only the structured issue
 list, not the rejected specification, to avoid anchoring on it.
 
-### 3. Verifier implementation
+### 3. Proof plan
 
 Only after the specification passes review does a model receive it together with the reference
-evidence and runtime API. It generates Python `verify(ctx)` code implementing the frozen
-requirements. It may not add, remove, merge, split, or reinterpret them.
+evidence. It produces a code-free proof plan that separates business-object identity from the
+properties being judged. For every requirement the plan identifies admissible evidence, whether
+each evidence source is complete, sufficient proof, decisive disproof, and the indeterminate
+boundary. A missing expected representation is never failure unless a complete authoritative
+source makes absence conclusive.
 
-### 4. Implementation review
+Every constant in the plan is classified by provenance. Task facts may define success;
+environment-contract facts may locate or interpret evidence; reference-only observations may be
+examples or locators but may not become acceptance conditions. The plan describes business
+outcomes rather than an exhaustive list of allowed implementations.
+
+### 4. Proof-plan review
+
+A separate model rejects plans whose object selector depends on a property being judged, whose
+failure condition only shows that the reference path was not followed, whose reference-only value
+became a criterion, or whose integrity rule treats the reference diff as a whitelist. The reviewed
+plan is then frozen.
+
+### 5. Verifier implementation
+
+The source generator receives the frozen specification, frozen proof plan, public environment,
+and runtime API, but not raw reference evidence. It generates Python `verify(ctx)` code and may not
+reinterpret the task or introduce plan-external conditions.
+
+### 6. Implementation review
 
 A separate model call reviews the frozen specification and generated source before execution. It
 checks requirement-to-code coverage, exactly-one-result control flow, evidence sufficiency,
@@ -101,13 +122,16 @@ The frozen verifier package remains `schema_version`, `requirements`, and `sourc
 caching, and result aggregation remain compatible. Preparation diagnostics may add specification,
 review, implementation-review, ablation, and conflict records.
 
-This change is confined to `task_gen/task_eval_verifier.py` and its tests. It does not modify task
-generation, contracts, pipeline stages, Agent execution, MCP behavior, or the definition of an
-overall pass: every required outcome must pass.
+This change is confined to `task_gen/task_eval_verifier.py`, the verifier cache version in
+`task_gen/task_eval.py`, and existing tests. It does not modify task generation, contracts,
+pipeline stages, Agent execution, MCP behavior, or the definition of an overall pass: every
+required outcome must pass.
 
 ## Acceptance
 
 - Unit tests demonstrate rejection of incomplete and over-constrained specifications.
+- Unit tests demonstrate that proof plans separate object identity from judged properties, require
+  conclusive evidence for failure, and do not expose raw reference evidence to source generation.
 - Unit tests demonstrate rejection of source that does not faithfully implement the frozen spec.
 - Unit tests demonstrate that evidence ablation catches an unsupported pass.
 - Unit tests distinguish verifier generation failure from a task-reference conflict.
