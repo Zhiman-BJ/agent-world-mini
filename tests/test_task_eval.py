@@ -842,6 +842,19 @@ class TaskEvalTest(unittest.TestCase):
 
         validate_verifier(package)
 
+    def test_verifier_allows_deleting_local_data(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{"id": "R1", "claim": "x", "required": True,
+                               "evidence_channels": [], "pass_condition": "x", "fail_condition": "y"}],
+            "source": "def verify(ctx):\n"
+            "    local = {'unused': 1}\n"
+            "    del local['unused']\n"
+            "    ctx.pass_requirement('R1', 'ok', [])\n",
+        }
+
+        validate_verifier(package)
+
     def test_verifier_allows_local_try_blocks(self) -> None:
         package = {
             "schema_version": "1",

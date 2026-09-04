@@ -33,7 +33,7 @@ _BANNED_CALLS = {
     "locals", "open", "setattr", "type", "vars", "__import__",
 }
 _BANNED_NODES = (
-    ast.AsyncFunctionDef, ast.Await, ast.ClassDef, ast.Delete, ast.Global, ast.Import,
+    ast.AsyncFunctionDef, ast.Await, ast.ClassDef, ast.Global, ast.Import,
     ast.ImportFrom, ast.Nonlocal, ast.Raise, ast.With, ast.AsyncWith,
 )
 InferFn = Callable[..., InferenceResult | list[InferenceResult]]
