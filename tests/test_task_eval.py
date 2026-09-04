@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from task_gen.task_eval import (
     DEFAULT_INPUT_ROOT,
+    VERIFIER_CACHE_VERSION,
     _TaskEvalCodexClient,
     _agent_prompt,
     _result_counts,
@@ -25,12 +26,18 @@ from task_gen.task_eval_verifier import (
     aggregate_results,
     build_evidence,
     calibrate_verifier,
+    generate_proof_plan,
     generate_verification_spec,
     generate_verifier,
     prepare_verifier,
+    review_proof_plan,
     review_verifier_implementation,
     review_verification_spec,
     run_verifier,
+    ReferenceCalibrationError,
+    TaskReferenceConflictError,
+    VerifierPreparationError,
+    validate_proof_plan,
     validate_verification_spec,
     validate_verifier,
 )
@@ -42,7 +49,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TaskEvalTest(unittest.TestCase):
+    def test_staged_verifier_pipeline_invalidates_legacy_cache(self) -> None:
+        self.assertGreaterEqual(VERIFIER_CACHE_VERSION, 10)
+
     def test_generate_verification_spec_has_no_reference_evidence(self) -> None:
+        previous_issues = [{
+            "code": "non_atomic", "task_clause_ids": ["C1"],
+            "requirement_ids": ["R1"], "message": "Split independent outcomes.",
+        }]
         specification = {
             "schema_version": "1",
             "task_clauses": [{"id": "C1", "text": "Return the current value."}],
@@ -74,6 +88,10 @@ class TaskEvalTest(unittest.TestCase):
             self.assertNotIn("reference_evidence", request)
             self.assertEqual(request["task"], "Return the current value.")
             self.assertIn("task_clauses", request["response_contract"])
+            self.assertTrue(any("共同对象" in item and "同一" in item for item in request["principles"]))
+            self.assertTrue(any("并列" in item and "分别" in item for item in request["principles"]))
+            self.assertEqual(request["previous_issues"], previous_issues)
+            self.assertIn("逐项解决", request["revision_instruction"])
             return InferenceResult(json.dumps(specification), {}, "test")
 
         generated = generate_verification_spec(
@@ -81,6 +99,7 @@ class TaskEvalTest(unittest.TestCase):
             {"tools": [{"name": "read_value"}]},
             {},
             infer_fn=fake_infer,
+            previous_issues=previous_issues,
         )
 
         self.assertEqual(generated, specification)
@@ -133,11 +152,122 @@ class TaskEvalTest(unittest.TestCase):
             request = json.loads(prompt)
             self.assertEqual(request["specification"], specification)
             self.assertNotIn("reference_evidence", request)
+            self.assertIn("execution_integrity", request["role"])
+            self.assertIn("系统级", request["role"])
             return InferenceResult(json.dumps(review), {}, "test")
 
         self.assertEqual(review_verification_spec(
             {"task_text": "Create report."}, {}, specification, {}, infer_fn=fake_infer,
         ), review)
+
+    def test_generate_proof_plan_defines_conclusive_and_unknown_absence(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer"], "pass_condition": "The answer contains the value.",
+                "fail_condition": "The answer contradicts the value.",
+                "indeterminate_condition": "The answer is absent.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated change.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        plan = {
+            "schema_version": "1", "bindings": [],
+            "requirements": [{
+                "requirement_id": "R1", "binding_ids": [],
+                "evidence_sources": [{
+                    "channel": "answer", "locator": "Agent final answer", "provenance": "task",
+                    "use": "criterion", "completeness": "partial",
+                    "absence_is_conclusive": False, "basis": "An absent answer proves no value.",
+                }],
+                "proof": "The answer states the requested value.",
+                "disproof": "The answer states a contradictory value.",
+                "indeterminate": "No answer or readable value is available.",
+            }],
+            "integrity": {
+                "requirement_id": "R2", "observable_scope": "Workspace changes",
+                "evidence_sources": [{
+                    "channel": "workspace", "locator": "Workspace diff",
+                    "provenance": "environment_contract", "use": "criterion",
+                    "completeness": "complete", "absence_is_conclusive": False,
+                    "basis": "The complete diff exposes persistent changes.",
+                }],
+                "proof": "All observed changes serve the task.",
+                "explicit_violations": ["An observed change is demonstrably unrelated."],
+                "indeterminate": "A change cannot be classified.",
+            },
+        }
+        reference = {"answer": "8"}
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertEqual(request["reference_evidence"]["answer"], "8")
+            self.assertIn("不等于任务没有完成", " ".join(request["principles"]))
+            return InferenceResult(json.dumps(plan), {}, "test")
+
+        self.assertEqual(generate_proof_plan(
+            {"task_text": "Return the value."}, {}, specification, reference, {},
+            infer_fn=fake_infer,
+        ), plan)
+
+    def test_validate_proof_plan_rejects_conclusive_absence_from_partial_evidence(self) -> None:
+        specification = {
+            "schema_version": "1", "task_clauses": [{"id": "C1", "text": "Return x."}],
+            "requirements": [{
+                "id": "R1", "claim": "x", "required": True, "task_clause_ids": ["C1"],
+                "outcome_type": "query", "evidence_channels": ["answer"],
+                "pass_condition": "x", "fail_condition": "not x", "indeterminate_condition": "unknown",
+            }, {
+                "id": "R2", "claim": "safe", "required": True, "task_clause_ids": [],
+                "outcome_type": "execution_integrity", "evidence_channels": ["workspace"],
+                "pass_condition": "safe", "fail_condition": "damage", "indeterminate_condition": "unknown",
+            }],
+        }
+        source = {
+            "channel": "answer", "locator": "answer", "provenance": "task",
+            "use": "criterion", "completeness": "partial", "absence_is_conclusive": True,
+            "basis": "No answer was found.",
+        }
+        plan = {
+            "schema_version": "1", "bindings": [],
+            "requirements": [{
+                "requirement_id": "R1", "binding_ids": [], "evidence_sources": [source],
+                "proof": "x", "disproof": "not x", "indeterminate": "unknown",
+            }],
+            "integrity": {
+                "requirement_id": "R2", "observable_scope": "workspace",
+                "evidence_sources": [{**source, "channel": "workspace", "absence_is_conclusive": False}],
+                "proof": "safe", "explicit_violations": ["damage"], "indeterminate": "unknown",
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "partial"):
+            validate_proof_plan(plan, specification)
+
+    def test_review_proof_plan_checks_alternative_implementations(self) -> None:
+        review = {"approved": False, "issues": [{
+            "code": "reference_path_required", "task_clause_ids": ["C1"],
+            "requirement_ids": ["R1"], "message": "A reference tool is incorrectly required.",
+        }]}
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertIn("没按参考方式执行", request["role"])
+            self.assertEqual(request["reference_evidence"]["calls"], [])
+            return InferenceResult(json.dumps(review), {}, "test")
+
+        with patch("task_gen.task_eval_verifier.validate_proof_plan"):
+            self.assertEqual(review_proof_plan(
+                {"task_text": "x"}, {}, {"requirements": []}, {"plan": True},
+                {"calls": []}, {}, infer_fn=fake_infer,
+            ), review)
 
     def test_generate_verifier_projects_frozen_requirements_and_only_generates_source(self) -> None:
         specification = {
@@ -164,19 +294,23 @@ class TaskEvalTest(unittest.TestCase):
             "    ctx.indeterminate_requirement('R1', 'not enough evidence')\n"
             "    ctx.indeterminate_requirement('R2', 'not enough evidence')\n"
         )
+        proof_plan = {"schema_version": "1", "bindings": [], "requirements": [], "integrity": {}}
 
         def fake_infer(prompt: str, **_: object) -> InferenceResult:
             request = json.loads(prompt)
             self.assertEqual(request["specification"], specification)
+            self.assertEqual(request["proof_plan"], proof_plan)
+            self.assertNotIn("reference_evidence", request)
             self.assertEqual(set(request["response_contract"]), {"source"})
-            return InferenceResult(json.dumps({"source": source}), {}, "test")
+            return InferenceResult(source, {}, "test")
 
-        package = generate_verifier(
-            {"task_text": "Return the value."}, {}, {}, {}, infer_fn=fake_infer,
-            specification=specification,
-        )
+        with patch("task_gen.task_eval_verifier.validate_proof_plan"):
+            package = generate_verifier(
+                {"task_text": "Return the value."}, {}, {"secret_reference": 8}, {},
+                infer_fn=fake_infer, specification=specification, proof_plan=proof_plan,
+            )
 
-        self.assertEqual(package["source"], source)
+        self.assertEqual(package["source"], source.rstrip())
         self.assertEqual(package["requirements"], [{
             "id": item["id"], "claim": item["claim"], "required": item["required"],
             "evidence_channels": item["evidence_channels"],
@@ -1002,48 +1136,124 @@ class TaskEvalTest(unittest.TestCase):
 
         self.assertEqual(generated, package)
 
-    def test_prepare_verifier_retries_until_reference_calibrates(self) -> None:
-        requirement = {
-            "id": "R1", "claim": "answer is 8", "required": True,
-            "evidence_channels": ["answer"], "pass_condition": "is 8", "fail_condition": "not 8",
-        }
-        bad = {
-            "schema_version": "1", "requirements": [requirement],
-            "source": "def verify(ctx):\n    ctx.fail_requirement('R1', 'wrong', ['answer'])\n",
-        }
-        good = {
-            "schema_version": "1", "requirements": [requirement],
-            "source": "def verify(ctx):\n"
-            "    if ctx.answer():\n"
-            "        ctx.pass_requirement('R1', 'ok', ['answer'])\n"
-            "    else:\n"
-            "        ctx.fail_requirement('R1', 'empty', ['answer'])\n",
-        }
-        responses = iter([bad, good])
-        prompts: list[str] = []
+    def test_prepare_verifier_runs_reviewed_stages_in_order(self) -> None:
+        specification = {"schema_version": "1", "task_clauses": [], "requirements": []}
+        proof_plan = {"schema_version": "1"}
+        package = {"schema_version": "1", "requirements": [], "source": "def verify(ctx):\n    return\n"}
+        calibration = {"status": "calibrated"}
+        order: list[str] = []
 
-        def fake_infer(prompt: str, **_: object) -> InferenceResult:
-            request = json.loads(prompt)
-            if "verifier_context_api" not in request:
-                return InferenceResult('{"status":"pass","reason":"reference satisfies requirement"}', {}, "test")
-            prompts.append(prompt)
-            return InferenceResult(json.dumps(next(responses)), {}, "test")
+        with patch("task_gen.task_eval_verifier.generate_verification_spec", side_effect=lambda *_a, **_k: order.append("spec") or specification), \
+             patch("task_gen.task_eval_verifier.review_verification_spec", side_effect=lambda *_a, **_k: order.append("spec_review") or {"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_proof_plan", side_effect=lambda *_a, **_k: order.append("proof_plan") or proof_plan), \
+             patch("task_gen.task_eval_verifier.review_proof_plan", side_effect=lambda *_a, **_k: order.append("proof_review") or {"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_verifier", side_effect=lambda *_a, **_k: order.append("implementation") or package), \
+             patch("task_gen.task_eval_verifier.review_verifier_implementation", side_effect=lambda *_a, **_k: order.append("implementation_review") or {"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.calibrate_verifier", side_effect=lambda *_a, **_k: order.append("calibration") or calibration):
+            actual, actual_calibration, history = prepare_verifier(
+                {"task_text": "return 8"}, {}, {}, {}, {}, attempts=2,
+            )
 
-        package, calibration, attempts = prepare_verifier(
-            {"task_text": "return 8"}, {"tools": [{"name": "read_value"}]},
-            {"answer": "8", "calls": [], "changed_paths": []},
-            {"answer": "", "calls": [], "changed_paths": []},
-            {}, attempts=2,
-            infer_fn=fake_infer,
-        )
+        self.assertEqual(order, [
+            "spec", "spec_review", "proof_plan", "proof_review",
+            "implementation", "implementation_review", "calibration",
+        ])
+        self.assertEqual(actual, package)
+        self.assertEqual(actual_calibration["specification"], specification)
+        self.assertEqual(actual_calibration["proof_plan"], proof_plan)
+        self.assertEqual([item["stage"] for item in history], [
+            "specification", "proof_plan", "implementation",
+        ])
 
-        self.assertEqual(package, good)
-        self.assertEqual(calibration["status"], "calibrated")
-        self.assertEqual(len(attempts), 2)
-        self.assertIn("参考执行", attempts[0]["error"])
-        self.assertIsNone(attempts[1]["error"])
-        self.assertIn("previous_failure", json.loads(prompts[1]))
-        self.assertNotIn("previous_verifier", json.loads(prompts[1]))
+    def test_prepare_verifier_retries_spec_from_issue_summary_before_freezing(self) -> None:
+        first = {"schema_version": "1", "task_clauses": [], "requirements": []}
+        second = {"schema_version": "1", "task_clauses": [{"id": "C1"}], "requirements": []}
+        issue = {"code": "missing_requirement", "task_clause_ids": ["C1"], "requirement_ids": [], "message": "Missing C1."}
+        proof_plan = {"schema_version": "1"}
+        package = {"schema_version": "1", "requirements": [], "source": "def verify(ctx):\n    return\n"}
+
+        with patch("task_gen.task_eval_verifier.generate_verification_spec", side_effect=[first, second]) as generate, \
+             patch("task_gen.task_eval_verifier.review_verification_spec", side_effect=[
+                 {"approved": False, "issues": [issue]}, {"approved": True, "issues": []},
+             ]), \
+             patch("task_gen.task_eval_verifier.generate_proof_plan", return_value=proof_plan), \
+             patch("task_gen.task_eval_verifier.review_proof_plan", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_verifier", return_value=package), \
+             patch("task_gen.task_eval_verifier.review_verifier_implementation", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.calibrate_verifier", return_value={"status": "calibrated"}):
+            _package, calibration, history = prepare_verifier(
+                {"task_text": "return 8"}, {}, {}, {}, {}, attempts=2,
+            )
+
+        self.assertIsNone(generate.call_args_list[0].kwargs["previous_issues"])
+        self.assertEqual(generate.call_args_list[1].kwargs["previous_issues"], [issue])
+        self.assertEqual(calibration["specification"], second)
+        self.assertEqual(history[0]["review"]["issues"], [issue])
+
+    def test_prepare_verifier_retries_proof_plan_from_issue_summary(self) -> None:
+        specification = {"schema_version": "1", "task_clauses": [], "requirements": []}
+        first = {"schema_version": "1", "version": "first"}
+        second = {"schema_version": "1", "version": "second"}
+        issue = {
+            "code": "inconclusive_failure", "task_clause_ids": ["C1"],
+            "requirement_ids": ["R1"], "message": "Partial evidence cannot prove failure.",
+        }
+        package = {"schema_version": "1", "requirements": [], "source": "def verify(ctx):\n    return\n"}
+
+        with patch("task_gen.task_eval_verifier.generate_verification_spec", return_value=specification), \
+             patch("task_gen.task_eval_verifier.review_verification_spec", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_proof_plan", side_effect=[first, second]) as generate, \
+             patch("task_gen.task_eval_verifier.review_proof_plan", side_effect=[
+                 {"approved": False, "issues": [issue]}, {"approved": True, "issues": []},
+             ]), \
+             patch("task_gen.task_eval_verifier.generate_verifier", return_value=package), \
+             patch("task_gen.task_eval_verifier.review_verifier_implementation", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.calibrate_verifier", return_value={"status": "calibrated"}):
+            _package, calibration, history = prepare_verifier(
+                {"task_text": "return 8"}, {}, {}, {}, {}, attempts=2,
+            )
+
+        self.assertIsNone(generate.call_args_list[0].kwargs["previous_issues"])
+        self.assertEqual(generate.call_args_list[1].kwargs["previous_issues"], [issue])
+        self.assertEqual(calibration["proof_plan"], second)
+        self.assertEqual(history[1]["review"]["issues"], [issue])
+
+    def test_prepare_verifier_raises_distinct_task_reference_conflict(self) -> None:
+        specification = {"schema_version": "1", "task_clauses": [], "requirements": []}
+        package = {"schema_version": "1", "requirements": [], "source": "def verify(ctx):\n    return\n"}
+        assessment = {"conflict": True, "issues": [{"message": "reference contradicts task"}]}
+        proof_plan = {"schema_version": "1"}
+
+        with patch("task_gen.task_eval_verifier.generate_verification_spec", return_value=specification), \
+             patch("task_gen.task_eval_verifier.review_verification_spec", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_proof_plan", return_value=proof_plan), \
+             patch("task_gen.task_eval_verifier.review_proof_plan", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_verifier", return_value=package), \
+             patch("task_gen.task_eval_verifier.review_verifier_implementation", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.calibrate_verifier", side_effect=ReferenceCalibrationError("R1 failed")), \
+             patch("task_gen.task_eval_verifier.assess_task_reference_conflict", return_value=assessment):
+            with self.assertRaises(TaskReferenceConflictError) as raised:
+                prepare_verifier({"task_text": "return 8"}, {}, {}, {}, {}, attempts=2)
+
+        self.assertEqual(raised.exception.assessment, assessment)
+
+    def test_prepare_verifier_retries_when_conflict_assessment_is_invalid(self) -> None:
+        specification = {"schema_version": "1", "task_clauses": [], "requirements": []}
+        proof_plan = {"schema_version": "1"}
+        package = {"schema_version": "1", "requirements": [], "source": "def verify(ctx):\n    return\n"}
+
+        with patch("task_gen.task_eval_verifier.generate_verification_spec", return_value=specification), \
+             patch("task_gen.task_eval_verifier.review_verification_spec", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_proof_plan", return_value=proof_plan), \
+             patch("task_gen.task_eval_verifier.review_proof_plan", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.generate_verifier", return_value=package), \
+             patch("task_gen.task_eval_verifier.review_verifier_implementation", return_value={"approved": True, "issues": []}), \
+             patch("task_gen.task_eval_verifier.calibrate_verifier", side_effect=ReferenceCalibrationError("R1 failed")), \
+             patch("task_gen.task_eval_verifier.assess_task_reference_conflict", side_effect=ValueError("invalid assessment")):
+            with self.assertRaises(VerifierPreparationError) as raised:
+                prepare_verifier({"task_text": "return 8"}, {}, {}, {}, {}, attempts=1)
+
+        self.assertIn("invalid assessment", raised.exception.attempts[-1]["conflict_assessment_error"])
 
     def test_agent_prompt_states_the_tool_call_budget(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

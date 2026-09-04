@@ -35,6 +35,7 @@ from .task_eval_verifier import (
 
 
 DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"
+VERIFIER_CACHE_VERSION = 10
 InferFn = Callable[..., InferenceResult]
 AgentRunFn = Callable[[str, Path, Path, Path], str]
 
@@ -193,7 +194,7 @@ def evaluate_case(
         cache_path = None
         if verifier_cache is not None:
             fingerprint_payload = {
-                "version": 8,
+                "version": VERIFIER_CACHE_VERSION,
                 "task": case.task,
                 "environment": verifier_environment,
                 "reference_evidence": reference_evidence,

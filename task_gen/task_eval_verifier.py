@@ -11,12 +11,14 @@ import shutil
 import tempfile
 from typing import Any, Callable
 
-from .tool_graph.llm import InferenceResult, infer, parse_json_object
+from .tool_graph.llm import InferenceResult, MalformedJSONError, infer, parse_json_object
 from .tool_graph.step_3_chain_execute import _bounded_calls, _call_tool, _workspace_signature
 
 
 _STATUSES = {"pass", "fail", "indeterminate"}
 _CHANNELS = {"answer", "tool_trace", "workspace"}
+_EVIDENCE_PROVENANCE = {"task", "environment_contract", "reference_observation"}
+_EVIDENCE_USES = {"criterion", "locator", "example"}
 _OUTCOME_TYPES = {
     "persistent_state", "query", "computation", "presentation", "preservation",
     "execution_integrity",
@@ -41,6 +43,23 @@ class VerifierPreparationError(ValueError):
     def __init__(self, attempts: list[dict[str, Any]]):
         self.attempts = attempts
         super().__init__(json.dumps({"message": "verifier 生成校准失败", "attempts": attempts}, ensure_ascii=False))
+
+
+class ReferenceCalibrationError(ValueError):
+    """The frozen requirements are not proven by the known-good reference evidence."""
+
+
+class TaskReferenceConflictError(VerifierPreparationError):
+    """The task authority and reference evidence are independently confirmed incompatible."""
+
+    def __init__(self, attempts: list[dict[str, Any]], assessment: dict[str, Any]):
+        self.attempts = attempts
+        self.assessment = assessment
+        ValueError.__init__(self, json.dumps({
+            "message": "task_reference_conflict",
+            "assessment": assessment,
+            "attempts": attempts,
+        }, ensure_ascii=False))
 
 
 def _workspace_changes(
@@ -663,8 +682,10 @@ def generate_verification_spec(
         ),
         "principles": [
             "task_clauses 是任务文本中所有可独立检验的最小要求；不得遗漏，也不得加入文本没有的要求。",
+            "并列在同一句中的结果不因此成为一个原子项；只要其中一项可能单独缺失或错误，就必须分别建立 task clause 和 requirement。",
             "每个 task clause 必须恰好由一个非完整性 requirement 覆盖；可以在一个 requirement 中合并只有共同成立或失败才有意义的条款。",
             "每个 requirement 只表达一个可独立判断的业务结果，并明确充分通过、明确失败和证据不足三种边界。",
+            "原子拆分不能丢失共同对象和关系：若多个结果必须属于同一本次创建或修改的对象，每个 requirement 都要绑定到同一对象；重复对象绑定是上下文，不得把可独立失败的结果重新合并。",
             "持久化修改、删除、创建和保持不变必须由 workspace 初末状态证明；查询、计算和呈现可由工具结果与回答证明。",
             "evidence_channels 表示允许证明该要求的证据种类，不表示必须复现某个工具或实现路径。",
             "额外增加且只增加一个 execution_integrity requirement；它不映射 task clause，只检查副作用均为完成任务所必要且未破坏无关状态。",
@@ -689,6 +710,7 @@ def generate_verification_spec(
     }
     if previous_issues:
         request["previous_issues"] = previous_issues
+        request["revision_instruction"] = "重新生成完整规格，逐项解决 previous_issues，且不得重新引入其中任何问题。"
     specification = parse_json_object(infer_fn(
         json.dumps(request, ensure_ascii=False), llm_config=llm_config,
     ).text)
@@ -727,7 +749,9 @@ def review_verification_spec(
         "role": (
             "你独立审核验证规格，不重写它。逐句对照任务文本：确认所有要求完整且只覆盖一次，"
             "可独立失败的结果没有被隐藏合并，没有加入任务未要求的实现限制，并且每个判断条件"
-            "确实能由声明的证据类型证明。任何实质问题都必须拒绝。"
+            "确实能由声明的证据类型证明。唯一不来自任务文本的 execution_integrity 是系统级"
+            "必需门禁，不得将它本身判为新增约束；应检查它只拒绝与任务无关、破坏性或相互冲突的"
+            "副作用，不能强制某种合法实现路径或要求无法观察的全局不变。任何实质问题都必须拒绝。"
         ),
         "review_dimensions": ["coverage", "atomicity", "fidelity", "verifiability", "evidence_classification"],
         "task": task.get("task_text"),
@@ -750,6 +774,237 @@ def review_verification_spec(
     return review
 
 
+def _validate_plan_sources(
+    sources: Any,
+    *,
+    allowed_channels: set[str] | None = None,
+) -> None:
+    keys = {
+        "channel", "locator", "provenance", "use", "completeness",
+        "absence_is_conclusive", "basis",
+    }
+    if not isinstance(sources, list) or not sources:
+        raise ValueError("proof plan evidence_sources 必须是非空数组")
+    for source in sources:
+        if not isinstance(source, dict) or set(source) != keys:
+            raise ValueError("proof plan evidence source 结构非法")
+        channel = source["channel"]
+        if channel not in _CHANNELS or allowed_channels is not None and channel not in allowed_channels:
+            raise ValueError("proof plan evidence source channel 非法")
+        if source["provenance"] not in _EVIDENCE_PROVENANCE:
+            raise ValueError("proof plan evidence source provenance 非法")
+        if source["use"] not in _EVIDENCE_USES:
+            raise ValueError("proof plan evidence source use 非法")
+        if source["completeness"] not in {"complete", "partial"}:
+            raise ValueError("proof plan evidence source completeness 非法")
+        if not isinstance(source["absence_is_conclusive"], bool):
+            raise ValueError("proof plan absence_is_conclusive 必须是 boolean")
+        if source["absence_is_conclusive"] and source["completeness"] == "partial":
+            raise ValueError("partial evidence 不能让 absence_is_conclusive=true")
+        if source["provenance"] == "reference_observation" and source["use"] == "criterion":
+            raise ValueError("reference_observation 不能作为 criterion")
+        if any(not isinstance(source[key], str) or not source[key].strip() for key in ("locator", "basis")):
+            raise ValueError("proof plan evidence source 文本字段不能为空")
+
+
+def validate_proof_plan(plan: dict[str, Any], specification: dict[str, Any]) -> None:
+    """Validate a code-free, reference-aware proof plan against the frozen specification."""
+    validate_verification_spec(specification)
+    if not isinstance(plan, dict) or set(plan) != {
+        "schema_version", "bindings", "requirements", "integrity",
+    }:
+        raise ValueError("proof plan 顶层结构非法")
+    if plan["schema_version"] != "1":
+        raise ValueError("proof plan schema_version 必须为 1")
+
+    bindings = plan["bindings"]
+    if not isinstance(bindings, list):
+        raise ValueError("proof plan bindings 必须是数组")
+    binding_ids: set[str] = set()
+    for binding in bindings:
+        if not isinstance(binding, dict) or set(binding) != {
+            "id", "business_identity", "identity_evidence", "excluded_properties",
+        }:
+            raise ValueError("proof plan binding 结构非法")
+        binding_id = binding["id"]
+        if not isinstance(binding_id, str) or not binding_id or binding_id in binding_ids:
+            raise ValueError("proof plan binding id 必须唯一且非空")
+        binding_ids.add(binding_id)
+        if not isinstance(binding["business_identity"], str) or not binding["business_identity"].strip():
+            raise ValueError("proof plan business_identity 不能为空")
+        _validate_plan_sources(binding["identity_evidence"])
+        excluded = binding["excluded_properties"]
+        if not isinstance(excluded, list) or any(not isinstance(item, str) or not item for item in excluded):
+            raise ValueError("proof plan excluded_properties 非法")
+
+    spec_requirements = {item["id"]: item for item in specification["requirements"]}
+    integrity_ids = {
+        item["id"] for item in specification["requirements"]
+        if item["outcome_type"] == "execution_integrity"
+    }
+    expected = set(spec_requirements) - integrity_ids
+    planned: set[str] = set()
+    requirement_keys = {
+        "requirement_id", "binding_ids", "evidence_sources", "proof", "disproof", "indeterminate",
+    }
+    requirements = plan["requirements"]
+    if not isinstance(requirements, list):
+        raise ValueError("proof plan requirements 必须是数组")
+    for requirement in requirements:
+        if not isinstance(requirement, dict) or set(requirement) != requirement_keys:
+            raise ValueError("proof plan requirement 结构非法")
+        requirement_id = requirement["requirement_id"]
+        if requirement_id not in expected or requirement_id in planned:
+            raise ValueError("proof plan requirement_id 非法或重复")
+        planned.add(requirement_id)
+        used_bindings = requirement["binding_ids"]
+        if not isinstance(used_bindings, list) or set(used_bindings) - binding_ids:
+            raise ValueError("proof plan binding_ids 非法")
+        _validate_plan_sources(
+            requirement["evidence_sources"],
+            allowed_channels=set(spec_requirements[requirement_id]["evidence_channels"]),
+        )
+        if any(not isinstance(requirement[key], str) or not requirement[key].strip()
+               for key in ("proof", "disproof", "indeterminate")):
+            raise ValueError("proof plan requirement 判定字段不能为空")
+    if planned != expected:
+        raise ValueError("proof plan 必须恰好覆盖全部非完整性 requirement")
+
+    integrity = plan["integrity"]
+    integrity_keys = {
+        "requirement_id", "observable_scope", "evidence_sources", "proof",
+        "explicit_violations", "indeterminate",
+    }
+    if not isinstance(integrity, dict) or set(integrity) != integrity_keys:
+        raise ValueError("proof plan integrity 结构非法")
+    integrity_id = integrity["requirement_id"]
+    if integrity_id not in integrity_ids:
+        raise ValueError("proof plan integrity requirement_id 非法")
+    _validate_plan_sources(
+        integrity["evidence_sources"],
+        allowed_channels=set(spec_requirements[integrity_id]["evidence_channels"]),
+    )
+    if any(not isinstance(integrity[key], str) or not integrity[key].strip()
+           for key in ("observable_scope", "proof", "indeterminate")):
+        raise ValueError("proof plan integrity 文本字段不能为空")
+    violations = integrity["explicit_violations"]
+    if not isinstance(violations, list) or not violations or any(
+        not isinstance(item, str) or not item.strip() for item in violations
+    ):
+        raise ValueError("proof plan explicit_violations 必须是非空字符串数组")
+
+
+def generate_proof_plan(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    specification: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+    previous_issues: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Design proof obligations before source generation sees any reference execution."""
+    validate_verification_spec(specification)
+    source_contract = {
+        "channel": "workspace|tool_trace|answer",
+        "locator": "如何取得证据；它不是成功条件",
+        "provenance": "task|environment_contract|reference_observation",
+        "use": "criterion|locator|example",
+        "completeness": "complete|partial",
+        "absence_is_conclusive": False,
+        "basis": "为什么该证据充分、部分或具有完整性",
+    }
+    request: dict[str, Any] = {
+        "role": (
+            "你为已经冻结的验证规格制定不含代码的证明计划，不设计 Agent 应如何执行。"
+            "任务和规格定义业务结果；参考执行仅帮助理解证据位置和数据结构，不是唯一正确方案。"
+        ),
+        "principles": [
+            "没有找到参考执行使用的工具、顺序、ID、路径、字段或表示，不等于任务没有完成。",
+            "业务对象的身份条件必须独立于正在审核的属性；某个属性错误不能让其他要求失去目标对象。",
+            "pass 需要充分证据；fail 需要明确反证，或完整权威证据源中的决定性缺失；其余一律 indeterminate。",
+            "partial 证据中的缺失永远不具有决定性。每个证据源必须声明 completeness 和 absence_is_conclusive。",
+            "task 可定义成功条件；environment_contract 可解释或定位；reference_observation 只能定位或举例，不能成为 criterion。",
+            "定义业务不变量和明确破坏，不枚举允许的实现方式，也不把参考 workspace diff 当作变化白名单。",
+            "共享对象必须显式绑定；原子要求独立判断，但不能由不同对象分别拼成整体成功。",
+        ],
+        "task": task.get("task_text"),
+        "environment": environment,
+        "specification": specification,
+        "reference_evidence": _generation_evidence(reference_evidence),
+        "response_contract": {
+            "schema_version": "1",
+            "bindings": [{
+                "id": "B1", "business_identity": "最小业务身份",
+                "identity_evidence": [source_contract],
+                "excluded_properties": ["不能参与身份识别的被审核属性"],
+            }],
+            "requirements": [{
+                "requirement_id": "R1", "binding_ids": ["B1"],
+                "evidence_sources": [source_contract],
+                "proof": "充分证明", "disproof": "明确反证",
+                "indeterminate": "证据不足边界",
+            }],
+            "integrity": {
+                "requirement_id": "execution_integrity 对应 ID",
+                "observable_scope": "实际可观察范围", "evidence_sources": [source_contract],
+                "proof": "如何证明可观察变化均可解释",
+                "explicit_violations": ["明确无关、破坏性或冲突的变化"],
+                "indeterminate": "无法归因或观察不完整的边界",
+            },
+        },
+    }
+    if previous_issues:
+        request["previous_issues"] = previous_issues
+        request["revision_instruction"] = "重新生成完整证明计划并逐项解决 previous_issues。"
+    plan = parse_json_object(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text)
+    validate_proof_plan(plan, specification)
+    return plan
+
+
+def review_proof_plan(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    specification: dict[str, Any],
+    plan: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Reject proof logic that confuses a reference path with task completion."""
+    validate_proof_plan(plan, specification)
+    request = {
+        "role": (
+            "你独立审核证明计划，不修改它。对每个 fail 条件追问：证据究竟证明任务失败，"
+            "还是只证明 Agent 没按参考方式执行？后者必须拒绝。检查对象身份不依赖被审核属性、"
+            "partial 证据缺失只能 indeterminate、参考观察没有变成成功条件、多项要求仍绑定同一"
+            "业务对象，并且执行完整性没有把参考变化作为白名单。任何可能把正确替代实现判为 fail 的路径都必须拒绝。"
+        ),
+        "task": task.get("task_text"),
+        "environment": environment,
+        "specification": specification,
+        "proof_plan": plan,
+        "reference_evidence": _generation_evidence(reference_evidence),
+        "response_contract": {
+            "approved": "boolean；仅当 issues 为空时为 true",
+            "issues": [{
+                "code": "identity_depends_on_result|inconclusive_failure|reference_path_required|reference_as_criterion|closed_world_integrity|wrong_binding|other",
+                "task_clause_ids": ["C1"], "requirement_ids": ["R1"],
+                "message": "具体说明会误判哪种正确实现或证据边界",
+            }],
+        },
+    }
+    review = parse_json_object(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text)
+    _validate_review(review, kind="proof plan")
+    return review
+
+
 def _frozen_requirements(specification: dict[str, Any]) -> list[dict[str, Any]]:
     return [{
         "id": item["id"],
@@ -767,13 +1022,17 @@ def generate_verifier(
     reference_evidence: dict[str, Any],
     llm_config: dict[str, Any],
     infer_fn: InferFn = infer,
-    previous_failure: str | None = None,
+    previous_failure: str | list[dict[str, Any]] | None = None,
     *,
     specification: dict[str, Any] | None = None,
+    proof_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Ask the model for a constrained verifier package, then validate it."""
     if specification is not None:
         validate_verification_spec(specification)
+        if proof_plan is None:
+            raise ValueError("冻结规格必须提供 proof_plan")
+        validate_proof_plan(proof_plan, specification)
         request: dict[str, Any] = {
             "role": (
                 "你只实现已经冻结的验证规格。不得重新解释任务，不得增加、删除、合并、拆分或改写"
@@ -787,11 +1046,11 @@ def generate_verifier(
                 "call_tool 只用于核验终态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
                 "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
                 "source 只能定义 verify(ctx)，不得导入模块、启动进程、直接打开路径或写文件。",
+                "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失、数量、路径或常量。",
             ],
-            "task": task.get("task_text"),
             "environment": environment,
             "specification": specification,
-            "reference_evidence": _generation_evidence(reference_evidence),
+            "proof_plan": proof_plan,
             "verifier_context_api": {
                 "answer()": "实际最终回答",
                 "calls()": "实际工具调用及结果",
@@ -810,9 +1069,18 @@ def generate_verifier(
         }
         if previous_failure:
             request["previous_issues"] = previous_failure
-        generated = parse_json_object(infer_fn(
+        response = infer_fn(
             json.dumps(request, ensure_ascii=False), llm_config=llm_config,
-        ).text)
+        ).text
+        try:
+            generated = parse_json_object(response)
+        except MalformedJSONError:
+            source = response.strip()
+            if not source.startswith("def verify("):
+                raise
+            generated = {"source": source}
+        if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
+            generated = generated["response_contract"]
         if not isinstance(generated, dict) or set(generated) != {"source"}:
             raise ValueError("verifier implementation 必须只返回 source")
         package = {
@@ -915,12 +1183,15 @@ def review_verifier_implementation(
     llm_config: dict[str, Any],
     *,
     infer_fn: InferFn = infer,
+    proof_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Review whether source faithfully and sufficiently implements the frozen spec."""
     validate_verification_spec(specification)
     validate_verifier(package)
     if package["requirements"] != _frozen_requirements(specification):
         raise ValueError("verifier requirements 与冻结规格不一致")
+    if proof_plan is not None:
+        validate_proof_plan(proof_plan, specification)
     request = {
         "role": (
             "你独立审核 verifier 实现，不修改代码或规格。逐项检查所有控制流：代码是否忠实实现冻结"
@@ -935,6 +1206,7 @@ def review_verifier_implementation(
             "Semantic judgments are not replaced by substring heuristics; deterministic facts are not delegated unnecessarily.",
         ],
         "specification": specification,
+        "proof_plan": proof_plan,
         "verifier": package,
         "environment": environment,
         "reference_evidence": _generation_evidence(reference_evidence),
@@ -1135,7 +1407,7 @@ def calibrate_verifier(
     else:
         reference = reference_raw
     if reference["outcome"] != "pass":
-        raise ValueError("参考执行语义二次确认未通过：" + json.dumps(
+        raise ReferenceCalibrationError("参考执行语义二次确认未通过：" + json.dumps(
             confirmation_results if confirmation is not None else reference_results, ensure_ascii=False,
         ))
     counterfactual = None
@@ -1329,18 +1601,120 @@ def prepare_verifier(
     final_state: Path | None = None,
     tools: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
-    """Generate and calibrate, retaining each failed attempt for diagnostics."""
+    """Freeze a reviewed specification, then generate and calibrate its implementation."""
     if attempts < 1:
         raise ValueError("attempts 必须大于 0")
     history: list[dict[str, Any]] = []
-    previous_failure: str | None = None
+    previous_spec_issues: list[dict[str, Any]] | None = None
+    specification: dict[str, Any] | None = None
+    specification_review: dict[str, Any] | None = None
+    for index in range(attempts):
+        candidate: dict[str, Any] | None = None
+        try:
+            candidate = generate_verification_spec(
+                task, environment, llm_config,
+                infer_fn=infer_fn,
+                previous_issues=previous_spec_issues,
+            )
+            review = review_verification_spec(
+                task, environment, candidate, llm_config, infer_fn=infer_fn,
+            )
+        except Exception as error:
+            issue = {
+                "code": "invalid_specification",
+                "task_clause_ids": [],
+                "requirement_ids": [],
+                "message": f"{type(error).__name__}: {error}"[:4000],
+            }
+            previous_spec_issues = [issue]
+            history.append({
+                "stage": "specification",
+                "attempt": index + 1,
+                "error": issue["message"],
+                "specification": candidate,
+                "review": None,
+            })
+            continue
+        history.append({
+            "stage": "specification",
+            "attempt": index + 1,
+            "error": None if review["approved"] else json.dumps(review["issues"], ensure_ascii=False),
+            "specification": candidate,
+            "review": review,
+        })
+        if review["approved"]:
+            specification = candidate
+            specification_review = review
+            break
+        previous_spec_issues = review["issues"]
+    if specification is None or specification_review is None:
+        raise VerifierPreparationError(history)
+
+    previous_plan_issues: list[dict[str, Any]] | None = None
+    proof_plan: dict[str, Any] | None = None
+    proof_plan_review: dict[str, Any] | None = None
+    for index in range(attempts):
+        candidate_plan: dict[str, Any] | None = None
+        try:
+            candidate_plan = generate_proof_plan(
+                task, environment, specification, reference_evidence, llm_config,
+                infer_fn=infer_fn, previous_issues=previous_plan_issues,
+            )
+            review = review_proof_plan(
+                task, environment, specification, candidate_plan, reference_evidence,
+                llm_config, infer_fn=infer_fn,
+            )
+        except Exception as error:
+            issue = {
+                "code": "invalid_proof_plan",
+                "task_clause_ids": [],
+                "requirement_ids": [],
+                "message": f"{type(error).__name__}: {error}"[:4000],
+            }
+            previous_plan_issues = [issue]
+            history.append({
+                "stage": "proof_plan", "attempt": index + 1,
+                "error": issue["message"], "proof_plan": candidate_plan, "review": None,
+            })
+            continue
+        history.append({
+            "stage": "proof_plan", "attempt": index + 1,
+            "error": None if review["approved"] else json.dumps(review["issues"], ensure_ascii=False),
+            "proof_plan": candidate_plan, "review": review,
+        })
+        if review["approved"]:
+            proof_plan = candidate_plan
+            proof_plan_review = review
+            break
+        previous_plan_issues = review["issues"]
+    if proof_plan is None or proof_plan_review is None:
+        raise VerifierPreparationError(history)
+
+    previous_impl_issues: list[dict[str, Any]] | None = None
     for index in range(attempts):
         package: dict[str, Any] | None = None
+        implementation_review: dict[str, Any] | None = None
         try:
             package = generate_verifier(
                 task, environment, reference_evidence, llm_config, infer_fn,
-                previous_failure=previous_failure,
+                previous_failure=previous_impl_issues,
+                specification=specification,
+                proof_plan=proof_plan,
             )
+            implementation_review = review_verifier_implementation(
+                specification, package, environment, reference_evidence,
+                llm_config, infer_fn=infer_fn, proof_plan=proof_plan,
+            )
+            if not implementation_review["approved"]:
+                previous_impl_issues = implementation_review["issues"]
+                history.append({
+                    "stage": "implementation",
+                    "attempt": index + 1,
+                    "error": json.dumps(previous_impl_issues, ensure_ascii=False),
+                    "verifier": package,
+                    "review": implementation_review,
+                })
+                continue
             calibration = calibrate_verifier(
                 package, reference_evidence, empty_evidence,
                 llm_config=llm_config, infer_fn=infer_fn,
@@ -1349,15 +1723,66 @@ def prepare_verifier(
                 initial_state=initial_state,
                 final_state=final_state,
                 tools=tools,
+                specification=specification,
             )
-        except Exception as error:
-            previous_failure = f"{type(error).__name__}: {error}"[:4000]
+        except ReferenceCalibrationError as error:
+            assessment: dict[str, Any] | None = None
+            assessment_error: str | None = None
+            try:
+                assessment = assess_task_reference_conflict(
+                    task, specification, reference_evidence, llm_config, infer_fn=infer_fn,
+                )
+            except Exception as conflict_error:
+                assessment_error = f"{type(conflict_error).__name__}: {conflict_error}"[:4000]
+            issue = {
+                "code": "reference_calibration_failure",
+                "task_clause_ids": [],
+                "requirement_ids": [],
+                "message": str(error)[:4000],
+            }
             history.append({
+                "stage": "implementation",
                 "attempt": index + 1,
-                "error": previous_failure,
+                "error": issue["message"],
                 "verifier": package,
+                "review": implementation_review,
+                "conflict_assessment": assessment,
+                "conflict_assessment_error": assessment_error,
+            })
+            if assessment is not None and assessment["conflict"]:
+                raise TaskReferenceConflictError(history, assessment) from error
+            previous_impl_issues = [issue]
+            continue
+        except Exception as error:
+            issue = {
+                "code": "verifier_generation_error",
+                "task_clause_ids": [],
+                "requirement_ids": [],
+                "message": f"{type(error).__name__}: {error}"[:4000],
+            }
+            previous_impl_issues = [issue]
+            history.append({
+                "stage": "implementation",
+                "attempt": index + 1,
+                "error": issue["message"],
+                "verifier": package,
+                "review": implementation_review,
             })
             continue
-        history.append({"attempt": index + 1, "error": None, "verifier": package})
+        calibration = {
+            **calibration,
+            "specification": specification,
+            "specification_review": specification_review,
+            "proof_plan": proof_plan,
+            "proof_plan_review": proof_plan_review,
+            "implementation_review": implementation_review,
+        }
+        history.append({
+            "stage": "implementation",
+            "attempt": index + 1,
+            "error": None,
+            "verifier": package,
+            "review": implementation_review,
+        })
         return package, calibration, history
     raise VerifierPreparationError(history)
