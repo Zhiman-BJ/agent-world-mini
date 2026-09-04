@@ -27,6 +27,7 @@ from task_gen.task_eval_verifier import (
     generate_verification_spec,
     generate_verifier,
     prepare_verifier,
+    review_verifier_implementation,
     review_verification_spec,
     run_verifier,
     validate_verification_spec,
@@ -136,6 +137,99 @@ class TaskEvalTest(unittest.TestCase):
         self.assertEqual(review_verification_spec(
             {"task_text": "Create report."}, {}, specification, {}, infer_fn=fake_infer,
         ), review)
+
+    def test_generate_verifier_projects_frozen_requirements_and_only_generates_source(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer", "tool_trace"],
+                "pass_condition": "The answer and read result agree.",
+                "fail_condition": "They contradict.",
+                "indeterminate_condition": "Either is absent.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace", "tool_trace"],
+                "pass_condition": "All changes are necessary.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        source = (
+            "def verify(ctx):\n"
+            "    ctx.indeterminate_requirement('R1', 'not enough evidence')\n"
+            "    ctx.indeterminate_requirement('R2', 'not enough evidence')\n"
+        )
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertEqual(request["specification"], specification)
+            self.assertEqual(set(request["response_contract"]), {"source"})
+            return InferenceResult(json.dumps({"source": source}), {}, "test")
+
+        package = generate_verifier(
+            {"task_text": "Return the value."}, {}, {}, {}, infer_fn=fake_infer,
+            specification=specification,
+        )
+
+        self.assertEqual(package["source"], source)
+        self.assertEqual(package["requirements"], [{
+            "id": item["id"], "claim": item["claim"], "required": item["required"],
+            "evidence_channels": item["evidence_channels"],
+            "pass_condition": item["pass_condition"], "fail_condition": item["fail_condition"],
+        } for item in specification["requirements"]])
+
+    def test_review_verifier_implementation_rejects_unproven_pass_path(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Create report."}],
+            "requirements": [{
+                "id": "R1", "claim": "The report exists.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "persistent_state",
+                "evidence_channels": ["workspace"], "pass_condition": "Final report exists.",
+                "fail_condition": "Final report is absent.",
+                "indeterminate_condition": "Final state cannot be read.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "All changes are necessary.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": item["id"], "claim": item["claim"], "required": True,
+                "evidence_channels": item["evidence_channels"],
+                "pass_condition": item["pass_condition"], "fail_condition": item["fail_condition"],
+            } for item in specification["requirements"]],
+            "source": (
+                "def verify(ctx):\n"
+                "    ctx.pass_requirement('R1', 'assumed', [])\n"
+                "    ctx.pass_requirement('R2', 'assumed', [])\n"
+            ),
+        }
+        expected = {"approved": False, "issues": [{
+            "code": "unsupported_pass",
+            "task_clause_ids": ["C1"],
+            "requirement_ids": ["R1"],
+            "message": "R1 passes without reading final workspace evidence.",
+        }]}
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertEqual(request["specification"], specification)
+            self.assertEqual(request["verifier"], package)
+            self.assertIn("exactly once", " ".join(request["review_dimensions"]))
+            return InferenceResult(json.dumps(expected), {}, "test")
+
+        self.assertEqual(review_verifier_implementation(
+            specification, package, {}, {}, {}, infer_fn=fake_infer,
+        ), expected)
 
     def test_build_evidence_contains_bounded_files_and_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

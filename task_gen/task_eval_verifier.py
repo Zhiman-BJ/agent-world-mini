@@ -750,6 +750,17 @@ def review_verification_spec(
     return review
 
 
+def _frozen_requirements(specification: dict[str, Any]) -> list[dict[str, Any]]:
+    return [{
+        "id": item["id"],
+        "claim": item["claim"],
+        "required": item["required"],
+        "evidence_channels": item["evidence_channels"],
+        "pass_condition": item["pass_condition"],
+        "fail_condition": item["fail_condition"],
+    } for item in specification["requirements"]]
+
+
 def generate_verifier(
     task: dict[str, Any],
     environment: dict[str, Any],
@@ -757,8 +768,61 @@ def generate_verifier(
     llm_config: dict[str, Any],
     infer_fn: InferFn = infer,
     previous_failure: str | None = None,
+    *,
+    specification: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Ask the model for a constrained verifier package, then validate it."""
+    if specification is not None:
+        validate_verification_spec(specification)
+        request: dict[str, Any] = {
+            "role": (
+                "你只实现已经冻结的验证规格。不得重新解释任务，不得增加、删除、合并、拆分或改写"
+                "requirement。每条执行路径对每个 requirement 恰好记录一次结果；只有证据充分时 pass，"
+                "证据明确反驳时 fail，其余情况 indeterminate。"
+            ),
+            "implementation_principles": [
+                "确定性结构、数值、ID、数量和状态由代码比较；自然语言含义才调用 semantic_requirement。",
+                "任何 pass 都必须引用直接证明 claim 的证据；reason 只能陈述引用证据显示的事实。",
+                "持久状态要求必须读取初态和终态；最终回答不能替代落盘结果。",
+                "call_tool 只用于核验终态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
+                "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
+                "source 只能定义 verify(ctx)，不得导入模块、启动进程、直接打开路径或写文件。",
+            ],
+            "task": task.get("task_text"),
+            "environment": environment,
+            "specification": specification,
+            "reference_evidence": _generation_evidence(reference_evidence),
+            "verifier_context_api": {
+                "answer()": "实际最终回答",
+                "calls()": "实际工具调用及结果",
+                "changed_paths()": "初末 workspace 变化",
+                "files(state='final') / file(path, state='final')": "文件证据元数据",
+                "read_text(path, state='final') / read_json(path, state='final')": "完整初末 workspace 只读访问",
+                "call_tool(name, arguments) / verifier_calls()": "在终态副本补充核验",
+                "pass_requirement / fail_requirement / indeterminate_requirement": "记录确定性结果",
+                "semantic_requirement": "请求自然语言语义判断；调用本身记录结果且没有返回值",
+            },
+            "evidence_reference_formats": [
+                "answer", "tool_call:N", "initial:relative/path", "final:relative/path",
+                "workspace_change:relative/path", "verifier_call:N",
+            ],
+            "response_contract": {"source": "Python source defining verify(ctx)"},
+        }
+        if previous_failure:
+            request["previous_issues"] = previous_failure
+        generated = parse_json_object(infer_fn(
+            json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+        ).text)
+        if not isinstance(generated, dict) or set(generated) != {"source"}:
+            raise ValueError("verifier implementation 必须只返回 source")
+        package = {
+            "schema_version": "1",
+            "requirements": _frozen_requirements(specification),
+            "source": generated["source"],
+        }
+        validate_verifier(package)
+        return package
+
     request = {
             "role": "你为一次真实任务执行生成审核 verifier。只根据任务文本定义成功条件。",
             "judging_principles": [
@@ -841,6 +905,60 @@ def generate_verifier(
         package = {"schema_version": "1", **package}
     validate_verifier(package)
     return package
+
+
+def review_verifier_implementation(
+    specification: dict[str, Any],
+    package: dict[str, Any],
+    environment: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Review whether source faithfully and sufficiently implements the frozen spec."""
+    validate_verification_spec(specification)
+    validate_verifier(package)
+    if package["requirements"] != _frozen_requirements(specification):
+        raise ValueError("verifier requirements 与冻结规格不一致")
+    request = {
+        "role": (
+            "你独立审核 verifier 实现，不修改代码或规格。逐项检查所有控制流：代码是否忠实实现冻结"
+            "条件、是否可能漏报或重复报告、是否在证据不足时误 pass、是否把参考执行的偶然细节"
+            "变成硬条件。只有没有实质缺陷时才能 approved=true。"
+        ),
+        "review_dimensions": [
+            "Each requirement is reported exactly once on every reachable path.",
+            "Every pass path cites evidence sufficient for the frozen pass condition.",
+            "Fail and indeterminate paths follow the frozen evidence boundaries.",
+            "No reference-specific tool, order, generated identifier, path, representation, or wording is required.",
+            "Semantic judgments are not replaced by substring heuristics; deterministic facts are not delegated unnecessarily.",
+        ],
+        "specification": specification,
+        "verifier": package,
+        "environment": environment,
+        "reference_evidence": _generation_evidence(reference_evidence),
+        "response_contract": {
+            "approved": "boolean；仅当 issues 为空时为 true",
+            "issues": [{
+                "code": "missing_result_path|duplicate_result_path|unsupported_pass|wrong_failure_boundary|reference_overfit|wrong_semantic_boundary|other",
+                "task_clause_ids": ["C1"],
+                "requirement_ids": ["R1"],
+                "message": "具体说明哪条控制流或判断不忠实，以及为什么",
+            }],
+        },
+    }
+    review = parse_json_object(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text)
+    _validate_review(review, kind="implementation")
+    clause_ids = {item["id"] for item in specification["task_clauses"]}
+    requirement_ids = {item["id"] for item in specification["requirements"]}
+    for issue in review["issues"]:
+        if (set(issue["task_clause_ids"]) - clause_ids
+                or set(issue["requirement_ids"]) - requirement_ids):
+            raise ValueError("implementation review 引用了未知 clause 或 requirement")
+    return review
 
 
 def _generation_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
