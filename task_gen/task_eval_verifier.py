@@ -17,6 +17,10 @@ from .tool_graph.step_3_chain_execute import _bounded_calls, _call_tool, _worksp
 
 _STATUSES = {"pass", "fail", "indeterminate"}
 _CHANNELS = {"answer", "tool_trace", "workspace"}
+_OUTCOME_TYPES = {
+    "persistent_state", "query", "computation", "presentation", "preservation",
+    "execution_integrity",
+}
 _CONTEXT_METHODS = {
     "answer", "calls", "changed_paths", "files", "file", "read_text", "read_json",
     "call_tool", "verifier_calls",
@@ -563,6 +567,187 @@ def aggregate_results(requirements: list[dict[str, Any]], results: list[dict[str
         "attribution": attribution,
         "requirements": results,
     }
+
+
+def validate_verification_spec(specification: dict[str, Any]) -> None:
+    """Validate task coverage before reference evidence can influence implementation."""
+    if not isinstance(specification, dict) or set(specification) != {
+        "schema_version", "task_clauses", "requirements",
+    }:
+        raise ValueError("verification spec 必须只包含 schema_version、task_clauses、requirements")
+    if specification["schema_version"] != "1":
+        raise ValueError("verification spec schema_version 必须为 1")
+    clauses = specification["task_clauses"]
+    if not isinstance(clauses, list) or not clauses:
+        raise ValueError("task_clauses 必须是非空数组")
+    clause_ids: set[str] = set()
+    for clause in clauses:
+        if not isinstance(clause, dict) or set(clause) != {"id", "text"}:
+            raise ValueError("task clause 必须只包含 id 和 text")
+        if (not isinstance(clause["id"], str) or not clause["id"]
+                or clause["id"] in clause_ids):
+            raise ValueError("task clause id 必须是唯一的非空字符串")
+        if not isinstance(clause["text"], str) or not clause["text"].strip():
+            raise ValueError("task clause text 必须是非空字符串")
+        clause_ids.add(clause["id"])
+
+    requirements = specification["requirements"]
+    if not isinstance(requirements, list) or not requirements:
+        raise ValueError("verification spec requirements 必须是非空数组")
+    required_keys = {
+        "id", "claim", "required", "task_clause_ids", "outcome_type", "evidence_channels",
+        "pass_condition", "fail_condition", "indeterminate_condition",
+    }
+    requirement_ids: set[str] = set()
+    coverage: list[str] = []
+    integrity_count = 0
+    for requirement in requirements:
+        if not isinstance(requirement, dict) or set(requirement) != required_keys:
+            raise ValueError(f"verification requirement 必须包含 {sorted(required_keys)}")
+        requirement_id = requirement["id"]
+        if (not isinstance(requirement_id, str) or not requirement_id
+                or requirement_id in requirement_ids):
+            raise ValueError("verification requirement id 必须是唯一的非空字符串")
+        requirement_ids.add(requirement_id)
+        if not isinstance(requirement["claim"], str) or not requirement["claim"].strip():
+            raise ValueError("verification requirement claim 必须是非空字符串")
+        if requirement["required"] is not True:
+            raise ValueError("verification spec 中所有 requirement 都必须 required=true")
+        outcome_type = requirement["outcome_type"]
+        if outcome_type not in _OUTCOME_TYPES:
+            raise ValueError(f"非法 outcome_type：{outcome_type}")
+        channels = requirement["evidence_channels"]
+        if (not isinstance(channels, list) or not channels
+                or len(channels) != len(set(channels))
+                or any(channel not in _CHANNELS for channel in channels)):
+            raise ValueError("verification requirement evidence_channels 非法")
+        if outcome_type in {"persistent_state", "preservation", "execution_integrity"} and "workspace" not in channels:
+            raise ValueError(f"{outcome_type} requirement 必须包含 workspace 证据")
+        mapped = requirement["task_clause_ids"]
+        if not isinstance(mapped, list) or any(item not in clause_ids for item in mapped):
+            raise ValueError("verification requirement task_clause_ids 非法")
+        if outcome_type == "execution_integrity":
+            integrity_count += 1
+            if mapped:
+                raise ValueError("execution_integrity 不得占用 task clause")
+        elif not mapped:
+            raise ValueError(f"{requirement_id} 必须覆盖至少一个 task clause")
+        coverage.extend(mapped)
+        for key in ("pass_condition", "fail_condition", "indeterminate_condition"):
+            if not isinstance(requirement[key], str) or not requirement[key].strip():
+                raise ValueError(f"{requirement_id}.{key} 必须是非空字符串")
+    if integrity_count != 1:
+        raise ValueError("verification spec 必须恰好包含一个 execution_integrity requirement")
+    missing = sorted(clause_ids - set(coverage))
+    duplicated = sorted(item for item in clause_ids if coverage.count(item) != 1)
+    if missing or duplicated:
+        affected = sorted(set(missing + duplicated))
+        raise ValueError("task clause 必须被恰好覆盖一次：" + ", ".join(affected))
+
+
+def generate_verification_spec(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+    previous_issues: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Derive auditable success conditions without seeing a reference execution."""
+    request: dict[str, Any] = {
+        "role": (
+            "你负责把任务文本转成验证规格。任务文本是要求的唯一权威；环境只定义可观察状态、"
+            "可用工具和业务约束。先识别任务中每个可独立判真的结果，再定义什么证据足以证明、"
+            "反驳或无法判断它。不要设计执行步骤，也不要指定任务未要求的工具、调用顺序、内部 ID、"
+            "文件路径、字段承载方式或措辞。"
+        ),
+        "principles": [
+            "task_clauses 是任务文本中所有可独立检验的最小要求；不得遗漏，也不得加入文本没有的要求。",
+            "每个 task clause 必须恰好由一个非完整性 requirement 覆盖；可以在一个 requirement 中合并只有共同成立或失败才有意义的条款。",
+            "每个 requirement 只表达一个可独立判断的业务结果，并明确充分通过、明确失败和证据不足三种边界。",
+            "持久化修改、删除、创建和保持不变必须由 workspace 初末状态证明；查询、计算和呈现可由工具结果与回答证明。",
+            "evidence_channels 表示允许证明该要求的证据种类，不表示必须复现某个工具或实现路径。",
+            "额外增加且只增加一个 execution_integrity requirement；它不映射 task clause，只检查副作用均为完成任务所必要且未破坏无关状态。",
+        ],
+        "task": task.get("task_text"),
+        "environment": environment,
+        "response_contract": {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "任务原文中的一个最小可检验要求"}],
+            "requirements": [{
+                "id": "R1",
+                "claim": "一个可独立判断的业务结果",
+                "required": True,
+                "task_clause_ids": ["C1"],
+                "outcome_type": "persistent_state|query|computation|presentation|preservation|execution_integrity",
+                "evidence_channels": ["workspace", "tool_trace", "answer"],
+                "pass_condition": "足以证明结果成立的证据",
+                "fail_condition": "足以证明结果不成立的证据",
+                "indeterminate_condition": "无法可靠判断的证据状态",
+            }],
+        },
+    }
+    if previous_issues:
+        request["previous_issues"] = previous_issues
+    specification = parse_json_object(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text)
+    validate_verification_spec(specification)
+    return specification
+
+
+def _validate_review(review: dict[str, Any], *, kind: str) -> None:
+    if not isinstance(review, dict) or set(review) != {"approved", "issues"}:
+        raise ValueError(f"{kind} review 必须只包含 approved 和 issues")
+    if not isinstance(review["approved"], bool) or not isinstance(review["issues"], list):
+        raise ValueError(f"{kind} review 结构非法")
+    issue_keys = {"code", "task_clause_ids", "requirement_ids", "message"}
+    for issue in review["issues"]:
+        if (not isinstance(issue, dict) or set(issue) != issue_keys
+                or any(not isinstance(issue[key], list) for key in ("task_clause_ids", "requirement_ids"))
+                or any(not isinstance(item, str) for key in ("task_clause_ids", "requirement_ids") for item in issue[key])
+                or not isinstance(issue["code"], str) or not issue["code"]
+                or not isinstance(issue["message"], str) or not issue["message"].strip()):
+            raise ValueError(f"{kind} review issue 结构非法")
+    if review["approved"] != (not review["issues"]):
+        raise ValueError(f"{kind} review 的 approved 与 issues 矛盾")
+
+
+def review_verification_spec(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    specification: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Independently reject missing, merged, invented, or unprovable requirements."""
+    validate_verification_spec(specification)
+    request = {
+        "role": (
+            "你独立审核验证规格，不重写它。逐句对照任务文本：确认所有要求完整且只覆盖一次，"
+            "可独立失败的结果没有被隐藏合并，没有加入任务未要求的实现限制，并且每个判断条件"
+            "确实能由声明的证据类型证明。任何实质问题都必须拒绝。"
+        ),
+        "review_dimensions": ["coverage", "atomicity", "fidelity", "verifiability", "evidence_classification"],
+        "task": task.get("task_text"),
+        "environment": environment,
+        "specification": specification,
+        "response_contract": {
+            "approved": "boolean；仅当 issues 为空时为 true",
+            "issues": [{
+                "code": "missing_requirement|non_atomic|added_constraint|unverifiable|wrong_evidence_classification|other",
+                "task_clause_ids": ["C1"],
+                "requirement_ids": ["R1"],
+                "message": "具体说明规格为何偏离任务或无法可靠验证",
+            }],
+        },
+    }
+    review = parse_json_object(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text)
+    _validate_review(review, kind="specification")
+    return review
 
 
 def generate_verifier(

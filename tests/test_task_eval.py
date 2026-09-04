@@ -24,9 +24,12 @@ from task_gen.task_eval_verifier import (
     aggregate_results,
     build_evidence,
     calibrate_verifier,
+    generate_verification_spec,
     generate_verifier,
     prepare_verifier,
+    review_verification_spec,
     run_verifier,
+    validate_verification_spec,
     validate_verifier,
 )
 from task_gen.task_eval_mcp import call_environment_tool, serve
@@ -37,6 +40,103 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TaskEvalTest(unittest.TestCase):
+    def test_generate_verification_spec_has_no_reference_evidence(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the current value."}],
+            "requirements": [{
+                "id": "R1",
+                "claim": "The current value is returned.",
+                "required": True,
+                "task_clause_ids": ["C1"],
+                "outcome_type": "query",
+                "evidence_channels": ["answer", "tool_trace"],
+                "pass_condition": "The returned value is supported by a read result.",
+                "fail_condition": "The answer gives a value contradicted by the read result.",
+                "indeterminate_condition": "No readable value or answer is available.",
+            }, {
+                "id": "R2",
+                "claim": "Execution has no unrelated side effects.",
+                "required": True,
+                "task_clause_ids": [],
+                "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace", "tool_trace"],
+                "pass_condition": "All observed changes are necessary for the task.",
+                "fail_condition": "An observed change is unrelated or destructive.",
+                "indeterminate_condition": "Observed changes cannot be attributed.",
+            }],
+        }
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertNotIn("reference_evidence", request)
+            self.assertEqual(request["task"], "Return the current value.")
+            self.assertIn("task_clauses", request["response_contract"])
+            return InferenceResult(json.dumps(specification), {}, "test")
+
+        generated = generate_verification_spec(
+            {"task_text": "Return the current value."},
+            {"tools": [{"name": "read_value"}]},
+            {},
+            infer_fn=fake_infer,
+        )
+
+        self.assertEqual(generated, specification)
+
+    def test_validate_verification_spec_requires_exact_clause_coverage(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Create report."}],
+            "requirements": [{
+                "id": "R1", "claim": "No unrelated changes.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated change.",
+                "fail_condition": "Unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+
+        with self.assertRaisesRegex(ValueError, "C1"):
+            validate_verification_spec(specification)
+
+    def test_review_verification_spec_returns_structured_issues(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Create report."}],
+            "requirements": [{
+                "id": "R1", "claim": "Create report with tool X.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "persistent_state",
+                "evidence_channels": ["workspace"], "pass_condition": "Tool X creates it.",
+                "fail_condition": "Tool X was not called.",
+                "indeterminate_condition": "Tool trace is unavailable.",
+            }, {
+                "id": "R2", "claim": "No unrelated changes.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No unrelated change.",
+                "fail_condition": "Unrelated change exists.",
+                "indeterminate_condition": "Change attribution is unavailable.",
+            }],
+        }
+        review = {
+            "approved": False,
+            "issues": [{
+                "code": "added_constraint",
+                "task_clause_ids": ["C1"],
+                "requirement_ids": ["R1"],
+                "message": "The task does not require tool X.",
+            }],
+        }
+
+        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+            request = json.loads(prompt)
+            self.assertEqual(request["specification"], specification)
+            self.assertNotIn("reference_evidence", request)
+            return InferenceResult(json.dumps(review), {}, "test")
+
+        self.assertEqual(review_verification_spec(
+            {"task_text": "Create report."}, {}, specification, {}, infer_fn=fake_infer,
+        ), review)
+
     def test_build_evidence_contains_bounded_files_and_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
