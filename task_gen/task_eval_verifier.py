@@ -11,7 +11,7 @@ import shutil
 import tempfile
 from typing import Any, Callable
 
-from .tool_graph.llm import InferenceResult, MalformedJSONError, infer, parse_json_object
+from .tool_graph.llm import InferenceResult, infer, parse_json_object
 from .tool_graph.step_3_chain_execute import _bounded_calls, _call_tool, _workspace_signature
 
 
@@ -1075,13 +1075,11 @@ def generate_verifier(
         response = infer_fn(
             json.dumps(request, ensure_ascii=False), llm_config=llm_config,
         ).text
-        try:
-            generated = parse_json_object(response)
-        except MalformedJSONError:
-            source = response.strip()
-            if not source.startswith("def verify("):
-                raise
+        source = response.strip()
+        if source.startswith("def verify("):
             generated = {"source": source}
+        else:
+            generated = parse_json_object(response)
         if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
             generated = generated["response_contract"]
         if not isinstance(generated, dict) or not isinstance(generated.get("source"), str):

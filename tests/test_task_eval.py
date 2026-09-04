@@ -320,6 +320,42 @@ class TaskEvalTest(unittest.TestCase):
             "pass_condition": item["pass_condition"], "fail_condition": item["fail_condition"],
         } for item in specification["requirements"]])
 
+    def test_generate_verifier_keeps_dict_literals_inside_raw_source(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer"],
+                "pass_condition": "The answer contains the value.",
+                "fail_condition": "The answer contradicts the value.",
+                "indeterminate_condition": "The answer is absent.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"],
+                "pass_condition": "No unrelated changes exist.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Changes cannot be attributed.",
+            }],
+        }
+        source = (
+            "def verify(ctx):\n"
+            "    evidence = {\"kind\": \"answer\"}\n"
+            "    ctx.indeterminate_requirement('R1', evidence['kind'])\n"
+            "    ctx.indeterminate_requirement('R2', evidence['kind'])\n"
+        )
+        with patch("task_gen.task_eval_verifier.validate_proof_plan"):
+            package = generate_verifier(
+                {"task_text": "Return the value."}, {}, {}, {},
+                infer_fn=lambda *_a, **_k: InferenceResult(source, {}, "test"),
+                specification=specification,
+                proof_plan={"schema_version": "1"},
+            )
+
+        self.assertEqual(package["source"], source.rstrip())
+
     def test_review_verifier_implementation_rejects_unproven_pass_path(self) -> None:
         specification = {
             "schema_version": "1",
