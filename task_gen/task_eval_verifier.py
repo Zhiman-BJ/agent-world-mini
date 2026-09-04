@@ -809,6 +809,18 @@ def _validate_plan_sources(
             raise ValueError("proof plan evidence source 文本字段不能为空")
 
 
+def _normalize_proof_plan_channels(value: Any) -> None:
+    if isinstance(value, dict):
+        aliases = {"call_tool", "verifier_call", "verifier_calls"}
+        if value.get("channel") in aliases:
+            value["channel"] = "tool_trace"
+        for child in value.values():
+            _normalize_proof_plan_channels(child)
+    elif isinstance(value, list):
+        for child in value:
+            _normalize_proof_plan_channels(child)
+
+
 def validate_proof_plan(plan: dict[str, Any], specification: dict[str, Any]) -> None:
     """Validate a code-free, reference-aware proof plan against the frozen specification."""
     validate_verification_spec(specification)
@@ -970,6 +982,7 @@ def generate_proof_plan(
     ).text)
     if set(plan) == {"response_contract"} and isinstance(plan["response_contract"], dict):
         plan = plan["response_contract"]
+    _normalize_proof_plan_channels(plan)
     validate_proof_plan(plan, specification)
     return plan
 
