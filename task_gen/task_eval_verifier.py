@@ -811,9 +811,18 @@ def _validate_plan_sources(
 
 def _normalize_proof_plan_channels(value: Any) -> None:
     if isinstance(value, dict):
-        aliases = {"call_tool", "verifier_call", "verifier_calls"}
-        if value.get("channel") in aliases:
+        channel_aliases = {
+            "call_tool", "tool_call", "tool_calls", "verifier_call", "verifier_calls",
+            "verifier_tool_call", "verifier_tool_calls",
+        }
+        channel = value.get("channel")
+        if isinstance(channel, str) and channel.strip().lower() in channel_aliases:
             value["channel"] = "tool_trace"
+        provenance = value.get("provenance")
+        if isinstance(provenance, str) and provenance.strip().lower() in {
+            "tool_observation", "verifier_observation",
+        }:
+            value["provenance"] = "environment_contract"
         for child in value.values():
             _normalize_proof_plan_channels(child)
     elif isinstance(value, list):
