@@ -907,7 +907,7 @@ def generate_proof_plan(
     """Design proof obligations before source generation sees any reference execution."""
     validate_verification_spec(specification)
     source_contract = {
-        "channel": "workspace|tool_trace|answer",
+        "channel": "workspace|tool_trace|answer；call_tool 和 verifier_call 取得的核验证据也统一写作 tool_trace",
         "locator": "如何取得证据；它不是成功条件",
         "provenance": "task|environment_contract|reference_observation",
         "use": "criterion|locator|example",
@@ -928,6 +928,7 @@ def generate_proof_plan(
             "task 可定义成功条件；environment_contract 可解释或定位；reference_observation 只能定位或举例，不能成为 criterion。",
             "证明计划必须精确适配当前任务和环境契约；环境契约明确声明的路径、字段、枚举和稳定标识可以且应当作为确定事实使用。",
             "同一事实可由多个来源取得时，优先使用输入输出 Schema 完整的只读工具或明确的数据契约；不得猜测环境未声明的文件容器名、字段或结构。",
+            "证据 channel 只能使用 workspace、tool_trace、answer；由 call_tool 或 verifier_call 取得的核验证据归入 tool_trace。",
             "定义业务不变量和明确破坏，不枚举允许的实现方式，也不把参考 workspace diff 当作变化白名单。",
             "binding 是逻辑变量：同一 binding ID 在所有 requirement 中必须解析为同一个具体见证，不能逐项另选对象。",
             "binding 不表示候选只能有一个；应寻找能同时满足相关要求的完整见证赋值，任务未明确限制数量时不得增加数量上限。",
