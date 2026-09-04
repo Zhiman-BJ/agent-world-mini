@@ -1083,6 +1083,10 @@ def generate_verifier(
             json.dumps(request, ensure_ascii=False), llm_config=llm_config,
         ).text
         source = response.strip()
+        lines = source.splitlines()
+        if len(lines) >= 3 and lines[0].strip() in {"```", "```py", "```python"} \
+                and lines[-1].strip() == "```":
+            source = "\n".join(lines[1:-1]).strip()
         if source.startswith("def verify("):
             generated = {"source": source}
         else:
