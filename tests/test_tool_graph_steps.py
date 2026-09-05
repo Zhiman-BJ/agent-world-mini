@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+from task_gen.tool_graph import step_1_graph_build as graph_build
 from task_gen.tool_graph.contracts import Config
 from task_gen.tool_graph.llm import InferenceResult
 from task_gen.tool_graph.step_0_environment_load import load_environment
 from task_gen.tool_graph.step_1_graph_build import build_graph
-from task_gen.tool_graph.step_2_chain_sample import _select_diverse_chains, sample_chains
+from task_gen.tool_graph import step_2_chain_sample
+from task_gen.tool_graph.step_2_chain_sample import _graph, _select_diverse_chains, sample_chains
 
 
 def write_environment(root: Path, *, resource_path: str = "data.json") -> Config:
@@ -79,87 +82,258 @@ def graph_environment() -> dict:
 
 
 class GraphBuildTest(unittest.TestCase):
-    def test_retries_one_bad_target_response_without_leaking_partial_edges(self) -> None:
-        invalid_target = {"dependencies": [
-            {
-                "from_tool": "a", "weight": 2, "reason": "valid prefix",
-                "parameter_evidence": [], "state_evidence": [],
-            },
-            {"from_tool": "missing"},
-        ]}
-        def all_zero(target: str) -> InferenceResult:
-            return InferenceResult(json.dumps({"dependencies": [
-                {"from_tool": name, "weight": 0}
-                for name in ("a", "b", "c", "d") if name != target
-            ]}), {}, "test")
+    @staticmethod
+    def _decision(
+        source: str, weight: int = 0, reason: str = "no direct relationship"
+    ) -> dict:
+        return {
+            "from_tool": source,
+            "weight": weight,
+            "reason": reason,
+        }
 
-        batch = [
-            all_zero("a"),
-            InferenceResult(json.dumps(invalid_target), {}, "test"),
-            all_zero("c"),
-            all_zero("d"),
-        ]
-        retry = InferenceResult(json.dumps({"dependencies": [
-            {"from_tool": "a", "weight": 2, "reason": "valid retry"},
-            {"from_tool": "c", "weight": 0},
-            {"from_tool": "d", "weight": 0},
-        ]}), {}, "test")
+    def test_prompt_defines_edges_by_downstream_chain_quality(self) -> None:
+        prompt = graph_build.PROMPT_TEMPLATE
+
+        for principle in (
+            "你的输出将直接用于工具链采样",
+            "把 B 直接放在 A 后面",
+            "工具图连接的是两次实际执行",
+            "必须先关注并依据两个工具在公开上下文和工具契约中的具体信息",
+            "仅凭工具名称或宽泛的功能关联作出判断",
+            "对象对应关系视为不存在",
+            "任务文本或更早的调用可以提供 B 所需的信息",
+            "边有方向且不具有传递性",
+            "prerequisite 不表示 A -> B 是否是一条好边",
+            "不能由自然任务输入提供",
+        ):
+            self.assertIn(principle, prompt)
+        for prescriptive_heading in (
+            "标准一：依据真实",
+            "标准二：直接且有价值",
+            "标准三：按最强成立关系定级",
+            "标准四：前置条件独立判断",
+        ):
+            self.assertNotIn(prescriptive_heading, prompt)
+        self.assertLess(len(prompt), 2600)
+
+    def test_prompt_defines_weights_by_chain_role(self) -> None:
+        prompt = graph_build.PROMPT_TEMPLATE
+
+        for role in (
+            "同一条实际工作线的连续推进",
+            "不同子任务之间的明确衔接",
+            "任务层面的合理关联",
+            "构成工具链的主要骨架",
+            "用于探索和增加任务多样性",
+        ):
+            self.assertIn(role, prompt)
+        self.assertNotIn("产生高质量工具链的稳定程度", prompt)
+
+    def test_validates_edges_and_target_prerequisite_alternatives(self) -> None:
+        raw = {
+            "decisions": [
+                self._decision("a", 3, "a directly prepares b"),
+                self._decision("c"),
+            ],
+            "prerequisite_alternatives": [
+                {"all_of": ["a"], "reason": "a supplies the required dynamic value"},
+            ],
+        }
+
+        edges, prerequisites = graph_build._validate_decisions("b", raw, {"a", "b", "c"})
+
+        self.assertEqual(edges, [{
+            "from_tool": "a",
+            "to_tool": "b",
+            "weight": 3,
+            "reason": "a directly prepares b",
+        }])
+        self.assertEqual(prerequisites, [{
+            "to_tool": "b",
+            "any_of": [{
+                "all_of": ["a"],
+                "reason": "a supplies the required dynamic value",
+            }],
+        }])
+
+    def test_rejects_prerequisite_that_references_zero_weight_candidate(self) -> None:
+        raw = {
+            "decisions": [self._decision("a")],
+            "prerequisite_alternatives": [{"all_of": ["a"], "reason": "invalid"}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "正边"):
+            graph_build._validate_decisions("b", raw, {"a", "b"})
+
+    def test_rejects_incomplete_decisions(self) -> None:
+        raw = {"decisions": [], "prerequisite_alternatives": []}
+        with self.assertRaisesRegex(ValueError, "漏审"):
+            graph_build._validate_decisions("b", raw, {"a", "b"})
+
+    def test_requires_every_decision_reason_and_deduplicates_prerequisites(self) -> None:
+        raw = {
+            "decisions": [
+                self._decision("a", 3, "a and c prepare b"),
+                self._decision("c", 3, "a and c prepare b"),
+            ],
+            "prerequisite_alternatives": [
+                {"all_of": ["a", "c"], "reason": "both are required"},
+                {"all_of": ["c", "a"], "reason": "same alternative"},
+            ],
+        }
+        _edges, prerequisites = graph_build._validate_decisions("b", raw, ["a", "b", "c"])
+        self.assertEqual(len(prerequisites[0]["any_of"]), 1)
+
+        raw["decisions"][1] = {
+            "from_tool": "c", "weight": 0, "reason": "no direct relationship"
+        }
+        raw["prerequisite_alternatives"] = [{"all_of": ["a"], "reason": "a is required"}]
+        edges, _prerequisites = graph_build._validate_decisions("b", raw, ["a", "b", "c"])
+        self.assertEqual([edge["from_tool"] for edge in edges], ["a"])
+
+        raw["decisions"][1]["reason"] = ""
+        with self.assertRaisesRegex(ValueError, "reason"):
+            graph_build._validate_decisions("b", raw, ["a", "b", "c"])
+
+    def test_rejects_malformed_reason_before_deduplicating_prerequisites(self) -> None:
+        raw = {
+            "decisions": [self._decision("a", 3, "a prepares b")],
+            "prerequisite_alternatives": [
+                {"all_of": ["a"], "reason": "valid first copy"},
+                {"all_of": ["a"], "reason": ""},
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "reason"):
+            graph_build._validate_decisions("b", raw, ["a", "b"])
+
+    def test_builds_graph_with_one_call_per_target(self) -> None:
+        names = ("a", "b", "c", "d")
+        results = []
+        for target in names:
+            decisions = []
+            for source in names:
+                if source == target:
+                    continue
+                direct = source == "a" and target == "b"
+                decisions.append(self._decision(
+                    source, 3 if direct else 0,
+                    "a supplies b" if direct else "no direct relationship",
+                ))
+            results.append(InferenceResult(json.dumps({
+                "decisions": decisions,
+                "prerequisite_alternatives": (
+                    [{"all_of": ["a"], "reason": "a supplies b's dynamic value"}]
+                    if target == "b" else []
+                ),
+            }), {}, "test"))
+
+        with patch("task_gen.tool_graph.step_1_graph_build.infer", return_value=results) as mocked:
+            output = build_graph({"config": Config(), "environment": graph_environment()})
+
+        self.assertEqual(mocked.call_count, 1)
+        prompts = mocked.call_args.args[0]
+        self.assertEqual(len(prompts), len(names))
+        self.assertNotIn("SECRET", json.dumps(prompts))
+        self.assertEqual(output, {"tool_graph": {
+            "edges": [{
+                "from_tool": "a",
+                "to_tool": "b",
+                "weight": 3,
+                "reason": "a supplies b",
+            }],
+            "prerequisites": [{
+                "to_tool": "b",
+                "any_of": [{
+                    "all_of": ["a"],
+                    "reason": "a supplies b's dynamic value",
+                }],
+            }],
+        }})
+
+    def test_retries_one_bad_target_response_without_leaking_partial_edges(self) -> None:
+        names = ("a", "b", "c", "d")
+
+        def decisions_for(target: str) -> InferenceResult:
+            return InferenceResult(json.dumps({
+                "decisions": [self._decision(
+                    source,
+                    2 if source == "a" and target == "b" else 0,
+                    "valid retry" if source == "a" and target == "b" else "no relationship",
+                ) for source in names if source != target],
+                "prerequisite_alternatives": [],
+            }), {}, "test")
+
+        first_batch = [decisions_for(target) for target in names]
+        first_batch[1] = InferenceResult('{"decisions":[],"prerequisite_alternatives":[]}', {}, "test")
+        retry = decisions_for("b")
 
         with patch(
             "task_gen.tool_graph.step_1_graph_build.infer",
-            side_effect=[batch, retry],
+            side_effect=[first_batch, [retry]],
         ) as mocked:
             output = build_graph({"config": Config(), "environment": graph_environment()})
 
-        self.assertEqual(len(output["tool_graph"]), 1)
-        self.assertEqual(output["tool_graph"][0]["reason"], "valid retry")
+        self.assertEqual(output["tool_graph"]["edges"][0]["reason"], "valid retry")
         self.assertEqual(mocked.call_count, 2)
-
-    def test_builds_validated_stable_edges_without_internal(self) -> None:
-        # 审查完整性是硬门禁：每个目标必须对全部候选表态，无依赖的显式给 weight=0。
-        def reviewed(target: str, *edges: dict) -> dict:
-            named = {edge["from_tool"] for edge in edges}
-            zeros = [
-                {"from_tool": name, "weight": 0}
-                for name in ("a", "b", "c", "d")
-                if name != target and name not in named
-            ]
-            return {"dependencies": [*edges, *zeros]}
-
-        responses = [
-            reviewed("a"),
-            reviewed("b", {"from_tool": "a", "weight": 2, "reason": "a directly prepares b"}),
-            reviewed("c", {"from_tool": "b", "weight": 3, "reason": "b directly prepares c"}),
-            reviewed("d", {"from_tool": "a", "weight": 1, "reason": "a helps d"}),
-        ]
-        captured: list[str] = []
-
-        def fake_infer(prompts, **_kwargs):
-            captured.extend(prompts)
-            return [InferenceResult(json.dumps(item), {}, "test") for item in responses]
-
-        with patch("task_gen.tool_graph.step_1_graph_build.infer", side_effect=fake_infer):
-            output = build_graph({"config": Config(llm={}), "environment": graph_environment()})
-
-        self.assertEqual(
-            [(edge["from_tool"], edge["to_tool"], edge["weight"]) for edge in output["tool_graph"]],
-            [("b", "c", 3), ("a", "b", 2), ("a", "d", 1)],
-        )
-        self.assertNotIn("SECRET", "".join(captured))
-        self.assertNotIn('"internal"', "".join(captured))
-        # evidence 字段已从契约中移除，prompt 不再要求"严格返回空数组"；
-        # 改为断言 prompt 明确限定只返回三个字段。
-        self.assertIn("只包含 from_tool、weight、reason", "".join(captured))
-        self.assertNotIn('"tools":', "".join(captured))
-
-    def test_rejects_invalid_dependency_instead_of_returning_partial_graph(self) -> None:
-        bad = InferenceResult('{"dependencies":[{"from_tool":"missing"}]}', {}, "test")
-        with patch("task_gen.tool_graph.step_1_graph_build.infer", return_value=[bad] * 4):
-            with self.assertRaisesRegex(ValueError, "目标工具"):
-                build_graph({"config": Config(), "environment": graph_environment()})
 
 
 class ChainSampleTest(unittest.TestCase):
+    def test_sampler_blocks_target_until_prerequisites_are_satisfied(self) -> None:
+        adjacency = {"a": [("c", 3)], "b": [("c", 3)], "c": []}
+        prerequisites = {"a": [], "b": [], "c": [frozenset({"a", "b"})]}
+        chain = step_2_chain_sample._sample_one_chain(
+            random.Random(1), ["a"], adjacency, prerequisites, {1: 1, 2: 1, 3: 1}, 3, 1
+        )
+        self.assertEqual(chain, ["a"])
+
+        adjacency["a"] = [("b", 3)]
+        chain = step_2_chain_sample._sample_one_chain(
+            random.Random(1), ["a"], adjacency, prerequisites, {1: 1, 2: 1, 3: 1}, 3, 1
+        )
+        self.assertEqual(chain, ["a", "b", "c"])
+
+    def test_sampler_accepts_any_prerequisite_alternative(self) -> None:
+        adjacency = {"a": [("c", 3)], "b": [], "c": []}
+        prerequisites = {"a": [], "b": [], "c": [frozenset({"a"}), frozenset({"b"})]}
+        chain = step_2_chain_sample._sample_one_chain(
+            random.Random(1), ["a"], adjacency, prerequisites, {1: 1, 2: 1, 3: 1}, 2, 1
+        )
+        self.assertEqual(chain, ["a", "c"])
+
+    def test_level_three_without_prerequisites_remains_a_root(self) -> None:
+        graph = {
+            "edges": [{
+                "from_tool": "a",
+                "to_tool": "b",
+                "weight": 3,
+                "reason": "clear direct transition",
+            }],
+            "prerequisites": [],
+        }
+
+        _adjacency, prerequisites = _graph(graph, {"a", "b"})
+
+        self.assertEqual(prerequisites, {"a": [], "b": []})
+
+    def test_prerequisite_groups_are_independent_from_weight(self) -> None:
+        graph = {
+            "edges": [{
+                "from_tool": "a",
+                "to_tool": "b",
+                "weight": 2,
+                "reason": "a prepares required state",
+            }],
+            "prerequisites": [{
+                "to_tool": "b",
+                "any_of": [{"all_of": ["a"], "reason": "a prepares b"}],
+            }],
+        }
+
+        _adjacency, prerequisites = _graph(graph, {"a", "b"})
+
+        self.assertEqual(prerequisites, {"a": [], "b": [frozenset({"a"})]})
+
     def test_diversity_penalty_can_skip_high_score_chain_from_new_start(self) -> None:
         candidates = [
             (("a", "x", "y", "z"), 10),
@@ -175,11 +349,11 @@ class ChainSampleTest(unittest.TestCase):
         ])
 
     def test_samples_deterministically_reviews_and_deduplicates(self) -> None:
-        graph = [
+        graph = {"edges": [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "b", "to_tool": "c", "weight": 2},
             {"from_tool": "b", "to_tool": "d", "weight": 1},
-        ]
+        ], "prerequisites": []}
         config = Config(planning={
             "sample_count": 100,
             "keep_top_count": 10,
@@ -208,8 +382,8 @@ class ChainSampleTest(unittest.TestCase):
         self.assertTrue(first["sampling_report"]["short_chain_fallback"])
         self.assertEqual(first["sampling_report"]["attempt_count"], 100)
 
-    def test_review_prompt_requires_required_identifiers_to_come_from_prior_results(self) -> None:
-        graph = [{"from_tool": "a", "to_tool": "b", "weight": 1}]
+    def test_review_prompt_judges_values_by_role_and_requires_real_progress(self) -> None:
+        graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 1}], "prerequisites": []}
         captured: list[str] = []
 
         def fake_infer(prompts, **_kwargs):
@@ -225,12 +399,31 @@ class ChainSampleTest(unittest.TestCase):
                 "environment": graph_environment(), "tool_graph": graph,
             })
         prompt = "".join(captured)
-        self.assertIn("必填标识", prompt)
-        self.assertIn("插入能产生该标识的发现工具", prompt)
+        self.assertIn("参数的实际语义", prompt)
+        self.assertIn("能够由任务自然规定", prompt)
+        self.assertIn("不得把已有对象的内部标识当作新对象的标识复用", prompt)
+        self.assertIn("每次调用必须处理新的对象、利用新的状态或产生新的进展", prompt)
+        self.assertIn("目标已经完整实现后应当结束", prompt)
+        self.assertNotIn("必填标识（如 *_id），只能依据前序", prompt)
         self.assertIn("2 到 2 个工具", prompt)
 
+    def test_logic_score_prompt_rates_one_goal_progress_and_natural_ending(self) -> None:
+        prompt = step_2_chain_sample._logic_score_prompt(
+            graph_environment(),
+            graph_environment()["tools"],
+            {"edges": [], "prerequisites": []},
+            {"chain": ["a", "b"], "llm_review": {"reason": "reviewed"}},
+        )
+
+        self.assertIn("所有调用共同服务于该目标", prompt)
+        self.assertIn("每一步都利用已有信息或状态产生新的任务进展", prompt)
+        self.assertIn("目标完成后仍继续操作", prompt)
+        self.assertIn("5：目标清楚", prompt)
+
     def test_bad_review_falls_back_to_original_chain(self) -> None:
-        graph = [{"from_tool": "a", "to_tool": "b", "weight": 3}]
+        graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 3}], "prerequisites": [
+            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a"}]},
+        ]}
         config = Config(planning={
             "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
             "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
@@ -243,11 +436,33 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
         self.assertIsNotNone(output["tasks"][0]["llm_review"]["error"])
 
+    def test_review_that_breaks_prerequisite_falls_back_to_original_chain(self) -> None:
+        graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 3}], "prerequisites": [
+            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a prepares b"}]},
+        ]}
+        config = Config(planning={
+            "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
+            "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
+        })
+        with patch(
+            "task_gen.tool_graph.step_2_chain_sample.infer",
+            side_effect=[
+                [InferenceResult('{"chain":["b","a"],"reason":"reverse"}', {}, "test")],
+                [InferenceResult('{"score":5,"reason":"valid"}', {}, "test")],
+            ],
+        ):
+            output = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
+        self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
+        self.assertIn("prerequisite", output["tasks"][0]["llm_review"]["error"])
+
     def test_reviewed_chain_outside_length_limit_falls_back_to_original(self) -> None:
-        graph = [
+        graph = {"edges": [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "b", "to_tool": "c", "weight": 3},
-        ]
+        ], "prerequisites": [
+            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a"}]},
+            {"to_tool": "c", "any_of": [{"all_of": ["b"], "reason": "b"}]},
+        ]}
         config = Config(planning={
             "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
             "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
@@ -261,12 +476,17 @@ class ChainSampleTest(unittest.TestCase):
         self.assertIn("长度", output["tasks"][0]["llm_review"]["error"])
 
     def test_rejects_graph_without_eligible_root(self) -> None:
-        graph = [
+        graph = {"edges": [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "b", "to_tool": "a", "weight": 3},
             {"from_tool": "c", "to_tool": "d", "weight": 3},
             {"from_tool": "d", "to_tool": "c", "weight": 3},
-        ]
+        ], "prerequisites": [
+            {"to_tool": "a", "any_of": [{"all_of": ["b"], "reason": "b"}]},
+            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a"}]},
+            {"to_tool": "c", "any_of": [{"all_of": ["d"], "reason": "d"}]},
+            {"to_tool": "d", "any_of": [{"all_of": ["c"], "reason": "c"}]},
+        ]}
         with self.assertRaisesRegex(ValueError, "起点"):
             sample_chains({"config": Config(planning={
                 "sample_count": 1, "keep_top_count": 1, "min_chain_length": 1,
@@ -294,12 +514,12 @@ class ChainSampleTest(unittest.TestCase):
                 load_environment({"config": config})
 
     def test_runs_review_and_logic_scoring_rounds(self) -> None:
-        graph = [
+        graph = {"edges": [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "a", "to_tool": "c", "weight": 3},
             {"from_tool": "b", "to_tool": "d", "weight": 3},
             {"from_tool": "c", "to_tool": "d", "weight": 3},
-        ]
+        ], "prerequisites": []}
         config = Config(planning={
             "sample_count": 100,
             "review_count": 2,
@@ -332,7 +552,7 @@ class ChainSampleTest(unittest.TestCase):
             })
 
         self.assertEqual(len(calls), 2)
-        self.assertTrue(any("逻辑性评分" in prompt for prompt in calls[1]))
+        self.assertTrue(any("评价下面的工具链" in prompt for prompt in calls[1]))
         self.assertEqual(output["tasks"][0]["logic_score"], 5)
 
 

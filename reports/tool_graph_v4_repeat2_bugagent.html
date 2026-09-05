@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tool Graph 任务结果查看器</title>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.4/dist/cytoscape.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #edf1f0; --surface: #fff; --surface-soft: #f6f8f7;
+      --ink: #17201e; --muted: #66736f; --line: #d7dfdc;
+      --accent: #0b7562; --accent-soft: #e4f2ee;
+      --pass: #0b8069; --pass-soft: #e2f3ee; --fail: #b13d46; --fail-soft: #fae9eb;
+      --graph: #64726e; --chain: #26332f;
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); overflow: hidden; background: var(--bg); color: var(--ink); }
+    button, input, select { font: inherit; }
+    button, select { cursor: pointer; }
+    code, pre { font-family: "Cascadia Code", Consolas, monospace; }
+    .topbar { min-height: 64px; display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: #182321; color: white; border-bottom: 3px solid var(--accent); }
+    .brand { min-width: 250px; }
+    .brand h1 { margin: 0; font-size: 18px; letter-spacing: 0; }
+    .brand p { margin: 3px 0 0; color: #b9c7c3; font-size: 11px; }
+    .controls { flex: 1; display: grid; grid-template-columns: minmax(150px, 1fr) minmax(190px, 1.25fr) 110px minmax(170px, .9fr); gap: 8px; }
+    .controls select, .controls input { min-width: 0; width: 100%; height: 36px; padding: 6px 9px; color: var(--ink); background: #fff; border: 1px solid #8fa09b; border-radius: 5px; }
+    .metrics { min-height: 54px; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+    .metric { min-width: 0; padding: 8px 15px; background: var(--surface); }
+    .metric strong { display: block; font-size: 18px; line-height: 1.05; }
+    .metric span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+    .environment-summary { display: flex; align-items: baseline; gap: 10px; min-height: 38px; padding: 8px 15px; border-bottom: 1px solid var(--line); background: var(--surface-soft); font-size: 12px; line-height: 1.45; }
+    .environment-summary strong { flex: 0 0 auto; font-size: 11px; }
+    .environment-summary span { min-width: 0; color: #4f5e59; overflow-wrap: anywhere; }
+    .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 390px; }
+    .graph-pane { position: relative; min-width: 0; min-height: 0; background: #f8faf9; border-right: 1px solid var(--line); }
+    #cy { position: absolute; inset: 0; }
+    .graph-toolbar { position: absolute; z-index: 5; top: 12px; left: 12px; display: flex; gap: 6px; }
+    .icon-button { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 1px solid #aebbb7; border-radius: 5px; background: rgba(255,255,255,.94); color: #26332f; font-size: 18px; }
+    .icon-button:hover { border-color: var(--accent); color: var(--accent); }
+    .legend { position: absolute; z-index: 5; left: 12px; bottom: 12px; display: grid; gap: 5px; max-width: calc(100% - 24px); padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: rgba(255,255,255,.96); color: #4f5e59; font-size: 11px; }
+    .legend-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; }
+    .legend strong { min-width: 88px; color: var(--ink); font-size: 10px; }
+    .legend span { white-space: nowrap; }
+    .line-swatch { display: inline-block; width: 20px; border-top: 3px solid; margin-right: 4px; vertical-align: middle; }
+    .line-swatch.dashed { border-top-style: dashed; }
+    .node-swatch { display: inline-block; width: 24px; height: 14px; margin-right: 4px; vertical-align: middle; border: 3px solid; border-radius: 3px; background: white; }
+    .node-swatch.dashed { border-style: dashed; }
+    .graph-detail { position: absolute; z-index: 6; top: 12px; right: 12px; width: min(520px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; padding: 13px 15px; border: 1px solid #8fa09b; border-radius: 6px; background: rgba(255,255,255,.98); box-shadow: 0 5px 18px rgba(24,35,33,.16); }
+    .graph-detail[hidden] { display: none; }
+    .graph-detail h3 { margin: 0 30px 7px 0; font-size: 14px; }
+    .graph-detail p { margin: 5px 0; font-size: 12px; line-height: 1.5; }
+    .detail-label { margin-top: 12px !important; color: var(--muted); font-size: 10px !important; font-weight: 700; text-transform: uppercase; }
+    .graph-detail pre { max-height: 190px; overflow: auto; margin: 7px 0 0; padding: 8px; background: var(--surface-soft); font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .close-detail { position: absolute; top: 7px; right: 7px; width: 28px; height: 28px; border: 0; background: transparent; font-size: 19px; }
+    .inspector { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(120px, 42%) 9px minmax(120px, 1fr); overflow: hidden; background: var(--surface); }
+    .chain-pane { min-height: 0; overflow: hidden; background: #eef2f1; }
+    .pane-head { min-height: 41px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .pane-head h2 { margin: 0; font-size: 13px; }
+    .pane-head span { color: var(--muted); font-size: 11px; }
+    .chain-list { height: calc(100% - 41px); overflow-y: auto; overscroll-behavior: contain; padding: 8px; }
+    .chain-item { width: 100%; display: block; margin-bottom: 6px; padding: 9px 10px; text-align: left; color: var(--ink); background: var(--surface); border: 1px solid transparent; border-left: 4px solid var(--pass); border-radius: 5px; }
+    .chain-item.rejected { border-left-color: var(--fail); }
+    .chain-item.pending { border-left-color: #62716c; }
+    .chain-item:hover { outline: 1px solid #aebbb7; outline-offset: -1px; }
+    .chain-item.active { outline: 2px solid var(--chain); outline-offset: -2px; }
+    .chain-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .task-id { color: var(--accent); font: 700 11px "Cascadia Code", Consolas, monospace; }
+    .badge { display: inline-flex; align-items: center; min-height: 21px; padding: 2px 7px; border-radius: 10px; color: var(--pass); background: var(--pass-soft); font-size: 10px; font-weight: 700; }
+    .badge.rejected { color: var(--fail); background: var(--fail-soft); }
+    .badge.pending { color: #485853; background: #e8edeb; }
+    .chain-path { margin-top: 6px; color: #36443f; font: 10px/1.4 "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
+    .chain-meta { margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .chain-error { margin-top: 5px; color: var(--fail); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inspector-splitter { position: relative; z-index: 2; width: 100%; padding: 0; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #e7ecea; cursor: row-resize; touch-action: none; }
+    .inspector-splitter::after { content: ""; position: absolute; top: 3px; left: 50%; width: 34px; height: 3px; border-radius: 2px; background: #81908b; transform: translateX(-50%); }
+    .inspector-splitter:hover, .inspector-splitter:focus-visible { background: var(--accent-soft); outline: none; }
+    .task-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    .task-detail { padding: 17px 18px 70px; }
+    .detail-empty { padding: 54px 20px; color: var(--muted); text-align: center; }
+    .detail-kicker { display: flex; align-items: center; gap: 7px; color: var(--accent); font: 700 11px "Cascadia Code", Consolas, monospace; }
+    .task-detail h2 { margin: 9px 0 7px; font-size: 18px; line-height: 1.35; letter-spacing: 0; overflow-wrap: anywhere; }
+    .submeta { color: var(--muted); font-size: 11px; }
+    .section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .section h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: #51605b; }
+    .chain-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+    .chain-step { padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-soft); font: 10px/1.3 "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
+    .chain-arrow { color: #8a9893; }
+    .answer, .error-box { margin: 0; padding: 11px 12px; border-radius: 5px; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .answer { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+    .error-box { border-left: 4px solid var(--fail); background: var(--fail-soft); color: #70252c; }
+    .error-list { margin: 0; padding-left: 19px; }
+    .error-list li { margin: 4px 0; }
+    details { border-top: 1px solid var(--line); }
+    details:last-child { border-bottom: 1px solid var(--line); }
+    summary { padding: 10px 3px; cursor: pointer; font-size: 11px; font-weight: 650; overflow-wrap: anywhere; }
+    .call-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 0 12px; }
+    .call-grid pre, .raw { min-width: 0; max-height: 260px; overflow: auto; margin: 0; padding: 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-soft); font-size: 9px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .small-note { color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .fatal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+    .fatal div { max-width: 640px; padding: 22px; border: 1px solid var(--fail); border-radius: 7px; background: white; }
+    .fatal h2 { margin-top: 0; }
+    [hidden] { display: none !important; }
+    @media (max-width: 980px) {
+      .topbar { align-items: flex-start; }
+      .brand { min-width: 210px; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .workspace { grid-template-columns: minmax(0, 1fr) 340px; }
+    }
+    @media (max-width: 800px) {
+      body { display: block; overflow: auto; }
+      .topbar { display: block; padding: 12px; }
+      .brand { margin-bottom: 10px; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .metrics { height: auto; grid-template-columns: repeat(3, 1fr); }
+      .metric { min-height: 52px; }
+      .environment-summary { display: block; }
+      .environment-summary strong { display: block; margin-bottom: 3px; }
+      .workspace { display: block; height: auto; }
+      .graph-pane { height: 56vh; min-height: 390px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .inspector { display: block; overflow: visible; }
+      .chain-pane { height: 310px; }
+      .inspector-splitter { display: none; }
+      .task-pane { overflow: visible; }
+    }
+    @media (max-width: 480px) {
+      .controls { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .graph-pane { height: 470px; min-height: 0; }
+      .legend { right: 10px; left: 10px; }
+      .call-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><h1>Tool Graph 任务结果</h1><p id="run-subtitle">加载运行数据</p></div>
+    <div class="controls">
+      <select id="environment-select" aria-label="选择环境"></select>
+      <select id="run-select" aria-label="选择运行轮次"></select>
+      <select id="status-select" aria-label="筛选链状态">
+        <option value="all">全部链</option><option value="passed">仅通过</option><option value="rejected">仅拒绝</option><option value="pending">待验证</option>
+      </select>
+      <input id="search" type="search" placeholder="搜索 task、工具或文本" aria-label="搜索任务链">
+    </div>
+  </header>
+  <section class="metrics" id="metrics" aria-label="当前运行统计"></section>
+  <section class="environment-summary" id="environment-summary" aria-label="环境简介"></section>
+  <main class="workspace">
+    <section class="graph-pane" aria-label="工具依赖图">
+      <div id="cy"></div>
+      <div class="graph-toolbar">
+        <button class="icon-button" id="fit-button" title="适配全部节点" aria-label="适配全部节点">&#x26F6;</button>
+        <button class="icon-button" id="layout-button" title="重新计算图布局" aria-label="重新计算图布局">&#x21BB;</button>
+      </div>
+      <div class="legend">
+        <div class="legend-row"><strong>1 · 直接下一跳</strong><span>A → B：A 完成后可直接调用 B；线越粗，关系越强</span>
+          <span><i class="line-swatch" style="border-color:var(--graph);border-width:5px"></i>weight 3 强直接关系</span>
+          <span><i class="line-swatch" style="border-color:var(--graph);border-width:3px"></i>weight 2 明确工作流转移</span>
+          <span><i class="line-swatch" style="border-color:var(--graph);border-width:1px"></i>weight 1 具体弱关系</span>
+        </div>
+        <div class="legend-row"><strong>2 · 候选链</strong>
+          <span><i class="line-swatch" style="border-color:var(--chain)"></i>黑色箭头 = 候选链调用顺序（与灰色依赖边错开）</span>
+          <span><i class="node-swatch dashed" style="border-color:var(--chain)"></i>LLM 新增工具</span>
+          <span><i class="line-swatch dashed" style="border-color:var(--chain)"></i>LLM 新增路径</span>
+          <span>再次点击可取消选择</span>
+        </div>
+        <div class="legend-row"><strong>3 · 执行结果</strong>
+          <span><i class="line-swatch" style="border-color:var(--pass);border-width:8px;opacity:.32"></i>绿色底轨 = 已执行成功</span>
+          <span><i class="node-swatch" style="border-color:var(--fail);background:var(--fail-soft)"></i>红色工具 = 执行卡点</span>
+          <span><i class="line-swatch" style="border-color:var(--fail);border-width:8px;opacity:.32"></i>红色底轨 = 失败及后续步骤</span>
+        </div>
+      </div>
+      <div class="graph-detail" id="graph-detail" hidden><button class="close-detail" id="close-detail" aria-label="关闭图详情">&times;</button><div id="graph-detail-content"></div></div>
+    </section>
+    <aside class="inspector" aria-label="任务链检查器">
+      <section class="chain-pane"><div class="pane-head"><h2>候选链</h2><span id="visible-count"></span></div><div class="chain-list" id="chain-list"></div></section>
+      <button class="inspector-splitter" id="inspector-splitter" type="button" role="separator" aria-label="调整候选链和任务详情高度" aria-orientation="horizontal"></button>
+      <section class="task-pane" id="task-pane"><div class="detail-empty">选择一条链查看任务。</div></section>
+    </aside>
+  </main>
+  <div class="fatal" id="fatal" hidden><div><h2>图渲染依赖加载失败</h2><p>页面数据已经嵌入，但无法从 CDN 加载 Cytoscape.js。请检查网络连接后重新打开此 HTML。</p></div></div>
+  <script id="run-data" type="application/json">[{"id":"20260904_143913_169869_v4_repeat2_specific_tool_info_bugagent_gpt-5.6-terra:step_2_chain_sample","stage":"step_2_chain_sample","environment_id":"bugagent_open_quality_triage_001","environment_name":"bugAgent open-source quality triage workspace","environment_description":"A quality triage workspace built from unmodified Jenkins JUnit fixtures, Microsoft SARIF samples, and a public GitLab issue snapshot; normalized runs and registry entities retain source identifiers.","created_at":"2026-09-04T14:39:13.170062+08:00","model":"gpt-5.6-terra","backend":"codex","stage_timings_seconds":{"step_1_graph_build":191.298,"step_2_chain_sample":153.714},"tools":[{"name":"list_test_runs","description":"列出发布候选版本的测试运行及通过、失败统计，用于确定后续应检查的运行。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"run_id":{"type":"string"},"suite":{"type":"string"},"commit":{"type":"string"},"started_at":{"type":"string"},"passed":{"type":"integer"},"failed":{"type":"integer"},"status":{"type":"string"}},"required":["run_id","suite","commit","started_at","passed","failed","status"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"get_test_reports_failures","description":"读取指定测试运行中的失败用例、错误信息和对应证据轨迹路径。","inputSchema":{"type":"object","properties":{"run_id":{"type":"string","description":"工具参数 run_id。"}},"required":["run_id"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"run_id":{"type":"string"},"items":{"type":"array","items":{"type":"object","properties":{"test_case_id":{"type":"string"},"name":{"type":"string"},"error":{"type":"string"},"trace_path":{"type":"string"}},"required":["test_case_id","name","error","trace_path"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["run_id","items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"create_bug_report","description":"从测试运行创建可跟踪的缺陷记录；会写入质量登记簿，但不会自动关联测试用例。","inputSchema":{"type":"object","properties":{"title":{"type":"string","minLength":5,"description":"工具参数 title。"},"severity":{"type":"string","enum":["low","medium","high","critical"],"description":"工具参数 severity。"},"component":{"type":"string","description":"工具参数 component。"},"source_run_id":{"type":"string","description":"工具参数 source_run_id。"},"description":{"type":"string","minLength":10,"description":"工具参数 description。"}},"required":["title","severity","component","source_run_id","description"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"bug_id":{"type":"string"},"status":{"type":"string"},"severity":{"type":"string"}},"required":["bug_id","status","severity"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"classify_bug","description":"更新缺陷的故障分类和责任组件，用于路由修复与发布风险汇总。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"},"classification":{"type":"string","enum":["functional","data_integrity","security","performance","usability"],"description":"工具参数 classification。"},"component":{"type":"string","description":"工具参数 component。"}},"required":["bug_id","classification","component"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"bug_id":{"type":"string"},"classification":{"type":"string"},"component":{"type":"string"}},"required":["bug_id","classification","component"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"link_test_case_to_bug","description":"把复现用例或回归用例关联到缺陷，重复关联不会创建第二条记录。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"},"test_case_id":{"type":"string","description":"工具参数 test_case_id。"},"relation":{"type":"string","enum":["reproduced_by","regression_for","related"],"description":"工具参数 relation。"}},"required":["bug_id","test_case_id","relation"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"bug_id":{"type":"string"},"test_case_id":{"type":"string"},"relation":{"type":"string"}},"required":["bug_id","test_case_id","relation"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"add_comment","description":"给缺陷追加带作者的审计评论，用于记录复现结论、修复说明或风险接受意见。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"},"author":{"type":"string","description":"工具参数 author。"},"body":{"type":"string","minLength":3,"description":"工具参数 body。"}},"required":["bug_id","author","body"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"comment_id":{"type":"string"},"bug_id":{"type":"string"}},"required":["comment_id","bug_id"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"get_security_results","description":"解析 SARIF 安全扫描文件，可按最低级别过滤，并返回各级别数量。","inputSchema":{"type":"object","properties":{"minimum_level":{"type":"string","enum":["note","warning","error"],"description":"工具参数 minimum_level。"}},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"rule_id":{"type":"string"},"level":{"type":"string"},"message":{"type":"string"},"path":{"type":"string"}},"required":["rule_id","level","message","path"],"additionalProperties":false}},"count":{"type":"integer"},"counts":{"type":"object","properties":{"note":{"type":"integer"},"warning":{"type":"integer"},"error":{"type":"integer"}},"required":["note","warning","error"],"additionalProperties":false}},"required":["items","count","counts"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_bug_reports","description":"按状态或严重度浏览缺陷登记簿，用于发布风险盘点和后续详情查询。","inputSchema":{"type":"object","properties":{"status":{"type":"string","enum":["open","investigating","fixed","closed"],"description":"工具参数 status。"},"severity":{"type":"string","enum":["low","medium","high","critical"],"description":"工具参数 severity。"}},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"bug_id":{"type":"string"},"title":{"type":"string"},"severity":{"type":"string"},"status":{"type":"string"},"component":{"type":"string"},"source_run_id":{"type":"string"},"description":{"type":"string"},"classification":{"type":"string"}},"required":["bug_id","title","severity","status","component","source_run_id","description","classification"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"get_bug_report","description":"读取一个缺陷的完整记录、测试关联和审计评论，形成可追溯上下文。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"}},"required":["bug_id"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"bug":{"type":"object","properties":{"bug_id":{"type":"string"},"title":{"type":"string"},"severity":{"type":"string"},"status":{"type":"string"},"component":{"type":"string"},"source_run_id":{"type":"string"},"description":{"type":"string"},"classification":{"type":"string"}},"required":["bug_id","title","severity","status","component","source_run_id","description","classification"],"additionalProperties":false},"links":{"type":"array","items":{"type":"object","properties":{"bug_id":{"type":"string"},"test_case_id":{"type":"string"},"relation":{"type":"string"}},"required":["bug_id","test_case_id","relation"],"additionalProperties":false}},"comments":{"type":"array","items":{"type":"object","properties":{"comment_id":{"type":"string"},"bug_id":{"type":"string"},"author":{"type":"string"},"body":{"type":"string"}},"required":["comment_id","bug_id","author","body"],"additionalProperties":false}}},"required":["bug","links","comments"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"update_bug_report","description":"更新缺陷状态、严重度或说明；至少提供一个要修改的字段。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"},"status":{"type":"string","enum":["open","investigating","fixed","closed"],"description":"工具参数 status。"},"severity":{"type":"string","enum":["low","medium","high","critical"],"description":"工具参数 severity。"},"description":{"type":"string","minLength":10,"description":"工具参数 description。"}},"required":["bug_id"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"bug_id":{"type":"string"},"status":{"type":"string"},"severity":{"type":"string"},"changed_fields":{"type":"array","items":{"type":"string"}}},"required":["bug_id","status","severity","changed_fields"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"get_stats","description":"汇总缺陷、测试用例、关联和评论数量，并按状态和严重度统计缺陷分布。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"bug_count":{"type":"integer"},"test_case_count":{"type":"integer"},"link_count":{"type":"integer"},"comment_count":{"type":"integer"},"bugs_by_status":{"type":"object","additionalProperties":{"type":"integer"}},"bugs_by_severity":{"type":"object","additionalProperties":{"type":"integer"}}},"required":["bug_count","test_case_count","link_count","comment_count","bugs_by_status","bugs_by_severity"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_test_cases","description":"列出质量登记簿中的测试用例，可按责任组件筛选。","inputSchema":{"type":"object","properties":{"component":{"type":"string","description":"工具参数 component。"}},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"test_case_id":{"type":"string"},"name":{"type":"string"},"component":{"type":"string"}},"required":["test_case_id","name","component"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"get_test_case","description":"读取测试用例及它在所有本地测试运行中的执行结果。","inputSchema":{"type":"object","properties":{"test_case_id":{"type":"string","description":"工具参数 test_case_id。"}},"required":["test_case_id"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"test_case":{"type":"object","properties":{"test_case_id":{"type":"string"},"name":{"type":"string"},"component":{"type":"string"}},"required":["test_case_id","name","component"],"additionalProperties":false},"executions":{"type":"array","items":{"type":"object","properties":{"run_id":{"type":"string"},"status":{"type":"string"},"error":{"type":"string"}},"required":["run_id","status","error"],"additionalProperties":false}}},"required":["test_case","executions"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_test_case_links","description":"查询缺陷和测试用例之间的复现、回归或相关关系，可按任一端过滤。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"},"test_case_id":{"type":"string","description":"工具参数 test_case_id。"}},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"bug_id":{"type":"string"},"test_case_id":{"type":"string"},"relation":{"type":"string"}},"required":["bug_id","test_case_id","relation"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"get_test_reports_overview","description":"汇总全部测试运行的通过、失败、通过率和最近提交。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"run_count":{"type":"integer"},"passed":{"type":"integer"},"failed":{"type":"integer"},"pass_rate":{"type":"number"},"latest_commit":{"type":"string"}},"required":["run_count","passed","failed","pass_rate","latest_commit"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"parse_junit_report","description":"解析从 Jenkins JUnit Plugin 开源仓库下载的真实 XML 样本，统计测试套件、用例、失败和跳过数量。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"file":{"type":"string"},"suite_count":{"type":"integer"},"test_count":{"type":"integer"},"failure_count":{"type":"integer"},"skipped_count":{"type":"integer"}},"required":["file","suite_count","test_count","failure_count","skipped_count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"compare_sarif_reference","description":"比较当前安全扫描与 Microsoft 开源 SARIF 样例的版本和生成工具，确认格式兼容性。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"reference_version":{"type":"string"},"current_version":{"type":"string"},"reference_tool":{"type":"string"},"current_tool":{"type":"string"},"compatible":{"type":"boolean"}},"required":["reference_version","current_version","reference_tool","current_tool","compatible"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_comments","description":"查询全部缺陷审计评论，或只返回指定缺陷的评论。","inputSchema":{"type":"object","properties":{"bug_id":{"type":"string","description":"工具参数 bug_id。"}},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"comment_id":{"type":"string"},"bug_id":{"type":"string"},"author":{"type":"string"},"body":{"type":"string"}},"required":["comment_id","bug_id","author","body"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"create_test_case","description":"在质量登记簿中创建新的稳定测试用例定义；重复 ID 会被拒绝。","inputSchema":{"type":"object","properties":{"test_case_id":{"type":"string","pattern":"^[A-Z0-9-]+$","description":"工具参数 test_case_id。"},"name":{"type":"string","minLength":3,"description":"工具参数 name。"},"component":{"type":"string","description":"工具参数 component。"}},"required":["test_case_id","name","component"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"test_case_id":{"type":"string"},"name":{"type":"string"},"component":{"type":"string"}},"required":["test_case_id","name","component"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_test_suites","description":"列出按发布或安全目标组织的测试套件。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"suite_id":{"type":"string"},"name":{"type":"string"},"purpose":{"type":"string"}},"required":["suite_id","name","purpose"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"create_test_suite","description":"创建新的测试套件及其验证目的；重复 ID 会被拒绝。","inputSchema":{"type":"object","properties":{"suite_id":{"type":"string","pattern":"^[a-z0-9_]+$","description":"工具参数 suite_id。"},"name":{"type":"string","minLength":3,"description":"工具参数 name。"},"purpose":{"type":"string","minLength":5,"description":"工具参数 purpose。"}},"required":["suite_id","name","purpose"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"suite_id":{"type":"string"},"name":{"type":"string"},"purpose":{"type":"string"}},"required":["suite_id","name","purpose"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_test_case_folders","description":"列出用于组织测试用例的文件夹及其父目录关系。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"folder_id":{"type":"string"},"name":{"type":"string"},"parent_id":{"type":"string"}},"required":["folder_id","name","parent_id"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"create_test_case_folder","description":"创建测试用例文件夹，可挂在现有父目录下；不存在的父目录会被拒绝。","inputSchema":{"type":"object","properties":{"folder_id":{"type":"string","pattern":"^[a-z0-9_]+$","description":"工具参数 folder_id。"},"name":{"type":"string","minLength":1,"description":"工具参数 name。"},"parent_id":{"type":"string","description":"工具参数 parent_id。"}},"required":["folder_id","name"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"folder_id":{"type":"string"},"name":{"type":"string"},"parent_id":{"type":"string"}},"required":["folder_id","name","parent_id"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"list_test_case_review_candidates","description":"找出测试运行中失败但尚未关联缺陷的用例，作为测试资产复核候选。","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"test_case_id":{"type":"string"},"name":{"type":"string"},"reason":{"type":"string"}},"required":["test_case_id","name","reason"],"additionalProperties":false}},"count":{"type":"integer"}},"required":["items","count"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}},{"name":"mark_test_case_review_flags","description":"给测试用例设置复核标记、原因和操作人，用于补充覆盖或重构自动化。","inputSchema":{"type":"object","properties":{"test_case_id":{"type":"string","description":"工具参数 test_case_id。"},"flag":{"type":"string","enum":["needs_bug_link","flaky","needs_coverage","obsolete"],"description":"工具参数 flag。"},"reason":{"type":"string","minLength":3,"description":"工具参数 reason。"},"actor":{"type":"string","description":"工具参数 actor。"}},"required":["test_case_id","flag","reason","actor"],"additionalProperties":false},"outputSchema":{"oneOf":[{"type":"object","properties":{"success":{"type":"boolean","const":true},"data":{"type":"object","properties":{"test_case_id":{"type":"string"},"flag":{"type":"string"},"reason":{"type":"string"},"actor":{"type":"string"}},"required":["test_case_id","flag","reason","actor"],"additionalProperties":false}},"required":["success","data"],"additionalProperties":false},{"type":"object","properties":{"success":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","enum":["already_exists","no_changes","not_found","unsupported_operation"]},"path":{"type":"string"},"message":{"type":"string","minLength":1},"retryable":{"type":"boolean"}},"required":["code","path","message","retryable"],"additionalProperties":false}},"required":["success","error"],"additionalProperties":false}]}}],"edges":[{"id":"base-0","source":"add_comment","target":"get_bug_report","weight":3,"reason":"评论写入返回 bug_id，紧接着读取缺陷可取得包含该审计评论的完整上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-1","source":"add_comment","target":"get_stats","weight":3,"reason":"追加审计评论直接改变评论总数，随后统计承接审计记录进展。","parameter_evidence":[],"state_evidence":[]},{"id":"base-2","source":"add_comment","target":"list_comments","weight":3,"reason":"新增评论返回 bug_id；紧接着按该 ID 查询评论可直接确认并读取刚写入的审计记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-3","source":"add_comment","target":"update_bug_report","weight":3,"reason":"审计评论可记录复现或修复结论，随后更新同一缺陷的生命周期状态或说明。","parameter_evidence":[],"state_evidence":[]},{"id":"base-4","source":"classify_bug","target":"add_comment","weight":3,"reason":"分类更新返回同一 bug_id；紧接着以评论记录分类依据，持续推进该缺陷的分流审计。","parameter_evidence":[],"state_evidence":[]},{"id":"base-5","source":"classify_bug","target":"get_bug_report","weight":3,"reason":"分类和组件更新返回 bug_id，紧接着读取完整记录可核对分类路由后的缺陷上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-6","source":"classify_bug","target":"list_test_cases","weight":3,"reason":"分类操作产出责任组件；随后按该组件列出用例可继续进行缺陷测试覆盖分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-7","source":"classify_bug","target":"update_bug_report","weight":3,"reason":"分类和责任组件完成后，可紧接着更新同一缺陷的严重度、状态或说明，完成分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-8","source":"compare_sarif_reference","target":"get_security_results","weight":3,"reason":"先确认当前选定扫描与 Microsoft SARIF 参考样例的版本和生成工具兼容，再直接解析该扫描的安全结果，连续推进同一条 SARIF 检查工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-9","source":"create_bug_report","target":"add_comment","weight":3,"reason":"新建缺陷返回 bug_id；紧接着追加审计评论可记录建档时的复现结论或风险说明。","parameter_evidence":[],"state_evidence":[]},{"id":"base-10","source":"create_bug_report","target":"classify_bug","weight":3,"reason":"创建操作产出新缺陷标识；紧接着补充其故障分类和责任组件，直接完成新缺陷的路由信息。","parameter_evidence":[],"state_evidence":[]},{"id":"base-11","source":"create_bug_report","target":"get_bug_report","weight":3,"reason":"创建后返回新缺陷的 bug_id，紧接着读取完整记录可确认创建结果并取得可追溯上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-12","source":"create_bug_report","target":"get_stats","weight":3,"reason":"创建缺陷直接增加缺陷总数及对应严重度分布，随后统计承接该登记进展。","parameter_evidence":[],"state_evidence":[]},{"id":"base-13","source":"create_bug_report","target":"get_test_reports_failures","weight":3,"reason":"创建缺陷时已提供source_run_id；紧接着读取该运行失败详情可为新缺陷补充可追溯的复现证据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-14","source":"create_bug_report","target":"link_test_case_to_bug","weight":3,"reason":"创建缺陷后立即关联先前确定的失败测试用例，完成同一缺陷的可追溯记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-15","source":"create_bug_report","target":"list_comments","weight":3,"reason":"新建缺陷返回 bug_id；可立即按该 ID 查询审计评论，确认该缺陷已有的审计上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-16","source":"create_bug_report","target":"list_test_case_links","weight":3,"reason":"新缺陷返回bug_id，紧接着可查询其现有测试关联，继续完成该缺陷的可追溯处理。","parameter_evidence":[],"state_evidence":[]},{"id":"base-17","source":"create_bug_report","target":"list_test_case_review_candidates","weight":3,"reason":"创建缺陷不会自动建立测试关联；随后查询候选可确认仍需关联缺陷的失败用例，推进缺陷可追溯性完善。","parameter_evidence":[],"state_evidence":[]},{"id":"base-18","source":"create_bug_report","target":"list_test_cases","weight":3,"reason":"新缺陷已明确责任组件；随后按该组件列出用例可继续选择复现或回归覆盖。","parameter_evidence":[],"state_evidence":[]},{"id":"base-19","source":"create_test_case","target":"get_stats","weight":3,"reason":"创建测试用例直接增加测试用例总数，随后统计承接测试资产登记进展。","parameter_evidence":[],"state_evidence":[]},{"id":"base-20","source":"create_test_case","target":"get_test_case","weight":3,"reason":"创建结果返回新 test_case_id；随后读取该用例及已有本地执行结果可直接确认登记的测试资产。","parameter_evidence":[],"state_evidence":[]},{"id":"base-21","source":"create_test_case","target":"link_test_case_to_bug","weight":3,"reason":"创建稳定测试用例定义后立即将其关联到已知缺陷，完成同一可追溯性目标。","parameter_evidence":[],"state_evidence":[]},{"id":"base-22","source":"create_test_case","target":"list_test_cases","weight":3,"reason":"新用例已明确组件；随后按该组件列出用例可继续核对该组件的测试资产。","parameter_evidence":[],"state_evidence":[]},{"id":"base-23","source":"create_test_case_folder","target":"list_test_case_folders","weight":3,"reason":"创建文件夹后立即列出文件夹可确认新文件夹及父目录关系，直接延续同一目录维护工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-24","source":"create_test_suite","target":"list_test_suites","weight":3,"reason":"创建测试套件后立即列出测试套件可确认新套件已进入登记簿，直接延续同一套件管理工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-25","source":"get_bug_report","target":"add_comment","weight":3,"reason":"完整缺陷记录返回 bug_id、测试关联和既有评论；紧接着追加基于该上下文的审计结论。","parameter_evidence":[],"state_evidence":[]},{"id":"base-26","source":"get_bug_report","target":"classify_bug","weight":3,"reason":"完整缺陷记录提供指定 bug 的当前上下文，紧接着更新其分类和组件是同一局部目标的直接推进。","parameter_evidence":[],"state_evidence":[]},{"id":"base-27","source":"get_bug_report","target":"create_test_case","weight":3,"reason":"完整缺陷记录提供标题、组件和说明，紧接着据此建立复现或回归用例可连续推进该缺陷的验证工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-28","source":"get_bug_report","target":"get_test_case","weight":3,"reason":"缺陷详情中的 links 返回 test_case_id；随后读取被关联用例的跨运行执行结果可延续可追溯性核验。","parameter_evidence":[],"state_evidence":[]},{"id":"base-29","source":"get_bug_report","target":"get_test_reports_failures","weight":3,"reason":"完整缺陷记录明确返回source_run_id；随后读取该运行失败详情可直接承接缺陷溯源。","parameter_evidence":[],"state_evidence":[]},{"id":"base-30","source":"get_bug_report","target":"link_test_case_to_bug","weight":3,"reason":"读取缺陷现有关联以确认缺失关系后，直接补充测试用例关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-31","source":"get_bug_report","target":"list_test_cases","weight":3,"reason":"缺陷详情提供组件；随后按该组件列出用例可继续补充或审查该缺陷的测试覆盖。","parameter_evidence":[],"state_evidence":[]},{"id":"base-32","source":"get_bug_report","target":"list_test_runs","weight":3,"reason":"缺陷记录提供source_run_id，随后列出运行可直接查看该来源运行及其统计，延续同一缺陷调查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-33","source":"get_bug_report","target":"update_bug_report","weight":3,"reason":"完整缺陷、关联和评论上下文可直接支撑对该 bug_id 的状态、严重度或说明修改。","parameter_evidence":[],"state_evidence":[]},{"id":"base-34","source":"get_security_results","target":"update_bug_report","weight":3,"reason":"SARIF 结果提供规则、级别、消息和路径，可直接补充已知安全缺陷的说明或严重度。","parameter_evidence":[],"state_evidence":[]},{"id":"base-35","source":"get_stats","target":"list_bug_reports","weight":3,"reason":"统计结果按状态和严重度给出分布，缺陷列表可立即按这些维度展开具体记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-36","source":"get_test_case","target":"create_bug_report","weight":3,"reason":"返回用例在各运行中的状态、错误和 run_id；发现失败执行后可立即创建对应缺陷。","parameter_evidence":[],"state_evidence":[]},{"id":"base-37","source":"get_test_case","target":"get_test_reports_failures","weight":3,"reason":"测试用例执行记录返回run_id、状态和错误；可直接选择失败执行并读取同一运行的完整失败证据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-38","source":"get_test_case","target":"link_test_case_to_bug","weight":3,"reason":"检查测试用例在各运行中的执行结果后，可直接将其作为复现或回归用例关联到缺陷。","parameter_evidence":[],"state_evidence":[]},{"id":"base-39","source":"get_test_case","target":"list_test_case_links","weight":3,"reason":"用例详情提供test_case_id及执行结果，随后查询关联缺陷可继续定位该用例的缺陷上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-40","source":"get_test_case","target":"list_test_case_review_candidates","weight":3,"reason":"已读取一个测试用例的各运行执行结果后，候选查询可判断其失败是否缺少缺陷关联，延续该用例的复核工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-41","source":"get_test_case","target":"list_test_cases","weight":3,"reason":"用例详情返回其组件；随后按同一组件列出其他用例可继续检查该组件的测试资产。","parameter_evidence":[],"state_evidence":[]},{"id":"base-42","source":"get_test_case","target":"list_test_runs","weight":3,"reason":"用例执行结果提供run_id，随后列出运行可直接查看这些执行所在运行的统计，延续同一用例调查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-43","source":"get_test_case","target":"mark_test_case_review_flags","weight":3,"reason":"返回指定测试用例的跨运行执行结果和错误，可直接据此判断并设置 flaky、needs_coverage 等复核标记。","parameter_evidence":[],"state_evidence":[]},{"id":"base-44","source":"get_test_case","target":"update_bug_report","weight":3,"reason":"用例的本地执行结果可用于验证已知关联缺陷并更新其状态或说明。","parameter_evidence":[],"state_evidence":[]},{"id":"base-45","source":"get_test_reports_failures","target":"classify_bug","weight":3,"reason":"失败用例、错误和证据路径可作为已知测试缺陷的诊断依据，随后对该缺陷执行分类可连续完成测试失败分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-46","source":"get_test_reports_failures","target":"create_bug_report","weight":3,"reason":"返回指定运行的失败用例、错误和 run_id，可直接据此创建带可追溯 source_run_id 的缺陷记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-47","source":"get_test_reports_failures","target":"create_test_case","weight":3,"reason":"失败项提供测试用例标识和名称；在已知组件的任务上下文中，紧接着登记稳定复现用例可持续推进失败处置。","parameter_evidence":[],"state_evidence":[]},{"id":"base-48","source":"get_test_reports_failures","target":"get_test_case","weight":3,"reason":"失败项直接提供 test_case_id；随后查询该用例在全部本地运行中的结果可延续失败排查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-49","source":"get_test_reports_failures","target":"link_test_case_to_bug","weight":3,"reason":"失败用例输出 test_case_id，紧接着可将已知的同运行缺陷关联为复现或回归用例。","parameter_evidence":[],"state_evidence":[]},{"id":"base-50","source":"get_test_reports_failures","target":"list_bug_reports","weight":3,"reason":"指定运行的失败用例和run_id可由缺陷列表中的source_run_id直接承接，用于确认该运行已有的缺陷记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-51","source":"get_test_reports_failures","target":"list_test_case_links","weight":3,"reason":"失败记录提供test_case_id，紧接着可按该用例查询已关联的缺陷，推进失败复现追溯。","parameter_evidence":[],"state_evidence":[]},{"id":"base-52","source":"get_test_reports_failures","target":"list_test_case_review_candidates","weight":3,"reason":"已读取某运行的失败用例后，候选查询可直接识别这些失败中哪些尚无缺陷关联，继续推进同一失败追溯目标。","parameter_evidence":[],"state_evidence":[]},{"id":"base-53","source":"get_test_reports_failures","target":"list_test_cases","weight":3,"reason":"失败结果提供 test_case_id；随后列出登记用例可核对失败用例定义及其组件，延续失败分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-54","source":"get_test_reports_failures","target":"mark_test_case_review_flags","weight":3,"reason":"失败明细提供具体 test_case_id、错误和证据，可立即对失败用例设置复核标记。","parameter_evidence":[],"state_evidence":[]},{"id":"base-55","source":"get_test_reports_failures","target":"update_bug_report","weight":3,"reason":"失败用例及错误证据可直接用于更新对应缺陷的说明、严重度或调查状态。","parameter_evidence":[],"state_evidence":[]},{"id":"base-56","source":"get_test_reports_overview","target":"list_test_runs","weight":3,"reason":"全量运行概览后列出各运行明细，是同一测试运行盘点工作线的连续推进。","parameter_evidence":[],"state_evidence":[]},{"id":"base-57","source":"link_test_case_to_bug","target":"add_comment","weight":3,"reason":"关联操作返回 bug_id 和测试关系；紧接着评论可审计该复现或回归关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-58","source":"link_test_case_to_bug","target":"classify_bug","weight":3,"reason":"关联操作确定了具体缺陷及其复现或回归用例，随后分类该缺陷可继续完成同一缺陷的可追溯分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-59","source":"link_test_case_to_bug","target":"get_bug_report","weight":3,"reason":"关联操作返回 bug_id，紧接着读取缺陷可确认新建或已有的测试关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-60","source":"link_test_case_to_bug","target":"get_stats","weight":3,"reason":"建立关联直接改变关联总数，随后统计承接可追溯性登记进展。","parameter_evidence":[],"state_evidence":[]},{"id":"base-61","source":"link_test_case_to_bug","target":"get_test_case","weight":3,"reason":"关联结果返回 test_case_id；随后读取该用例的全部执行记录可继续核验缺陷复现关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-62","source":"link_test_case_to_bug","target":"list_test_case_links","weight":3,"reason":"关联操作返回缺陷和用例标识，紧接着查询可核实实际记录的复现、回归或相关关系。","parameter_evidence":[],"state_evidence":[]},{"id":"base-63","source":"link_test_case_to_bug","target":"list_test_case_review_candidates","weight":3,"reason":"建立测试-缺陷关联后，直接查询候选可核对剩余未关联的失败用例，持续推进同一追溯完善工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-64","source":"link_test_case_to_bug","target":"list_test_cases","weight":3,"reason":"关联操作产出 test_case_id；随后列出登记用例可定位该用例的名称和组件，延续可追溯性核对。","parameter_evidence":[],"state_evidence":[]},{"id":"base-65","source":"link_test_case_to_bug","target":"update_bug_report","weight":3,"reason":"关联复现或回归用例后，可更新同一缺陷的调查状态或说明以反映可追溯性。","parameter_evidence":[],"state_evidence":[]},{"id":"base-66","source":"list_bug_reports","target":"add_comment","weight":3,"reason":"列表返回可评论的 bug_id；选择缺陷后立即追加审计评论，直接推进缺陷处理。","parameter_evidence":[],"state_evidence":[]},{"id":"base-67","source":"list_bug_reports","target":"classify_bug","weight":3,"reason":"缺陷清单提供可处理的 bug_id、现有组件和分类状态，选定记录后立即分类是连续的缺陷分诊工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-68","source":"list_bug_reports","target":"get_bug_report","weight":3,"reason":"缺陷列表返回 bug_id，选择一项后紧接着读取其完整记录是列表到详情的连续查询。","parameter_evidence":[],"state_evidence":[]},{"id":"base-69","source":"list_bug_reports","target":"get_test_reports_failures","weight":3,"reason":"缺陷列表返回每条记录的source_run_id；选定缺陷后可直接读取其来源运行的失败证据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-70","source":"list_bug_reports","target":"link_test_case_to_bug","weight":3,"reason":"选择登记簿中的目标缺陷后，可立即为其建立已知测试用例关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-71","source":"list_bug_reports","target":"list_comments","weight":3,"reason":"缺陷列表提供 bug_id；选择一个缺陷后立即查询其评论，是缺陷审计排查的连续步骤。","parameter_evidence":[],"state_evidence":[]},{"id":"base-72","source":"list_bug_reports","target":"list_test_case_links","weight":3,"reason":"缺陷列表提供bug_id，紧接着按选定缺陷查询测试关联是缺陷追溯的直接下钻。","parameter_evidence":[],"state_evidence":[]},{"id":"base-73","source":"list_bug_reports","target":"list_test_cases","weight":3,"reason":"缺陷列表提供组件；选择待处理缺陷后可立即按其组件列出候选测试用例。","parameter_evidence":[],"state_evidence":[]},{"id":"base-74","source":"list_bug_reports","target":"update_bug_report","weight":3,"reason":"缺陷列表提供可操作的 bug_id 及当前字段，可选择记录并直接更新。","parameter_evidence":[],"state_evidence":[]},{"id":"base-75","source":"list_comments","target":"add_comment","weight":3,"reason":"评论查询返回既有评论所属的 bug_id；审阅审计历史后追加后续结论，持续推进同一缺陷的审计线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-76","source":"list_comments","target":"classify_bug","weight":3,"reason":"评论清单提供具体 bug_id 及审计结论，随后分类对应缺陷可直接把审计信息转为路由信息。","parameter_evidence":[],"state_evidence":[]},{"id":"base-77","source":"list_comments","target":"get_bug_report","weight":3,"reason":"评论列表返回每条评论所属的 bug_id，选择评论后读取对应缺陷可形成完整审计上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-78","source":"list_comments","target":"update_bug_report","weight":3,"reason":"评论包含 bug_id 和审计结论，可选择对应记录并紧接着更新其状态或说明。","parameter_evidence":[],"state_evidence":[]},{"id":"base-79","source":"list_test_case_folders","target":"create_test_case_folder","weight":3,"reason":"列出的现有文件夹及 parent_id 可直接用于选择有效父目录，随后创建子文件夹，持续推进测试资产目录组织。","parameter_evidence":[],"state_evidence":[]},{"id":"base-80","source":"list_test_case_links","target":"add_comment","weight":3,"reason":"关联查询返回 bug_id、测试用例和关系；紧接着评论可记录对该可追溯关系的审计结论。","parameter_evidence":[],"state_evidence":[]},{"id":"base-81","source":"list_test_case_links","target":"classify_bug","weight":3,"reason":"关联清单给出具体 bug_id 及其测试追溯关系，审阅该关系后分类对应缺陷可连续推进缺陷分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-82","source":"list_test_case_links","target":"get_bug_report","weight":3,"reason":"关联列表可按测试用例查询并返回关联的 bug_id，随后读取该缺陷可继续追溯关联的完整上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-83","source":"list_test_case_links","target":"get_test_case","weight":3,"reason":"关联列表直接给出 test_case_id；随后读取该用例的执行记录可继续检查关联的复现或回归证据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-84","source":"list_test_case_links","target":"link_test_case_to_bug","weight":3,"reason":"查询既有关系以识别缺失关联后，直接创建关联；重复调用也由目标工具保证幂等。","parameter_evidence":[],"state_evidence":[]},{"id":"base-85","source":"list_test_case_links","target":"list_bug_reports","weight":3,"reason":"缺陷-用例关联返回bug_id，随后浏览缺陷列表可承接这些关联，查看对应缺陷的登记簿字段。","parameter_evidence":[],"state_evidence":[]},{"id":"base-86","source":"list_test_case_links","target":"list_comments","weight":3,"reason":"关联列表提供 bug_id；随后按该 ID 查询评论可继续完善同一缺陷的可追溯审计上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-87","source":"list_test_case_links","target":"list_test_case_review_candidates","weight":3,"reason":"已查看测试-缺陷关联后，直接查询失败但未关联的用例，可继续推进同一关联缺口审计。","parameter_evidence":[],"state_evidence":[]},{"id":"base-88","source":"list_test_case_links","target":"list_test_cases","weight":3,"reason":"关联列表提供 test_case_id；随后列出登记用例可核对关联用例的名称和责任组件。","parameter_evidence":[],"state_evidence":[]},{"id":"base-89","source":"list_test_case_review_candidates","target":"create_bug_report","weight":3,"reason":"候选项明确表示测试运行失败但尚未关联缺陷；紧接着创建缺陷可连续推进该未闭合的分诊工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-90","source":"list_test_case_review_candidates","target":"get_test_case","weight":3,"reason":"复核候选直接返回失败 test_case_id；随后读取该用例的全部执行记录可继续完成复核判断。","parameter_evidence":[],"state_evidence":[]},{"id":"base-91","source":"list_test_case_review_candidates","target":"link_test_case_to_bug","weight":3,"reason":"输出失败且未关联缺陷的 test_case_id 后，可立即为已知对应缺陷建立关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-92","source":"list_test_case_review_candidates","target":"list_test_cases","weight":3,"reason":"复核候选提供 test_case_id；随后列出登记用例可核对候选的名称和组件，延续测试资产复核。","parameter_evidence":[],"state_evidence":[]},{"id":"base-93","source":"list_test_case_review_candidates","target":"mark_test_case_review_flags","weight":3,"reason":"直接返回失败且尚未关联缺陷的测试用例及原因，紧接着标记 needs_bug_link 可连续推进同一复核工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-94","source":"list_test_cases","target":"create_test_case","weight":3,"reason":"列出现有用例可避免重复 ID；随后创建新的唯一稳定用例连续推进同一登记簿维护工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-95","source":"list_test_cases","target":"get_test_case","weight":3,"reason":"列表直接给出 test_case_id；随后读取选定用例及其全部执行结果是同一测试资产检视线的下钻。","parameter_evidence":[],"state_evidence":[]},{"id":"base-96","source":"list_test_cases","target":"link_test_case_to_bug","weight":3,"reason":"列出并选择测试用例后，可直接将其关联到已知缺陷。","parameter_evidence":[],"state_evidence":[]},{"id":"base-97","source":"list_test_cases","target":"list_test_case_links","weight":3,"reason":"用例列表提供test_case_id，紧接着按选定用例查询关联缺陷是测试资产追溯的直接下钻。","parameter_evidence":[],"state_evidence":[]},{"id":"base-98","source":"list_test_runs","target":"create_bug_report","weight":3,"reason":"列出运行会提供失败统计和具体 run_id；选定失败运行后可立即以该运行创建缺陷，连续推进测试失败分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-99","source":"list_test_runs","target":"get_test_reports_failures","weight":3,"reason":"列出的失败统计和run_id可直接选定失败运行，再读取该运行的失败用例与证据，持续推进失败定位。","parameter_evidence":[],"state_evidence":[]},{"id":"base-100","source":"list_test_runs","target":"get_test_reports_overview","weight":3,"reason":"先枚举各运行的通过、失败和提交，再汇总全部运行的总量、通过率和最近提交，是发布候选测试盘点的连续推进。","parameter_evidence":[],"state_evidence":[]},{"id":"base-101","source":"list_test_runs","target":"update_bug_report","weight":3,"reason":"运行列表提供发布运行的失败状态，可据已知 source_run_id 的缺陷更新说明或状态，延续发布质量分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-102","source":"list_test_suites","target":"create_test_suite","weight":3,"reason":"先列出现有套件以避开重复 ID，再创建新的测试套件，直接延续同一套件管理工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-103","source":"mark_test_case_review_flags","target":"create_test_case","weight":3,"reason":"标记为需要补充覆盖后紧接着创建新的稳定测试用例，直接承接同一测试资产改进目标。","parameter_evidence":[],"state_evidence":[]},{"id":"base-104","source":"mark_test_case_review_flags","target":"get_test_case","weight":3,"reason":"复核标记结果返回被标记的 test_case_id；随后读取该用例的执行历史可继续核验复核依据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-105","source":"mark_test_case_review_flags","target":"link_test_case_to_bug","weight":3,"reason":"设置 needs_bug_link 复核标记后，立即建立该测试用例的缺陷关联，直接完成标记指向的工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-106","source":"mark_test_case_review_flags","target":"list_test_case_review_candidates","weight":3,"reason":"对测试用例设置复核标记后，直接查询失败且未关联缺陷的候选可继续补全同一测试资产复核工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-107","source":"parse_junit_report","target":"get_test_reports_overview","weight":3,"reason":"解析真实 JUnit 样本的套件、用例和失败数后，再汇总规范化测试运行，是从报告结构核查到整体运行概览的连续测试分析。","parameter_evidence":[],"state_evidence":[]},{"id":"base-108","source":"update_bug_report","target":"add_comment","weight":3,"reason":"更新返回同一 bug_id；紧接着以评论说明状态、严重度或说明变更的依据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-109","source":"update_bug_report","target":"classify_bug","weight":3,"reason":"状态、严重度或说明更新后继续补全同一缺陷的分类和责任组件，属于同一缺陷维护线的连续操作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-110","source":"update_bug_report","target":"get_bug_report","weight":3,"reason":"更新返回 bug_id，紧接着读取完整记录可核对状态、严重度或说明变更后的上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-111","source":"update_bug_report","target":"get_stats","weight":3,"reason":"更新状态或严重度会直接改变统计中的状态或严重度分布，随后统计承接风险盘点进展。","parameter_evidence":[],"state_evidence":[]},{"id":"base-112","source":"update_bug_report","target":"list_bug_reports","weight":3,"reason":"更新缺陷状态或严重度后，缺陷列表直接承接该变更，用于查看当前登记簿风险状态。","parameter_evidence":[],"state_evidence":[]},{"id":"base-113","source":"add_comment","target":"classify_bug","weight":2,"reason":"审计评论记录具体缺陷的复现或风险结论，随后分类是同一缺陷处理中的明确衔接，但属于审计记录与路由两个子任务。","parameter_evidence":[],"state_evidence":[]},{"id":"base-114","source":"add_comment","target":"list_test_case_links","weight":2,"reason":"评论操作返回bug_id，随后查询该缺陷的测试关联可补全同一缺陷的审计上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-115","source":"classify_bug","target":"create_test_case","weight":2,"reason":"分类结果返回责任组件，可紧接着为该组件的缺陷建立稳定测试用例，形成明确的处置衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-116","source":"classify_bug","target":"create_test_suite","weight":2,"reason":"将缺陷分类为安全等责任域后，可建立相应验证目的的套件以组织后续工作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-117","source":"classify_bug","target":"link_test_case_to_bug","weight":2,"reason":"分类并路由缺陷后关联测试用例，是同一缺陷分诊中的明确衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-118","source":"classify_bug","target":"list_bug_reports","weight":2,"reason":"完成分类和组件路由后，缺陷列表可用于继续查看登记簿中的整体分类与风险分布。","parameter_evidence":[],"state_evidence":[]},{"id":"base-119","source":"classify_bug","target":"list_test_case_links","weight":2,"reason":"分类更新返回bug_id，随后查询该缺陷的测试关联可衔接路由后的影响核查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-120","source":"create_bug_report","target":"create_test_case","weight":2,"reason":"创建缺陷后创建其复现或回归用例是缺陷追踪与测试资产两个明确衔接的子任务。","parameter_evidence":[],"state_evidence":[]},{"id":"base-121","source":"create_bug_report","target":"list_bug_reports","weight":2,"reason":"创建缺陷后浏览登记簿可将新增记录纳入发布风险盘点。","parameter_evidence":[],"state_evidence":[]},{"id":"base-122","source":"get_bug_report","target":"list_bug_reports","weight":2,"reason":"读取单个缺陷的可追溯上下文后，浏览缺陷列表可将该缺陷放回整体风险队列。","parameter_evidence":[],"state_evidence":[]},{"id":"base-123","source":"get_bug_report","target":"mark_test_case_review_flags","weight":2,"reason":"缺陷详情返回已关联的测试用例及审计上下文，可据此继续对相关测试资产设置覆盖或重构复核标记。","parameter_evidence":[],"state_evidence":[]},{"id":"base-124","source":"get_security_results","target":"compare_sarif_reference","weight":2,"reason":"先读取同一 selected SARIF scan 的安全结果，再比较该扫描与 Microsoft 样例的版本及生成工具，可将安全扫描检查衔接到格式兼容性确认。","parameter_evidence":[],"state_evidence":[]},{"id":"base-125","source":"get_security_results","target":"create_test_suite","weight":2,"reason":"SARIF 安全结果可直接承接为创建安全验证目的的测试套件，形成安全排查到验证组织的衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-126","source":"get_stats","target":"list_comments","weight":2,"reason":"统计返回评论总量；随后列出评论可从汇总进入审计记录检查，构成明确的汇总到明细衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-127","source":"get_stats","target":"list_test_case_links","weight":2,"reason":"汇总关联数量后查询具体关联，可从质量盘点衔接到可追溯性核查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-128","source":"get_test_case","target":"get_test_reports_overview","weight":2,"reason":"先查看一个用例跨运行的执行结果，再汇总全部运行，可由用例级诊断衔接至全局测试健康度。","parameter_evidence":[],"state_evidence":[]},{"id":"base-129","source":"get_test_reports_failures","target":"get_test_reports_overview","weight":2,"reason":"检查某次运行的具体失败后，汇总全部运行可确定该失败在整体测试健康度中的范围，形成局部排查到发布视图的明确衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-130","source":"get_test_reports_overview","target":"create_test_suite","weight":2,"reason":"全部测试运行的通过率和最近提交可直接衔接为创建发布验证目的的套件。","parameter_evidence":[],"state_evidence":[]},{"id":"base-131","source":"get_test_reports_overview","target":"list_bug_reports","weight":2,"reason":"全量测试通过率和失败数确定发布质量概况后，缺陷列表可承接为具体风险记录盘点。","parameter_evidence":[],"state_evidence":[]},{"id":"base-132","source":"get_test_reports_overview","target":"list_test_case_review_candidates","weight":2,"reason":"测试运行汇总可发现整体失败风险，随后查询具体未关联失败用例是从概览到复核的明确衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-133","source":"list_bug_reports","target":"create_test_case","weight":2,"reason":"缺陷列表提供标题和组件，可在选定缺陷后创建对应回归用例，衔接缺陷盘点与覆盖建设。","parameter_evidence":[],"state_evidence":[]},{"id":"base-134","source":"list_bug_reports","target":"get_test_reports_overview","weight":2,"reason":"缺陷登记簿盘点后查看全量测试通过率，可共同形成发布风险盘点，分别覆盖缺陷与测试两个明确子任务。","parameter_evidence":[],"state_evidence":[]},{"id":"base-135","source":"list_bug_reports","target":"list_test_case_review_candidates","weight":2,"reason":"盘点缺陷登记簿后查询失败但未关联缺陷的用例，可将发布风险盘点衔接到测试资产复核。","parameter_evidence":[],"state_evidence":[]},{"id":"base-136","source":"list_comments","target":"list_bug_reports","weight":2,"reason":"审计评论返回bug_id，随后浏览缺陷列表可继续查看这些评论所属缺陷的登记簿概况。","parameter_evidence":[],"state_evidence":[]},{"id":"base-137","source":"list_comments","target":"list_test_case_links","weight":2,"reason":"评论列表提供bug_id，随后查询该缺陷的测试关联可组成缺陷审计核查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-138","source":"list_test_case_review_candidates","target":"get_test_reports_overview","weight":2,"reason":"识别未关联缺陷的失败用例后，汇总全部运行可量化这些候选所在的整体失败情况，衔接测试资产复核与测试健康度评估。","parameter_evidence":[],"state_evidence":[]},{"id":"base-139","source":"list_test_case_review_candidates","target":"list_bug_reports","weight":2,"reason":"未关联缺陷的失败用例候选可引出对现有缺陷登记簿的核查，作为测试资产复核的后续子任务。","parameter_evidence":[],"state_evidence":[]},{"id":"base-140","source":"list_test_cases","target":"list_test_case_review_candidates","weight":2,"reason":"列出登记簿测试用例后直接识别其中失败且未关联缺陷的候选，可推进测试资产复核。","parameter_evidence":[],"state_evidence":[]},{"id":"base-141","source":"list_test_runs","target":"create_test_suite","weight":2,"reason":"测试运行清单明确面向发布候选，随后创建发布验证目的的套件可将运行盘点衔接到测试组织。","parameter_evidence":[],"state_evidence":[]},{"id":"base-142","source":"list_test_runs","target":"list_bug_reports","weight":2,"reason":"测试运行清单确定发布候选的失败风险后，浏览缺陷登记簿可将测试风险纳入同一发布盘点。","parameter_evidence":[],"state_evidence":[]},{"id":"base-143","source":"list_test_runs","target":"list_test_case_review_candidates","weight":2,"reason":"测试运行清单可先定位存在失败的发布候选运行，随后直接执行候选查询以汇总其中尚未关联缺陷的失败用例；这是从运行盘点到测试资产复核的明确衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-144","source":"list_test_suites","target":"list_test_runs","weight":2,"reason":"测试套件清单与运行项的suite字段支持从套件盘点转向查看候选运行，构成发布验证的子任务衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-145","source":"update_bug_report","target":"link_test_case_to_bug","weight":2,"reason":"更新同一缺陷的状态或说明后补充测试可追溯性，是缺陷维护中的明确衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-146","source":"update_bug_report","target":"list_test_case_links","weight":2,"reason":"更新返回bug_id，随后查询关联可将状态或严重度调整与回归、复现覆盖核查衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-147","source":"add_comment","target":"link_test_case_to_bug","weight":1,"reason":"记录复现审计结论后建立正式测试关联，可推进整体缺陷审计任务。","parameter_evidence":[],"state_evidence":[]},{"id":"base-148","source":"add_comment","target":"list_bug_reports","weight":1,"reason":"追加审计评论后浏览缺陷登记簿可继续进行发布风险盘点，但列表不返回评论内容。","parameter_evidence":[],"state_evidence":[]},{"id":"base-149","source":"add_comment","target":"list_test_runs","weight":1,"reason":"记录缺陷审计结论后，列出运行可继续发布质量检查。","parameter_evidence":[],"state_evidence":[]},{"id":"base-150","source":"classify_bug","target":"list_comments","weight":1,"reason":"分类更新返回 bug_id；随后查询该缺陷评论可在同一缺陷审计任务中查看既有记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-151","source":"classify_bug","target":"list_test_runs","weight":1,"reason":"完成缺陷路由后，列出运行可继续整体发布质量分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-152","source":"compare_sarif_reference","target":"list_bug_reports","weight":1,"reason":"SARIF兼容性检查后可浏览缺陷登记簿补充发布质量视图，但两者没有声明的对象对应关系。","parameter_evidence":[],"state_evidence":[]},{"id":"base-153","source":"create_bug_report","target":"create_test_suite","weight":1,"reason":"创建缺陷后可建立对应的回归验证套件，但两者没有声明的关联或成员关系。","parameter_evidence":[],"state_evidence":[]},{"id":"base-154","source":"create_bug_report","target":"list_test_runs","weight":1,"reason":"创建由测试运行产生的缺陷后，列出运行可继续发布质量分诊。","parameter_evidence":[],"state_evidence":[]},{"id":"base-155","source":"create_test_case","target":"list_bug_reports","weight":1,"reason":"创建测试用例后浏览缺陷登记簿可继续进行整体质量资产盘点，但列表不返回该用例或其关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-156","source":"create_test_case","target":"list_test_case_links","weight":1,"reason":"新用例返回test_case_id，查询其缺陷关联可用于继续建立和核查该测试资产的追溯上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-157","source":"create_test_case","target":"list_test_case_review_candidates","weight":1,"reason":"创建稳定测试用例后，候选查询可检查该测试资产是否已有失败且缺少缺陷关联，属于测试资产管理的任务级关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-158","source":"create_test_case_folder","target":"list_bug_reports","weight":1,"reason":"创建测试目录后浏览缺陷登记簿可继续进行质量资产盘点，但缺陷列表不涉及目录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-159","source":"create_test_suite","target":"list_bug_reports","weight":1,"reason":"创建测试套件后浏览缺陷登记簿可继续进行质量资产盘点，但缺陷列表不涉及套件。","parameter_evidence":[],"state_evidence":[]},{"id":"base-160","source":"get_bug_report","target":"create_test_suite","weight":1,"reason":"缺陷详情及其测试关联可支持建立回归验证目标，但创建套件不能承接或绑定这些关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-161","source":"get_bug_report","target":"get_stats","weight":1,"reason":"查看单个缺陷的关联和评论后汇总全局登记簿，可推进审计任务但不延续同一记录操作。","parameter_evidence":[],"state_evidence":[]},{"id":"base-162","source":"get_security_results","target":"create_test_case","weight":1,"reason":"安全结果可在整体质量任务中触发新增安全验证用例，但未提供测试定义的直接映射。","parameter_evidence":[],"state_evidence":[]},{"id":"base-163","source":"get_security_results","target":"list_bug_reports","weight":1,"reason":"安全扫描结果与缺陷登记簿共同服务于发布质量检查，但契约未声明SARIF结果与登记簿缺陷的对应关系。","parameter_evidence":[],"state_evidence":[]},{"id":"base-164","source":"get_security_results","target":"list_test_runs","weight":1,"reason":"安全扫描与测试运行都是发布质量分诊的不同子任务，但契约未声明直接对应关系。","parameter_evidence":[],"state_evidence":[]},{"id":"base-165","source":"get_stats","target":"create_test_suite","weight":1,"reason":"质量汇总可为建立发布验证套件提供整体任务上下文，但不延续同一具体工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-166","source":"get_stats","target":"get_test_reports_overview","weight":1,"reason":"登记簿数量统计后查看测试运行整体通过率，可作为质量盘点中的两个不同子任务，但没有共享的连续对象。","parameter_evidence":[],"state_evidence":[]},{"id":"base-167","source":"get_stats","target":"list_test_case_review_candidates","weight":1,"reason":"全局缺陷、用例和关联计数可作为质量盘点起点，随后查询具体复核候选是合理的任务级衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-168","source":"get_stats","target":"list_test_cases","weight":1,"reason":"总体测试用例数量后接用例列表可从汇总进入资产盘点，但只由整体任务目标衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-169","source":"get_stats","target":"list_test_runs","weight":1,"reason":"汇总质量登记簿后，列出测试运行可补充发布候选的执行状态。","parameter_evidence":[],"state_evidence":[]},{"id":"base-170","source":"get_stats","target":"update_bug_report","weight":1,"reason":"汇总统计可为发布风险处置提供背景，但不提供特定缺陷的直接更新依据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-171","source":"get_test_case","target":"create_test_suite","weight":1,"reason":"单个用例的执行结果可支持建立专门验证目标的套件，但无用例与套件的声明关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-172","source":"get_test_case","target":"list_bug_reports","weight":1,"reason":"查看用例的执行结果后可继续浏览缺陷登记簿开展质量排查，但契约未提供按用例筛选缺陷的能力。","parameter_evidence":[],"state_evidence":[]},{"id":"base-173","source":"get_test_reports_failures","target":"create_test_suite","weight":1,"reason":"失败用例可促成建立以回归验证为目的的套件，但契约未支持将这些用例加入套件。","parameter_evidence":[],"state_evidence":[]},{"id":"base-174","source":"get_test_reports_failures","target":"get_stats","weight":1,"reason":"读取失败证据后汇总缺陷、用例和关联规模可辅助判断跟踪覆盖，但统计不直接消费失败项。","parameter_evidence":[],"state_evidence":[]},{"id":"base-175","source":"get_test_reports_failures","target":"list_test_runs","weight":1,"reason":"已检查某次运行的失败后可列出全部运行以选择下一次检查目标，但不延续同一失败详情。","parameter_evidence":[],"state_evidence":[]},{"id":"base-176","source":"get_test_reports_overview","target":"get_stats","weight":1,"reason":"测试运行总览后汇总登记簿缺陷与关联规模可共同支持发布质量盘点。","parameter_evidence":[],"state_evidence":[]},{"id":"base-177","source":"get_test_reports_overview","target":"list_test_case_links","weight":1,"reason":"测试总览后查询关联可作为发布质量追溯盘点的一步，但不承接具体运行、缺陷或用例。","parameter_evidence":[],"state_evidence":[]},{"id":"base-178","source":"get_test_reports_overview","target":"update_bug_report","weight":1,"reason":"全局通过率和失败数可为发布风险相关缺陷更新提供任务层面的依据。","parameter_evidence":[],"state_evidence":[]},{"id":"base-179","source":"link_test_case_to_bug","target":"create_test_suite","weight":1,"reason":"已关联的复现或回归用例可推动建立回归验证套件，但套件契约不支持纳入该用例。","parameter_evidence":[],"state_evidence":[]},{"id":"base-180","source":"link_test_case_to_bug","target":"list_bug_reports","weight":1,"reason":"关联测试与缺陷后浏览缺陷登记簿可继续进行整体质量盘点，但列表不返回关联关系本身。","parameter_evidence":[],"state_evidence":[]},{"id":"base-181","source":"link_test_case_to_bug","target":"list_comments","weight":1,"reason":"关联操作返回 bug_id；随后查询该缺陷评论可补充查看该追溯关系的审计上下文。","parameter_evidence":[],"state_evidence":[]},{"id":"base-182","source":"link_test_case_to_bug","target":"list_test_runs","weight":1,"reason":"建立缺陷测试追溯后，列出运行可继续处理其他发布候选结果。","parameter_evidence":[],"state_evidence":[]},{"id":"base-183","source":"list_bug_reports","target":"create_test_suite","weight":1,"reason":"缺陷风险盘点后可建立面向当前风险的验证套件，但没有具体的套件关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-184","source":"list_bug_reports","target":"get_stats","weight":1,"reason":"浏览缺陷明细后汇总总数及状态、严重度分布，是同一缺陷盘点任务的概览收束。","parameter_evidence":[],"state_evidence":[]},{"id":"base-185","source":"list_bug_reports","target":"list_test_runs","weight":1,"reason":"盘点缺陷登记簿后，列出发布候选测试运行可继续风险评估。","parameter_evidence":[],"state_evidence":[]},{"id":"base-186","source":"list_comments","target":"create_test_case","weight":1,"reason":"审计评论可在整体缺陷处置任务中揭示需要补充验证，随后创建测试用例具有任务层面的合理关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-187","source":"list_comments","target":"get_stats","weight":1,"reason":"浏览评论明细后汇总评论总数，是缺陷审计盘点的自然概览步骤。","parameter_evidence":[],"state_evidence":[]},{"id":"base-188","source":"list_comments","target":"link_test_case_to_bug","weight":1,"reason":"审阅缺陷审计评论后建立测试关联可推进整体审计，但两者不构成同一条具体工作线。","parameter_evidence":[],"state_evidence":[]},{"id":"base-189","source":"list_test_case_folders","target":"list_bug_reports","weight":1,"reason":"测试目录结构后浏览缺陷登记簿可继续进行质量资产盘点，但缺陷列表不涉及目录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-190","source":"list_test_case_links","target":"create_test_case","weight":1,"reason":"关联查询后可在整体可追溯性建设任务中补充新的测试资产，但输出未直接定义新用例。","parameter_evidence":[],"state_evidence":[]},{"id":"base-191","source":"list_test_case_links","target":"get_stats","weight":1,"reason":"浏览缺陷测试关联明细后汇总关联总数，是可追溯性盘点的自然概览步骤。","parameter_evidence":[],"state_evidence":[]},{"id":"base-192","source":"list_test_case_links","target":"mark_test_case_review_flags","weight":1,"reason":"关联列表提供测试用例标识和可追溯关系，可衔接到相关测试资产的复核，但不直接给出复核原因。","parameter_evidence":[],"state_evidence":[]},{"id":"base-193","source":"list_test_case_links","target":"update_bug_report","weight":1,"reason":"缺陷与用例的关联可用于核对可追溯性后更新对应缺陷说明，属于同一分诊任务的较弱衔接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-194","source":"list_test_case_review_candidates","target":"create_test_suite","weight":1,"reason":"未关联缺陷的失败用例可推动建立复核或回归验证目的的套件，但不能直接加入套件。","parameter_evidence":[],"state_evidence":[]},{"id":"base-195","source":"list_test_case_review_candidates","target":"list_test_case_folders","weight":1,"reason":"复核候选和文件夹目录可共同支持测试资产复核规划，但候选未声明文件夹归属。","parameter_evidence":[],"state_evidence":[]},{"id":"base-196","source":"list_test_cases","target":"create_test_suite","weight":1,"reason":"测试用例清单可用于决定建立何种验证套件，但契约未支持把列出的用例编入套件。","parameter_evidence":[],"state_evidence":[]},{"id":"base-197","source":"list_test_cases","target":"get_stats","weight":1,"reason":"浏览测试用例明细后汇总测试用例总数，是登记簿盘点中的自然概览步骤。","parameter_evidence":[],"state_evidence":[]},{"id":"base-198","source":"list_test_cases","target":"list_bug_reports","weight":1,"reason":"测试用例清单与缺陷清单可共同推进质量资产盘点，但缺陷列表不能按测试用例直接查询。","parameter_evidence":[],"state_evidence":[]},{"id":"base-199","source":"list_test_cases","target":"list_test_case_folders","weight":1,"reason":"连续列出测试用例和其组织文件夹可共同完成测试资产目录盘点，但没有成员关系可承接。","parameter_evidence":[],"state_evidence":[]},{"id":"base-200","source":"list_test_cases","target":"mark_test_case_review_flags","weight":1,"reason":"测试用例列表提供可复核的既有 test_case_id；复核理由仍主要来自整体任务输入。","parameter_evidence":[],"state_evidence":[]},{"id":"base-201","source":"list_test_runs","target":"get_stats","weight":1,"reason":"测试运行概览后汇总登记簿规模可形成发布质量盘点，但不承接同一对象的具体写入。","parameter_evidence":[],"state_evidence":[]},{"id":"base-202","source":"list_test_suites","target":"list_bug_reports","weight":1,"reason":"测试套件清单后浏览缺陷登记簿可补充发布质量盘点，但两个工具没有声明的直接对象关系。","parameter_evidence":[],"state_evidence":[]},{"id":"base-203","source":"list_test_suites","target":"list_test_case_folders","weight":1,"reason":"连续列出测试套件和测试用例文件夹可完成测试资产组织盘点，但套件与文件夹没有声明的关联。","parameter_evidence":[],"state_evidence":[]},{"id":"base-204","source":"mark_test_case_review_flags","target":"create_test_suite","weight":1,"reason":"测试用例复核标记可衔接为建立覆盖或回归验证目的的套件，但不存在成员绑定。","parameter_evidence":[],"state_evidence":[]},{"id":"base-205","source":"mark_test_case_review_flags","target":"list_bug_reports","weight":1,"reason":"设置测试复核标记后浏览缺陷登记簿可继续进行整体质量盘点，但缺陷列表不返回复核标记。","parameter_evidence":[],"state_evidence":[]},{"id":"base-206","source":"mark_test_case_review_flags","target":"list_test_case_links","weight":1,"reason":"复核标记返回test_case_id，随后可查询关联以核查该用例的缺陷追溯状态，但主要依赖整体复核任务。","parameter_evidence":[],"state_evidence":[]},{"id":"base-207","source":"parse_junit_report","target":"get_stats","weight":1,"reason":"解析 JUnit 样本后汇总登记簿可辅助核对质量资产规模，但统计不直接消费解析结果。","parameter_evidence":[],"state_evidence":[]},{"id":"base-208","source":"parse_junit_report","target":"list_bug_reports","weight":1,"reason":"JUnit样本统计与缺陷登记簿可共同支持质量概览，但解析结果没有可直接对应登记簿的运行或缺陷标识。","parameter_evidence":[],"state_evidence":[]},{"id":"base-209","source":"parse_junit_report","target":"list_test_runs","weight":1,"reason":"解析Jenkins原始报告的汇总结果后可列出其规范化运行，但契约未提供文件到run_id的直接对应。","parameter_evidence":[],"state_evidence":[]},{"id":"base-210","source":"update_bug_report","target":"create_test_case","weight":1,"reason":"更新缺陷后可在整体修复验证任务中新增测试用例，但更新输出未直接定义该用例。","parameter_evidence":[],"state_evidence":[]},{"id":"base-211","source":"update_bug_report","target":"list_comments","weight":1,"reason":"更新返回 bug_id；随后读取该缺陷评论可在同一审计任务中核对既有处理记录。","parameter_evidence":[],"state_evidence":[]},{"id":"base-212","source":"update_bug_report","target":"list_test_runs","weight":1,"reason":"更新缺陷后，列出运行可继续进行发布质量分诊。","parameter_evidence":[],"state_evidence":[]}],"prerequisites":[],"tasks":[{"task_id":"task1","chain":["list_test_runs","get_test_reports_failures","get_test_case","create_bug_report","link_test_case_to_bug","classify_bug","add_comment","get_bug_report"],"original_chain":["update_bug_report","classify_bug","update_bug_report","list_bug_reports","get_test_reports_failures","create_test_case","link_test_case_to_bug","list_test_case_review_candidates","mark_test_case_review_flags","get_test_case","list_test_cases","get_test_case","list_test_runs","get_test_reports_failures","create_bug_report"],"score":42,"passed":null,"validation_errors":[],"task_text":null,"reference_answer":null,"compose_error":null,"llm_review":{"reason":"原链起始的 update_bug_report 缺少可由前序公开输出取得的 bug_id，且 create_test_case 需要编造 test_case_id。调整为先发现失败运行和用例，再用同一 run_id 创建缺陷并关联该失败用例；随后分类、记录审计评论并读取详情。所有必填 *_id 均由前序工具输出，且关联满足同一标准化测试运行的环境规则。","error":null},"execution":{"success":null,"error":null,"tool_calls":[],"attempt_count":0,"failed_tool":null,"failure_kind":null},"task":null}],"counts":{"tools":25,"edges":213,"candidates":1,"passed":0,"rejected":0,"pending":1}}]</script>
+  <script>
+  (() => {
+    "use strict";
+    const runs = JSON.parse(document.getElementById("run-data").textContent);
+    const $ = id => document.getElementById(id);
+    const dom = {
+      environment: $("environment-select"), run: $("run-select"), status: $("status-select"), search: $("search"),
+      metrics: $("metrics"), environmentSummary: $("environment-summary"), subtitle: $("run-subtitle"), list: $("chain-list"), visible: $("visible-count"),
+      task: $("task-pane"), inspector: document.querySelector(".inspector"), splitter: $("inspector-splitter"),
+      fit: $("fit-button"), layout: $("layout-button"), graphDetail: $("graph-detail"),
+      graphDetailContent: $("graph-detail-content"), closeDetail: $("close-detail"), fatal: $("fatal")
+    };
+    const state = { run: null, cy: null, tasks: [], selected: null, focused: null };
+    const PASS = "#0b8069", FAIL = "#b13d46", PENDING = "#62716c";
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+    function pretty(value) { return JSON.stringify(value ?? null, null, 2); }
+    function sameChain(a, b) { return JSON.stringify(a || []) === JSON.stringify(b || []); }
+    function chainHtml(chain) {
+      if (!chain?.length) return '<span class="small-note">无</span>';
+      return '<div class="chain-flow">' + chain.map((tool, index) =>
+        `${index ? '<span class="chain-arrow">→</span>' : ''}<span class="chain-step">${index + 1}. ${escapeHtml(tool)}</span>`
+      ).join("") + "</div>";
+    }
+    function detailsJson(label, value, cssClass="raw") {
+      return `<details><summary>${escapeHtml(label)}</summary><pre class="${cssClass}">${escapeHtml(pretty(value))}</pre></details>`;
+    }
+    function setupSplitter() {
+      let dragging = false;
+      const resize = clientY => {
+        const bounds = dom.inspector.getBoundingClientRect();
+        const height = Math.min(Math.max(clientY - bounds.top, 120), Math.max(120, bounds.height - 129));
+        dom.inspector.style.gridTemplateRows = `${height}px 9px minmax(120px, 1fr)`;
+        dom.splitter.setAttribute("aria-valuenow", Math.round(height));
+      };
+      dom.splitter.addEventListener("pointerdown", event => {
+        dragging = true;
+        dom.splitter.setPointerCapture(event.pointerId);
+      });
+      dom.splitter.addEventListener("pointermove", event => { if (dragging) resize(event.clientY); });
+      dom.splitter.addEventListener("pointerup", event => {
+        dragging = false;
+        dom.splitter.releasePointerCapture(event.pointerId);
+      });
+      dom.splitter.addEventListener("keydown", event => {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        event.preventDefault();
+        const edge = dom.splitter.getBoundingClientRect().top;
+        resize(edge + (event.key === "ArrowDown" ? 24 : -24));
+      });
+    }
+
+    function environments() {
+      const values = [];
+      const seen = new Set();
+      runs.forEach(run => {
+        if (!seen.has(run.environment_id)) { seen.add(run.environment_id); values.push(run); }
+      });
+      return values;
+    }
+    function fillEnvironmentOptions() {
+      dom.environment.innerHTML = environments().map(run =>
+        `<option value="${escapeHtml(run.environment_id)}">${escapeHtml(run.environment_name)}</option>`
+      ).join("");
+    }
+    function fillRunOptions(preferred) {
+      const available = runs.filter(run => run.environment_id === dom.environment.value);
+      dom.run.innerHTML = available.map((run, index) => {
+        const stamp = run.created_at ? run.created_at.replace("T", " ").slice(0, 19) : `轮次 ${index + 1}`;
+        return `<option value="${escapeHtml(run.id)}">${escapeHtml(stamp)} · ${escapeHtml(run.model)} · ${escapeHtml(run.stage)}</option>`;
+      }).join("");
+      if (preferred && available.some(run => run.id === preferred)) dom.run.value = preferred;
+    }
+    function metric(label, value) { return `<div class="metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`; }
+    function renderMetrics() {
+      const c = state.run.counts;
+      dom.metrics.innerHTML = metric("工具", c.tools) + metric("直接边", c.edges) + metric("候选链", c.candidates) + metric("通过", c.passed) + metric("拒绝", c.rejected) + (c.pending ? metric("待验证", c.pending) : "");
+      dom.subtitle.textContent = `${state.run.environment_id} · ${state.run.stage} · ${state.run.backend}/${state.run.model}`;
+      dom.environmentSummary.innerHTML = `<strong>${escapeHtml(state.run.environment_name)}</strong><span>${escapeHtml(state.run.environment_description || "无环境描述")}</span>`;
+    }
+
+    function graphElements(run) {
+      return [
+        ...run.tools.map(tool => ({ data: { id: tool.name, label: tool.name, displayLabel: tool.name, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, prerequisites: run.prerequisites.filter(item => item.to_tool === tool.name) } })),
+        ...run.edges.map(edge => ({ data: edge, classes: `base-edge weight-${edge.weight}` }))
+      ];
+    }
+    function graphStyle() {
+      return [
+        { selector: "node", style: {
+          "width": 142, "height": 46, "shape": "round-rectangle", "background-color": "#fff",
+          "border-color": "#72847e", "border-width": 1.5, "label": "data(displayLabel)", "font-size": 10,
+          "font-family": "Cascadia Code, Consolas, monospace", "color": "#1d2926", "text-wrap": "wrap",
+          "text-max-width": 126, "text-overflow-wrap": "anywhere", "text-valign": "center", "text-halign": "center", "text-events": "yes"
+        }},
+        { selector: "edge", style: {
+          "width": 2, "curve-style": "bezier", "line-color": "#64726e", "target-arrow-color": "#64726e",
+          "target-arrow-shape": "triangle", "arrow-scale": .75
+        }},
+        { selector: ".weight-3", style: { "width": 5 }},
+        { selector: ".weight-2", style: { "width": 2.7 }},
+        { selector: ".weight-1", style: { "width": 1.4 }},
+        { selector: ".dimmed", style: { "opacity": .32 }},
+        { selector: ".focus-unrelated", style: { "opacity": .16 }},
+        { selector: ".focus-center", style: { "border-color": "#0b7562", "border-width": 4, "background-color": "#e4f2ee" }},
+        { selector: ".focus-neighbor", style: { "background-color": "#f4f6f5" }},
+        { selector: ".chain-node-complete", style: { "background-color": "#e2f3ee" }},
+        { selector: ".chain-node-failed", style: { "border-color": FAIL, "border-width": 3, "background-color": "#fae9eb" }},
+        { selector: ".llm-added-node", style: { "border-color": "#26332f", "border-width": 2.5, "border-style": "dashed" }},
+        { selector: ".llm-added-node.chain-node-failed", style: { "border-color": FAIL }},
+        { selector: ".chain-overlay", style: {
+          "width": 2.2, "curve-style": "unbundled-bezier", "control-point-distances": 18, "control-point-weights": .5,
+          "line-color": "#26332f", "target-arrow-color": "#26332f", "target-arrow-shape": "triangle", "arrow-scale": .8
+        }},
+        { selector: ".llm-added-edge", style: { "line-style": "dashed" }},
+        { selector: ".track-complete", style: { "underlay-color": PASS, "underlay-opacity": .32, "underlay-padding": 7 }},
+        { selector: ".track-failed", style: { "underlay-color": FAIL, "underlay-opacity": .32, "underlay-padding": 7 }},
+        { selector: ".track-pending", style: { "underlay-color": PENDING, "underlay-opacity": .2, "underlay-padding": 6 }},
+        { selector: ".interactive-hover", style: { "overlay-color": "#0b7562", "overlay-opacity": .1, "overlay-padding": 6 }}
+      ];
+    }
+    function placeIsolatedNodes(connected) {
+      const isolated = state.cy.nodes().not(connected).toArray().sort((a, b) => a.id().localeCompare(b.id()));
+      if (!isolated.length) return;
+      const box = connected.length ? connected.boundingBox({ includeLabels: true }) : { x1: 0, y2: 0, w: 600 };
+      const columns = Math.max(1, Math.ceil(Math.sqrt(isolated.length * 1.8)));
+      const xGap = 166, yGap = 66, gridWidth = (columns - 1) * xGap;
+      const startX = box.x1 + box.w / 2 - gridWidth / 2;
+      const startY = (connected.length ? box.y2 : 0) + 80;
+      isolated.forEach((node, index) => node.position({ x: startX + (index % columns) * xGap, y: startY + Math.floor(index / columns) * yGap }));
+    }
+    function layoutDirectedComponent(component) {
+      const xGap = 180, yGap = 64;
+      const nodes = component.nodes().toArray().sort((a, b) => a.id().localeCompare(b.id()));
+      const edges = component.edges(".base-edge").toArray();
+      const indegree = new Map(nodes.map(node => [node.id(), 0]));
+      const rank = new Map(nodes.map(node => [node.id(), 0]));
+      edges.forEach(edge => indegree.set(edge.target().id(), indegree.get(edge.target().id()) + 1));
+      const queue = nodes.filter(node => indegree.get(node.id()) === 0);
+      const visited = new Set();
+      for (let index = 0; index < queue.length; index += 1) {
+        const node = queue[index];
+        visited.add(node.id());
+        edges.filter(edge => edge.source().id() === node.id()).forEach(edge => {
+          const target = edge.target().id();
+          rank.set(target, Math.max(rank.get(target), rank.get(node.id()) + 1));
+          indegree.set(target, indegree.get(target) - 1);
+          if (indegree.get(target) === 0) queue.push(edge.target());
+        });
+      }
+      nodes.filter(node => !visited.has(node.id())).forEach(node => rank.set(node.id(), 0));
+      const columns = new Map();
+      nodes.forEach(node => columns.set(rank.get(node.id()), [...(columns.get(rank.get(node.id())) || []), node]));
+      columns.forEach((column, level) => column.forEach((node, index) => node.position({
+        x: level * xGap,
+        y: (index - (column.length - 1) / 2) * yGap,
+      })));
+      return component.boundingBox({ includeLabels: true });
+    }
+    function layoutConnectedComponents() {
+      const baseEdges = state.cy.edges(".base-edge");
+      const connectedNodes = baseEdges.connectedNodes();
+      const connectedElements = connectedNodes.union(baseEdges);
+      const components = connectedElements.components().filter(component => component.edges().length);
+      const boxes = components.map(layoutDirectedComponent);
+      if (!components.length) return connectedNodes;
+      const columns = Math.max(1, Math.ceil(Math.sqrt(components.length * 1.5)));
+      const rows = Math.ceil(components.length / columns);
+      const columnWidths = Array(columns).fill(0), rowHeights = Array(rows).fill(0);
+      boxes.forEach((box, index) => {
+        columnWidths[index % columns] = Math.max(columnWidths[index % columns], box.w);
+        rowHeights[Math.floor(index / columns)] = Math.max(rowHeights[Math.floor(index / columns)], box.h);
+      });
+      const offsets = sizes => sizes.map((_, index) => sizes.slice(0, index).reduce((sum, size) => sum + size, 0) + index * 40);
+      const xOffsets = offsets(columnWidths), yOffsets = offsets(rowHeights);
+      components.forEach((component, index) => {
+        const box = boxes[index];
+        const dx = xOffsets[index % columns] - box.x1;
+        const dy = yOffsets[Math.floor(index / columns)] - box.y1;
+        component.nodes().positions(node => ({ x: node.position("x") + dx, y: node.position("y") + dy }));
+      });
+      return connectedNodes;
+    }
+    function runLayout(fit=true) {
+      if (!state.cy) return;
+      const connected = layoutConnectedComponents();
+      placeIsolatedNodes(connected);
+      if (fit) state.cy.fit(undefined, 34);
+    }
+    function showGraphDetail(html) {
+      dom.graphDetailContent.innerHTML = html;
+      dom.graphDetail.hidden = false;
+    }
+    function clearFocus(relayout=true) {
+      if (!state.cy || !state.focused) return;
+      state.cy.stop(true);
+      state.cy.elements().removeClass("focus-unrelated focus-center focus-neighbor");
+      state.focused = null;
+      if (relayout) runLayout(true);
+    }
+    function focusNode(node) {
+      if (!state.cy || !node?.length) return;
+      if (state.focused === node.id()) {
+        clearFocus(true);
+        return;
+      }
+      state.cy.stop(true);
+      if (state.selected) {
+        state.selected = null;
+        dom.list.querySelectorAll(".chain-item").forEach(item => item.classList.remove("active"));
+        renderTask(null);
+        clearChainGraph();
+      }
+      clearFocus(false);
+      state.focused = node.id();
+      const neighbors = node.connectedEdges(".base-edge").connectedNodes().difference(node);
+      const visible = node.union(neighbors);
+      state.cy.elements().addClass("focus-unrelated");
+      visible.removeClass("focus-unrelated");
+      node.addClass("focus-center");
+      neighbors.addClass("focus-neighbor");
+      state.cy.edges(".base-edge").forEach(edge => {
+        if (edge.source().same(node) || edge.target().same(node)) edge.removeClass("focus-unrelated");
+      });
+      const extent = state.cy.extent();
+      const center = { x: (extent.x1 + extent.x2) / 2, y: (extent.y1 + extent.y2) / 2 };
+      const ring = state.cy.nodes().not(node).toArray();
+      const radius = Math.max(220, ring.length * 30);
+      const duration = 350;
+      node.animate({ position: center, duration, easing: "ease-in-out" });
+      ring.forEach((other, index) => {
+        const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, ring.length);
+        other.animate({ position: { x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius }, duration, easing: "ease-in-out" });
+      });
+      const focusId = state.focused;
+      setTimeout(() => {
+        if (state.focused === focusId) {
+          if (state.cy) state.cy.fit(undefined, 50);
+        }
+      }, duration);
+    }
+    function initGraph() {
+      if (state.cy) state.cy.destroy();
+      state.cy = cytoscape({ container: $("cy"), elements: graphElements(state.run), style: graphStyle(), minZoom: .12, maxZoom: 2.6, wheelSensitivity: .18, boxSelectionEnabled: false });
+      state.cy.on("tap", "node", event => {
+        const d = event.target.data();
+        const added = event.target.hasClass("llm-added-node")
+          ? `<p class="detail-label">LLM 新增原因</p><p>${escapeHtml(d.llmReason || "无修订说明")}</p>` : "";
+        showGraphDetail(`<h3>工具详情 · ${escapeHtml(d.label)}</h3>${added}<p class="detail-label">工具描述</p><p>${escapeHtml(d.description || "无描述")}</p>${d.prerequisites?.length ? detailsJson("Prerequisite 历史约束", d.prerequisites) : ""}${detailsJson("Input Schema", d.inputSchema)}${detailsJson("Output Schema", d.outputSchema)}`);
+      });
+      state.cy.on("dbltap", "node", event => focusNode(event.target));
+      state.cy.on("tap", "edge.base-edge", event => {
+        const d = event.target.data();
+        showGraphDetail(`<h3>直接边详情 · ${escapeHtml(d.source)} → ${escapeHtml(d.target)}</h3><p><b>边权 weight ${escapeHtml(d.weight)}</b></p><p class="detail-label">连边原因</p><p>${escapeHtml(d.reason || "无连边原因")}</p>${detailsJson("Parameter Evidence", d.parameter_evidence)}${detailsJson("State Evidence", d.state_evidence)}`);
+      });
+      state.cy.on("tap", "edge.chain-overlay", event => {
+        const d = event.target.data();
+        const added = d.llmAdded ? `<p class="detail-label">LLM 新增路径原因</p><p>${escapeHtml(d.llmReason || "无修订说明")}</p>` : "";
+        showGraphDetail(`<h3>候选链路径 · ${escapeHtml(d.source)} → ${escapeHtml(d.target)}</h3><p>第 ${escapeHtml(d.fromStep)} → ${escapeHtml(d.toStep)} 步 · ${escapeHtml(d.trackLabel)}</p>${added}`);
+      });
+      state.cy.on("mouseover", "node, edge.base-edge, edge.chain-overlay", event => { event.target.addClass("interactive-hover"); $("cy").style.cursor = "pointer"; });
+      state.cy.on("mouseout", "node, edge.base-edge, edge.chain-overlay", event => { event.target.removeClass("interactive-hover"); $("cy").style.cursor = "default"; });
+      runLayout(true);
+    }
+
+    function filteredTasks() {
+      const status = dom.status.value, query = dom.search.value.trim().toLowerCase();
+      return state.run.tasks.filter(task => {
+        if (status === "passed" && !task.passed) return false;
+        if (status === "rejected" && task.passed !== false) return false;
+        if (status === "pending" && task.passed !== null) return false;
+        if (!query) return true;
+        return [task.task_id, task.task_text, task.chain.join(" "), task.validation_errors.join(" ")].join(" ").toLowerCase().includes(query);
+      });
+    }
+    function renderList() {
+      state.tasks = filteredTasks();
+      dom.visible.textContent = `${state.tasks.length} / ${state.run.tasks.length}`;
+      dom.list.innerHTML = state.tasks.length ? state.tasks.map(task => {
+        const active = task.task_id === state.selected ? " active" : "";
+        const status = task.passed === true ? "passed" : task.passed === false ? "rejected" : "pending";
+        const statusClass = status === "passed" ? "" : ` ${status}`;
+        const firstError = task.validation_errors[0] || task.compose_error || task.execution.error || "";
+        return `<button class="chain-item${statusClass}${active}" data-task-id="${escapeHtml(task.task_id)}">
+          <span class="chain-row"><span class="task-id">${escapeHtml(task.task_id)}</span><span class="badge${statusClass}">${status === "passed" ? "通过" : status === "rejected" ? "拒绝" : "待验证"}</span></span>
+          <span class="chain-path">${escapeHtml(task.chain.join(" → "))}</span>
+          <span class="chain-meta">${task.chain.length} tools · score ${escapeHtml(task.score ?? "—")}</span>
+          ${firstError ? `<span class="chain-error">${escapeHtml(firstError)}</span>` : ""}
+        </button>`;
+      }).join("") : '<div class="detail-empty">没有符合筛选条件的链。</div>';
+      dom.list.querySelectorAll("[data-task-id]").forEach(button => button.addEventListener("click", () => selectTask(button.dataset.taskId)));
+      if (!state.tasks.some(task => task.task_id === state.selected)) {
+        selectTask(state.tasks[0]?.task_id || null);
+      }
+    }
+
+    function callsHtml(task) {
+      const calls = task.execution.tool_calls || [];
+      if (!calls.length) return '<p class="small-note">没有成功工具调用。</p>';
+      return calls.map((call, index) => `<details><summary>${index + 1}. ${escapeHtml(call.tool || "unknown")}</summary>
+        <div class="call-grid"><pre>${escapeHtml(pretty(call.arguments || {}))}</pre><pre>${escapeHtml(pretty(call.result ?? null))}</pre></div></details>`).join("");
+    }
+    function renderTask(task) {
+      if (!task) { dom.task.innerHTML = '<div class="detail-empty">没有选中的任务。</div>'; return; }
+      const status = task.passed === true ? "passed" : task.passed === false ? "rejected" : "pending";
+      const statusClass = status === "passed" ? "" : ` ${status}`;
+      const taskText = task.task_text || task.task?.task_text || "未生成任务文本";
+      const executionState = task.execution.success === true ? "success" : task.execution.success === false ? "failed" : "not run";
+      dom.task.innerHTML = `<article class="task-detail">
+        <div class="detail-kicker"><span>${escapeHtml(task.task_id)}</span><span class="badge${statusClass}">${status === "passed" ? "通过" : status === "rejected" ? "拒绝" : "待验证"}</span></div>
+        <h2>${escapeHtml(taskText)}</h2>
+        <div class="submeta">${task.chain.length} tools · score ${escapeHtml(task.score ?? "—")} · execution ${executionState} · ${task.execution.attempt_count} attempts</div>
+        ${task.execution.error ? `<section class="section"><h3>Step 3 执行中断</h3><div class="error-box"><p>${escapeHtml(task.execution.failed_tool || "未知工具")} · ${escapeHtml(task.execution.failure_kind || "unknown")}</p><p>${escapeHtml(task.execution.error)}</p></div></section>` : ""}
+        ${task.compose_error ? `<section class="section"><h3>Step 4 任务生成问题</h3><div class="error-box">${escapeHtml(task.compose_error)}</div></section>` : ""}
+        ${task.validation_errors.length ? `<section class="section"><h3>Step 5 未通过原因</h3><div class="error-box"><ul class="error-list">${task.validation_errors.map(error => `<li>${escapeHtml(error)}</li>`).join("")}</ul></div></section>` : ""}
+        <section class="section"><h3>最终工具链</h3>${chainHtml(task.chain)}</section>
+        ${task.original_chain.length && !sameChain(task.chain, task.original_chain) ? `<section class="section"><h3>LLM 修订前</h3>${chainHtml(task.original_chain)}<p class="small-note">${escapeHtml(task.llm_review.reason || "无修订说明")}</p></section>` : ""}
+        ${task.reference_answer ? `<section class="section"><h3>Reference Answer</h3><p class="answer">${escapeHtml(task.reference_answer)}</p></section>` : ""}
+        <section class="section"><h3>工具调用</h3>${callsHtml(task)}</section>
+        <section class="section"><h3>原始正式 Task</h3>${task.task ? detailsJson("展开 Task JSON", task.task) : '<p class="small-note">没有正式 task；候选在前序阶段失败。</p>'}</section>
+      </article>`;
+    }
+
+    function clearChainGraph() {
+      if (!state.cy) return;
+      state.cy.edges(".chain-overlay").remove();
+      state.cy.elements().removeClass("dimmed chain-node-complete chain-node-failed llm-added-node");
+      state.cy.nodes().forEach(node => {
+        node.data("displayLabel", node.data("label"));
+        node.removeData("llmReason");
+      });
+    }
+    function layoutSelectedTask(task) {
+      if (!state.cy || !task?.chain?.length) return;
+      state.cy.stop(true);
+      const allNodes = state.cy.nodes();
+      const chainNames = [...new Set(task.chain)];
+      const chainNodes = state.cy.collection(chainNames.map(name => state.cy.getElementById(name)).filter(node => node.length));
+      if (!chainNodes.length) return;
+      const related = chainNodes.connectedEdges(".base-edge").connectedNodes().difference(chainNodes);
+      const extent = state.cy.extent();
+      const center = { x: (extent.x1 + extent.x2) / 2, y: (extent.y1 + extent.y2) / 2 };
+      const arcSpan = Math.PI * 1.5;
+      const chainRadius = Math.max(280, Math.min(430, (chainNodes.length * 168) / arcSpan));
+      const relatedInsideCount = Math.min(related.length, 4);
+      const innerRelated = state.cy.collection(related.toArray().slice(0, relatedInsideCount));
+      const outer = allNodes.difference(chainNodes.union(innerRelated));
+      const relatedRadius = Math.min(chainRadius - 150, Math.max(100, relatedInsideCount * 30));
+      const outerRadius = Math.max(chainRadius + 180, relatedRadius + 150, outer.length * 38);
+      const duration = 350;
+      const animateOnRing = (nodes, radius, startAngle, span) => {
+        const divisor = Math.abs(span - Math.PI * 2) < .001 ? nodes.length : Math.max(1, nodes.length - 1);
+        nodes.toArray().forEach((item, index) => {
+          const angle = startAngle + (index * span) / divisor;
+          item.animate({ position: { x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius }, duration, easing: "ease-in-out" });
+        });
+      };
+      if (chainNodes.length === 1) {
+        chainNodes[0].animate({ position: center, duration, easing: "ease-in-out" });
+      } else {
+        animateOnRing(chainNodes, chainRadius, -Math.PI * .75, arcSpan);
+      }
+      animateOnRing(innerRelated, relatedRadius, -Math.PI * .5, Math.PI * 2);
+      animateOnRing(outer, outerRadius, 0, Math.PI * 2);
+      setTimeout(() => {
+        if (state.selected === task.task_id && state.cy) state.cy.fit(undefined, 34);
+      }, duration);
+    }
+    function selectTask(taskId) {
+      if (state.focused) clearFocus(true);
+      if (taskId && state.selected === taskId) taskId = null;
+      state.selected = taskId;
+      dom.list.querySelectorAll(".chain-item").forEach(item => item.classList.toggle("active", item.dataset.taskId === taskId));
+      const task = state.run.tasks.find(item => item.task_id === taskId) || null;
+      renderTask(task);
+      clearChainGraph();
+      if (!task || !state.cy) {
+        if (state.cy) runLayout(true);
+        return;
+      }
+      const indices = new Map();
+      task.chain.forEach((name, index) => indices.set(name, [...(indices.get(name) || []), index + 1]));
+      const hasOriginal = task.original_chain?.length > 0;
+      const originalTools = new Set(task.original_chain || []);
+      const originalEdges = new Set((task.original_chain || []).slice(0, -1).map((name, index) => `${name}\u0000${task.original_chain[index + 1]}`));
+      const completedCount = task.execution.success === true ? task.chain.length : (task.execution.tool_calls || []).length;
+      let failedIndex = -1;
+      if (task.execution.success === false) {
+        failedIndex = task.chain.findIndex((name, index) => index >= completedCount && name === task.execution.failed_tool);
+        if (failedIndex < 0 && completedCount < task.chain.length) failedIndex = completedCount;
+      }
+      state.cy.elements().addClass("dimmed");
+      const highlighted = state.cy.collection();
+      indices.forEach((steps, name) => {
+        const node = state.cy.getElementById(name);
+        if (node.length) {
+          const zeroBased = steps.map(step => step - 1);
+          node.removeClass("dimmed");
+          if (zeroBased.some(index => index < completedCount)) node.addClass("chain-node-complete");
+          if (zeroBased.includes(failedIndex)) node.addClass("chain-node-failed");
+          if (hasOriginal && !originalTools.has(name)) {
+            node.addClass("llm-added-node");
+            node.data("llmReason", task.llm_review.reason);
+          }
+          node.data("displayLabel", `${steps.join(",")} · ${name}`);
+          highlighted.merge(node);
+        }
+      });
+      for (let index = 0; index < task.chain.length - 1; index += 1) {
+        const source = task.chain[index], target = task.chain[index + 1];
+        if (!state.cy.getElementById(source).length || !state.cy.getElementById(target).length) continue;
+        const llmAdded = hasOriginal && !originalEdges.has(`${source}\u0000${target}`);
+        const track = task.execution.success === null ? "pending" : (index + 1 < completedCount ? "complete" : task.execution.success === true ? "complete" : "failed");
+        const trackLabel = track === "complete" ? "已执行成功" : track === "failed" ? "失败或未继续执行" : "尚未执行";
+        const added = state.cy.add({
+          group: "edges",
+          data: { id: `chain-overlay-${index}`, source, target, fromStep: index + 1, toStep: index + 2, llmAdded, llmReason: task.llm_review.reason, trackLabel },
+          classes: `chain-overlay track-${track}${llmAdded ? " llm-added-edge" : ""}`,
+        });
+        highlighted.merge(added);
+      }
+      highlighted.connectedNodes().removeClass("dimmed");
+      layoutSelectedTask(task);
+    }
+
+    function switchRun(runId) {
+      clearFocus(false);
+      state.run = runs.find(run => run.id === runId) || runs[0];
+      state.selected = null;
+      dom.graphDetail.hidden = true;
+      renderMetrics();
+      initGraph();
+      renderList();
+    }
+    function boot() {
+      if (typeof window.cytoscape !== "function") { dom.fatal.hidden = false; return; }
+      if (!runs.length) { dom.fatal.hidden = false; dom.fatal.querySelector("h2").textContent = "没有可显示的运行数据"; return; }
+      fillEnvironmentOptions();
+      fillRunOptions();
+      setupSplitter();
+      switchRun(dom.run.value);
+      dom.environment.addEventListener("change", () => { fillRunOptions(); switchRun(dom.run.value); });
+      dom.run.addEventListener("change", () => switchRun(dom.run.value));
+      dom.status.addEventListener("change", renderList);
+      dom.search.addEventListener("input", renderList);
+      dom.fit.addEventListener("click", () => state.cy?.fit(undefined, 50));
+      dom.layout.addEventListener("click", () => { clearFocus(false); runLayout(true); });
+      dom.closeDetail.addEventListener("click", () => { dom.graphDetail.hidden = true; });
+      document.addEventListener("keydown", event => { if (event.key === "Escape") clearFocus(true); });
+    }
+    boot();
+  })();
+  </script>
+</body>
+</html>
