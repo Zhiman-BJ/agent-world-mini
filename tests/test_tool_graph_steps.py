@@ -83,151 +83,65 @@ def graph_environment() -> dict:
 
 class GraphBuildTest(unittest.TestCase):
     @staticmethod
-    def _assessment(
-        source: str,
-        *,
-        immediate: bool = True,
-        intermediate: bool = False,
-        connection: str = "required_input",
+    def _decision(
+        source: str, weight: int = 0, reason: str = "no direct relationship"
     ) -> dict:
         return {
             "from_tool": source,
-            "immediate_next": immediate,
-            "intermediate_tool_required": intermediate,
-            "connection": connection,
-            "value_origin": "selected" if connection != "none" else "not_applicable",
-            "input_availability": (
-                "runtime_only" if connection != "none" else "not_applicable"
-            ),
-            "evidence": f"evidence for {source}",
-            "condition": None,
+            "weight": weight,
+            "reason": reason,
         }
 
-    def test_validates_complete_first_round_assessments(self) -> None:
-        raw = [
-            {
-                "from_tool": "a",
-                "immediate_next": True,
-                "intermediate_tool_required": False,
-                "connection": "required_input",
-                "value_origin": "selected",
-                "input_availability": "runtime_only",
-                "evidence": "a returns the identifier required by b",
-                "condition": None,
-            },
-            {
-                "from_tool": "c",
-                "immediate_next": False,
-                "intermediate_tool_required": True,
-                "connection": "none",
-                "value_origin": "not_applicable",
-                "input_availability": "not_applicable",
-                "evidence": "another tool must convert the result before b",
-                "condition": None,
-            },
-        ]
+    def test_prompt_defines_edges_by_downstream_chain_quality(self) -> None:
+        prompt = graph_build.PROMPT_TEMPLATE
 
-        assessments = graph_build._validate_assessments("b", raw, {"a", "b", "c"})
-
-        self.assertEqual(assessments, raw)
-
-    def test_rejects_task_input_as_prerequisite(self) -> None:
-        assessments = [self._assessment("a") | {"input_availability": "task_input"}]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 3, "reason": "a supplies b's name"}],
-            "prerequisite_alternatives": [{
-                "all_of": ["a"],
-                "reason": "a supplies a name that can be stated in the task",
-            }],
-        }
-
-        with self.assertRaisesRegex(ValueError, "runtime_only"):
-            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-
-    def test_rejects_non_required_connection_as_prerequisite(self) -> None:
-        assessments = [self._assessment("a", connection="semantic_influence")]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 1, "reason": "a influences b"}],
-            "prerequisite_alternatives": [{
-                "all_of": ["a"],
-                "reason": "semantic influence is not a hard prerequisite",
-            }],
-        }
-
-        with self.assertRaisesRegex(ValueError, "required_input|required_state"):
-            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-
-    def test_evidence_prompt_names_every_allowed_value_origin_literal(self) -> None:
-        prompt = graph_build._build_evidence_prompt(
-            {"name": "b"}, [{"name": "a"}], {"name": "environment"}
-        )
-        for value in graph_build.VALUE_ORIGINS:
-            self.assertIn(f"`{value}`", prompt)
-
-    def test_rejects_contradictory_first_round_assessment(self) -> None:
-        raw = [{
-            "from_tool": "a",
-            "immediate_next": True,
-            "intermediate_tool_required": True,
-            "connection": "required_input",
-            "value_origin": "selected",
-            "input_availability": "runtime_only",
-            "evidence": "claims both direct and indirect",
-            "condition": None,
-        }]
-
-        with self.assertRaisesRegex(ValueError, "immediate_next"):
-            graph_build._validate_assessments("b", raw, {"a", "b"})
-
-    def test_rejects_unclassifiable_state_observation_assessment(self) -> None:
-        baseline = self._assessment("a", connection="state_observation") | {
-            "value_origin": "not_applicable",
-            "input_availability": "not_applicable",
-        }
-        self.assertEqual(
-            graph_build._validate_assessments("b", [baseline], ["a", "b"]),
-            [baseline],
-        )
-
-        for change in (
-            {"immediate_next": False},
-            {"value_origin": "unknown"},
-            {"input_availability": "runtime_only"},
+        for principle in (
+            "你的输出将直接用于工具链采样",
+            "把 B 直接放在 A 后面",
+            "工具图连接的是两次实际执行",
+            "必须先关注并依据两个工具在公开上下文和工具契约中的具体信息",
+            "仅凭工具名称或宽泛的功能关联作出判断",
+            "对象对应关系视为不存在",
+            "任务文本或更早的调用可以提供 B 所需的信息",
+            "边有方向且不具有传递性",
+            "prerequisite 不表示 A -> B 是否是一条好边",
+            "不能由自然任务输入提供",
         ):
-            raw = [baseline | change]
-            with self.subTest(change=change), self.assertRaisesRegex(
-                ValueError, "state_observation"
-            ):
-                graph_build._validate_assessments("b", raw, ["a", "b"])
+            self.assertIn(principle, prompt)
+        for prescriptive_heading in (
+            "标准一：依据真实",
+            "标准二：直接且有价值",
+            "标准三：按最强成立关系定级",
+            "标准四：前置条件独立判断",
+        ):
+            self.assertNotIn(prescriptive_heading, prompt)
+        self.assertLess(len(prompt), 2600)
 
-    def test_rejects_incomplete_first_round_assessments(self) -> None:
-        with self.assertRaisesRegex(ValueError, "漏审"):
-            graph_build._validate_assessments("b", [], {"a", "b"})
+    def test_prompt_defines_weights_by_chain_role(self) -> None:
+        prompt = graph_build.PROMPT_TEMPLATE
 
-    def test_normalizes_first_round_assessments_to_candidate_order(self) -> None:
-        assessments = graph_build._validate_assessments(
-            "b", [self._assessment("c"), self._assessment("a")], ["a", "b", "c"]
-        )
-        self.assertEqual([item["from_tool"] for item in assessments], ["a", "c"])
+        for role in (
+            "同一条实际工作线的连续推进",
+            "不同子任务之间的明确衔接",
+            "任务层面的合理关联",
+            "构成工具链的主要骨架",
+            "用于探索和增加任务多样性",
+        ):
+            self.assertIn(role, prompt)
+        self.assertNotIn("产生高质量工具链的稳定程度", prompt)
 
     def test_validates_edges_and_target_prerequisite_alternatives(self) -> None:
-        assessments = [
-            self._assessment("a"),
-            self._assessment("c", immediate=False, connection="none"),
-        ]
         raw = {
             "decisions": [
-                {"from_tool": "a", "weight": 3, "reason": "a directly prepares b"},
-                {"from_tool": "c", "weight": 0, "reason": "c has no direct effect on b"},
+                self._decision("a", 3, "a directly prepares b"),
+                self._decision("c"),
             ],
             "prerequisite_alternatives": [
                 {"all_of": ["a"], "reason": "a supplies the required dynamic value"},
             ],
         }
 
-        edges, prerequisites = graph_build._validate_decisions(
-            "b", raw, assessments, {"a", "b", "c"}
-        )
+        edges, prerequisites = graph_build._validate_decisions("b", raw, {"a", "b", "c"})
 
         self.assertEqual(edges, [{
             "from_tool": "a",
@@ -243,161 +157,70 @@ class GraphBuildTest(unittest.TestCase):
             }],
         }])
 
-    def test_rejects_positive_decision_for_non_direct_assessment(self) -> None:
-        assessments = [self._assessment("a", intermediate=True, immediate=False)]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 1, "reason": "invalid"}],
-            "prerequisite_alternatives": [],
-        }
-
-        with self.assertRaisesRegex(ValueError, "第一轮"):
-            graph_build._validate_decisions("b", raw, assessments, {"a", "b"})
-
     def test_rejects_prerequisite_that_references_zero_weight_candidate(self) -> None:
-        assessments = [self._assessment("a", immediate=False, connection="none")]
         raw = {
-            "decisions": [{"from_tool": "a", "weight": 0, "reason": "not direct"}],
+            "decisions": [self._decision("a")],
             "prerequisite_alternatives": [{"all_of": ["a"], "reason": "invalid"}],
         }
 
         with self.assertRaisesRegex(ValueError, "正边"):
-            graph_build._validate_decisions("b", raw, assessments, {"a", "b"})
+            graph_build._validate_decisions("b", raw, {"a", "b"})
 
-    def test_accepts_empty_reason_for_zero_weight_and_deduplicates_prerequisites(self) -> None:
-        assessments = [self._assessment("a"), self._assessment("c")]
+    def test_rejects_incomplete_decisions(self) -> None:
+        raw = {"decisions": [], "prerequisite_alternatives": []}
+        with self.assertRaisesRegex(ValueError, "漏审"):
+            graph_build._validate_decisions("b", raw, {"a", "b"})
+
+    def test_requires_every_decision_reason_and_deduplicates_prerequisites(self) -> None:
         raw = {
             "decisions": [
-                {"from_tool": "a", "weight": 3, "reason": "a and c prepare b"},
-                {"from_tool": "c", "weight": 3, "reason": "a and c prepare b"},
+                self._decision("a", 3, "a and c prepare b"),
+                self._decision("c", 3, "a and c prepare b"),
             ],
             "prerequisite_alternatives": [
                 {"all_of": ["a", "c"], "reason": "both are required"},
                 {"all_of": ["c", "a"], "reason": "same alternative"},
             ],
         }
-        _edges, prerequisites = graph_build._validate_decisions(
-            "b", raw, assessments, ["a", "b", "c"]
-        )
+        _edges, prerequisites = graph_build._validate_decisions("b", raw, ["a", "b", "c"])
         self.assertEqual(len(prerequisites[0]["any_of"]), 1)
 
-        raw["decisions"][1] = {"from_tool": "c", "weight": 0, "reason": ""}
+        raw["decisions"][1] = {
+            "from_tool": "c", "weight": 0, "reason": "no direct relationship"
+        }
         raw["prerequisite_alternatives"] = [{"all_of": ["a"], "reason": "a is required"}]
-        edges, _prerequisites = graph_build._validate_decisions(
-            "b", raw, assessments, ["a", "b", "c"]
-        )
+        edges, _prerequisites = graph_build._validate_decisions("b", raw, ["a", "b", "c"])
         self.assertEqual([edge["from_tool"] for edge in edges], ["a"])
 
+        raw["decisions"][1]["reason"] = ""
+        with self.assertRaisesRegex(ValueError, "reason"):
+            graph_build._validate_decisions("b", raw, ["a", "b", "c"])
+
     def test_rejects_malformed_reason_before_deduplicating_prerequisites(self) -> None:
-        assessments = [self._assessment("a")]
         raw = {
-            "decisions": [{"from_tool": "a", "weight": 3, "reason": "a prepares b"}],
+            "decisions": [self._decision("a", 3, "a prepares b")],
             "prerequisite_alternatives": [
                 {"all_of": ["a"], "reason": "valid first copy"},
                 {"all_of": ["a"], "reason": ""},
             ],
         }
         with self.assertRaisesRegex(ValueError, "reason"):
-            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
+            graph_build._validate_decisions("b", raw, ["a", "b"])
 
-    def test_rejects_strong_required_input_edge_from_echoed_value(self) -> None:
-        assessments = [self._assessment("a") | {"value_origin": "echoed"}]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 3, "reason": "echoed id fills b"}],
-            "prerequisite_alternatives": [],
-        }
-        with self.assertRaisesRegex(ValueError, "echoed"):
-            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-
-    def test_allows_strong_state_observation(self) -> None:
-        assessments = [self._assessment("a", connection="state_observation") | {
-            "value_origin": "not_applicable",
-            "input_availability": "not_applicable",
-        }]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 3, "reason": "b reads state changed by a"}],
-            "prerequisite_alternatives": [],
-        }
-        edges, _prerequisites = graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-        self.assertEqual(edges[0]["weight"], 3)
-
-    def test_rejects_weak_state_observation(self) -> None:
-        assessments = [self._assessment("a", connection="state_observation") | {
-            "value_origin": "not_applicable",
-            "input_availability": "not_applicable",
-        }]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 1, "reason": "incorrect downgrade"}],
-            "prerequisite_alternatives": [],
-        }
-        with self.assertRaisesRegex(ValueError, "state_observation"):
-            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-
-    def test_rejects_state_observation_as_prerequisite(self) -> None:
-        assessments = [self._assessment("a", connection="state_observation") | {
-            "value_origin": "not_applicable",
-            "input_availability": "not_applicable",
-        }]
-        raw = {
-            "decisions": [{"from_tool": "a", "weight": 3, "reason": "b observes a's state"}],
-            "prerequisite_alternatives": [{
-                "all_of": ["a"], "reason": "observation is not a hard prerequisite",
-            }],
-        }
-        with self.assertRaisesRegex(ValueError, "required_input|required_state"):
-            graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-        prompt = graph_build._build_decision_prompt(
-            {"name": "b"}, [{"name": "a"}], {"name": "environment"}, assessments
-        )
-        self.assertIn("state_observation", prompt)
-        self.assertIn("不能进入 prerequisite", prompt)
-
-    def test_rejects_weight_above_connection_strength(self) -> None:
-        for connection, weight in (("semantic_influence", 2), ("workflow_transition", 3), ("optional_input", 3)):
-            assessments = [self._assessment("a", connection=connection)]
-            raw = {
-                "decisions": [{"from_tool": "a", "weight": weight, "reason": "too strong"}],
-                "prerequisite_alternatives": [],
-            }
-            with self.subTest(connection=connection), self.assertRaisesRegex(ValueError, "上限"):
-                graph_build._validate_decisions("b", raw, assessments, ["a", "b"])
-
-    def test_prompts_distinguish_new_entity_ids_and_supported_text_influence(self) -> None:
-        evidence = graph_build._build_evidence_prompt(
-            {"name": "b"}, [{"name": "a"}], {"name": "environment"}
-        )
-        decision = graph_build._build_decision_prompt(
-            {"name": "b"}, [{"name": "a"}], {"name": "environment"}, [self._assessment("a")]
-        )
-        self.assertIn("新实体", evidence)
-        self.assertIn("明确用途", evidence)
-        self.assertIn("回显", decision)
-        self.assertIn("最多为 1", decision)
-
-    def test_builds_graph_from_separate_evidence_and_decision_rounds(self) -> None:
+    def test_builds_graph_with_one_call_per_target(self) -> None:
         names = ("a", "b", "c", "d")
-        first_round = []
-        second_round = []
+        results = []
         for target in names:
-            assessments = []
             decisions = []
             for source in names:
                 if source == target:
                     continue
                 direct = source == "a" and target == "b"
-                assessments.append(self._assessment(
-                    source,
-                    immediate=direct,
-                    connection="required_input" if direct else "none",
+                decisions.append(self._decision(
+                    source, 3 if direct else 0,
+                    "a supplies b" if direct else "no direct relationship",
                 ))
-                decisions.append({
-                    "from_tool": source,
-                    "weight": 3 if direct else 0,
-                    "reason": "a supplies b" if direct else "no direct relationship",
-                })
-            first_round.append(InferenceResult(
-                json.dumps({"assessments": assessments}), {}, "test"
-            ))
-            second_round.append(InferenceResult(json.dumps({
+            results.append(InferenceResult(json.dumps({
                 "decisions": decisions,
                 "prerequisite_alternatives": (
                     [{"all_of": ["a"], "reason": "a supplies b's dynamic value"}]
@@ -405,18 +228,13 @@ class GraphBuildTest(unittest.TestCase):
                 ),
             }), {}, "test"))
 
-        calls = []
-
-        def fake_infer(prompts, **_kwargs):
-            calls.append(prompts)
-            return first_round if len(calls) == 1 else second_round
-
-        with patch("task_gen.tool_graph.step_1_graph_build.infer", side_effect=fake_infer):
+        with patch("task_gen.tool_graph.step_1_graph_build.infer", return_value=results) as mocked:
             output = build_graph({"config": Config(), "environment": graph_environment()})
 
-        self.assertEqual(len(calls), 2)
-        self.assertTrue(all(isinstance(call, list) for call in calls))
-        self.assertNotIn("SECRET", json.dumps(calls))
+        self.assertEqual(mocked.call_count, 1)
+        prompts = mocked.call_args.args[0]
+        self.assertEqual(len(prompts), len(names))
+        self.assertNotIn("SECRET", json.dumps(prompts))
         self.assertEqual(output, {"tool_graph": {
             "edges": [{
                 "from_tool": "a",
@@ -436,41 +254,28 @@ class GraphBuildTest(unittest.TestCase):
     def test_retries_one_bad_target_response_without_leaking_partial_edges(self) -> None:
         names = ("a", "b", "c", "d")
 
-        def assessments_for(target: str) -> InferenceResult:
-            return InferenceResult(json.dumps({"assessments": [
-                self._assessment(
-                    source,
-                    immediate=source == "a" and target == "b",
-                    connection=(
-                        "required_input" if source == "a" and target == "b" else "none"
-                    ),
-                )
-                for source in names if source != target
-            ]}), {}, "test")
-
         def decisions_for(target: str) -> InferenceResult:
             return InferenceResult(json.dumps({
-                "decisions": [{
-                    "from_tool": source,
-                    "weight": 2 if source == "a" and target == "b" else 0,
-                    "reason": "valid retry" if source == "a" and target == "b" else "none",
-                } for source in names if source != target],
+                "decisions": [self._decision(
+                    source,
+                    2 if source == "a" and target == "b" else 0,
+                    "valid retry" if source == "a" and target == "b" else "no relationship",
+                ) for source in names if source != target],
                 "prerequisite_alternatives": [],
             }), {}, "test")
 
-        first_batch = [assessments_for(target) for target in names]
-        first_batch[1] = InferenceResult('{"assessments":[]}', {}, "test")
-        retry = assessments_for("b")
-        second_batch = [decisions_for(target) for target in names]
+        first_batch = [decisions_for(target) for target in names]
+        first_batch[1] = InferenceResult('{"decisions":[],"prerequisite_alternatives":[]}', {}, "test")
+        retry = decisions_for("b")
 
         with patch(
             "task_gen.tool_graph.step_1_graph_build.infer",
-            side_effect=[first_batch, [retry], second_batch],
+            side_effect=[first_batch, [retry]],
         ) as mocked:
             output = build_graph({"config": Config(), "environment": graph_environment()})
 
         self.assertEqual(output["tool_graph"]["edges"][0]["reason"], "valid retry")
-        self.assertEqual(mocked.call_count, 3)
+        self.assertEqual(mocked.call_count, 2)
 
 
 class ChainSampleTest(unittest.TestCase):
@@ -577,7 +382,7 @@ class ChainSampleTest(unittest.TestCase):
         self.assertTrue(first["sampling_report"]["short_chain_fallback"])
         self.assertEqual(first["sampling_report"]["attempt_count"], 100)
 
-    def test_review_prompt_requires_required_identifiers_to_come_from_prior_results(self) -> None:
+    def test_review_prompt_judges_values_by_role_and_requires_real_progress(self) -> None:
         graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 1}], "prerequisites": []}
         captured: list[str] = []
 
@@ -594,9 +399,26 @@ class ChainSampleTest(unittest.TestCase):
                 "environment": graph_environment(), "tool_graph": graph,
             })
         prompt = "".join(captured)
-        self.assertIn("必填标识", prompt)
-        self.assertIn("插入能产生该标识的发现工具", prompt)
+        self.assertIn("参数的实际语义", prompt)
+        self.assertIn("能够由任务自然规定", prompt)
+        self.assertIn("不得把已有对象的内部标识当作新对象的标识复用", prompt)
+        self.assertIn("每次调用必须处理新的对象、利用新的状态或产生新的进展", prompt)
+        self.assertIn("目标已经完整实现后应当结束", prompt)
+        self.assertNotIn("必填标识（如 *_id），只能依据前序", prompt)
         self.assertIn("2 到 2 个工具", prompt)
+
+    def test_logic_score_prompt_rates_one_goal_progress_and_natural_ending(self) -> None:
+        prompt = step_2_chain_sample._logic_score_prompt(
+            graph_environment(),
+            graph_environment()["tools"],
+            {"edges": [], "prerequisites": []},
+            {"chain": ["a", "b"], "llm_review": {"reason": "reviewed"}},
+        )
+
+        self.assertIn("所有调用共同服务于该目标", prompt)
+        self.assertIn("每一步都利用已有信息或状态产生新的任务进展", prompt)
+        self.assertIn("目标完成后仍继续操作", prompt)
+        self.assertIn("5：目标清楚", prompt)
 
     def test_bad_review_falls_back_to_original_chain(self) -> None:
         graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 3}], "prerequisites": [
@@ -730,7 +552,7 @@ class ChainSampleTest(unittest.TestCase):
             })
 
         self.assertEqual(len(calls), 2)
-        self.assertTrue(any("逻辑性评分" in prompt for prompt in calls[1]))
+        self.assertTrue(any("评价下面的工具链" in prompt for prompt in calls[1]))
         self.assertEqual(output["tasks"][0]["logic_score"], 5)
 
 

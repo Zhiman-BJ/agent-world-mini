@@ -129,7 +129,8 @@ class BuildGraphOutput(TypedDict):
 
         LLM 必须对每个候选都明确表态：有依赖给 1/2/3，无依赖给 weight=0。
         weight=0 是有效输出但不成为边（图只保存真实存在的边），它的作用是
-        审查完整性门禁 —— Step 1 要求每个目标覆盖全部候选，漏审即报错。
+        审查完整性门禁。每个候选都必须附非空 reason；Step 1 要求每个目标覆盖
+        全部候选，漏审或空理由即报错。
     """
 
     tool_graph: dict[str, Any]

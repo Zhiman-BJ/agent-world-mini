@@ -112,11 +112,9 @@ LLM 判出多少边就输出多少边。
 ===========================  ====================  ==============================
 :func:`_compact_tool_view`   是                    单个工具 → 紧凑公开视图
 :func:`_environment_context`  是                    环境级公开上下文（含 rules）
-:func:`_build_evidence_prompt` 是                   目标 + 候选 + 上下文 → 事实分析 prompt
-:func:`_build_decision_prompt` 是                  事实分析 + 候选 → 分类 prompt
+:func:`_build_prompt`         是                    目标 + 候选 + 上下文 → 单轮 prompt
 :func:`_run_round`             否                    批量调用并按目标重试一次
-:func:`_validate_assessments`  是                    校验第一轮完整覆盖与证据
-:func:`_validate_decisions`    是                    校验第二轮边及 prerequisite
+:func:`_validate_decisions`    是                    校验完整覆盖、边及 prerequisite
 :func:`_assemble_graph`        是                    合并并稳定排序最终对象
 ===========================  ====================  ==============================
 
@@ -126,14 +124,12 @@ LLM 判出多少边就输出多少边。
 
     environment.tools
       → _compact_tool_view 逐个映射     → list[CompactTool]
-      → _build_evidence_prompt                 → str
-      → _run_round + _validate_assessments      → list[Assessment]
-      → _build_decision_prompt                 → str
-      → _run_round + _validate_decisions       → (list[Edge], list[Prerequisite])
-      → _assemble_graph                        → ToolGraph object
+      → _build_prompt                         → str
+      → _run_round + _validate_decisions      → (list[Edge], list[Prerequisite])
+      → _assemble_graph                       → ToolGraph object
 
-两个 ``_run_round`` 调用都是信任边界：LLM 返回必须通过严格的字段、覆盖范围和语义
-一致性校验；失败目标只重试一次，仍失败则终止本阶段，避免部分图泄漏。
+``_validate_decisions`` 是信任边界：LLM 返回必须通过字段和覆盖范围校验；不在本地
+重复裁决模型的语义。失败目标只重试一次，仍失败则终止本阶段，避免部分图泄漏。
 
 公开视图的形态
 ==============
@@ -188,9 +184,10 @@ LLM 判出多少边就输出多少边。
 
 ``weight`` 只表示直接下一跳关系等级，不是 prerequisite、采样概率或置信度：
 
-* ``3``：强直接关系，A 的确定产物或状态使 B 成为紧接着的自然调用。
-* ``2``：明确工作流转移，A 与 B 属于清晰连续的业务步骤，但并非强绑定。
-* ``1``：有具体任务依据的弱直接关系；A 的确定功能可能生成 B 的需求或有效输入。
+* ``3``：近乎绑定的强直接关系，A 直接产生或建立 B 本次调用所用的运行时数据、
+  实体或状态。
+* ``2``：边界清楚、方向正确的逻辑或工作流衔接，但没有强数据或状态绑定。
+* ``1``：A 的确定功能在具体场景中可能生成 B 的需求、有效内容或选择依据。
 * ``0``：**已审查，判定无依赖**。这是有效输出而非错误。
 
 ``weight=0`` 的作用是**完整性检查**：prompt 要求模型逐一审查全部候选，因此对
@@ -198,7 +195,7 @@ LLM 判出多少边就输出多少边。
 省略和"看过后否定"在只接受 1/2/3 的设计下无法区分。
 
 处理方式：``weight=0`` 的项计入审查完整性统计，但**不进入 tool_graph**
-（图只保存真实存在的边）；只有正边要求 reason 非空。
+（图只保存真实存在的边）；每项都要求 reason 非空，以确认模型采用了固定判断视角。
 
 **完整性是硬门禁。** 每个目标必须对其全部候选（工具总数 - 1）都明确表态；
 漏审任何一个即报错。理由是"看过后否定"和"根本没看"
@@ -226,22 +223,21 @@ prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_
    都必须按 ``environment.tools`` 的原始顺序，不依赖返回时序。
    prompt 可以说明"只列出真正必需的前置工具"，但本阶段不对返回条数做任何
    本地限制 —— 不截断入边，不干预图的密度。
-3. （``_build_evidence_prompt``、``_build_decision_prompt`` + ``_environment_context``）prompt 必须同时给出目标工具、
+3. （``_build_prompt`` + ``_environment_context``）prompt 必须同时给出目标工具、
    候选工具、环境公开上下文、上述反例和固定输出结构；候选不包含目标自身。
    环境上下文由 ``_environment_context`` 单独构造，包含环境 ``name``、
    ``description``、``resources`` 和 ``rules``；``rules`` 必须给出，因为跨资源的
    业务规则常常是状态依赖的唯一线索。
 
-   第一轮必须返回 ``{"assessments": [...]}``；第二轮必须返回
-   ``{"decisions": [...], "prerequisite_alternatives": [...]}``。
-3a. （``_run_round``）每轮通过 :func:`tool_graph.llm.infer` 批量调用 LLM，并用
+   单轮必须返回 ``{"decisions": [...], "prerequisite_alternatives": [...]}``。
+3a. （``_run_round``）通过 :func:`tool_graph.llm.infer` 批量调用 LLM，并用
    :func:`tool_graph.llm.parse_json_object` 解析；每个失败目标只重试一次。
    ``MalformedJSONError`` 等解析或语义错误不得被当作“无边”静默吞掉。
-4. （``_validate_assessments`` 与 ``_validate_decisions``）用本地确定性代码校验每一项：``from_tool`` 必须是
+4. （``_validate_decisions``）用本地确定性代码校验每一项：``from_tool`` 必须是
    ``environment.tools`` 中的已知工具名且不等于当前目标（自环在此就地丢弃，
    不留到装配阶段）、``weight`` 必须是 0/1/2/3 之一（``True`` 不算 1）。
-   第一轮要求全部候选都有事实判断；第二轮要求全部候选都有 0/1/2/3 分类，且
-   prerequisite 只能引用正边。不得直接信任 LLM 输出。
+   全部候选都必须有 0/1/2/3 分类和非空理由，且 prerequisite 只能引用正边。
+   本地只做结构和引用校验，不用另一套规则覆盖模型的语义判断。
 5. （``_assemble_graph``）对同一 ``from_tool → to_tool`` 只保留一条边，
    严禁自环。边按 ``weight`` 降序、``from_tool`` 和 ``to_tool`` 字典序稳定输出。
    这两件事（去重、稳定排序）是装配的**全部**职责。
@@ -279,8 +275,8 @@ prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_
 * ``_compact_tool_view``：工具缺少 ``name``、``description``、``inputSchema`` 或
   ``outputSchema`` 时抛异常。正常情况下 Step 0 的字段检查已经挡住，这里是
   防御性断言，不做兜底填充。
-* ``_validate_assessments`` / ``_validate_decisions``：未知工具名、非法 ``weight``、
-  漏审、语义冲突或 prerequisite 结构非法时，
+* ``_validate_decisions``：未知工具名、非法 ``weight``、空理由、漏审或
+  prerequisite 结构非法时，
   抛出同时包含目标工具名和出错项的异常。
 * ``_assemble_graph``：本环节没有失败条件。它只做去重和排序，不校验图的性质，
   因此不会抛异常。
@@ -305,7 +301,7 @@ prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_
 完成条件
 ========
 
-每个工具都作为目标完成两轮判定；所有候选均有明确结论并通过本地校验；图中无自环
+每个工具都作为目标完成一次判定；所有候选均有明确结论并通过本地校验；图中无自环
 和重复边，prerequisite 引用合法；输出顺序稳定且不包含 ``internal`` 或工具实现细节。
 
 本阶段不保证图具备任何拓扑性质（零入度工具存在、无环、连通等）。
@@ -324,43 +320,10 @@ from .llm import BatchInferenceError, InferenceResult, MalformedJSONError, infer
 # 它不进入 tool_graph —— 图只保存真实存在的边。
 WEIGHTS = (0, 1, 2, 3)
 MAX_OUT_DEPTH = 3
-ASSESSMENT_CONNECTIONS = {
-    "required_input",
-    "optional_input",
-    "required_state",
-    "state_observation",
-    "workflow_transition",
-    "semantic_influence",
-    "none",
-}
-VALUE_ORIGINS = {
-    "generated",
-    "selected",
-    "derived",
-    "echoed",
-    "not_applicable",
-    "unknown",
-}
-INPUT_AVAILABILITIES = {
-    "runtime_only",
-    "task_input",
-    "not_applicable",
-    "unknown",
-}
-ASSESSMENT_FIELDS = {
-    "from_tool",
-    "immediate_next",
-    "intermediate_tool_required",
-    "connection",
-    "value_origin",
-    "input_availability",
-    "evidence",
-    "condition",
-}
 
 
 def build_graph(stage_input: BuildGraphInput) -> BuildGraphOutput:
-    """Analyze evidence, classify direct edges, and assemble the tool graph."""
+    """Classify direct edges and prerequisites once per target tool."""
     environment = stage_input["environment"]
     config = stage_input["config"]
     views = [_compact_tool_view(tool) for tool in environment["tools"]]
@@ -371,34 +334,18 @@ def build_graph(stage_input: BuildGraphInput) -> BuildGraphOutput:
         for target in views
     ]
 
-    evidence_prompts = [
-        _build_evidence_prompt(target, candidate_set, context)
+    prompts = [
+        _build_prompt(target, candidate_set, context)
         for target, candidate_set in zip(views, candidates)
     ]
-    assessments = _run_round(
-        evidence_prompts,
-        names,
-        config.llm,
-        "事实分析",
-        lambda result, target: _validate_assessments(
-            target, _request_assessments(result, target), names
-        ),
-    )
-
-    decision_prompts = [
-        _build_decision_prompt(target, candidate_set, context, target_assessments)
-        for target, candidate_set, target_assessments in zip(views, candidates, assessments)
-    ]
-    assessment_by_target = dict(zip(names, assessments))
     classified = _run_round(
-        decision_prompts,
+        prompts,
         names,
         config.llm,
-        "关系分类",
+        "关系判断",
         lambda result, target: _validate_decisions(
             target,
-            _request_json_object(result, target, "第二轮"),
-            assessment_by_target[target],
+            _request_json_object(result, target, "建图"),
             names,
         ),
     )
@@ -566,37 +513,23 @@ def _environment_context(environment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_evidence_prompt(
+def _build_prompt(
     target: dict[str, Any],
     candidates: list[dict[str, Any]],
     context: dict[str, Any],
 ) -> str:
-    """Build the first-round prompt that extracts evidence without classifying it."""
-    return EVIDENCE_PROMPT_TEMPLATE.format(
+    """Build one prompt that reasons about every incoming candidate for a target."""
+    return PROMPT_TEMPLATE.format(
         environment=json.dumps(context, ensure_ascii=False, indent=2),
         target=json.dumps(target, ensure_ascii=False, indent=2),
         candidates=json.dumps(candidates, ensure_ascii=False, indent=2),
     )
 
 
-def _build_decision_prompt(
-    target: dict[str, Any],
-    candidates: list[dict[str, Any]],
-    context: dict[str, Any],
-    assessments: list[dict[str, Any]],
-) -> str:
-    """Build the second-round prompt that classifies validated evidence."""
-    return DECISION_PROMPT_TEMPLATE.format(
-        environment=json.dumps(context, ensure_ascii=False, indent=2),
-        target=json.dumps(target, ensure_ascii=False, indent=2),
-        candidates=json.dumps(candidates, ensure_ascii=False, indent=2),
-        assessments=json.dumps(assessments, ensure_ascii=False, indent=2),
-    )
-
-
-EVIDENCE_PROMPT_TEMPLATE = """\
-你在分析有向工具图中的候选关系 A -> B。本轮只提取可核对的事实，不决定是否连边，
-不分配 weight，也不判断 prerequisite。
+PROMPT_TEMPLATE = """\
+你的输出将直接用于工具链采样。A -> B 表示允许采样器在更长的工具链中把 B 直接放在 A 后面。
+我们需要由这些边组成可执行、连贯并持续产生任务进展的工具链，而不是相关工具
+的拼接。
 
 环境公开上下文：
 {environment}
@@ -604,187 +537,67 @@ EVIDENCE_PROMPT_TEMPLATE = """\
 目标工具 B：
 {target}
 
-候选工具 A（不含 B 自身）：
+候选工具 A（不含 B）：
 {candidates}
 
-固定判断视角：假设某个候选工具 A 已经成功执行。只考虑公开工具契约能够支持的
-具体任务场景，判断在 B 的其他硬前置已经满足时，B 能否直接作为下一次工具调用。
-不要改问“B 在所有其他任务中能否独立执行”。调用方可能提前知道某个值、或者另一个
-工具也可能提供这个值，都不能否定当前 A -> B 路径中真实存在的数据或状态交接。
+判断原则
+========
 
-对每个候选分别分析：
+工具图连接的是两次实际执行，不是两个工具功能在概念上的关系。A -> B 成立，当公开
+环境和工具契约支持一种自然的任务路径：A 执行后无需插入其他工具即可执行 B，而且这两次
+相邻执行共同推动任务取得有意义的进展。
 
-1. immediate_next：A 成功后，不调用其他工具，B 是否可以成为合理的下一次调用。
-   从 A 返回的列表中选择一个元素，以及填写普通的人类可决定文本，不算调用其他工具。
-   这里判断的是是否存在公开契约支持的直接路径，而不是 B 是否为最常见、最推荐的下一步；
-   只要 A 的确定结果可直接改变 B 的输入、范围或动作，且没有技术中间步骤，就写 true。
-2. intermediate_tool_required：A 与 B 之间是否必须调用另一个工具完成查询、验证、
-   转换、解析或目标对象发现。若是，必须写 true。
-3. connection：只选择最具体的一项：
-   - required_input：A 的结果可填入 B 的必填输入；
-   - optional_input：A 的结果可填入 B 的可选输入；
-   - required_state：A 创建或建立了 B 本次执行所需的实体或状态；
-   - state_observation：B 会直接读取、核验或呈现 A 刚改变的状态；
-   - workflow_transition：没有直接字段交接，但两个工作块存在明确的直接衔接；
-   - semantic_influence：A 的具体结果会影响 B 的参数选择、范围或验证方式；
-   - none：以上均不成立。
-4. value_origin：只能填写以下六个字符串之一：
-   - `generated`：A 新生成该值或实体；
-   - `selected`：从 A 的结果中选择该值或实体；
-   - `derived`：根据 A 的结果计算或推导；
-   - `echoed`：A 仅原样回显自己的输入；
-   - `not_applicable`：当前关系不涉及值来源；
-   - `unknown`：公开契约无法确认来源。
-5. input_availability：只能填写以下四个字符串之一：
-   - `runtime_only`：B 需要的动态标识、句柄、实体或状态只能在工具运行后取得，不能作为
-     自然任务描述中的业务信息直接提供；
-   - `task_input`：名称、标题、描述、目标状态、分类、筛选条件等普通业务信息可以自然地
-     写在任务描述中；
-   - `not_applicable`：当前关系不涉及向 B 提供输入或所需状态；
-   - `unknown`：公开契约无法判断。
-   该字段描述信息的固有可见性，不描述本条假设路径恰好怎样取得它。名称、标题、描述、
-   分类、组件、目标状态、筛选条件等有业务含义的信息，即使本路径从 A 的结果中选择，
-   仍是 task_input。runtime_only 只用于运行时才产生或发现的内部引用（如不透明 ID、句柄、
-   令牌）或必须由工具建立的状态；不能因为 A 碰巧返回了某项业务信息就写 runtime_only。
-6. evidence：用一句话指出 A 的具体输出/状态和 B 的具体输入/行为。不能只写字段同名、
-   类型相同、共享资源或主题相近。
-7. condition：只有关系需要额外业务条件时填写该条件，否则返回 null。
+判断每条 A -> B 前，必须先关注并依据两个工具在公开上下文和工具契约中的具体信息；
+不得脱离这些信息，仅凭工具名称或宽泛的功能关联作出判断。
 
-直接性规则：
-- A -> B 和 B -> A 必须分别判断，不能因为一个方向成立而补出反向关系。
-- 若 A -> B -> C，而 A 到 C 必须经过 B 的验证、转换、解析、选择或状态处理，
-  则 A 不是 C 的直接来源。
-- 如果 C 同时需要 A 和 B，分析 A -> C 时可以假定 B 已在更早位置完成；
-  但必须明确 A 自己为 C 提供了哪一项独立前置。
-- 如果 B 创建新实体，且它的标识由调用方为新实体指定或重复标识会被拒绝，A 返回的
-  已有实体标识不能当作 B 的 required_input；A 的其他结果仍可按实际用途判断。
-- 查询工具把调用时用于定位对象的键放进结果对象，即使字段嵌套或同时返回其他详情，
-  该定位键仍是 echoed，不是 selected；selected 只表示从 A 新返回的候选集合中作选择。
-- state_observation 的依据是 A 改变了 B 随后读取的状态，不是 A 回显的定位键；此时
-  value_origin 和 input_availability 均填 not_applicable。
-- A 的功能和具体结果能明确决定 B 的文本、范围或选择时，可以是 semantic_influence；
-  但仅仅“可能有帮助”“属于同一主题”或“任意文本理论上都能写入文本字段”仍是 none。
-  evidence 必须写出该结果在 B 中的明确用途。A 不必提供 B 的全部必填输入；其他输入
-  已满足时，只要 A 的确定结果确实会改变 B 的调用内容，仍是直接的弱关系。
-- semantic_influence 必须改变 B 的调用参数、范围或动作内容。对于无参数且行为固定的
-  查询，A 的结果不能改变 B 的调用；仅帮助解释或对照 B 的固定输出不算 semantic_influence。
-- 不要用“不常见”“通常不会这样做”否定一条由公开契约明确支持的具体弱路径；但也不能
-  仅凭同领域、共享资源或想象 A 未声明的输出补边。完整覆盖所有有明确用途的候选。
+只承认公开上下文和工具契约明确支持的关系；未声明的能力或对象对应关系视为不存在。
+语义上的相关性和数据来源上的关联都不能代替实际执行之间的关系。
 
-必须恰好返回每一个候选一次，顺序与候选列表一致。只返回 JSON object：
+任务文本或更早的调用可以提供 B 所需的信息；A 不必是 B 参数的唯一来源。判断边是否
+成立，取决于相邻执行对任务的作用，而不是 B 的全部输入是否来自 A。
 
-{{"assessments":[
-  {{
-    "from_tool":"候选工具名",
-    "immediate_next":true,
-    "intermediate_tool_required":false,
-    "connection":"required_input",
-    "value_origin":"selected",
-    "input_availability":"runtime_only",
-    "evidence":"候选输出中的某个动态值可直接填入目标的某个必填输入",
-    "condition":null
-  }}
-]}}
+边有方向且不具有传递性。A -> B 与 B -> A 分别判断；A -> B 和 B -> C 成立，不能据此
+推导 A -> C。
 
-每项只能包含上述八个字段，不要输出其他内容。
-"""
+weight
+======
 
+weight 只表示边在工具链中的结构作用；采样概率和 prerequisite 独立表达：
 
-DECISION_PROMPT_TEMPLATE = """\
-你在为有向工具图中的候选关系 A -> B 作最终分类。你会看到公开工具定义和上一轮的
-事实分析。本轮决定每条边的 weight，并为目标 B 汇总 prerequisite 完整组合。
+- 3：同一条实际工作线的连续推进。A 完成后留下的具体进展由 B 的实际执行直接承接，
+  使同一个局部目标继续向完成收敛。连续的 Level 3 边构成工具链的主要骨架，并使其具有深度。
+- 2：不同子任务之间的明确衔接。A 和 B 推进不同的局部目标，但把 B 放在 A 后面对于
+  组织同一个整体任务具有稳定、清楚的意义。Level 2 边把多个子任务组成连贯的整体。
+- 1：任务层面的合理关联。A 和 B 直接相邻能够推进一项自然任务，但连贯性主要来自
+  整体任务目标；这条边既不延续同一条实际工作线，也不构成稳定的子任务衔接。Level 1
+  边用于探索和增加任务多样性。
+- 0：A 和 B 无法形成由公开契约支持、能够推进任务的直接相邻执行。
 
-环境公开上下文：
-{environment}
+reason 必须说明公开契约支持的相邻执行关系及其结构等级；weight=0 也必须说明缺少什么
+关系，因此不连边。
 
-目标工具 B：
-{target}
+prerequisite
+============
 
-候选工具 A：
-{candidates}
+prerequisite 不表示 A -> B 是否是一条好边，而表示 B 能否成功执行的工具历史条件。
+只记录必须由更早的工具执行建立、不能由自然任务输入提供的条件；如果所有方案都不满足，
+B 就不能成功执行。它与 weight 分别判断，不能从 weight=3 推导，也不能反向改变 weight。
 
-上一轮事实分析：
-{assessments}
+prerequisite_alternatives 整体是 any_of，其中任意一个方案满足即可；每个方案的 all_of
+必须全部满足。没有这种历史条件时返回空数组。prerequisite 只能引用 B 的正边。
 
-固定判断视角：假设 A 已成功执行，判断在一个由公开契约支持的具体路径中，B 是否适合
-作为下一次工具调用。不要因为 B 在别的任务中可以独立执行、调用方可能已经知道参数、
-或其他工具也能提供参数，而否定当前 A -> B 路径。
-
-先判断是否连边：
-- immediate_next=false，或者 intermediate_tool_required=true：weight=0。
-- connection=none，或者 evidence 只有字段同名、类型相同、共享资源、主题相近：weight=0。
-- 其他情况再判断 weight；全部候选判断完成后，再单独汇总 prerequisite 组合。
-
-prerequisite 只表示链历史约束：在本流水线生成的任务链中，执行 B 以前，哪些工具组合
-必须已经执行，才能取得 B 所需且不能作为自然任务输入直接提供的动态值、实体或资源状态。
-
-- prerequisite_alternatives 是任选关系：其中任意一个方案满足，B 就具备工具历史前置。
-- 每个方案的 all_of 是同时关系：该方案列出的工具必须全部已经执行。
-- 如果 A、B 必须共同准备目标 C，写一个 all_of=[A,B] 的方案。
-- 如果 A 或 D 任意一个都能独立准备目标 C，写两个方案：all_of=[A] 和 all_of=[D]。
-- A 只回显自己的输入值，不能仅据此进入 prerequisite 方案。
-- 只有上一轮 input_availability=runtime_only，且值确由 A 生成、选择或推导的来源，才能
-  进入 prerequisite 方案。普通名称、标题、描述、分类、期望状态、筛选条件等可以自然
-  写进任务的业务信息，不构成全局硬前置。
-- state_observation 表示 B 可以观察 A 刚完成的变更，但 B 本身并不以 A 为全局硬前置，
-  不能进入 prerequisite；required_state 才表示 A 建立了 B 本次执行不可缺少的状态。
-- “新标识不得重复”不等于必须先查询已有标识；如果调用方可以自行生成或指定新标识，
-  查询工具不是创建工具的 prerequisite。只有契约明确要求通过工具分配时才是硬前置。
-- 可选输入、改善结果、辅助验证、影响选择或自然工作流不进入 prerequisite 方案。
-- 没有硬前置时 prerequisite_alternatives 返回空数组。
-- prerequisite 中出现的工具必须对目标存在 weight>0 的直接边，不能凭空引用候选。
-
-weight 只表示 B 作为 A 的直接下一跳有多强的依据，不表示 prerequisite、采样概率或
-模型置信度：
-
-- 3 强直接关系：A 产生或改变的具体值、实体或状态被 B 直接使用，关系明确。
-- 2 明确工作流转移：没有足够依据判为 3，但 A 完成的工作块与 B 开始的工作块存在
-  清楚、直接、常规的业务衔接。
-- 1 具体的弱关系：存在公开契约支持的合理场景，A 的具体结果会直接影响 B 的可选输入、
-  范围、判断或验证方式，但不是强交接或固定工作流。
-- 0 无直接关系：只存在主题、字段名、类型或共享资源关联，或者中间需要其他工具。
-
-weight 与 prerequisite 组合必须分别判断，不能把所有 weight=3 的来源自动合并成一个
-all_of 方案，也不能因为某条边不属于 prerequisite 就降低它本来明确的关系等级。
-
-等级上限必须遵守：semantic_influence 最多为 1；workflow_transition 和 optional_input
-最多为 2；如果唯一依据是 A 回显调用 A 时已有的值（value_origin=echoed），最多为 1；
-value_origin=unknown 时也最多为 1。不能只因某字段可填入 B 的必填参数就突破这些上限。
-state_observation 表示 A 已实际改变状态且 B 直接读取该新状态，必须为 3；用于定位状态
-的标识即使来自 A 的输入回显，也不能降低这项状态关系。
-
-反例：
-- A 返回 B 需要的动态 ID；即使调用方可能提前知道该 ID，当前选定路径仍可构成强交接。
-- A 只把调用 A 时已有的 ID 原样返回；回显本身不产生新的 prerequisite 方案。
-- A 与 C 属于同一个长任务，但必须先调用 B 完成验证或转换；A -> C 应为 weight=0。
-- A 的结果只是在理论上可能被写入 B 的任意文本字段，没有明确用途；应为 weight=0。
-
-每条边的 reason 必须说明 A 的哪项具体结果或状态被 B 如何使用、为什么能够直接相邻、
-以及为何属于该 weight。每个 prerequisite 方案的 reason 必须说明为什么 all_of 中的工具
-需要共同完成，以及不同方案为什么可以互相替代。不要复述规则，不要使用“可能相关”
-作为唯一理由。
-
-必须恰好返回每一个候选一次，顺序与候选列表一致。不连边也必须返回 weight=0。
-只返回 JSON object：
+必须按候选顺序恰好判断每个 A 一次。只返回以下 JSON object：
 
 {{
   "decisions":[
-    {{
-      "from_tool":"候选工具名",
-      "weight":3,
-      "reason":"候选选出的动态标识可直接填入目标的必填标识参数；目标可立即操作该对象"
-    }}
+    {{"from_tool":"候选工具名","reason":"对相邻链和任务目标的具体作用","weight":3}}
   ],
   "prerequisite_alternatives":[
-    {{
-      "all_of":["候选工具名"],
-      "reason":"该方案产生目标本次调用不可从自然任务文本直接取得的动态标识"
-    }}
+    {{"all_of":["候选工具名"],"reason":"不可缺少的工具历史依据"}}
   ]
 }}
 
-decisions 每项只能包含 from_tool、weight、reason；prerequisite_alternatives 每项只能
-包含 all_of、reason。不要输出其他字段。
+每项只能包含示例中的字段，不输出其他内容。
 """
 
 
@@ -800,97 +613,26 @@ def _request_json_object(
         raise ValueError(f"目标 {target_name} 的{round_name}回复无法解析：{error}") from error
 
 
-def _request_assessments(
-    result: InferenceResult,
-    target_name: str,
-) -> list[dict[str, Any]]:
-    payload = _request_json_object(result, target_name, "第一轮")
-    if set(payload) != {"assessments"} or not isinstance(payload["assessments"], list):
-        raise ValueError(f"目标 {target_name} 的第一轮回复必须只含 assessments 数组")
-    return payload["assessments"]
-
-
-def _validate_assessments(
-    target_name: str,
-    raw_assessments: list[dict[str, Any]],
-    tool_names: set[str] | list[str],
-) -> list[dict[str, Any]]:
-    """Validate the complete first-round evidence assessment for one target."""
-    if not isinstance(raw_assessments, list):
-        raise ValueError(f"目标 {target_name} 的 assessments 必须是 array")
-    expected_order = sorted(tool_names) if isinstance(tool_names, set) else list(tool_names)
-    expected_order = [name for name in expected_order if name != target_name]
-    expected = set(expected_order)
-    reviewed: set[str] = set()
-    validated: list[dict[str, Any]] = []
-    for index, item in enumerate(raw_assessments):
-        label = f"目标 {target_name} 的 assessments[{index}]"
-        if not isinstance(item, dict) or set(item) != ASSESSMENT_FIELDS:
-            raise ValueError(f"{label} 字段必须恰好为 {sorted(ASSESSMENT_FIELDS)}")
-        source = item["from_tool"]
-        if source not in expected or source in reviewed:
-            raise ValueError(f"{label}.from_tool 未知、重复或为目标自身：{source!r}")
-        if type(item["immediate_next"]) is not bool:
-            raise ValueError(f"{label}.immediate_next 必须是 bool")
-        if type(item["intermediate_tool_required"]) is not bool:
-            raise ValueError(f"{label}.intermediate_tool_required 必须是 bool")
-        if item["immediate_next"] and item["intermediate_tool_required"]:
-            raise ValueError(f"{label} 的 immediate_next 与 intermediate_tool_required 冲突")
-        if item["connection"] not in ASSESSMENT_CONNECTIONS:
-            raise ValueError(f"{label}.connection 非法：{item['connection']!r}")
-        if item["value_origin"] not in VALUE_ORIGINS:
-            raise ValueError(f"{label}.value_origin 非法：{item['value_origin']!r}")
-        if item["input_availability"] not in INPUT_AVAILABILITIES:
-            raise ValueError(
-                f"{label}.input_availability 非法：{item['input_availability']!r}"
-            )
-        if item["connection"] == "state_observation" and (
-            not item["immediate_next"]
-            or item["intermediate_tool_required"]
-            or item["value_origin"] != "not_applicable"
-            or item["input_availability"] != "not_applicable"
-        ):
-            raise ValueError(
-                f"{label}.state_observation 必须直接相邻，且值来源和输入可见性均为"
-                "not_applicable"
-            )
-        evidence = item["evidence"]
-        if not isinstance(evidence, str) or not evidence.strip():
-            raise ValueError(f"{label}.evidence 必须是非空字符串")
-        condition = item["condition"]
-        if condition is not None and not isinstance(condition, str):
-            raise ValueError(f"{label}.condition 必须是字符串或 null")
-        reviewed.add(source)
-        validated.append(item)
-    missing = sorted(expected - reviewed)
-    if missing:
-        raise ValueError(f"目标 {target_name} 的 assessments 漏审：{', '.join(missing)}")
-    order = {name: index for index, name in enumerate(expected_order)}
-    return sorted(validated, key=lambda item: order[item["from_tool"]])
-
-
 def _validate_decisions(
     target_name: str,
     payload: dict[str, Any],
-    assessments: list[dict[str, Any]],
     tool_names: set[str] | list[str],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Validate second-round edge decisions and target prerequisite alternatives."""
+    """Validate one target's complete edge and prerequisite decision."""
     if not isinstance(payload, dict) or set(payload) != {
         "decisions", "prerequisite_alternatives"
     }:
         raise ValueError(
-            f"目标 {target_name} 的第二轮结果必须只含 decisions 和 prerequisite_alternatives"
+            f"目标 {target_name} 的建图结果必须只含 decisions 和 prerequisite_alternatives"
         )
     raw_decisions = payload["decisions"]
     alternatives = payload["prerequisite_alternatives"]
     if not isinstance(raw_decisions, list) or not isinstance(alternatives, list):
-        raise ValueError(f"目标 {target_name} 的第二轮数组字段非法")
+        raise ValueError(f"目标 {target_name} 的建图数组字段非法")
 
     expected_order = sorted(tool_names) if isinstance(tool_names, set) else list(tool_names)
     expected_order = [name for name in expected_order if name != target_name]
     expected = set(expected_order)
-    assessment_by_source = {item["from_tool"]: item for item in assessments}
     reviewed: set[str] = set()
     positive: set[str] = set()
     edges: list[dict[str, Any]] = []
@@ -905,34 +647,8 @@ def _validate_decisions(
         if type(weight) is not int or weight not in WEIGHTS:
             raise ValueError(f"{label}.weight 必须是 0/1/2/3")
         reason = item["reason"]
-        if not isinstance(reason, str) or (weight and not reason.strip()):
+        if not isinstance(reason, str) or not reason.strip():
             raise ValueError(f"{label}.reason 必须是非空字符串")
-        assessment = assessment_by_source.get(source)
-        if assessment is None:
-            raise ValueError(f"{label} 在第一轮中不存在")
-        if weight and (
-            not assessment["immediate_next"]
-            or assessment["intermediate_tool_required"]
-            or assessment["connection"] == "none"
-        ):
-            raise ValueError(f"{label} 与第一轮的非直接判断冲突")
-        maximum_weight = {
-            "semantic_influence": 1,
-            "workflow_transition": 2,
-            "optional_input": 2,
-        }.get(assessment["connection"], 3)
-        if assessment["value_origin"] == "unknown" or (
-            assessment["value_origin"] == "echoed"
-            and assessment["connection"] in {"required_input", "optional_input"}
-        ):
-            maximum_weight = min(maximum_weight, 1)
-        if weight > maximum_weight:
-            raise ValueError(
-                f"{label}.weight 超过 {assessment['connection']}/"
-                f"{assessment['value_origin']} 的上限 {maximum_weight}"
-            )
-        if assessment["connection"] == "state_observation" and weight != 3:
-            raise ValueError(f"{label}.state_observation 必须使用 weight=3")
         reviewed.add(source)
         if weight:
             positive.add(source)
@@ -966,22 +682,6 @@ def _validate_decisions(
         reason = item["reason"]
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError(f"{label}.reason 必须是非空字符串")
-        invalid_sources = [
-            name for name in required_key
-            if assessment_by_source[name]["connection"] not in {
-                "required_input", "required_state"
-            }
-            or assessment_by_source[name]["input_availability"] != "runtime_only"
-            or assessment_by_source[name]["value_origin"] not in {
-                "generated", "selected", "derived"
-            }
-        ]
-        if invalid_sources:
-            raise ValueError(
-                f"{label} 只能引用 required_input/required_state、"
-                f"input_availability=runtime_only 且由来源工具产生的输入："
-                f"{', '.join(invalid_sources)}"
-            )
         if required_key in seen_alternatives:
             continue
         seen_alternatives.add(required_key)
@@ -997,8 +697,6 @@ def _validate_decisions(
             "any_of": normalized_alternatives,
         })
     return edges, prerequisites
-
-
 def _assemble_graph(
     edges_by_target: dict[str, list[dict[str, Any]]],
     prerequisites_by_target: dict[str, list[dict[str, Any]]],
