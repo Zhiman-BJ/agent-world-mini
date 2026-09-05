@@ -305,19 +305,24 @@ class TaskEvalTest(unittest.TestCase):
                 "indeterminate_condition": "Change attribution is unavailable.",
             }],
         }
-        source = (
-            "def verify(ctx):\n"
-            "    ctx.indeterminate_requirement('R1', 'not enough evidence')\n"
-            "    ctx.indeterminate_requirement('R2', 'not enough evidence')\n"
-        )
         proof_plan = {"schema_version": "1", "bindings": [], "requirements": [], "integrity": {}}
 
-        def fake_infer(prompt: str, **_: object) -> InferenceResult:
+        def fake_infer(prompt: str | list[str], **_: object) -> InferenceResult | list[InferenceResult]:
+            if isinstance(prompt, list):
+                requests = [json.loads(item) for item in prompt]
+                self.assertEqual([item["requirement"]["id"] for item in requests], ["R1", "R2"])
+                source = (
+                    "def check(ctx, shared):\n"
+                    "    return {'status': 'indeterminate', 'reason': 'not enough evidence', "
+                    "'evidence_refs': []}\n"
+                )
+                return [InferenceResult(json.dumps({"source": source}), {}, "test") for _ in requests]
             request = json.loads(prompt)
             self.assertEqual(request["specification"], specification)
             self.assertEqual(request["proof_plan"], proof_plan)
             self.assertNotIn("reference_evidence", request)
-            self.assertIn("getattr", " ".join(request["implementation_principles"]))
+            self.assertEqual(request["component"], "shared_preparation")
+            self.assertIn("反射", " ".join(request["implementation_principles"]))
             self.assertTrue(any(
                 "环境契约" in item and "精确使用" in item and "枚举" in item
                 for item in request["implementation_principles"]
@@ -335,7 +340,9 @@ class TaskEvalTest(unittest.TestCase):
                 for item in request["implementation_principles"]
             ))
             self.assertEqual(set(request["response_contract"]), {"source"})
-            return InferenceResult(json.dumps({"source": source, "notes": "ignored"}), {}, "test")
+            return InferenceResult(json.dumps({
+                "source": "def prepare(ctx):\n    return {}\n", "notes": "ignored",
+            }), {}, "test")
 
         with patch("task_gen.task_eval_verifier.validate_proof_plan"):
             package = generate_verifier(
@@ -343,12 +350,69 @@ class TaskEvalTest(unittest.TestCase):
                 infer_fn=fake_infer, specification=specification, proof_plan=proof_plan,
             )
 
-        self.assertEqual(package["source"], source.rstrip())
+        self.assertIn("def prepare(ctx):", package["source"])
+        self.assertIn("def check_1(ctx, shared):", package["source"])
         self.assertEqual(package["requirements"], [{
             "id": item["id"], "claim": item["claim"], "required": item["required"],
             "evidence_channels": item["evidence_channels"],
             "pass_condition": item["pass_condition"], "fail_condition": item["fail_condition"],
         } for item in specification["requirements"]])
+
+    def test_generate_verifier_builds_shared_preparation_and_batched_checks(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "task_clauses": [{"id": "C1", "text": "Return the value."}],
+            "requirements": [{
+                "id": "R1", "claim": "The value is returned.", "required": True,
+                "task_clause_ids": ["C1"], "outcome_type": "query",
+                "evidence_channels": ["answer"], "pass_condition": "The value is present.",
+                "fail_condition": "The value is absent.",
+                "indeterminate_condition": "The answer cannot be read.",
+            }, {
+                "id": "R2", "claim": "No unrelated side effects.", "required": True,
+                "task_clause_ids": [], "outcome_type": "execution_integrity",
+                "evidence_channels": ["workspace"], "pass_condition": "No changes exist.",
+                "fail_condition": "An unrelated change exists.",
+                "indeterminate_condition": "Changes cannot be read.",
+            }],
+        }
+        proof_plan = {"schema_version": "1", "bindings": [], "requirements": [], "integrity": {}}
+        rounds: list[str] = []
+
+        def fake_infer(prompt: str | list[str], **_: object) -> InferenceResult | list[InferenceResult]:
+            if isinstance(prompt, str):
+                request = json.loads(prompt)
+                rounds.append(request["component"])
+                self.assertEqual(request["component"], "shared_preparation")
+                source = (
+                    "def prepare(ctx):\n"
+                    "    return {'answer': ctx.answer(), 'changes': ctx.changed_paths()}\n"
+                )
+                return InferenceResult(json.dumps({"source": source}), {}, "test")
+            rounds.append("requirement_checks")
+            requests = [json.loads(item) for item in prompt]
+            self.assertEqual([item["requirement"]["id"] for item in requests], ["R1", "R2"])
+            sources = [
+                "def check(ctx, shared):\n"
+                "    if shared['answer']:\n"
+                "        return {'status': 'pass', 'reason': 'answer exists', 'evidence_refs': ['answer']}\n"
+                "    return {'status': 'fail', 'reason': 'answer is empty', 'evidence_refs': ['answer']}\n",
+                "def check(ctx, shared):\n"
+                "    if shared['changes']:\n"
+                "        return {'status': 'fail', 'reason': 'workspace changed', 'evidence_refs': []}\n"
+                "    return {'status': 'pass', 'reason': 'workspace unchanged', 'evidence_refs': []}\n",
+            ]
+            return [InferenceResult(json.dumps({"source": source}), {}, "test") for source in sources]
+
+        with patch("task_gen.task_eval_verifier.validate_proof_plan"):
+            package = generate_verifier(
+                {"task_text": "Return the value."}, {}, {}, {}, infer_fn=fake_infer,
+                specification=specification, proof_plan=proof_plan,
+            )
+
+        results = run_verifier(package, {"answer": "8", "changed_paths": []})
+        self.assertEqual(rounds, ["shared_preparation", "requirement_checks"])
+        self.assertEqual([item["status"] for item in results], ["pass", "pass"])
 
     def test_generate_verifier_keeps_dict_literals_inside_raw_source(self) -> None:
         specification = {
@@ -370,21 +434,27 @@ class TaskEvalTest(unittest.TestCase):
                 "indeterminate_condition": "Changes cannot be attributed.",
             }],
         }
-        source = (
-            "def verify(ctx):\n"
-            "    evidence = {\"kind\": \"answer\"}\n"
-            "    ctx.indeterminate_requirement('R1', evidence['kind'])\n"
-            "    ctx.indeterminate_requirement('R2', evidence['kind'])\n"
-        )
+        def fake_infer(prompt: str | list[str], **_: object) -> InferenceResult | list[InferenceResult]:
+            if isinstance(prompt, str):
+                return InferenceResult(
+                    "def prepare(ctx):\n    evidence = {\"kind\": \"answer\"}\n    return evidence\n",
+                    {}, "test",
+                )
+            source = (
+                "def check(ctx, shared):\n"
+                "    return {'status': 'indeterminate', 'reason': shared['kind'], 'evidence_refs': []}\n"
+            )
+            return [InferenceResult(source, {}, "test") for _ in prompt]
+
         with patch("task_gen.task_eval_verifier.validate_proof_plan"):
             package = generate_verifier(
                 {"task_text": "Return the value."}, {}, {}, {},
-                infer_fn=lambda *_a, **_k: InferenceResult(source, {}, "test"),
+                infer_fn=fake_infer,
                 specification=specification,
                 proof_plan={"schema_version": "1"},
             )
 
-        self.assertEqual(package["source"], source.rstrip())
+        self.assertIn("evidence = {'kind': 'answer'}", package["source"])
 
     def test_generate_verifier_accepts_fenced_python_source(self) -> None:
         specification = {
@@ -404,23 +474,26 @@ class TaskEvalTest(unittest.TestCase):
                 "indeterminate_condition": "Changes cannot be attributed.",
             }],
         }
-        source = (
-            "def verify(ctx):\n"
-            "    ctx.indeterminate_requirement('R1', 'unknown')\n"
-            "    ctx.indeterminate_requirement('R2', 'unknown')"
-        )
+        def fake_infer(prompt: str | list[str], **_: object) -> InferenceResult | list[InferenceResult]:
+            if isinstance(prompt, str):
+                source = "def prepare(ctx):\n    return {}"
+                return InferenceResult(f"```python\n{source}\n```", {}, "test")
+            source = (
+                "def check(ctx, shared):\n"
+                "    return {'status': 'indeterminate', 'reason': 'unknown', 'evidence_refs': []}"
+            )
+            return [InferenceResult(f"```python\n{source}\n```", {}, "test") for _ in prompt]
 
         with patch("task_gen.task_eval_verifier.validate_proof_plan"):
             package = generate_verifier(
                 {"task_text": "Return the value."}, {}, {}, {},
-                infer_fn=lambda *_a, **_k: InferenceResult(
-                    f"```python\n{source}\n```", {}, "test",
-                ),
+                infer_fn=fake_infer,
                 specification=specification,
                 proof_plan={"schema_version": "1"},
             )
 
-        self.assertEqual(package["source"], source)
+        self.assertIn("def prepare(ctx):", package["source"])
+        self.assertIn("def check_2(ctx, shared):", package["source"])
 
     def test_review_verifier_implementation_rejects_unproven_pass_path(self) -> None:
         specification = {

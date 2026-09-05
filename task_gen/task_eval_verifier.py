@@ -1052,6 +1052,70 @@ def _frozen_requirements(specification: dict[str, Any]) -> list[dict[str, Any]]:
     } for item in specification["requirements"]]
 
 
+def _component_function(response: InferenceResult, name: str, arguments: tuple[str, ...]) -> ast.FunctionDef:
+    source = response.text.strip()
+    lines = source.splitlines()
+    if len(lines) >= 3 and lines[0].strip() in {"```", "```py", "```python"} \
+            and lines[-1].strip() == "```":
+        source = "\n".join(lines[1:-1]).strip()
+    if not source.startswith(f"def {name}("):
+        generated = parse_json_object(response.text)
+        if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
+            generated = generated["response_contract"]
+        if not isinstance(generated.get("source"), str):
+            raise ValueError(f"verifier {name} component 必须返回 source")
+        source = generated["source"].strip()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as error:
+        raise ValueError(f"verifier {name} component 语法错误：{error}") from error
+    if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
+        raise ValueError(f"verifier {name} component 只能定义一个函数")
+    function = tree.body[0]
+    actual_arguments = tuple(item.arg for item in function.args.args)
+    if (function.name != name or actual_arguments != arguments or function.decorator_list
+            or function.args.posonlyargs or function.args.kwonlyargs or function.args.vararg
+            or function.args.kwarg or function.args.defaults or function.args.kw_defaults):
+        raise ValueError(f"verifier {name} component 必须定义 {name}({', '.join(arguments)})")
+    reporters = {
+        "pass_requirement", "fail_requirement", "indeterminate_requirement", "semantic_requirement",
+    }
+    if any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name) and node.func.value.id == "ctx"
+        and node.func.attr in reporters
+        for node in ast.walk(function)
+    ):
+        raise ValueError(f"verifier {name} component 不得直接记录 requirement")
+    return function
+
+
+def _assemble_verifier(prepare: ast.FunctionDef, checks: list[ast.FunctionDef], requirement_ids: list[str]) -> str:
+    body: list[ast.stmt] = [prepare, *checks, ast.parse("shared = prepare(ctx)").body[0]]
+    for index, requirement_id in enumerate(requirement_ids, start=1):
+        result = f"result_{index}"
+        body.extend(ast.parse(
+            f"{result} = check_{index}(ctx, deepcopy(shared))\n"
+            f"if not isinstance({result}, dict) or set({result}) != {{'status', 'reason', 'evidence_refs'}}:\n"
+            f"    ctx.indeterminate_requirement({requirement_id!r}, 'checker returned an invalid result', [])\n"
+            f"elif {result}['status'] == 'pass':\n"
+            f"    ctx.pass_requirement({requirement_id!r}, {result}['reason'], {result}['evidence_refs'])\n"
+            f"elif {result}['status'] == 'fail':\n"
+            f"    ctx.fail_requirement({requirement_id!r}, {result}['reason'], {result}['evidence_refs'])\n"
+            f"elif {result}['status'] == 'semantic':\n"
+            f"    ctx.semantic_requirement({requirement_id!r}, {result}['reason'], {result}['evidence_refs'])\n"
+            f"else:\n"
+            f"    ctx.indeterminate_requirement({requirement_id!r}, {result}['reason'], {result}['evidence_refs'])\n"
+        ).body)
+    module = ast.Module(body=[ast.FunctionDef(
+        name="verify",
+        args=ast.arguments(posonlyargs=[], args=[ast.arg(arg="ctx")], kwonlyargs=[], kw_defaults=[], defaults=[]),
+        body=body,
+        decorator_list=[],
+    )], type_ignores=[])
+    return ast.unparse(ast.fix_missing_locations(module))
+
+
 def generate_verifier(
     task: dict[str, Any],
     environment: dict[str, Any],
@@ -1069,68 +1133,106 @@ def generate_verifier(
         if proof_plan is None:
             raise ValueError("冻结规格必须提供 proof_plan")
         validate_proof_plan(proof_plan, specification)
-        request: dict[str, Any] = {
+        principles = [
+            "确定性结构、数值、ID、数量和状态由代码比较；自然语言含义才返回 semantic。",
+            "任何 pass 都必须引用直接证明 claim 的证据；reason 只能陈述引用证据显示的事实。",
+            "持久状态要求必须读取初态和终态；最终回答不能替代落盘结果。",
+            "call_tool 只用于核验终态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
+            "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
+            "verifier 是当前任务和环境的专用实现；应精确使用环境契约声明的路径、数据结构、字段、枚举和稳定标识，这不属于参考过拟合。",
+            "同一事实可由多个来源取得时，优先使用输入输出 Schema 完整的只读工具或明确的数据契约；不得猜测环境未声明的文件容器名、字段或结构。",
+            "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失或数量约束；环境契约中的路径和常量可以直接使用。",
+            "完整证据明确反驳要求时必须 fail；只有证据缺失、不可读或不完整时才 indeterminate。",
+            "执行完整性必须保留集合数量和重复项，并判断额外副作用是否与任务相关、是否无关、破坏性或冲突。",
+            "只能使用 verifier_context_api 和普通 Python 表达式；不得导入模块、启动进程、直接打开路径、写文件、使用反射或访问私有属性。",
+        ]
+        context_api = {
+            "answer()": "实际最终回答",
+            "calls()": "实际工具调用及结果",
+            "changed_paths()": "初末 workspace 变化",
+            "files(state='final') / file(path, state='final')": "文件证据元数据",
+            "read_text(path, state='final') / read_json(path, state='final')": "完整初末 workspace 只读访问",
+            "call_tool(name, arguments) / verifier_calls()": "在终态副本补充核验",
+        }
+        shared_request: dict[str, Any] = {
+            "component": "shared_preparation",
             "role": (
-                "你只实现已经冻结的验证规格。不得重新解释任务，不得增加、删除、合并、拆分或改写"
-                "requirement。每条执行路径对每个 requirement 恰好记录一次结果；只有证据充分时 pass，"
-                "证据明确反驳时 fail，其余情况 indeterminate。"
+                "实现 verifier 的共享证据准备函数。只读取证据、解析业务对象和 proof_plan bindings，"
+                "返回供各项检查共同使用的 object；不得判断或记录任何 requirement。"
             ),
             "implementation_principles": [
-                "确定性结构、数值、ID、数量和状态由代码比较；自然语言含义才调用 semantic_requirement。",
-                "任何 pass 都必须引用直接证明 claim 的证据；reason 只能陈述引用证据显示的事实。",
-                "持久状态要求必须读取初态和终态；最终回答不能替代落盘结果。",
-                "call_tool 只用于核验终态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
-                "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
-                "verifier 是当前任务和环境的专用实现；应精确使用环境契约声明的路径、数据结构、字段、枚举和稳定标识，这不属于参考过拟合。",
-                "同一事实可由多个来源取得时，优先使用输入输出 Schema 完整的只读工具或明确的数据契约；不得猜测环境未声明的文件容器名、字段或结构。",
-                "source 只能定义 verify(ctx)，不得导入模块、启动进程、直接打开路径或写文件。",
-                "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失或数量约束；环境契约中的路径和常量可以直接使用。",
-                "完整证据明确反驳要求时必须 fail；只有证据缺失、不可读或不完整时才 indeterminate，不得用同一个“无法绑定”分支混淆两者。",
-                "执行完整性必须保留集合数量和重复项，并逐项判断额外副作用是否与任务相关、是否无关、破坏性或冲突；不得用 set、路径白名单或对象归属代替判断。",
-                "只能使用 verifier_context_api 和普通 Python 表达式；不得使用 getattr、反射或其他动态访问绕过静态校验。",
+                *principles,
+                "业务对象身份不得依赖正在审核的属性；共享结果必须保留无法区分、明确缺失和读取失败等状态。",
+                "source 只能定义 prepare(ctx)，并返回一个 dict；不得调用任何 requirement 记录方法。",
             ],
             "environment": environment,
             "specification": specification,
             "proof_plan": proof_plan,
-            "verifier_context_api": {
-                "answer()": "实际最终回答",
-                "calls()": "实际工具调用及结果",
-                "changed_paths()": "初末 workspace 变化",
-                "files(state='final') / file(path, state='final')": "文件证据元数据",
-                "read_text(path, state='final') / read_json(path, state='final')": "完整初末 workspace 只读访问",
-                "call_tool(name, arguments) / verifier_calls()": "在终态副本补充核验",
-                "pass_requirement / fail_requirement / indeterminate_requirement": "记录确定性结果",
-                "semantic_requirement": "请求自然语言语义判断；调用本身记录结果且没有返回值",
-            },
-            "evidence_reference_formats": [
-                "answer", "tool_call:N", "initial:relative/path", "final:relative/path",
-                "workspace_change:relative/path", "verifier_call:N",
-            ],
-            "response_contract": {"source": "Python source defining verify(ctx)"},
+            "verifier_context_api": context_api,
+            "response_contract": {"source": "Python source defining prepare(ctx)"},
         }
         if previous_failure:
-            request["previous_issues"] = previous_failure
-        response = infer_fn(
-            json.dumps(request, ensure_ascii=False), llm_config=llm_config,
-        ).text
-        source = response.strip()
-        lines = source.splitlines()
-        if len(lines) >= 3 and lines[0].strip() in {"```", "```py", "```python"} \
-                and lines[-1].strip() == "```":
-            source = "\n".join(lines[1:-1]).strip()
-        if source.startswith("def verify("):
-            generated = {"source": source}
-        else:
-            generated = parse_json_object(response)
-        if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
-            generated = generated["response_contract"]
-        if not isinstance(generated, dict) or not isinstance(generated.get("source"), str):
-            raise ValueError("verifier implementation 必须只返回 source")
-        generated = {"source": generated["source"].rstrip()}
+            shared_request["previous_issues"] = previous_failure
+        shared_response = infer_fn(
+            json.dumps(shared_request, ensure_ascii=False), llm_config=llm_config,
+        )
+        if not isinstance(shared_response, InferenceResult):
+            raise ValueError("verifier shared preparation 必须返回单条结果")
+        prepare = _component_function(shared_response, "prepare", ("ctx",))
+
+        plans = {item["requirement_id"]: item for item in proof_plan.get("requirements", [])}
+        integrity_plan = proof_plan.get("integrity", {})
+        if "requirement_id" in integrity_plan:
+            plans[integrity_plan["requirement_id"]] = integrity_plan
+        check_requests: list[str] = []
+        for requirement in specification["requirements"]:
+            request: dict[str, Any] = {
+                "component": "requirement_check",
+                "role": (
+                    "只实现给定的一项冻结 requirement。使用共享准备结果判断这一项，不得检查或记录其他项。"
+                    "返回 status、reason、evidence_refs；status 只能是 pass、fail、indeterminate 或 semantic。"
+                ),
+                "implementation_principles": principles,
+                "environment": environment,
+                "requirement": requirement,
+                "proof_plan": plans.get(requirement["id"], {}),
+                "shared_source": ast.unparse(prepare),
+                "verifier_context_api": context_api,
+                "evidence_reference_formats": [
+                    "answer", "tool_call:N", "initial:relative/path", "final:relative/path",
+                    "workspace_change:relative/path", "verifier_call:N",
+                ],
+                "response_contract": {
+                    "source": (
+                        "Python source defining check(ctx, shared), returning exactly "
+                        "{'status': 'pass|fail|indeterminate|semantic', 'reason': str, 'evidence_refs': list[str]}"
+                    ),
+                },
+            }
+            if previous_failure:
+                relevant = [
+                    issue for issue in previous_failure if not isinstance(issue, dict)
+                    or not issue.get("requirement_ids") or requirement["id"] in issue["requirement_ids"]
+                ] if isinstance(previous_failure, list) else previous_failure
+                if relevant:
+                    request["previous_issues"] = relevant
+            check_requests.append(json.dumps(request, ensure_ascii=False))
+        check_responses = infer_fn(check_requests, llm_config=llm_config)
+        if not isinstance(check_responses, list) or len(check_responses) != len(check_requests):
+            raise ValueError("verifier requirement checks 返回数量不正确")
+        checks: list[ast.FunctionDef] = []
+        for index, response in enumerate(check_responses, start=1):
+            if not isinstance(response, InferenceResult):
+                raise ValueError("verifier requirement check 返回类型不正确")
+            function = _component_function(response, "check", ("ctx", "shared"))
+            function.name = f"check_{index}"
+            checks.append(function)
         package = {
             "schema_version": "1",
             "requirements": _frozen_requirements(specification),
-            "source": generated["source"],
+            "source": _assemble_verifier(
+                prepare, checks, [item["id"] for item in specification["requirements"]],
+            ),
         }
         validate_verifier(package)
         return package
