@@ -22,6 +22,7 @@ from task_gen.task_eval import (
 )
 from task_gen.task_eval_verifier import (
     _counterfactual_evidence,
+    _infer_component_batch,
     assess_task_reference_conflict,
     aggregate_results,
     build_evidence,
@@ -42,7 +43,7 @@ from task_gen.task_eval_verifier import (
     validate_verifier,
 )
 from task_gen.task_eval_mcp import call_environment_tool, serve
-from task_gen.tool_graph.llm import InferenceResult
+from task_gen.tool_graph.llm import BatchInferenceError, InferenceResult
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -413,6 +414,23 @@ class TaskEvalTest(unittest.TestCase):
         results = run_verifier(package, {"answer": "8", "changed_paths": []})
         self.assertEqual(rounds, ["shared_preparation", "requirement_checks"])
         self.assertEqual([item["status"] for item in results], ["pass", "pass"])
+
+    def test_infer_component_batch_retries_only_failed_items(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_infer(prompt: str | list[str], **_: object) -> list[InferenceResult]:
+            self.assertIsInstance(prompt, list)
+            calls.append(prompt)
+            if len(calls) == 1:
+                raise BatchInferenceError([
+                    InferenceResult("first", {}, "test"), RuntimeError("temporary failure"),
+                ])
+            return [InferenceResult("second", {}, "test")]
+
+        responses = _infer_component_batch(["one", "two"], {}, fake_infer)
+
+        self.assertEqual([item.text for item in responses], ["first", "second"])
+        self.assertEqual(calls, [["one", "two"], ["two"]])
 
     def test_generate_verifier_keeps_dict_literals_inside_raw_source(self) -> None:
         specification = {

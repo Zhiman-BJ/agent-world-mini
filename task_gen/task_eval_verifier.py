@@ -11,7 +11,7 @@ import shutil
 import tempfile
 from typing import Any, Callable
 
-from .tool_graph.llm import InferenceResult, infer, parse_json_object
+from .tool_graph.llm import BatchInferenceError, InferenceResult, infer, parse_json_object
 from .tool_graph.step_3_chain_execute import _bounded_calls, _call_tool, _workspace_signature
 
 
@@ -1090,6 +1090,44 @@ def _component_function(response: InferenceResult, name: str, arguments: tuple[s
     return function
 
 
+def _infer_component_batch(
+    requests: list[str], llm_config: dict[str, Any], infer_fn: InferFn, attempts: int = 3,
+) -> list[InferenceResult]:
+    responses: list[InferenceResult | None] = [None] * len(requests)
+    pending = list(range(len(requests)))
+    errors: dict[int, Exception] = {}
+    for _ in range(attempts):
+        if not pending:
+            break
+        try:
+            outcomes = infer_fn([requests[index] for index in pending], llm_config=llm_config)
+            if not isinstance(outcomes, list) or len(outcomes) != len(pending):
+                raise ValueError("verifier requirement checks 返回数量不正确")
+        except BatchInferenceError as error:
+            if len(error.outcomes) != len(pending):
+                raise ValueError("verifier requirement checks 返回数量不正确") from error
+            outcomes = list(error.outcomes)
+
+        retry: list[int] = []
+        for index, outcome in zip(pending, outcomes):
+            if isinstance(outcome, InferenceResult):
+                responses[index] = outcome
+                errors.pop(index, None)
+            elif isinstance(outcome, Exception):
+                errors[index] = outcome
+                retry.append(index)
+            else:
+                raise ValueError("verifier requirement check 返回类型不正确")
+        pending = retry
+
+    if pending:
+        detail = "; ".join(
+            f"{index + 1}: {type(errors[index]).__name__}: {errors[index]}" for index in pending
+        )
+        raise RuntimeError(f"verifier requirement checks 重试失败：{detail}")
+    return [response for response in responses if response is not None]
+
+
 def _assemble_verifier(prepare: ast.FunctionDef, checks: list[ast.FunctionDef], requirement_ids: list[str]) -> str:
     body: list[ast.stmt] = [prepare, *checks, ast.parse("shared = prepare(ctx)").body[0]]
     for index, requirement_id in enumerate(requirement_ids, start=1):
@@ -1217,9 +1255,7 @@ def generate_verifier(
                 if relevant:
                     request["previous_issues"] = relevant
             check_requests.append(json.dumps(request, ensure_ascii=False))
-        check_responses = infer_fn(check_requests, llm_config=llm_config)
-        if not isinstance(check_responses, list) or len(check_responses) != len(check_requests):
-            raise ValueError("verifier requirement checks 返回数量不正确")
+        check_responses = _infer_component_batch(check_requests, llm_config, infer_fn)
         checks: list[ast.FunctionDef] = []
         for index, response in enumerate(check_responses, start=1):
             if not isinstance(response, InferenceResult):
