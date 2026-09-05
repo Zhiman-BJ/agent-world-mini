@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import io
 import os
@@ -21,6 +22,8 @@ from task_gen.task_eval import (
     run_evaluation,
 )
 from task_gen.task_eval_verifier import (
+    _assemble_verifier,
+    _component_function,
     _counterfactual_evidence,
     _infer_component_batch,
     assess_task_reference_conflict,
@@ -214,10 +217,10 @@ class TaskEvalTest(unittest.TestCase):
         def fake_infer(prompt: str, **_: object) -> InferenceResult:
             request = json.loads(prompt)
             self.assertEqual(request["reference_evidence"]["answer"], "8")
-            self.assertIn("不等于任务没有完成", " ".join(request["principles"]))
+            self.assertIn("不等于任务失败", " ".join(request["principles"]))
             self.assertTrue(any("数量" in item and "上限" in item for item in request["principles"]))
             self.assertTrue(any(
-                "环境契约" in item and "路径" in item and "枚举" in item and "稳定标识" in item
+                "environment_contract" in item and "路径" in item and "枚举" in item and "稳定标识" in item
                 for item in request["principles"]
             ))
             self.assertIn("call_tool", request["response_contract"]["requirements"][0]["evidence_sources"][0]["channel"])
@@ -312,8 +315,10 @@ class TaskEvalTest(unittest.TestCase):
             if isinstance(prompt, list):
                 requests = [json.loads(item) for item in prompt]
                 self.assertEqual([item["requirement"]["id"] for item in requests], ["R1", "R2"])
+                self.assertTrue(all("verifier_context_api" not in item for item in requests))
+                self.assertTrue(all("shared_contract" in item for item in requests))
                 source = (
-                    "def check(ctx, shared):\n"
+                    "def check(shared):\n"
                     "    return {'status': 'indeterminate', 'reason': 'not enough evidence', "
                     "'evidence_refs': []}\n"
                 )
@@ -323,15 +328,13 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(request["proof_plan"], proof_plan)
             self.assertNotIn("reference_evidence", request)
             self.assertEqual(request["component"], "shared_preparation")
-            self.assertIn("反射", " ".join(request["implementation_principles"]))
+            self.assertTrue(any("prepare" in item and "check" in item for item in request["implementation_principles"]))
+            self.assertTrue(any("check(shared)" in item and "ctx" in item for item in request["implementation_principles"]))
             self.assertTrue(any(
-                "环境契约" in item and "精确使用" in item and "枚举" in item
+                "环境契约" in item and "直接使用" in item and "枚举" in item
                 for item in request["implementation_principles"]
             ))
-            self.assertTrue(any(
-                "Schema" in item and "未声明" in item and "猜测" in item
-                for item in request["implementation_principles"]
-            ))
+            self.assertTrue(any("Schema" in item and "猜测" in item for item in request["implementation_principles"]))
             self.assertTrue(any(
                 "明确反驳" in item and "indeterminate" in item
                 for item in request["implementation_principles"]
@@ -352,7 +355,7 @@ class TaskEvalTest(unittest.TestCase):
             )
 
         self.assertIn("def prepare(ctx):", package["source"])
-        self.assertIn("def check_1(ctx, shared):", package["source"])
+        self.assertIn("def check_1(shared):", package["source"])
         self.assertEqual(package["requirements"], [{
             "id": item["id"], "claim": item["claim"], "required": item["required"],
             "evidence_channels": item["evidence_channels"],
@@ -394,11 +397,11 @@ class TaskEvalTest(unittest.TestCase):
             requests = [json.loads(item) for item in prompt]
             self.assertEqual([item["requirement"]["id"] for item in requests], ["R1", "R2"])
             sources = [
-                "def check(ctx, shared):\n"
+                "def check(shared):\n"
                 "    if shared['answer']:\n"
                 "        return {'status': 'pass', 'reason': 'answer exists', 'evidence_refs': ['answer']}\n"
                 "    return {'status': 'fail', 'reason': 'answer is empty', 'evidence_refs': ['answer']}\n",
-                "def check(ctx, shared):\n"
+                "def check(shared):\n"
                 "    if shared['changes']:\n"
                 "        return {'status': 'fail', 'reason': 'workspace changed', 'evidence_refs': []}\n"
                 "    return {'status': 'pass', 'reason': 'workspace unchanged', 'evidence_refs': []}\n",
@@ -414,6 +417,38 @@ class TaskEvalTest(unittest.TestCase):
         results = run_verifier(package, {"answer": "8", "changed_paths": []})
         self.assertEqual(rounds, ["shared_preparation", "requirement_checks"])
         self.assertEqual([item["status"] for item in results], ["pass", "pass"])
+
+    def test_generated_checker_cannot_access_context(self) -> None:
+        response = InferenceResult(
+            "def check(shared):\n"
+            "    return {'status': 'pass', 'reason': ctx.answer(), 'evidence_refs': []}\n",
+            {}, "test",
+        )
+
+        with self.assertRaisesRegex(ValueError, "ctx"):
+            _component_function(response, "check", ("shared",))
+
+    def test_assembled_checker_failure_does_not_stop_other_requirements(self) -> None:
+        prepare = ast.parse("def prepare(ctx):\n    return {}\n").body[0]
+        failing = ast.parse(
+            "def check_1(shared):\n    return shared['missing']\n"
+        ).body[0]
+        passing = ast.parse(
+            "def check_2(shared):\n"
+            "    return {'status': 'pass', 'reason': 'supported', 'evidence_refs': []}\n"
+        ).body[0]
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": requirement_id, "claim": requirement_id, "required": True,
+                "evidence_channels": [], "pass_condition": "yes", "fail_condition": "no",
+            } for requirement_id in ("R1", "R2")],
+            "source": _assemble_verifier(prepare, [failing, passing], ["R1", "R2"]),
+        }
+
+        results = run_verifier(package, {"answer": "", "calls": [], "changed_paths": []})
+
+        self.assertEqual([item["status"] for item in results], ["indeterminate", "pass"])
 
     def test_infer_component_batch_retries_only_failed_items(self) -> None:
         calls: list[list[str]] = []
@@ -459,7 +494,7 @@ class TaskEvalTest(unittest.TestCase):
                     {}, "test",
                 )
             source = (
-                "def check(ctx, shared):\n"
+                "def check(shared):\n"
                 "    return {'status': 'indeterminate', 'reason': shared['kind'], 'evidence_refs': []}\n"
             )
             return [InferenceResult(source, {}, "test") for _ in prompt]
@@ -497,7 +532,7 @@ class TaskEvalTest(unittest.TestCase):
                 source = "def prepare(ctx):\n    return {}"
                 return InferenceResult(f"```python\n{source}\n```", {}, "test")
             source = (
-                "def check(ctx, shared):\n"
+                "def check(shared):\n"
                 "    return {'status': 'indeterminate', 'reason': 'unknown', 'evidence_refs': []}"
             )
             return [InferenceResult(f"```python\n{source}\n```", {}, "test") for _ in prompt]
@@ -511,7 +546,7 @@ class TaskEvalTest(unittest.TestCase):
             )
 
         self.assertIn("def prepare(ctx):", package["source"])
-        self.assertIn("def check_2(ctx, shared):", package["source"])
+        self.assertIn("def check_2(shared):", package["source"])
 
     def test_review_verifier_implementation_rejects_unproven_pass_path(self) -> None:
         specification = {
@@ -803,6 +838,41 @@ class TaskEvalTest(unittest.TestCase):
 
         self.assertEqual(run_verifier(package, evidence)[0]["status"], "pass")
 
+    def test_verifier_tool_call_returns_stable_evidence_reference(self) -> None:
+        package = {
+            "schema_version": "1",
+            "requirements": [{
+                "id": "R1", "claim": "value is readable", "required": True,
+                "evidence_channels": ["tool_trace"], "pass_condition": "read succeeds",
+                "fail_condition": "read fails",
+            }],
+            "source": (
+                "def verify(ctx):\n"
+                "    observation = ctx.call_tool('read_value', {})\n"
+                "    ctx.pass_requirement('R1', 'read completed', [observation['evidence_ref']])\n"
+            ),
+        }
+        tool = {
+            "name": "read_value",
+            "internal": {"code": "def run(arguments, context):\n    return {'value': 8}\n"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = root / "initial"
+            final = root / "final"
+            initial.mkdir()
+            final.mkdir()
+
+            results = run_verifier(
+                package,
+                {"answer": "", "calls": [], "changed_paths": []},
+                initial_state=initial,
+                final_state=final,
+                tools=[tool],
+            )
+
+        self.assertEqual(results[0]["evidence_refs"], ["verifier_call:0"])
+
     def test_semantic_prompt_contains_only_referenced_evidence(self) -> None:
         package = {
             "schema_version": "1",
@@ -1067,8 +1137,8 @@ class TaskEvalTest(unittest.TestCase):
             self.assertTrue(any(key.startswith("read_json") for key in request["verifier_context_api"]))
             principles = request["judging_principles"]
             requirements = request["construction_requirements"]
-            self.assertTrue(any("唯一权威" in rule and "参考调用链" in rule for rule in principles))
-            self.assertTrue(any("内部过程" in rule and "调用顺序" in rule for rule in principles))
+            self.assertTrue(any("唯一成功标准" in rule and "参考回答" in rule for rule in principles))
+            self.assertTrue(any("工具、顺序、次数" in rule for rule in principles))
             self.assertTrue(any("同一业务对象" in rule and "字段" in rule for rule in principles))
             self.assertTrue(any("业务身份" in rule and "动态 ID" in rule for rule in principles))
             self.assertTrue(any("每项 requirement" in rule and "恰好" in rule for rule in requirements))

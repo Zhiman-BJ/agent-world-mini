@@ -315,7 +315,13 @@ class VerifierContext:
                 result = runner(deepcopy(arguments), SimpleNamespace(workspace_root=workspace))
         except BaseException as exception:
             error = f"{type(exception).__name__}: {exception}"
-        record = {"tool": name, "arguments": deepcopy(arguments), "result": result, "error": error}
+        record = {
+            "tool": name,
+            "arguments": deepcopy(arguments),
+            "result": result,
+            "error": error,
+            "evidence_ref": f"verifier_call:{index}",
+        }
         self._verifier_calls.append(record)
         return deepcopy(record)
 
@@ -675,20 +681,18 @@ def generate_verification_spec(
     """Derive auditable success conditions without seeing a reference execution."""
     request: dict[str, Any] = {
         "role": (
-            "你负责把任务文本转成验证规格。任务文本是要求的唯一权威；环境只定义可观察状态、"
-            "可用工具和业务约束。先识别任务中每个可独立判真的结果，再定义什么证据足以证明、"
-            "反驳或无法判断它。不要设计执行步骤，也不要指定任务未要求的工具、调用顺序、内部 ID、"
-            "文件路径、字段承载方式或措辞。"
+            "你负责把任务文本转成验证规格。先把每个结果写成可被证据证明、反驳或暂时无法判断的"
+            "业务 claim，再定义对应证据边界；不要把执行方法当成结果。任务文本是要求的唯一权威，"
+            "环境只提供可观察状态、可用工具和业务约束。不要指定任务未要求的工具、调用顺序、"
+            "内部 ID、文件路径、字段承载方式、数量或措辞。"
         ),
         "principles": [
-            "task_clauses 是任务文本中所有可独立检验的最小要求；不得遗漏，也不得加入文本没有的要求。",
-            "并列在同一句中的结果不因此成为一个原子项；只要其中一项可能单独缺失或错误，就必须分别建立 task clause 和 requirement。",
-            "每个 task clause 必须恰好由一个非完整性 requirement 覆盖；可以在一个 requirement 中合并只有共同成立或失败才有意义的条款。",
-            "每个 requirement 只表达一个可独立判断的业务结果，并明确充分通过、明确失败和证据不足三种边界。",
-            "原子拆分不能丢失共同对象和关系：若多个结果必须属于同一本次创建或修改的对象，每个 requirement 都要绑定到同一对象；重复对象绑定是上下文，不得把可独立失败的结果重新合并。",
-            "持久化修改、删除、创建和保持不变必须由 workspace 初末状态证明；查询、计算和呈现可由工具结果与回答证明。",
-            "evidence_channels 表示允许证明该要求的证据种类，不表示必须复现某个工具或实现路径。",
-            "额外增加且只增加一个 execution_integrity requirement；它不映射 task clause，只拒绝可观察到的无关、破坏性或冲突副作用，不要求最小操作路径。",
+            "先完整拆出任务中的原子结果；每个结果只表达一个可独立失败的 claim，所有 claim 的并集覆盖任务，且每个 task clause 恰好覆盖一次。",
+            "同一句中的并列结果仍分别建模；共同对象、范围和关系作为上下文绑定，不能用绑定掩盖独立失败。",
+            "每个 requirement 必须同时给出充分通过、明确失败和证据不足三种边界；没有明确反证或完整权威缺失时不得判 fail。",
+            "创建、修改、删除和保持必须由 workspace 初末状态证明；查询、计算和呈现可由工具结果与最终回答证明。",
+            "evidence_channels 只说明可接受的证据来源，不规定工具、顺序、数量、路径或表示方式。",
+            "只额外增加一个 execution_integrity requirement：仅拒绝可观察的无关、破坏性或冲突副作用，不要求最小路径。",
         ],
         "task": task.get("task_text"),
         "environment": environment,
@@ -749,11 +753,10 @@ def review_verification_spec(
     validate_verification_spec(specification)
     request = {
         "role": (
-            "你独立审核验证规格，不重写它。逐句对照任务文本：确认所有要求完整且只覆盖一次，"
-            "可独立失败的结果没有被隐藏合并，没有加入任务未要求的实现限制，并且每个判断条件"
-            "确实能由声明的证据类型证明。唯一不来自任务文本的 execution_integrity 是系统级"
-            "必需门禁，不得将它本身判为新增约束；应检查它只拒绝与任务无关、破坏性或相互冲突的"
-            "副作用，不能强制某种合法实现路径或要求无法观察的全局不变。任何实质问题都必须拒绝。"
+            "你独立审核验证规格，不重写它。把任务当作 claim 集合逐项核对：结果是否完整、原子、"
+            "可证伪且只使用声明的证据；是否偷偷加入工具、路径、数量、顺序或表示限制。"
+            "唯一不来自任务文本的 execution_integrity 只能作为系统级可观察副作用门禁，不能成为实现路径要求。"
+            "任何会把合法替代实现判错的实质问题都必须拒绝。"
         ),
         "review_dimensions": ["coverage", "atomicity", "fidelity", "verifiability", "evidence_classification"],
         "task": task.get("task_text"),
@@ -944,18 +947,16 @@ def generate_proof_plan(
             "任务和规格定义业务结果；参考执行仅帮助理解证据位置和数据结构，不是唯一正确方案。"
         ),
         "principles": [
-            "没有找到参考执行使用的工具、顺序、ID、路径、字段或表示，不等于任务没有完成。",
-            "业务对象的身份条件必须独立于正在审核的属性；某个属性错误不能让其他要求失去目标对象。",
-            "pass 需要充分证据；fail 需要明确反证，或完整权威证据源中的决定性缺失；其余一律 indeterminate。",
-            "partial 证据中的缺失永远不具有决定性。每个证据源必须声明 completeness 和 absence_is_conclusive。",
-            "task 可定义成功条件；environment_contract 可解释或定位；reference_observation 只能定位或举例，不能成为 criterion。",
-            "证明计划必须精确适配当前任务和环境契约；环境契约明确声明的路径、字段、枚举和稳定标识可以且应当作为确定事实使用。",
-            "同一事实可由多个来源取得时，优先使用输入输出 Schema 完整的只读工具或明确的数据契约；不得猜测环境未声明的文件容器名、字段或结构。",
-            "证据 channel 只能使用 workspace、tool_trace、answer；由 call_tool 或 verifier_call 取得的核验证据归入 tool_trace。",
-            "定义业务不变量和明确破坏，不枚举允许的实现方式，也不把参考 workspace diff 当作变化白名单。",
-            "binding 是逻辑变量：同一 binding ID 在所有 requirement 中必须解析为同一个具体见证，不能逐项另选对象。",
-            "binding 不表示候选只能有一个；应寻找能同时满足相关要求的完整见证赋值，任务未明确限制数量时不得增加数量上限。",
-            "若多个同类对象可以共同承载任务结果，应绑定其候选集合，并允许不同要求由集合中的不同成员满足。",
+            "参考执行只提供定位和例子；没有复现参考工具、顺序、ID、路径、字段或表示，不等于任务失败。",
+            "binding 是逻辑变量，不是任意属性值：身份必须独立于被审核属性，同一 binding 在相关 requirement 中保持一致。",
+            "binding 可以对应候选集合；不得擅自取第一个、要求恰好一个或把多个同类对象强行合并，除非任务明确限制。",
+            "任务未明确限制数量时不得增加数量上限；候选集合的多个成员可以共同承载结果。",
+            "证明是寻找一组一致的见证赋值，使 claim 成立；不同 requirement 可以由同一对象或候选集合中的不同对象满足。",
+            "pass 需要充分直接证据；fail 需要明确反证或完整权威来源中的决定性缺失；partial、不可读和冲突证据只能 indeterminate。",
+            "task 定义标准，environment_contract 定义可使用的路径、字段、枚举和稳定标识；reference_observation 只能作 locator 或 example。",
+            "优先使用 Schema 完整的只读工具或明确数据契约，不猜测环境未声明的容器、字段或格式。",
+            "证据 channel 只能使用 workspace、tool_trace、answer；核验工具结果统一归入 tool_trace。",
+            "完整性检查判断可观察副作用是否与任务相关、无关、破坏性或冲突，不把参考 diff 当作变化白名单。",
         ],
         "task": task.get("task_text"),
         "environment": environment,
@@ -1010,15 +1011,11 @@ def review_proof_plan(
     validate_proof_plan(plan, specification)
     request = {
         "role": (
-            "你独立审核证明计划，不修改它。对每个 fail 条件追问：证据究竟证明任务失败，"
-            "还是只证明 Agent 没按参考方式执行？后者必须拒绝。检查对象身份不依赖被审核属性、"
-            "partial 证据缺失只能 indeterminate、参考观察没有变成成功条件、多项要求仍绑定同一"
-            "业务对象、没有引入任务未规定的数量上限，并且执行完整性没有把参考变化作为白名单。"
-            "同一 binding ID 本身就表示跨 requirement 复用同一逻辑见证，不得仅因存在多个候选而拒绝；"
-            "但若任务允许多个同类对象共同承载结果，也不得强迫所有内容位于同一个成员。"
-            "当前环境契约明确声明的路径、字段、枚举和稳定标识是 verifier 应使用的确定事实，不是 reference_overfit；"
-            "只有参考执行独有、且任务或环境契约未规定的动态值、调用过程和措辞才属于 reference_overfit。"
-            "任何可能把正确替代实现判为 fail 的路径都必须拒绝。"
+            "你独立审核证明计划，不修改它。对每个 fail 条件追问：它是否有完整、直接、"
+            "决定性的反证，还是只说明 Agent 没按参考方式执行；后者必须拒绝。检查 binding 是否"
+            "保持同一业务身份、是否保留候选集合、是否把 partial 缺失误当失败、是否引入数量上限，"
+            "以及 integrity 是否把参考变化误当白名单。环境契约明确声明的事实是可用约束，不属于 reference_overfit；"
+            "任何会把正确替代实现判错的路径都必须拒绝。"
         ),
         "task": task.get("task_text"),
         "environment": environment,
@@ -1087,6 +1084,8 @@ def _component_function(response: InferenceResult, name: str, arguments: tuple[s
         for node in ast.walk(function)
     ):
         raise ValueError(f"verifier {name} component 不得直接记录 requirement")
+    if name == "check" and any(isinstance(node, ast.Name) and node.id == "ctx" for node in ast.walk(function)):
+        raise ValueError("verifier check component 不得访问 ctx，只能使用 shared observations")
     return function
 
 
@@ -1133,7 +1132,10 @@ def _assemble_verifier(prepare: ast.FunctionDef, checks: list[ast.FunctionDef], 
     for index, requirement_id in enumerate(requirement_ids, start=1):
         result = f"result_{index}"
         body.extend(ast.parse(
-            f"{result} = check_{index}(ctx, deepcopy(shared))\n"
+            f"try:\n"
+            f"    {result} = check_{index}(deepcopy(shared))\n"
+            f"except Exception as error:\n"
+            f"    {result} = {{'status': 'indeterminate', 'reason': 'checker execution failed: ' + str(error), 'evidence_refs': []}}\n"
             f"if not isinstance({result}, dict) or set({result}) != {{'status', 'reason', 'evidence_refs'}}:\n"
             f"    ctx.indeterminate_requirement({requirement_id!r}, 'checker returned an invalid result', [])\n"
             f"elif {result}['status'] == 'pass':\n"
@@ -1172,17 +1174,20 @@ def generate_verifier(
             raise ValueError("冻结规格必须提供 proof_plan")
         validate_proof_plan(proof_plan, specification)
         principles = [
+            "先把冻结规格和 proof_plan 当作唯一判定契约：prepare 只收集、解析和标注观察，check 只对一项 claim 判定。",
             "确定性结构、数值、ID、数量和状态由代码比较；自然语言含义才返回 semantic。",
-            "任何 pass 都必须引用直接证明 claim 的证据；reason 只能陈述引用证据显示的事实。",
-            "持久状态要求必须读取初态和终态；最终回答不能替代落盘结果。",
-            "call_tool 只用于核验终态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
-            "不得把参考中的偶然 ID、路径、调用顺序、工具选择、表示方式或措辞变成通过条件。",
-            "verifier 是当前任务和环境的专用实现；应精确使用环境契约声明的路径、数据结构、字段、枚举和稳定标识，这不属于参考过拟合。",
-            "同一事实可由多个来源取得时，优先使用输入输出 Schema 完整的只读工具或明确的数据契约；不得猜测环境未声明的文件容器名、字段或结构。",
-            "严格实现 proof_plan；不得引入计划之外的身份条件、决定性缺失或数量约束；环境契约中的路径和常量可以直接使用。",
-            "完整证据明确反驳要求时必须 fail；只有证据缺失、不可读或不完整时才 indeterminate。",
-            "执行完整性必须保留集合数量和重复项，并判断额外副作用是否与任务相关、是否无关、破坏性或冲突。",
-            "只能使用 verifier_context_api 和普通 Python 表达式；不得导入模块、启动进程、直接打开路径、写文件、使用反射或访问私有属性。",
+            "任何 pass 都必须引用 shared 中直接证明 claim 的证据；reason 只能陈述 evidence_refs 实际显示的事实。",
+            "持久状态要求必须使用初态和终态；最终回答不能替代落盘结果。",
+            "call_tool 只能核验已有状态，不能替 Agent 补做任务，也不能单独证明 Agent 已交付。",
+            "参考执行只用于定位证据；不得把参考 ID、路径、调用顺序、工具选择、表示方式或措辞变成条件。",
+            "环境契约明确声明的路径、字段、枚举和稳定标识可以直接使用；不得猜测未声明的容器、字段或格式。",
+            "Schema 完整的只读工具或明确数据契约优先；不得猜测环境未声明的容器、字段或格式。",
+            "proof_plan 中的 binding 是候选集合和身份约束，不得擅自取第一个、要求恰好一个或把不同候选强行合并。",
+            "完整证据明确反驳要求时必须 fail；缺失、不可读、partial 或冲突时才 indeterminate。",
+            "执行完整性必须保留集合数量和重复项，并判断每个额外副作用是否与任务相关、无关、破坏性或冲突。",
+            "prepare 可以使用 ctx 读取证据和调用核验工具，但不得记录 requirement；每次核验调用都必须保留稳定 evidence_ref。",
+            "check 的签名必须是 check(shared)，只能读取 shared，不能访问 ctx、调用工具、读取文件、写文件或使用私有状态。",
+            "check 必须返回一个结果对象，不得自行记录 requirement；运行时会隔离每个 check，异常只影响该项并转为 indeterminate。",
         ]
         context_api = {
             "answer()": "实际最终回答",
@@ -1196,11 +1201,12 @@ def generate_verifier(
             "component": "shared_preparation",
             "role": (
                 "实现 verifier 的共享证据准备函数。只读取证据、解析业务对象和 proof_plan bindings，"
-                "返回供各项检查共同使用的 object；不得判断或记录任何 requirement。"
+                "返回供各项检查共同使用的 observations、候选集合、绑定、完整性和 evidence_refs；"
+                "不得选择唯一见证、判断或记录任何 requirement。"
             ),
             "implementation_principles": [
                 *principles,
-                "业务对象身份不得依赖正在审核的属性；共享结果必须保留无法区分、明确缺失和读取失败等状态。",
+                "业务对象身份不得依赖正在审核的属性；共享结果必须保留候选集合、无法区分、明确缺失、读取失败和冲突状态。",
                 "source 只能定义 prepare(ctx)，并返回一个 dict；不得调用任何 requirement 记录方法。",
             ],
             "environment": environment,
@@ -1235,14 +1241,20 @@ def generate_verifier(
                 "requirement": requirement,
                 "proof_plan": plans.get(requirement["id"], {}),
                 "shared_source": ast.unparse(prepare),
-                "verifier_context_api": context_api,
+                "shared_contract": {
+                    "observations": "已读取或核验的原始事实及其 complete|partial|unreadable|conflict 状态",
+                    "candidates": "按业务身份保留的候选集合，不得默认只有一个成员",
+                    "bindings": "proof_plan binding 到候选集合的解析结果及身份证据",
+                    "evidence": "每个观察的来源、完整性和稳定 evidence_ref",
+                    "errors": "读取或核验失败，不得静默当作空结果",
+                },
                 "evidence_reference_formats": [
                     "answer", "tool_call:N", "initial:relative/path", "final:relative/path",
                     "workspace_change:relative/path", "verifier_call:N",
                 ],
                 "response_contract": {
                     "source": (
-                        "Python source defining check(ctx, shared), returning exactly "
+                        "Python source defining check(shared), returning exactly "
                         "{'status': 'pass|fail|indeterminate|semantic', 'reason': str, 'evidence_refs': list[str]}"
                     ),
                 },
@@ -1260,7 +1272,7 @@ def generate_verifier(
         for index, response in enumerate(check_responses, start=1):
             if not isinstance(response, InferenceResult):
                 raise ValueError("verifier requirement check 返回类型不正确")
-            function = _component_function(response, "check", ("ctx", "shared"))
+            function = _component_function(response, "check", ("shared",))
             function.name = f"check_{index}"
             checks.append(function)
         package = {
@@ -1274,24 +1286,22 @@ def generate_verifier(
         return package
 
     request = {
-            "role": "你为一次真实任务执行生成审核 verifier。只根据任务文本定义成功条件。",
+            "role": "你为一次真实任务执行生成审核 verifier。先把任务拆成业务 claims，再为每个 claim 定义可审计证据和边界；不要把执行方法当成成功条件。",
             "judging_principles": [
-                "原任务文本是成功标准的唯一权威；参考回答、参考调用链和参考最终状态只是一条已知可行证据路径，不是必须复现的标准答案。",
-                "判断任务要求的结果和状态变化，不把发现信息、选择工具、调用顺序或调用次数等内部过程另立为成功条件，除非原任务明确要求该过程。",
-                "按任务动词区分创建、修改、删除、保持、查询、计算和呈现；需要持久化的结果必须由最终状态证明，纯查询、计算或呈现可以由工具结果与最终回答共同证明。",
-                "证据必须直接支持要求，并绑定到同一业务对象、交付物、时间范围和字段；不得用其他对象上的同名信息拼接证明。",
-                "业务身份独立于技术表示。任务未明确指定时，不把动态 ID、内部路径、序列化格式、字段承载方式、标识顺序或参考措辞当作通过条件。",
-                "限定条件只作用于它直接修饰的对象或动作，不得传播到其他并列目标。",
-                "路径、哈希、ID、数量、枚举、布尔值、精确引文及结构化字段等确定性事实用代码严格核对；自然语言的含义、质量和等价表达才交给 semantic_requirement。",
-                "任务要求交付内容时必须存在实质内容；空字段、占位内容或仅声称已完成不能通过，除非任务明确允许无内容并要求说明该状态。",
-                "所有实际状态变化都必须能由任务目标或完成目标所必需的工具语义解释；无关、破坏性或相互冲突的副作用不能通过。",
-                "证据不足、截断或冲突时返回 indeterminate；证据明确反驳要求时返回 fail。reason 只能陈述 evidence_refs 实际证明的事实。",
+                "原任务文本是唯一成功标准；参考回答、调用链和终态只是一条可行证据路径，不是标准答案。",
+                "只判断任务要求的结果和状态变化；工具、顺序、次数和内部表示只有在任务明确要求时才是条件。",
+                "按任务动词区分创建、修改、删除、保持、查询、计算和呈现；持久结果看最终状态，查询和呈现可结合工具结果与回答。",
+                "每个 claim 的证据必须绑定到同一业务对象、交付物、范围和字段，不能拼接其他对象的同名信息。",
+                "业务身份独立于技术表示；任务未指定时不要求动态 ID、内部路径、序列化格式、字段承载方式、顺序或参考措辞。",
+                "确定性事实用代码严格核对；自然语言含义和等价表达才使用 semantic_requirement。",
+                "任务要求实质交付时，空字段、占位内容或只声称完成不能通过，除非任务明确允许。",
+                "证据不足、截断或冲突时 indeterminate；明确反驳时 fail；reason 只能陈述引用证据显示的事实。",
             ],
             "construction_requirements": [
-                "先完整拆出任务的全部必需原子要求：所有要求的并集覆盖整个任务，每项只表达一个可独立判断的目标，并具有唯一 id。",
+                "先完整拆出全部原子 claim：并集覆盖任务，每项只表达一个可独立判断的目标，并具有唯一 id。",
                 "除任务原子要求外，增加一项 required 的执行完整性要求，检查实际状态变化是否都与任务目标相关且没有破坏无关状态。",
                 "为每项给出 claim、evidence_channels、pass_condition 和 fail_condition。",
-                "source 只能定义 verify(ctx)，只能调用 VerifierContext 的公开方法；不得导入模块、直接访问路径、启动进程或写文件。",
+                "source 只能定义 verify(ctx)，只能调用 VerifierContext 的公开方法；不得导入模块、启动进程、写文件或访问私有状态。",
                 "不得硬编码参考执行中的偶然值。路径和数据结构只能使用 reference_evidence 明确提供的事实，不得猜测。",
                 "凡把相对初态新增、删除、变化或保持作为条件，必须同时引用相关 initial 和 final 证据。",
                 "自然语言含义使用 semantic_requirement；确定性事实直接用 source 判断，不得用关键词或参考措辞子串替代语义判断。",
@@ -1384,6 +1394,9 @@ def review_verifier_implementation(
             "Each requirement is reported exactly once on every reachable path.",
             "Every pass path cites evidence sufficient for the frozen pass condition.",
             "Fail and indeterminate paths follow the frozen evidence boundaries.",
+            "The runtime contract is part of the implementation: prepare(ctx) observes evidence, each check(shared) receives only a copied shared object, and checker exceptions become indeterminate for that requirement without aborting later checks.",
+            "Shared preparation preserves candidate multiplicity, identity evidence, completeness states, errors, and stable evidence references; it does not choose a witness or produce a verdict.",
+            "A check(shared) cannot access ctx, call tools, read or write files, or use private runtime state; it returns only one result object for its assigned requirement.",
             "No reference-specific tool, order, generated identifier, path, representation, or wording is required.",
             "Paths, fields, enums, and stable identifiers declared by the current environment contract are required specialization, not reference overfitting.",
             "Prefer schema-defined tools or explicit data contracts over guessed file representations; reject code that assumes undeclared containers or fields.",
@@ -1391,6 +1404,12 @@ def review_verifier_implementation(
             "Integrity checks preserve multiplicity and classify every extra side effect as task-related, unrelated, destructive, or conflicting without requiring a minimal execution path.",
             "Semantic judgments are not replaced by substring heuristics; deterministic facts are not delegated unnecessarily.",
         ],
+        "runtime_contract": {
+            "prelude": "Generated verifier source runs with the runtime prelude, including deepcopy; the model must not add imports.",
+            "stages": "verify(ctx) calls prepare(ctx) once, then invokes each check(shared) with an isolated copy.",
+            "isolation": "A checker exception or malformed result becomes indeterminate for that requirement only; later requirements still run.",
+            "evidence": "Verifier tool records expose stable verifier_call:N evidence references.",
+        },
         "specification": specification,
         "proof_plan": proof_plan,
         "verifier": package,
