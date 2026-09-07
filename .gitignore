@@ -39,4 +39,5 @@ dist/
 .DS_Store
 Thumbs.db
 
-seed_raw/
+seed_data_raw/
+seed_pypi_raw/

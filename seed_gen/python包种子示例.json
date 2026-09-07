@@ -1,0 +1,190 @@
+[
+  {
+    "global_id": "pypi_pymatgen_core_1",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/materialsproject/pymatgen-core",
+          "https://pymatgen.org/pymatgen.html"
+        ],
+        "name": "pymatgen-core",
+        "version": "v2026.8.30",
+        "index": 1
+      },
+      "description": "pymatgen-core 是 Pymatgen（Python Materials Genomics）的基础核心包，为材料分析提供元素、位点、分子、晶体结构等数据结构，晶格与对称性操作，以及 VASP、ABINIT、CIF、Gaussian、LAMMPS 等计算程序和文件格式的输入输出支持。它还包含结构匹配、键价分析、Ewald 求和、能带和态密度等基础分析能力，并以较少的依赖为完整 pymatgen、atomate 等材料计算生态提供底层组件。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "AbstractStructureFilter",
+        "type": "class",
+        "module": "pymatgen.alchemy.filters",
+        "input": "MSONable, abc.ABC",
+        "description": "Structures that return True when passed to the test() method are retained during transmutation. Those that return False are removed.",
+        "function": [
+          {
+            "name": "test",
+            "description": "Structures that return true are kept in the Transmuter object during filtering.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure | IStructure",
+                "description": "Input structure to test"
+              }
+            },
+            "output": {
+              "type": "bool",
+              "description": "True if structure passes filter."
+            },
+            "ori_input": "self, structure: Structure | IStructure",
+            "ori_description": "Structures that return true are kept in the Transmuter object during filtering.  Args: structure (Structure): Input structure to test  Returns: bool: True if structure passes filter."
+          }
+        ]
+      },
+      {
+        "name": "class名",
+        "type": "class",
+        "module": "pymatgen.xxx.xxx",
+        "input": "输入, 为括号中的内容",
+        "description": "函数开头的三引号中的函数解释",
+        "function": [
+          {
+            "name": "函数名.",
+            "description": "函数开头的三引号中的函数解释, Args之前的部分",
+            "input": {
+              "参数名": {
+                "type": "input为输入, 括号中的内容, Args之后, Returns之前的的部分; type为:之前的部分",
+                "description": "参数解释, 除了每个type之外的部分"
+              },
+              "..": "..."
+            },
+            "output": {
+              "return": {
+                "type": "output为返回值, Returns之后的部分, 可能为空. type为:之前的部分, 可能为空",
+                "description": "除了type之外的部分"
+              }
+            },
+            "ori_input": "括号中的内容",
+            "ori_description": "三引号中的解释"
+          },
+          {
+            "..": "..."
+          }
+        ]
+      },
+      {
+        "name": "function名",
+        "type": "function",
+        "module": "pymatgen.xxx.xxx",
+        "description": "函数开头的三引号中的函数解释, Args之前的部分",
+        "input": {
+          "参数名": {
+            "type": "input为输入, 括号中的内容, Args之后, Returns之前的的部分; type为:之前的部分",
+            "description": "参数解释, 除了每个type之外的部分"
+          },
+          "..": "..."
+        },
+        "output": {
+          "return": {
+            "type": "output为返回值, Returns之后的部分, 可能为空. type为:之前的部分, 可能为空",
+            "description": "除了type之外的部分"
+          }
+        },
+        "ori_input": "括号中的内容",
+        "ori_description": "三引号中的解释"
+      },
+      {
+        "name": "batch_write_vasp_input",
+        "type": "function",
+        "module": "pymatgen.alchemy.transmuters",
+        "description": "Batch write vasp input for a sequence of transformed structures to output_dir, following the format output_dir/{group}/{formula}_{number}.",
+        "input": {
+          "transformed_structures": {
+            "type": "Sequence[TransformedStructure]",
+            "description": "Sequence of TransformedStructures."
+          },
+          "vasp_input_set": {
+            "type": "type[VaspInputSet]",
+            "description": "pymatgen.io.vasp.sets.VaspInputSet to creates vasp input files from structures."
+          },
+          "output_dir": {
+            "type": "str",
+            "description": "Directory to output files"
+          },
+          "create_directory": {
+            "type": "bool",
+            "description": "Create the directory if not present. Defaults to True."
+          },
+          "subfolder": {
+            "type": "Callable[[TransformedStructure], str] | None",
+            "description": "Function to create subdirectory name from transformed_structure. E.g. lambda x: x.other_parameters[\"tags\"][0] to use the first tag."
+          },
+          "include_cif": {
+            "type": "bool",
+            "description": "Pass True to output a CIF as well. CIF files are generally better supported in visualization programs."
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": "Any kwargs supported by vasp_input_set."
+          }
+        },
+        "output": null,
+        "ori_input": "transformed_structures: Sequence[TransformedStructure], vasp_input_set: type[VaspInputSet] = MPRelaxSet, output_dir: str = '.', create_directory: bool = True, subfolder: Callable[[TransformedStructure], str] | None = None, include_cif: bool = False, **kwargs",
+        "ori_description": "Batch write vasp input for a sequence of transformed structures to output_dir, following the format output_dir/{group}/{formula}_{number}.  Args: transformed_structures: Sequence of TransformedStructures. vasp_input_set: pymatgen.io.vasp.sets.VaspInputSet to creates vasp input files from structures. output_dir: Directory to output files create_directory (bool): Create the directory if not present. Defaults to True. subfolder: Function to create subdirectory name from transformed_structure. E.g. lambda x: x.other_parameters[\"tags\"][0] to use the first tag. include_cif (bool): Pass True to output a CIF as well. CIF files are generally better supported in visualization programs. **kwargs: Any kwargs supported by vasp_input_set."
+      },
+      {
+        "name": "ContainsSpecieFilter",
+        "type": "class",
+        "module": "pymatgen.alchemy.filters",
+        "input": "AbstractStructureFilter",
+        "description": "Filter for structures containing certain elements or species. By default compares by atomic number.",
+        "function": [
+          {
+            "name": "__init__",
+            "ori_input": "self, species: SpeciesLike, strict_compare: bool = False, AND: bool = True, exclude: bool = False",
+            "ori_description": "Args: species (list[SpeciesLike]): species to look for  AND: whether all species must be present to pass (or fail) filter.  strict_compare: if true, compares objects by specie or element  object if false, compares atomic number  exclude: If true, returns false for any structures with the specie  (excludes them from the Transmuter)."
+          },
+          {
+            "name": "test",
+            "ori_input": "self, structure: Structure | IStructure",
+            "ori_description": "True if structure does not contain specified species."
+          }
+        ],
+        "..": "..."
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "..": "..."
+    }
+  },
+  {
+    "global_id": "pypi_atomate2_2",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/materialsproject/atomate2",
+          "https://materialsproject.github.io/atomate2/user/index.html"
+        ],
+        "name": "atomate2",
+        "version": "v0.1.5",
+        "index": 2
+      },
+      "description": "atomate2 是一个面向计算材料科学的开源工作流库，基于 pymatgen、custodian 和 jobflow 将 VASP、CP2K、Q-Chem、ABINIT、LAMMPS 等计算程序组织为可组合、可修改和可扩展执行的 Python 工作流。它提供能带、弹性与介电性质、声子、缺陷、分子动力学和成键分析等标准流程，可从单个材料扩展到大规模批量计算，并系统记录任务目录、运行参数和计算结果以支持数据库构建、查询与复用。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      }
+    },
+    "init_ref_tools": []
+  }
+]

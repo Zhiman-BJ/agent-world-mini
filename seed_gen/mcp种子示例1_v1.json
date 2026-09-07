@@ -1,12 +1,13 @@
 [
   {
     "global_id": "smithery_theagenttimes_news_1",
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "smithery",
         "url": "https://smithery.ai/servers/theagenttimes/news",
         "name": "theagenttimes/news",
+        "version": "2026-09-02",
         "index": 1
       },
       "description": "Agent News is a research and verification service for the AI-agent economy. It aggregates structured news events, articles, product and action metadata, and externally researched evidence to answer questions and produce sourced recommendations about AI agents, tools, MCP servers, and frameworks. The workflow emphasizes citation-backed claims, confidence and relevance diagnostics, ethics ratings, provenance verification, editorial standards, and explicit insufficient-evidence responses. It also supports article discovery, topic hubs, trust metrics, threaded comments, and optional usage reporting.",
@@ -19,82 +20,78 @@
     "init_ref_tools": [
       {
         "name": "tat_search",
+        "type": "function",
+        "module": null,
         "description": "Search The Agent Times agent-news layer across structured events, articles, and agent-action/product metadata. Uses backend typo correction, alias expansion, required-term coverage, global ranking, and low-confidence rejection. Returns search_confidence, warnings, relevance_score, match_quality, matched_terms, missing_terms, sources, confidence, Ethics Engine score, agent voice score, and standard receipt.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "tag": {
-              "type": "string",
-              "description": "Optional tag filter"
-            },
-            "sort": {
-              "enum": [
-                "relevance",
-                "newest"
-              ],
-              "type": "string",
-              "description": "Article sort order"
-            },
-            "limit": {
-              "type": "integer",
-              "description": "Number of results (max 20, default 10)"
-            },
-            "query": {
-              "type": "string",
-              "description": "Short entity-rich English search query for agent-news, articles, products, actions, or events"
-            },
-            "topic": {
-              "type": "string",
-              "description": "Optional topic filter"
-            },
-            "intent": {
-              "type": "string",
-              "description": "Optional intent filter"
-            },
-            "section": {
-              "type": "string",
-              "description": "Optional article section filter"
-            },
-            "urgency": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                "critical"
-              ],
-              "type": "string",
-              "description": "Optional event urgency filter"
-            },
-            "actionability": {
-              "enum": [
-                "informational",
-                "monitor",
-                "act_now"
-              ],
-              "type": "string",
-              "description": "Optional actionability filter"
-            },
-            "include_events": {
-              "type": "boolean",
-              "description": "Include agent event matches (default true)"
-            },
-            "include_articles": {
-              "type": "boolean",
-              "description": "Include article matches (default true)"
-            },
-            "include_products": {
-              "type": "boolean",
-              "description": "Include agent-action/product metadata matches (default true)"
-            }
+        "input": {
+          "tag": {
+            "type": "string",
+            "description": "Optional tag filter"
+          },
+          "sort": {
+            "enum": [
+              "relevance",
+              "newest"
+            ],
+            "type": "string",
+            "description": "Article sort order"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of results (max 20, default 10)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Short entity-rich English search query for agent-news, articles, products, actions, or events"
+          },
+          "topic": {
+            "type": "string",
+            "description": "Optional topic filter"
+          },
+          "intent": {
+            "type": "string",
+            "description": "Optional intent filter"
+          },
+          "section": {
+            "type": "string",
+            "description": "Optional article section filter"
+          },
+          "urgency": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "type": "string",
+            "description": "Optional event urgency filter"
+          },
+          "actionability": {
+            "enum": [
+              "informational",
+              "monitor",
+              "act_now"
+            ],
+            "type": "string",
+            "description": "Optional actionability filter"
+          },
+          "include_events": {
+            "type": "boolean",
+            "description": "Include agent event matches (default true)"
+          },
+          "include_articles": {
+            "type": "boolean",
+            "description": "Include article matches (default true)"
+          },
+          "include_products": {
+            "type": "boolean",
+            "description": "Include agent-action/product metadata matches (default true)"
           }
         },
-        "outputSchema": {
-          "type": "object",
-          "properties": {
-            "text": {
-              "type": "string",
-              "description": "Present when the tool returns a text-only response."
-            }
+        "output": {
+          "text": {
+            "type": "string",
+            "description": "Present when the tool returns a text-only response."
           }
         }
       },
@@ -129,23 +126,7 @@
             "config_schema": {}
           }
         ]
-      },
-      "data_directions": [
-        "Official product documentation, release notes, changelogs, and vendor announcements for AI-agent platforms, tools, MCP servers, and frameworks",
-        "Open-source repositories, commit histories, issue trackers, package registries, licenses, and security advisories",
-        "Research papers, preprints, benchmarks, model cards, datasets, and institutional lab publications",
-        "Technology-news articles, interviews, opinion pieces, newsletters, and trade-publication coverage",
-        "Company websites, press releases, funding announcements, investor disclosures, and acquisition records",
-        "Public pricing pages, product catalogs, integration directories, API references, and marketplace listings",
-        "Government regulations, legislative proposals, regulator guidance, enforcement actions, and public-policy consultations",
-        "Infrastructure status pages, incident reports, vulnerability databases, and reliability disclosures",
-        "Public labor-market data, job postings, workforce reports, and studies of automation's employment effects",
-        "Public commerce, sales, marketing, advertising-technology, and engineering case studies involving AI agents",
-        "Cryptographically signed publication records, timestamps, authorship metadata, source links, and other provenance evidence",
-        "Public discussion threads, article comments, endorsements, and attributed expert or agent commentary",
-        "Editorial policies, codes of conduct, correction records, trust reports, and source-quality methodologies"
-      ],
-      "organization_status": "agent_organized"
+      }
     }
   },
   {
