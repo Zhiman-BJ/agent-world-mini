@@ -169,6 +169,32 @@ def run(arguments, context):
         self.assertIn("创建必要的新内容", prompt)
         self.assertIn("不改变目标", prompt)
 
+    def test_review_guidance_reaches_each_call_and_parameter_retry(self) -> None:
+        environment = {"resources": [], "rules": [], "tools": [
+            tool("write", WRITE_TOOL, {"value": {"type": "string"}}, ["value"]),
+        ]}
+        candidate = task_candidate("task1", ["write", "write"], "Record both findings.")
+        notes = "The first write records finding A; the second records finding B and its risk."
+        candidate["llm_review"] = {"reason": notes, "original_chain": ["write"], "error": None}
+        captured = []
+
+        def fake_infer(prompt, **kwargs):
+            payload = json.loads(prompt)
+            captured.append(payload)
+            if len(captured) == 1:
+                return InferenceResult('{"error":"Retry the current parameter request"}', {}, "test")
+            return inference({"value": "A" if payload["position"] == 0 else "B"})
+
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
+            result = execute_chains({
+                "config": self.config(), "run_dir": self.run_dir,
+                "environment": environment, "tasks": [candidate],
+            })["tasks"][0]
+        self.assertTrue(result["execution"]["success"])
+        self.assertEqual([p.get("review_guidance") for p in captured], [notes, notes, notes])
+        self.assertEqual([p["objective"] for p in captured], ["Record both findings."] * 3)
+        self.assertEqual([c["arguments"]["value"] for c in result["execution"]["tool_calls"]], ["A", "B"])
+
     def test_retries_current_argument_generation_without_replaying_prefix(self) -> None:
         first = tool("first", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])
         second = tool("second", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])

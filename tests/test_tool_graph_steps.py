@@ -215,11 +215,10 @@ class ChainSampleTest(unittest.TestCase):
 
         def fake_infer(prompts, **kwargs):
             captured.append(prompts)
-            phase = (len(captured) - 1) % 3
+            phase = (len(captured) - 1) % 2
             payload = (
                 {"objective": "Inspect an existing record."} if phase == 0 else
-                {"accepted": True, "chain": ["a", "b", "c"], "reason": "Local repair"} if phase == 1 else
-                {"score": 5, "reason": "Coherent"}
+                {"accepted": True, "chain": ["a", "b", "c"], "reason": "Local repair", "score": 5}
             )
             return [InferenceResult(json.dumps(payload), {}, "test") for _ in prompts]
 
@@ -229,6 +228,8 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(len(first["tasks"]), 1)
         self.assertEqual(first["tasks"][0]["score"], 5)
+        self.assertEqual(first["tasks"][0]["logic_score"], 5)
+        self.assertEqual(len(captured), 4)
         self.assertEqual(first["sampling_report"]["objective_generated_count"], 2)
         self.assertIn("Initial evidence", captured[0][0])
         self.assertIn("Inspect an existing record.", captured[1][0])
@@ -237,9 +238,9 @@ class ChainSampleTest(unittest.TestCase):
     def test_review_cannot_override_frozen_objective(self):
         item = {"chain": ["a", "b"], "score": 3, "objective": "Frozen"}
         for payload in (
-            {"accepted": True, "chain": ["a", "b"], "objective": "Replacement", "reason": "Changed"},
-            {"accepted": True, "chain": ["a"], "reason": "Too short"},
-            {"accepted": True, "chain": ["a", "unknown"], "reason": "Unknown"},
+            {"accepted": True, "chain": ["a", "b"], "objective": "Replacement", "reason": "Changed", "score": 4},
+            {"accepted": True, "chain": ["a"], "reason": "Too short", "score": 4},
+            {"accepted": True, "chain": ["a", "unknown"], "reason": "Unknown", "score": 4},
         ):
             with self.subTest(payload=payload), patch.object(step_2_chain_sample, "infer", return_value=[
                 InferenceResult(json.dumps(payload), {}, "test")
@@ -259,9 +260,8 @@ class ChainSampleTest(unittest.TestCase):
             [InferenceResult(json.dumps({"objective": objective}), {}, "test")],
             [InferenceResult(json.dumps({
                 "accepted": True, "chain": completed,
-                "reason": "Read the second record, then summarize both results.",
+                "reason": "Read the second record, then summarize both results.", "score": 5,
             }), {}, "test")],
-            [InferenceResult('{"score":5,"reason":"Both records are covered"}', {}, "test")],
         ]
         with patch.object(step_2_chain_sample, "infer", side_effect=replies):
             output = sample_chains({
@@ -280,8 +280,7 @@ class ChainSampleTest(unittest.TestCase):
     def test_short_chain_fallback_retains_only_longest_observed_candidates(self):
         replies = [
             [InferenceResult('{"objective":"Frozen"}', {}, "test")],
-            [InferenceResult('{"accepted":true,"chain":["a","b","c"],"reason":"Add missing final query"}', {}, "test")],
-            [InferenceResult('{"score":4,"reason":"Supported"}', {}, "test")],
+            [InferenceResult('{"accepted":true,"chain":["a","b","c"],"reason":"Add missing final query","score":4}', {}, "test")],
         ]
         with patch.object(step_2_chain_sample, "infer", side_effect=replies):
             output = sample_chains({
@@ -315,10 +314,10 @@ class ChainSampleTest(unittest.TestCase):
             self.assertNotIn("accepted", output["sampling_report"]["objective_records"][0])
             self.assertEqual(len(output["sampling_report"]["objective_records"]), 1)
 
-    def test_explicit_review_rejection_does_not_enter_scoring(self):
+    def test_explicit_review_rejection_does_not_enter_selection(self):
         replies = [
             [InferenceResult(json.dumps({"objective": "Frozen"}), {}, "test")],
-            [InferenceResult(json.dumps({"accepted": False, "chain": [], "reason": "Requires redesign"}), {}, "test")],
+            [InferenceResult(json.dumps({"accepted": False, "chain": [], "reason": "Requires redesign", "score": 0}), {}, "test")],
         ]
         with patch.object(step_2_chain_sample, "infer", side_effect=replies) as mocked:
             output = sample_chains({
@@ -330,6 +329,22 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(mocked.call_count, 2)
         self.assertEqual(output["tasks"], [])
         self.assertEqual(output["sampling_report"]["review_rejected_count"], 1)
+
+    def test_review_score_is_validated_per_candidate(self):
+        items = [{"chain": ["a", "b"], "score": 3, "objective": "Inspect a record"}] * 7
+        replies = [InferenceResult(json.dumps({
+            "accepted": True, "chain": ["a", "b"], "reason": "Read a then verify b", "score": score,
+        }), {}, "test") for score in (True, -1, 6, 4.5, "4", 0, 5)]
+        records = []
+        with patch.object(step_2_chain_sample, "infer", return_value=replies):
+            reviewed, errors, changed, rejected = step_2_chain_sample._review_chains(
+                items, graph_environment(), graph_environment()["tools"], [], set("abcd"), {}, 2, 2,
+                records=records, initial_workspace=Path("unused"),
+            )
+        self.assertEqual((errors, changed, rejected), (5, 0, 0))
+        self.assertEqual([item["logic_score"] for item in reviewed], [0, 5])
+        self.assertEqual([record["score"] for record in records[-2:]], [0, 5])
+        self.assertEqual(reviewed[1]["logic_reason"], "Read a then verify b")
 
     def test_rejects_graph_without_eligible_root(self) -> None:
         graph = [

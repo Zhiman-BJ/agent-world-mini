@@ -11,7 +11,7 @@ llm:
   base_url: https://api-slb.micuapi.ai/v1
   # 仅 backend=api 时使用；backend=codex 时使用本机 Codex 登录状态，此项无效。
   api_key_env: LLM_API_KEY
-  timeout_seconds: 180
+  timeout_seconds: 600
   # Codex CLI 双路完整提示实测可并行；保留 4 路作为正式运行值。
   max_concurrency: 4
   # 给足额度，绝不让输出截断打断流水线：截断会使整阶段失败，而本流水线无断点续跑。
@@ -31,7 +31,7 @@ planning:
   max_chain_length: 15
   max_tool_visits: 2
   random_seed: 42
-  # 先筛选 20 条生成目标，再按冻结目标审查和评分，最多 10 条进入 Step 3。
+  # 先筛选 20 条生成目标，由 review 统一改链和评分，最多 10 条进入 Step 3。
   review_count: 20
   edge_sampling_probabilities:
     "1": 0.2

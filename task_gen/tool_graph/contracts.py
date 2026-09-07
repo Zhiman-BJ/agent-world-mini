@@ -143,6 +143,9 @@ class SampleChainsOutput(TypedDict):
     planning length floor. Each task contains task_id, chain,
     objective, score, llm_review, logic_score and logic_reason. score sums known
     edges in the reviewed chain; graph-external adjacencies contribute zero.
+    Codex review supplies logic_score (0-5) for the final plan's value and expected
+    objective completion; its reason supplies logic_reason and execution guidance.
+    There is no separate scoring inference. Invalid scores are review errors.
     sampling_report records objective generation, review decisions, failures and coverage.
     initial_state_report contains summary, observations and errors. It is limited
     evidence, not a complete state snapshot or proof of absence."""
@@ -157,7 +160,9 @@ class ExecuteChainsInput(TypedDict):
 
     config.environment_dir/workspace is the source of isolated initial/final
     copies under run_dir/tasks/<task_id>. Parameter generation sees public
-    contracts, bounded initial evidence, completed calls and previous failures.
+    contracts, bounded initial evidence, review guidance, completed calls and previous failures.
+    Review guidance is a planning reference, not a new objective or proven facts;
+    legacy candidates without it remain executable.
     Only the sandbox executor consumes internal.code."""
 
     config: Config

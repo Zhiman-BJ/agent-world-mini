@@ -82,14 +82,15 @@ class InitialStateTest(unittest.TestCase):
         report = {"summary": "Existing record-7", "observations": [], "errors": []}
         replies = [
             [response({"objective": "Inspect record-7"})],
-            [response({"accepted": True, "chain": ["a", "c"], "reason": "One local repair"})],
-            [response({"score": 4, "reason": "Supported objective"})],
+            [response({"accepted": True, "chain": ["a", "c"], "reason": "One local repair", "score": 4})],
         ]
         with patch.object(sampling, "explore_initial_state", return_value=report), patch.object(sampling, "infer", side_effect=replies) as mocked:
             output = sampling.sample_chains({"config": config, "environment": environment, "tool_graph": graph})
         candidate = output["tasks"][0]
         self.assertEqual(candidate["objective"], "Inspect record-7")
         self.assertEqual(candidate["score"], 0)
+        self.assertEqual(candidate["logic_score"], 4)
+        self.assertEqual(mocked.call_count, 2)
         self.assertEqual(candidate["llm_review"]["original_chain"], ["a", "b", "c"])
         self.assertIn("Inspect record-7", mocked.call_args_list[1].args[0][0])
         self.assertIn("Existing record-7", mocked.call_args_list[0].args[0][0])
@@ -102,8 +103,7 @@ class InitialStateTest(unittest.TestCase):
         chain = ["security_report", "quality_update"]
         objective = "Summarize security findings; update one existing quality record."
         replies = [[response({"objective": objective})],
-                   [response({"accepted": True, "chain": chain, "reason": "Both independent subtask results are supported."})],
-                   [response({"score": 4, "reason": "Each subtask has a deliverable."})]]
+                   [response({"accepted": True, "chain": chain, "reason": "Both independent subtask results are supported.", "score": 4})]]
         with patch.object(sampling, "explore_initial_state", return_value={"summary": "Observed", "observations": [], "errors": []}), patch.object(sampling, "infer", side_effect=replies) as mocked:
             output = sampling.sample_chains({"config": Config(planning={"sample_count": 1, "min_chain_length": 2, "max_chain_length": 2}),
                                              "environment": environment, "tool_graph": [{"from_tool": chain[0], "to_tool": chain[1], "weight": 1}]})
