@@ -36,15 +36,17 @@
 - [x] step_5_task_validate.py: use execution_matches_task, answer_matches_task, task_is_usable; remove objective requirement and resource fields; all public tools and guidance; task-based evidence-grounded judgments.
 - [x] contracts.py, task schema/example, task_eval.py and docs: synchronize removed field and renamed internal validation flags.
 - [x] Run focused tests, then all tool_graph, task_eval, schema and Codex client tests: 111 passed; schema/example valid via repository validator selection.
-- [ ] Independent code review, fix in-scope findings, verify, commit implementation.
+- [x] Independent code review: no blockers. Partial-answer integration assertion added, 111 tests passed again. Implementation commit: 9659cb5.
 
 ## Task 3: Full Experiment and Evidence Review
 
-- [ ] Run `python scripts/run_initial_probe_experiment.py --graph runs/step234_e2e/20260904_150721_128846_bugagent_gpt-5.6-terra/intermediate/step_1_bundle.json --output-root runs/task_state_chain_e2e`.
-- [ ] Record implementation/config/source signatures before and after; do not change code or configuration mid-run.
-- [ ] Wait for all stages and inspect every task, answer, validation and model failure. Separate runtime success from semantic quality.
-- [ ] Write reports/2026-09-07-task-state-chain-e2e.md with exact run path, counts, timing and remaining issues; update this checklist.
+- [x] Run `python scripts/run_initial_probe_experiment.py --graph runs/step234_e2e/20260904_150721_128846_bugagent_gpt-5.6-terra/intermediate/step_1_bundle.json --output-root runs/task_state_chain_e2e`.
+- [x] Record implementation/config/source signatures before and after; do not change code or configuration mid-run.
+- [x] Wait for all stages and inspect every task, answer, validation and model failure. Separate runtime success from semantic quality.
+- [x] Write reports/2026-09-07-task-state-chain-e2e.md with exact run path, counts, timing and remaining issues; update this checklist.
 
 ## Progress
 
 Implementation done; independent read-only review found no blocking issues. Added its suggested composition-to-validation partial-answer assertion. Existing review scoring experiment is the comparison baseline, not a paired fixed-objective experiment. No legacy artifact migration: new exports omit resource_constraints; historical run files stay untouched.
+
+Run completed: runs/task_state_chain_e2e/20260907_211604_455750_bugagent_gpt-5.6-terra, exit 0, approximately 63.6 minutes. Objective generation 20/20; review 19 accepted plus one timeout; execution 9/10; all nine drafts, reflections and answers succeeded; seven exports. Implementation/config/source signatures unchanged. Remaining findings are documented in reports/2026-09-07-task-state-chain-e2e.md; failed candidates were not rerun and no acceptance rules were relaxed.
