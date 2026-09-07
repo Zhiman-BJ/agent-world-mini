@@ -31,7 +31,7 @@ planning:
   max_chain_length: 15
   max_tool_visits: 2
   random_seed: 42
-  # 先筛选 20 条进行两轮 LLM 处理，逻辑评分后选最多 10 条进入 Step 3。
+  # 先筛选 20 条生成目标，再按冻结目标审查和评分，最多 10 条进入 Step 3。
   review_count: 20
   edge_sampling_probabilities:
     "1": 0.2

@@ -164,7 +164,8 @@ def run(arguments, context):
                 "environment": environment, "tasks": [task_candidate("task1", ["write"])],
             })
         prompt = captured[0]
-        self.assertIn("公开信息或已观察结果", prompt)
+        self.assertIn('"completed_calls"', prompt)
+        self.assertIn('"initial_state_report"', prompt)
         self.assertIn("创建必要的新内容", prompt)
         self.assertIn("不改变目标", prompt)
 

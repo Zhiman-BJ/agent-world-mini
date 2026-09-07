@@ -110,8 +110,8 @@ class BuildGraphOutput(TypedDict):
 
         from_tool → to_tool 仅表示调用 to_tool 前应调用 from_tool。
         只保存直接关系，不保存传递关系；工具节点由 environment.tools 得到，不重复保存。
-        weight 表示依赖强度：3=强依赖，2=有条件的弱依赖，1=辅助性依赖；
-        它不是 LLM 置信度。
+        weight 表示关系类别：3=必要的数据或状态交接，2=明确的业务阶段交接，
+        1=有具体场景的辅助关系；它不是 LLM 置信度或采样概率。
         reason 是判定该边的必填依据。
 
         LLM 必须对每个候选都明确表态：有依赖给 1/2/3，无依赖给 weight=0。
@@ -123,19 +123,10 @@ class BuildGraphOutput(TypedDict):
 
 
 class SampleChainsInput(TypedDict):
-    """Step 2 输入。
-
-    config:
-        完整运行配置。planning 保存 sample_count、review_count、keep_top_count、
-        链长、单工具访问次数、随机种子、weight 对应的 edge_sampling_probabilities
-        和 diversity_lambda；llm 保存两轮 LLM 处理参数。
-    environment:
-        Step 0 读取的完整 environment.json。随机游走使用工具名；review 和逻辑性评分
-        参考环境描述、resources、rules 和工具公开定义，不依赖 tools[].internal。
-    tool_graph:
-        Step 1 产生的直接前置边列表，结构见 BuildGraphOutput.tool_graph。Step 2 暂不
-        消费 prerequisites；weight=3 的入边只用于确定起点，采样概率来自 config。
-    """
+    """Step 2 uses config, public tool contracts and graph edges. An isolated probe
+    may execute tools on temporary initial-workspace copies. Codex review reads
+    its own initial-state copy, but does not receive internal tool code or run
+    business writes. Sampling probabilities are independent of edge weights."""
 
     config: Config
     environment: dict[str, Any]
@@ -143,69 +134,37 @@ class SampleChainsInput(TypedDict):
 
 
 class SampleChainsOutput(TypedDict):
-    """Step 2 创建经过采样、整链 review、目标生成和逻辑性评分的任务候选。
+    """Step 2 returns candidates, sampling_report and one initial_state_report.
 
-    tasks:
-        最终去重后的任务候选列表，默认先处理最多 20 条，再选出最多 10 条交给 Step 3。
-        每项包含：
-        {
-            "task_id": str,
-            "chain": list[str],
-            "objective": str,
-            "score": int,
-            "llm_review": {
-                "original_chain": list[str],
-                "reason": str,
-                "error": str | None,
-            },
-            "logic_score": int,
-            "logic_reason": str,
-        }
-        task_id 按最终顺序使用 task1、task2……；chain 是 LLM review 后的完整链，
-        objective 是 review 同时确定的业务目标模板，供 Step 3 至 Step 5 共同使用。
-        工具名必须存在于 environment.tools。review 可以在有充分公开契约依据时加入
-        graph 中没有的相邻边，因此本阶段不以 graph 边存在性作为 review 结果的硬校验。
-        review 明确拒绝或输出无效时不保留候选。score 是 review 前原始链的边权总和；
-        logic_score 是 0–5 的任务适配性评分。
-
-    sampling_report:
-        记录尝试次数、唯一原始链数、观测最长链长度、短链回退、review 数量、review
-        修改/拒绝/失败数量、review 后唯一链数、逻辑评分分布、最终边覆盖和最终数量。
-    """
+    Objectives prioritize task quality, using original chains as inspiration and
+    the initial report as a reference, without chain acceptance decisions.
+    An objective may combine independent subtasks. Review adapts the chain to the
+    frozen objective and may exceed sampling length/visit caps; it retains the
+    planning length floor. Each task contains task_id, chain,
+    objective, score, llm_review, logic_score and logic_reason. score sums known
+    edges in the reviewed chain; graph-external adjacencies contribute zero.
+    sampling_report records objective generation, review decisions, failures and coverage.
+    initial_state_report contains summary, observations and errors. It is limited
+    evidence, not a complete state snapshot or proof of absence."""
 
     tasks: list[dict[str, Any]]
     sampling_report: dict[str, Any]
+    initial_state_report: dict[str, Any]
 
 
 class ExecuteChainsInput(TypedDict):
-    """Step 3 输入。
+    """Step 3 receives frozen objectives, chains and optional initial observations.
 
-    config:
-        完整运行配置。execution 使用 max_concurrency（默认 4）、
-        retry_count（默认 3）、tool_timeout_seconds（默认 300）、
-        tool_result_max_bytes（默认 65536）、tool_max_write_bytes 和
-        tool_max_memory_bytes。
-    run_dir:
-        本次运行的独立目录。所有任务 workspace 都创建在其 ``tasks/`` 子目录中；
-        state 字段保存相对该目录的路径。
-    environment:
-        完整 environment.json。LLM 只可看到环境元数据、resources、rules
-        和工具公开字段；只有隔离执行器可读取 tools[].internal.code。
-    tasks:
-        Step 2 创建的任务候选，每项至少包含 task_id、完整 chain 和非空 objective。
-
-    Step 3 从 ``config.environment_dir / "workspace"`` 读取源 workspace，
-    不接收 Step 0 产出的全局 initial_state。逐工具填参时接收 objective、完整 chain、
-    当前工具 inputSchema、本次已完成调用结果和上次失败原因。真实结果优先于目标模板中
-    尚未绑定的变量。公开资源和真实 result 可以作为事实，未观察到的既有状态不得编造；
-    完成目标所需的新内容可以合理生成。
-    LLM 不接收 internal.code 或整个 workspace 内容。
-    """
+    config.environment_dir/workspace is the source of isolated initial/final
+    copies under run_dir/tasks/<task_id>. Parameter generation sees public
+    contracts, bounded initial evidence, completed calls and previous failures.
+    Only the sandbox executor consumes internal.code."""
 
     config: Config
     run_dir: Path
     environment: dict[str, Any]
     tasks: list[dict[str, Any]]
+    initial_state_report: dict[str, Any] | None
 
 
 class ExecuteChainsOutput(TypedDict):
@@ -275,60 +234,28 @@ class ComposeTasksInput(TypedDict):
 
 
 class ComposeTasksOutput(TypedDict):
-    """Step 4 直接扩充流水线候选。
+    """Step 4 adds task_text, reference_answer, resource_constraints, compose_error.
 
-    tasks:
-        保留每项已有内容，并为每项新增固定字段：
-        {
-            "task_text": str | None,
-            "reference_answer": str | None,
-            "resource_constraints": {
-                "should_modify": list[str],
-                "can_modify": list[str],
-                "must_not_modify": list[str],
-            } | None,
-            "compose_error": str | None,
-        }
-        task_text 把 objective 和真实成功执行转写为自然、明确、以业务结果为中心的任务；
-        可以实例化未知对象，但不能改变目标或把执行结果倒写成事前要求。无法保持目标时
-        应记录 compose_error。
-
-        成功转写时前三项有值且 compose_error=None。Step 4 在生成 task_text 后还有一次
-        不落盘的反思调用；反思失败时保留初稿并继续，不写 compose_error。执行失败或其他
-        转写轮次失败时未生成的字段为 None，compose_error 保存原因。三个列表只使用 environment.resources 中的
-        resource_id；模型可漏列，漏列项不补全，由使用方按“未列出即禁止修改”的
-        默认规则处理。列表不得交叉，不得引用未知 resource_id，writable=false 的
-        资源不得进入 should_modify 或 can_modify。约束只到 resource 粒度。
-
-        reference_answer 和 compose_error 是流水线候选的中间字段；Step 5 组装正式
-        task 时把 reference_answer 转为 reference.answer，compose_error 只用于验证，
-        两者都不作为独立字段进入正式任务。resource_constraints 不同：它会原样写入
-        正式 task，因为下游评分器需要据此判断资源改动边界，而这一信息无法从
-        task_text 的自然语言中可靠还原。
-    """
+    Successful execution is required. Reflection failure preserves the draft;
+    other failures leave remaining fields empty and explain compose_error.
+    The three resource lists are disjoint and contain known resource IDs.
+    Readonly resources always enter must_not_modify; unlisted writable resources
+    remain forbidden by default. No state-diff auditing is introduced.
+    Step 5 maps reference_answer to task.reference.answer."""
 
     tasks: list[dict[str, Any]]
 
 
 class ValidateTasksInput(TypedDict):
-    """Step 5 输入。
-
-    config:
-        完整运行配置，包含 Schema 路径和验证参数。
-    run_dir:
-        本次运行的独立目录，用于安全解析任务中的相对 workspace 路径。
-    environment:
-        完整环境，用于填写并核对 environment_id、resources 和公开工具定义。
-    tasks:
-        Step 4 扩充后的全部流水线候选，直接包含 objective、task_text、reference_answer、
-        resource_constraints 和 compose_error；任务级 initial/final workspace 路径
-        也随候选保存，不需要额外中间数组或按 task_id 关联。
-    """
+    """Step 5 receives all candidates, the public environment, optional initial
+    observations, config and run_dir. It reviews task_text, reference_answer
+    and resource_constraints against the frozen objective and actual calls."""
 
     config: Config
     run_dir: Path
     environment: dict[str, Any]
     tasks: list[dict[str, Any]]
+    initial_state_report: dict[str, Any] | None
 
 
 class ValidateTasksOutput(TypedDict):

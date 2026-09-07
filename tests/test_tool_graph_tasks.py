@@ -107,7 +107,7 @@ class ComposeTasksTest(unittest.TestCase):
             })["tasks"][0]
         self.assertEqual(task["task_text"], "Update the data file.")
         self.assertEqual(task["reference_answer"], "The data file was updated.")
-        self.assertEqual(task["resource_constraints"]["must_not_modify"], [])
+        self.assertEqual(task["resource_constraints"]["must_not_modify"], ["fixed"])
         self.assertIsNone(task["compose_error"])
         self.assertEqual(len(captured), 4)
         self.assertNotIn("SECRET", "".join(captured))
@@ -118,10 +118,10 @@ class ComposeTasksTest(unittest.TestCase):
         self.assertNotIn('"objective"', captured[2])
         self.assertNotIn('"objective"', captured[3])
         self.assertNotIn("Update the data file.", captured[0])
-        self.assertIn("既定目标和真实成功执行", captured[0])
-        self.assertIn("执行前必须给出的业务信息", captured[0])
+        self.assertIn('"tool_calls"', captured[0])
+        self.assertIn('"tools"', captured[0])
         self.assertIn("Update the data file.", captured[1])
-        self.assertIn("自然、结果导向", captured[1])
+        self.assertIn('"need_revision"', captured[1])
         self.assertNotIn("This text must be ignored", captured[2])
         self.assertIn("Update the data file.", captured[2])
         self.assertIn('"tool_calls"', captured[2])
@@ -328,7 +328,8 @@ class ValidateTasksTest(unittest.TestCase):
         self.assertNotIn("SECRET", captured[0])
         self.assertIn('"result"', captured[0])
         self.assertIn('"objective"', captured[0])
-        self.assertNotIn("The data file was updated.", captured[0])
+        self.assertIn("The data file was updated.", captured[0])
+        self.assertIn('"resource_constraints"', captured[0])
 
     def test_rejects_execution_that_does_not_achieve_objective(self) -> None:
         response = InferenceResult(json.dumps({

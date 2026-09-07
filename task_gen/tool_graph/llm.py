@@ -102,6 +102,7 @@ def _record_call(
     started: float,
     result: InferenceResult | None = None,
     error: Exception | None = None,
+    agent_log: dict[str, str] | None = None,
 ) -> None:
     if trace is None:
         return
@@ -121,6 +122,7 @@ def _record_call(
         "usage": _plain(result.usage) if result else {},
         "status": "succeeded" if result else "failed",
         "error": f"{type(error).__name__}: {error}" if error else None,
+        **({"agent_log": agent_log} if agent_log is not None else {}),
     })
 
 

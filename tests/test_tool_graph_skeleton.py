@@ -157,7 +157,7 @@ class ToolGraphSkeletonTest(unittest.TestCase):
         )
         self.assertEqual(
             SampleChainsOutput.__required_keys__,
-            {"tasks", "sampling_report"},
+            {"tasks", "sampling_report", "initial_state_report"},
         )
         config = Config()
         environment = {"environment_id": "example", "tools": []}
@@ -185,7 +185,7 @@ class ToolGraphSkeletonTest(unittest.TestCase):
         )
 
         expected_input_keys = {"config", "environment", "tasks"}
-        run_scoped_input_keys = expected_input_keys | {"run_dir"}
+        run_scoped_input_keys = expected_input_keys | {"run_dir", "initial_state_report"}
         self.assertEqual(ExecuteChainsInput.__required_keys__, run_scoped_input_keys)
         self.assertEqual(ComposeTasksInput.__required_keys__, expected_input_keys)
         self.assertEqual(ValidateTasksInput.__required_keys__, run_scoped_input_keys)
