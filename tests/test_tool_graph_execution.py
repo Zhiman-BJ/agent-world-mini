@@ -163,11 +163,11 @@ def run(arguments, context):
                 "config": self.config(retry_count=0), "run_dir": self.run_dir,
                 "environment": environment, "tasks": [task_candidate("task1", ["write"])],
             })
-        prompt = captured[0]
-        self.assertIn('"completed_calls"', prompt)
-        self.assertIn('"initial_state_report"', prompt)
-        self.assertIn("创建必要的新内容", prompt)
-        self.assertIn("不改变目标", prompt)
+        prompt = json.loads(captured[0])
+        self.assertEqual(prompt["objective"], "Write the requested value.")
+        self.assertEqual(prompt["completed_calls"], [])
+        self.assertEqual(prompt["initial_state_report"]["observations"], [])
+        self.assertEqual(prompt["current_tool"]["inputSchema"]["required"], ["value"])
 
     def test_review_guidance_reaches_each_call_and_parameter_retry(self) -> None:
         environment = {"resources": [], "rules": [], "tools": [

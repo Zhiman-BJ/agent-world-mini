@@ -144,7 +144,8 @@ class SampleChainsOutput(TypedDict):
     objective, score, llm_review, logic_score and logic_reason. score sums known
     edges in the reviewed chain; graph-external adjacencies contribute zero.
     Codex review supplies logic_score (0-5) for the final plan's value and expected
-    objective completion; its reason supplies logic_reason and execution guidance.
+    objective completion; its reason supplies logic_reason and task-state-chain
+    guidance to execution, composition, reflection, answer and validation.
     There is no separate scoring inference. Invalid scores are review errors.
     sampling_report records objective generation, review decisions, failures and coverage.
     initial_state_report contains summary, observations and errors. It is limited
@@ -239,13 +240,12 @@ class ComposeTasksInput(TypedDict):
 
 
 class ComposeTasksOutput(TypedDict):
-    """Step 4 adds task_text, reference_answer, resource_constraints, compose_error.
+    """Step 4 adds task_text, reference_answer, compose_error.
 
     Successful execution is required. Reflection failure preserves the draft;
-    other failures leave remaining fields empty and explain compose_error.
-    The three resource lists are disjoint and contain known resource IDs.
-    Readonly resources always enter must_not_modify; unlisted writable resources
-    remain forbidden by default. No state-diff auditing is introduced.
+    runtime/format failures leave remaining fields empty and explain compose_error.
+    All rounds receive llm_review.reason as review_guidance. Draft/answer do not
+    reject semantically; incomplete evidence is reported for final validation.
     Step 5 maps reference_answer to task.reference.answer."""
 
     tasks: list[dict[str, Any]]
@@ -253,8 +253,8 @@ class ComposeTasksOutput(TypedDict):
 
 class ValidateTasksInput(TypedDict):
     """Step 5 receives all candidates, the public environment, optional initial
-    observations, config and run_dir. It reviews task_text, reference_answer
-    and resource_constraints against the frozen objective and actual calls."""
+    observations, config and run_dir. It reviews execution and reference_answer
+    against final task_text, using review guidance and all public tools."""
 
     config: Config
     run_dir: Path
@@ -277,11 +277,6 @@ class ValidateTasksOutput(TypedDict):
                 "difficulty": {"tool_calls": int},
                 "initial_state": str | None,
                 "available_tools": list[dict],
-                "resource_constraints": {
-                    "should_modify": list[str],
-                    "can_modify": list[str],
-                    "must_not_modify": list[str],
-                } | None,
                 "reference": {
                     "tool_calls": [
                         {"tool": str, "arguments": dict}
@@ -292,16 +287,16 @@ class ValidateTasksOutput(TypedDict):
             },
             "validation": {
                 "passed": bool,
-                "execution_matches_objective": bool,
-                "task_matches_objective": bool,
+                "execution_matches_task": bool,
+                "answer_matches_task": bool,
                 "task_is_usable": bool,
                 "errors": list[str],
             },
         }
 
         每个候选都保留同样的 task 键形状和 validation。Step 5 只做字段整理、前序
-        状态检查、Schema 检查，以及一次独立 LLM 语义审查：执行是否实现 objective、
-        task_text 是否保持 objective、任务是否自然且包含必要业务信息。失败项保留候选，
+        状态检查、Schema 检查，以及一次独立 LLM 语义审查：执行是否满足任务适用要求、
+        答案是否准确完整、任务是否自然且包含必要业务信息。失败项保留候选，
         不猜测、不修补、不重放工具链、不比较 workspace 字节、不去重。
 
         最终导出由 run_io.finish_run 机械完成：通过项只导出内部 task 字典，

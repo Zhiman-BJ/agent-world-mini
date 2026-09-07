@@ -280,7 +280,8 @@ Schema 投影，不能看到 `tools[].internal` 或 workspace 状态。输出只
 唯一优化标准是任务质量、自然性、价值和清晰度，采样链是题材线索，不以原链调用次数限制目标范围。
 review 负责补足实现冻结目标的调用，原链够用则保留，否则增补、删除或重排，并尽量减少无关改动；
 只返回 `accepted`、`chain`、`reason`、`score`，不能替换目标。
-`reason` 说明关键观察、调用分工、预计交付与评分依据，传给执行者作为计划参考。
+`reason` 说明初态、目标与调用链如何匹配，包括关键观察依据、当前适用要求、调用分工和不确定性，
+同时提供评分依据；作为 `review_guidance` 传给执行、初稿、反思、参考答案和最终校验。
 只有工具能力或可核实条件使目标无法实现时才拒绝，缺少调用、业务混合本身不构成拒绝理由。
 `max_chain_length` 和 `max_tool_visits` 限制采样，不限制 review 为完成任务补全调用；保留规划长度下限。
 同工具重复出现可能是处理不同对象或验证新状态，不能据此直接去重；按具体处理和验证用途判断贡献。
@@ -323,28 +324,27 @@ review 在探索和改链完成后，对最终方案打 `0–5` 分，不再单�
 整个进程组，避免工具遗留子进程。成功项保存相对本次运行目录的
 `initial_state` / `final_state` 路径；失败项保留错误和尝试记录，不伪造状态。
 
-### Step 4：生成任务文本、参考答案和资源约束
+### Step 4：生成任务文本、反思表达和参考答案
 
 文件：`step_4_task_compose.py`
 
-只处理 Step 3 成功的候选，按四轮 LLM 调用完成：
+只处理 Step 3 成功的候选，按三轮 LLM 调用完成：
 
-1. **任务文本**：把 `objective` 和真实成功轨迹转写为自然、明确、结果导向的用户任务；
+1. **任务文本**：结合 `objective`、review 匹配说明和真实轨迹生成自然、明确、结果导向的用户任务，始终产出候选，不作语义拒绝；
 2. **任务文本反思**：返回 `analyze`、`need_revision`、`task_text`。模型先分析文本
    是否自然、是否保持目标和事实、必要信息是否充分；`need_revision=false` 时忽略返回的
    `task_text`，为 `true` 时才采用不改变目标的非空优化文本；修订须保持对象选择、范围、数量约束和条件的语义，
    不能从本次执行结果反推新需求，不能以完善任务为由扩充义务；反思失败时保留草稿并继续；
-3. **参考答案**：只根据最终任务和真实结果描述实际完成的业务结果；
-4. **资源约束**：生成 `should_modify`、`can_modify`、`must_not_modify` 三个资源
-   ID 列表。
+3. **参考答案**：以最终任务为唯一需求基准，依据 review 的观察分析及真实结果回答全部适用要求；证据不足或未完成项如实写入答案，交给 Step 5 判断，不作语义拒绝。
 
-各轮只接收必要上下文：任务初稿和反思接收 `objective`；参考答案接收最终任务与真实结果；
-资源约束接收最终任务与公开资源。任务文本保持目标含义和事实边界，描述用户希望得到的
-业务结果，不把实现过程或偶然执行结果写成事前要求。
+各轮均接收 `llm_review.reason` 作为 `review_guidance`，理解目标、初态与调用链的匹配关系。
+任务初稿和反思接收 `objective`；参考答案只接收最终任务、执行结果和匹配说明，不再以 objective 单独验收。
+初稿接收全部公开工具，避免把本链工具误认为环境的全部能力；不提供工具内部代码。
 
-资源列表只能引用环境中已有的 `resource_id`，不能交叉重复；只读资源不能进入
-`should_modify` 或 `can_modify`，由代码统一加入 `must_not_modify`。未列出的可写资源保持默认禁止修改。任务初稿、参考答案或资源
-约束失败会写入 `compose_error`；反思是增强步骤，失败不阻断候选。
+统一原则定义在 `prompt_principles.py`：任务可以是一棵条件树，初态及后续状态变化决定适用路径，
+调用链完成该路径。任务不必描述调用顺序，链不必执行未触发的分支；条件不成立须有观察依据。
+review 的说明不是新需求或执行完成证明，实际结果优先。表达优化不能增加义务或掩盖执行缺口。
+不再生成任务级资源约束；环境权限与执行隔离不变。初稿或答案的运行/格式失败写入 `compose_error`，反思失败保留初稿。
 
 Step 4 输出仍是候选扩充字段，而不是正式 task：
 
@@ -352,11 +352,6 @@ Step 4 输出仍是候选扩充字段，而不是正式 task：
 {
     "task_text": str | None,
     "reference_answer": str | None,
-    "resource_constraints": {
-        "should_modify": list[str],
-        "can_modify": list[str],
-        "must_not_modify": list[str],
-    } | None,
     "compose_error": str | None,
 }
 ```
@@ -370,15 +365,15 @@ Step 5 是最后的只读门禁，不重放工具链、不修改 workspace、不
 
 1. 前序字段和执行成功状态检查；
 2. `tool_calls` 与 `chain` 顺序一致性检查；
-3. `objective` 非空检查；
-4. 一次独立 LLM 语义审查：
-   * `execution_matches_objective`：真实调用和结果是否实现目标；
-   * `task_matches_objective`：任务文本是否保持并正确实例化目标；
-   * `task_is_usable`：任务是否自然、信息充分，参考答案是否受事实支持，资源约束是否符合目标；
-5. 通过前序检查后，用 `task.schema.json` 收集全部结构错误。
+3. 一次独立 LLM 语义审查，以最终 `task_text` 为唯一需求基准：
+   * `execution_matches_task`：真实调用及已有状态是否满足任务当前适用的全部要求；
+   * `answer_matches_task`：参考答案是否准确、完整，结论范围是否受证据支持；
+   * `task_is_usable`：任务是否自然、逻辑清楚、信息充分且能够独立理解；
+4. 通过前序检查后，用 `task.schema.json` 收集全部结构错误。
 
 只有前序检查、三项 LLM 判断和 Schema 检查全部通过，候选的 `validation.passed`
-才为 `true`。语义审查同时接收有限初态观察，未知状态不等于对象不存在。
+才为 `true`。语义审查接收 review 匹配说明、有限初态观察和全部公开工具，未知状态不等于对象不存在。
+拒绝理由应指出具体任务要求、当前适用依据、实际证据和完成缺口，不能仅以缺少某类调用拒绝。
 执行或转写失败只保留根因，失败项不删除，原因写入 `validation.errors`。
 
 正式 `task` 的形状如下：
@@ -392,11 +387,6 @@ Step 5 是最后的只读门禁，不重放工具链、不修改 workspace、不
   "difficulty": {"tool_calls": 6},
   "initial_state": "tasks/task1/initial",
   "available_tools": [{"name": "...", "description": "..."}],
-  "resource_constraints": {
-    "should_modify": [],
-    "can_modify": [],
-    "must_not_modify": []
-  },
   "reference": {
     "tool_calls": [{"tool": "...", "arguments": {}}],
     "answer": "...",

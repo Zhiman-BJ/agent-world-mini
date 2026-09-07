@@ -232,12 +232,11 @@ def _judge_prompt(
             "实际回答是否正确、完整地回应任务目标",
             "实际回答中的事实是否得到真实工具结果支持",
             "实际工具调用是否完成任务要求的状态变化或交付物",
-            "用 environment_resources 将资源 ID 映射到路径并核对 workspace_changes：should_modify 必须变化，"
-            "must_not_modify 必须不变，can_modify 可以变化，三个列表之外的资源默认必须不变",
+            "依据 environment_resources 和 workspace_changes 检查环境只读限制与任务要求的状态变化；"
+            "允许修改的资源不代表必须修改，任务未触发的条件分支不要求执行",
             "参考答案是核对依据，不是必须逐字匹配的唯一表述",
         ],
         "task": task.get("task_text"),
-        "resource_constraints": task.get("resource_constraints"),
         "environment_resources": environment.get("resources"),
         "workspace_changes": changes,
         "actual_tool_calls": _bounded_calls(calls, result_limit),

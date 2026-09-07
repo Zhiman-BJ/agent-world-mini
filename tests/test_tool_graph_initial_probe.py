@@ -11,7 +11,6 @@ from task_gen.tool_graph.contracts import Config
 from task_gen.tool_graph.llm import InferenceResult
 from task_gen.tool_graph import step_2_chain_sample as sampling
 from task_gen.tool_graph.step_3_chain_execute import execute_chains
-from task_gen.tool_graph.step_4_task_compose import _resource_constraints
 from task_gen.tool_graph.step_5_task_validate import _basic_errors
 from tests.test_tool_graph_execution import tool, task_candidate
 
@@ -136,10 +135,7 @@ class InitialStateTest(unittest.TestCase):
                 marker.reset(token)
             self.assertTrue(all(item["execution"]["success"] for item in output["tasks"]), output)
 
-    def test_readonly_resources_are_explicit_and_failures_are_not_amplified(self):
-        constraints = _resource_constraints({"resource_constraints": {"should_modify": ["editable"], "can_modify": [], "must_not_modify": []}, "error": None},
-                                            ["readonly", "editable"], {"readonly": False, "editable": True})
-        self.assertEqual(constraints["must_not_modify"], ["readonly"])
+    def test_execution_failures_are_not_amplified(self):
         self.assertEqual(_basic_errors({"execution": {"success": False, "error": "missing evidence"}}, {}), ["execution 未成功：missing evidence"])
 
 

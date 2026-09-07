@@ -95,9 +95,8 @@ Step 0 只输出一个键，值是 ``environment.json`` 的**原样解析结果*
 
         resources : [
           {
-            resource_id      : str        [Step 4 生成三类 resource_constraints；
-                                           Step 5 校验约束并检查 task_text 未
-                                           泄漏该串。Step 0 已校验格式与唯一性]
+            resource_id      : str        [下游公开环境上下文用于识别资源；
+                                           Step 0 已校验格式与唯一性]
             name             : str        [Step 1/2/4 的 LLM 上下文]
             description      : str        [Step 1/2/4 的 LLM 上下文]
             data_type        : str        [无人消费；原样保留]
