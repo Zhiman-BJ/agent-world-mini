@@ -149,6 +149,7 @@ def _build_prompt(kind: str, context: dict[str, Any], candidate: dict[str, Any])
     if kind == "task_text":
         instruction = """将 objective 表达成一位用户在执行前提出的自然任务，始终产出候选文本，不作可行性拒绝。
 你的职责是强化表达、组织逻辑和补足理解所需的上下文，不是重设业务目标或翻译调用记录。
+依据全部公开工具契约斟酌用词，准确表达实际可交付的结果，不因追求自然或强化表达而写出当前工具集无法完成的要求。
 结合 review 的匹配说明理解初态与执行路径，保留目标的结果、对象范围及实质约束；
 可以自然展开符合业务意图的条件分支，即使有证据表明当前初态不会触发它们。
 用用户可辨认的业务对象说明要求，让另一个执行者无需本轮规划记录也能理解任务。
@@ -158,9 +159,11 @@ def _build_prompt(kind: str, context: dict[str, Any], candidate: dict[str, Any])
     elif kind == "task_reflection":
         instruction = """检查并改善任务初稿的自然性、清晰度、信息充分性和逻辑，不重新设计任务，也不淘汰候选。
 结合 objective 的业务意图与 review 的匹配说明，检查表述是否保持对象范围、条件及所需结果。
+依据全部公开工具契约检查用词是否符合实际，纠正措辞引入的超出工具集能力的额外承诺；本次未调用某工具不代表环境没有该能力。
 修订是改善表达，不是增加义务；不能把替代或条件关系改成全部必做，也不能因本次未走某分支就删除合理要求。
 任务不必逐句复述 objective，也不必列出执行步骤；不把查询所得答案变成用户事先提出的要求。
-在 analyze 中简要说明具体表达问题和修改依据。没有明确改进或无法确认含义保持时保留初稿。
+检查是否有与任务无关的多余表达；如有，在 analyze 中逐项指出原文，详细解释为何与任务无关、删除为何不影响业务要求，再从修订文本中删除。
+其他表达问题也在 analyze 中说明修改依据；没有明确改进或无法确认含义保持时保留初稿。
 执行缺口留给最终校验，不能通过降低要求来掩盖。
 只返回 JSON：{"analyze":"检查结论","need_revision":false,"task_text":""}。
 需要修订时 need_revision=true，并给出完整 task_text；否则保留原稿。"""
@@ -177,7 +180,7 @@ review 的分析帮助解释初态和适用路径，真实调用用于确认处�
     if kind == "task_text":
         data = {key: context[key] for key in ("objective", "environment", "tools", "chain", "tool_calls")}
     elif kind == "task_reflection":
-        data = {key: context[key] for key in ("objective", "chain", "tool_calls")}
+        data = {key: context[key] for key in ("objective", "tools", "chain", "tool_calls")}
         data["task_text"] = candidate["task_text"]
     elif kind == "reference_answer":
         data = {"task_text": candidate["task_text"], "tool_calls": context["tool_calls"]}

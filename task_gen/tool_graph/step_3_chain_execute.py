@@ -342,7 +342,9 @@ def _generate_arguments(
 ) -> dict[str, Any]:
     prompt = json.dumps({
         "task": (
-            "为当前调用生成符合工具契约、能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
+            "为当前调用生成能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
+            "arguments 必须完全符合 current_tool.inputSchema 的字段、必填项、类型、枚举及其他约束；"
+            "任务目标和后续调用不能覆盖当前工具的参数契约。重试时依据 previous_failure 修正违反契约的参数。\n"
             + TASK_STATE_CHAIN + "\n" + REVIEW_GUIDANCE + "\n"
             "结合当前工具、调用分工和前序真实结果，判断要处理的对象、所需信息和参数来源；查询范围应足以支撑它承担的判断。"
             "初态报告仅作参考，摘要和截断结果不能替代完整证据；已有事实的引用须有依据，实现目标所需的新内容可以合理创作。"

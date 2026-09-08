@@ -164,8 +164,8 @@ task_is_usable：任务是否自然、逻辑清楚、结果导向且信息充分
 任务可以包含多项独立子任务和未触发分支，不要求逐一对应工具调用；成功响应本身不证明业务目标完成。
 tools 是环境全部公开能力，chain 只是本次执行路径；不能因本次没有使用某个工具而认定环境不具备该能力。
 初态摘要不保证完整或准确；结合 review 引用的观察依据和实际查询判断，区分查询范围、已有事实和推断。
-分别给出三个判断。失败时，每条 errors 说明任务的具体要求、当前适用依据、实际证据与完成缺口，
-或明确指出无法判断的证据缺口；不能只以缺少某种调用为拒绝理由。
+分别给出三个布尔判断；errors 必须是字符串数组，无问题时为 []，有问题时每项为一个非空字符串，不返回对象。
+每条错误用文字说明任务的具体要求、当前适用依据、实际证据与完成缺口，或明确指出无法判断的证据缺口；不能只以缺少某种调用为拒绝理由。
 严格只返回 JSON：{"execution_matches_task":true,"answer_matches_task":true,"task_is_usable":true,"errors":[]}。"""
     return "\n".join((instruction, TASK_STATE_CHAIN, REVIEW_GUIDANCE,
                       "\n【待分析数据】", json.dumps(context, ensure_ascii=False)))
