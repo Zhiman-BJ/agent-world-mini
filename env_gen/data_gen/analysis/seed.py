@@ -95,9 +95,12 @@ def load_selected_seed(
         for item in selected.get("init_ref_tools", [])
         if isinstance(item, dict)
     ]
-    duplicate_tools = sorted({value for value in tool_names if tool_names.count(value) > 1})
-    if duplicate_tools:
-        raise ValueError(f"同一 Seed 的参考工具名重复：{duplicate_tools[:10]}")
+    declared_tool_count = selected.get("others", {}).get("tool_count")
+    if declared_tool_count != len(tool_names):
+        raise ValueError(
+            "Seed others.tool_count 与 init_ref_tools 数量不一致："
+            f"声明 {declared_tool_count}，实际 {len(tool_names)}"
+        )
     return selected, canonical_json_sha256(selected)
 
 

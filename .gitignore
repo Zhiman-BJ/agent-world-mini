@@ -43,3 +43,6 @@ dist/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+seed_data_raw/
+seed_pypi_raw/

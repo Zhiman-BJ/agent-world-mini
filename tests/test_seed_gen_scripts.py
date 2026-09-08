@@ -2,10 +2,46 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
+from seed_gen.catalog import _seed_from_detail
 from seed_gen.scripts.fetch_smithery_servers import build_seed_records, fetch_all_servers
 
 
 class SmitherySeedExportTests(unittest.TestCase):
+    def test_catalog_detail_uses_environment_seed_v11(self):
+        seed = _seed_from_detail(
+            {
+                "qualifiedName": "demo/server",
+                "description": "A demo Smithery server.",
+                "tools": [
+                    {
+                        "name": "search",
+                        "description": "Search records.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                        },
+                    }
+                ],
+            },
+            3,
+        )
+
+        self.assertEqual(seed["schema_version"], "1.1")
+        self.assertEqual(seed["environment"]["basic_info"]["url"], ["https://smithery.ai/servers/demo/server"])
+        self.assertEqual(seed["environment"]["basic_info"]["version"], "2026-09-02")
+        self.assertEqual(
+            seed["init_ref_tools"][0],
+            {
+                "name": "search",
+                "type": "function",
+                "module": None,
+                "description": "Search records.",
+                "input": {"query": {"type": "string"}},
+                "output": {},
+            },
+        )
+        self.assertEqual(seed["others"]["tool_count"], 1)
+
     def test_records_are_sorted_and_preserve_catalog_fields(self):
         result = build_seed_records([
             {"qualifiedName": "z/server", "useCount": 2, "description": "Z", "verified": False, "score": 1},

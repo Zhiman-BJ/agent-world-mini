@@ -469,7 +469,7 @@ class ToolGenerationTests(unittest.TestCase):
             self.assertIn("工具修复", agent.calls[2])
 
     def test_loads_reference_tools_from_current_upstream_seed_catalog(self):
-        catalog = Path(__file__).parents[1] / "seed_gen" / "data" / "smithery_140_v1_0824.json"
+        catalog = Path(__file__).parents[1] / "seed_gen" / "data" / "smithery_1000_v1_0902.json"
         document = json.loads(catalog.read_text(encoding="utf-8"))
         seed = document[0]
         tools = _reference_tools(

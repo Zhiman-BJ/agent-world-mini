@@ -56,19 +56,21 @@ agent_world_mini/
 │   │   ├── run_pipeline.py
 │   │   ├── config.py
 │   │   ├── steps/
-│   │   │   ├── acquisition.py
-│   │   │   ├── research_policy.py
-│   │   │   ├── research_semantics.py
-│   │   │   ├── workflow.py
-│   │   │   ├── environment.py
-│   │   │   └── publication.py
+│   │   │   ├── step0_prepare_run.py
+│   │   │   ├── step1_research_scenario.py
+│   │   │   ├── step2_collect_data.py
+│   │   │   ├── step3_integrate_data.py
+│   │   │   ├── step4_freeze_environment.py
+│   │   │   ├── integration/
+│   │   │   └── common/
 │   │   └── analysis/
-│   │       ├── entity_profiling.py
-│   │       ├── record_extraction.py
-│   │       ├── capability_extraction.py
-│   │       ├── task_space_estimation.py
-│   │       ├── quality.py
-│   │       ├── validator.py
+│   │       ├── seed.py
+│   │       ├── scenario_research.py
+│   │       ├── collection_analysis.py
+│   │       ├── artifact_integrity.py
+│   │       ├── v2_validator.py
+│   │       ├── filesystem_scopes.py
+│   │       ├── file_formats.py
 │   │       └── checkpoint_schemas/
 │   ├── tool_gen/
 │   │   ├── compiler.py
@@ -84,10 +86,16 @@ agent_world_mini/
 │   │   ├── graph.py
 │   │   └── synthesizer.py
 │   ├── program_form/
-│   │   ├── loader.py
-│   │   ├── runtime.py
-│   │   ├── executor.py
-│   │   └── generator.py
+│   │   ├── steps/
+│   │   │   ├── step1_prepare_environment.py
+│   │   │   ├── step2_gen_task_solution.py
+│   │   │   ├── step3_debug_solution_jsonl.py
+│   │   │   ├── step4_ground_truth_jsonl_in_jsonl_out.py
+│   │   │   ├── ...
+│   │   │   └── step12_final_output.py
+│   │   ├── utils/                # 加载、JSONL、受限执行和状态隔离
+│   │   ├── schemas/              # Step 2 候选 Schema
+│   │   └── run_pipeline.py
 │   ├── validation/
 │   │   ├── five_run.py
 │   │   └── luna_rollout.py
@@ -100,7 +108,12 @@ config/
 └── api_keys.env              # 本地文件，被 Git 忽略
 ```
 
-`program_form/` 已实现独立的 Program-form 路径：模型联合生成现实任务、输出 Schema 和隐藏 Python 参考程序；程序只能经 `call_tool` 使用公开工具，并在隔离 Runtime 中执行和至少两次干净重放。它不依赖 DAG walk，也不会把工具内部代码暴露给任务生成 Agent。
+`program_form/` 已按 OmniaBench Runner 对齐为 Step 1--12。唯一差异是
+Step 1 冻结 DataGen 的真实 `state/`，不再让模型生成 `init_config`。
+Step 2--12 依次负责任务/参考解生成、参考解调试、Ground Truth、
+Verifier、多 Agent 一致性、公开任务改写、轨迹/状态语义检查、Rubric、
+难度评测和最终发布。主要 Prompt 和处理顺序均在对应 Step 文件；
+`utils/` 只保留通用机械能力。
 
 ## 3. 每个阶段的输入和输出
 
@@ -112,6 +125,7 @@ config/
 | Assembler | Seed、数据、已验证工具 | `environment_manifest.json` | `env_gen/assembler.py` |
 | Runtime | 数据包、工具内部实现、调用参数 | 工具结果、状态快照、outcome | `runtime/` |
 | DAG-form | 完整环境、可执行工具 | 候选图、walk、`Task[]` | `task_gen/dag_form/` |
+| Program-form | v2 环境包、可执行工具 | 参考程序、Ground Truth、Verifier、Rubric、难度与最终任务 | `task_gen/program_form/` |
 | Validation | Task、Runtime、求解模型 | 通过/拒绝/基础设施失败 | `task_gen/validation/` |
 | Export | 多环境任务和轨迹 | 数据集与统计文件 | `task_gen/export/` |
 
@@ -147,19 +161,26 @@ SeedGen 不抓取业务实体，也不定义最终工具。
 
 ### 4.3 `env_gen/data_gen`
 
-`run_pipeline.py` 是 DataGen 唯一权威编排入口。Step 1 先生成完整 Seed 的紧凑调研索引，再
-调用 Codex 把环境描述、参考工具、参考任务和数据方向综合为候选场景简报
-`scenario_research.json`；Step 2 以该简报为起点继续深度调研，通过 `datagenctl` 保存严格的
-`source_plan.json`、下载 Raw、整理 Entity/Derived、执行 `assess`，最后通过 `finalize` 收口。
+`run_pipeline.py` 是 DataGen 唯一权威编排入口。Step 0 选择并锁定完整 Seed；Step 1 从 Seed URL
+切入现实场景，同时完善环境描述、实体、工具、任务和数据方向，输出 `scenario_research.json`；
+Step 2 根据 Seed 和 Step 1 尚未覆盖的主体承担全部下载。一个 Agent 检查 URL/SHA-256 账本后
+直接下载并查看文件；无用候选立即淘汰，归档确有必要时才展开到 Prepared。有效数据填写简单文件卡，
+记录用途、覆盖主体和限制。
+下载器只验证非空、基础可读性并统计大小、格式、记录数或成员数；Python 自动生成来源报告和 inventory，
+不再调用独立画像 Agent或进行字段级 Raw 画像。只有 `supported` 计入退出覆盖率。
+领域文件、源码和数据库只在真实任务需要时采集。字段统一、关系发现、全局质量画像、最终 Record Set
+和 Filesystem Scope 全部属于 Step 3。
 
-正常会调用 Agent 多次：一次场景研究；采集阶段每轮都在同一 staging 现场继续，直到收口或
-达到 `max_collection_rounds`；随后再调用一次生成环境声明，失败后的声明修复为零到两次。
-画像、质量判定、checkpoint、校验和发布都由 Python 完成，不接受 Agent 自报结果。
+Step 3 让一个 Agent 根据真实 Raw 直接编写最终 `environment.json` 和统一 `provenance/build.py`，
+一次物化 `records.sqlite` 与必要的文件 Scope。Python 只返回 Schema、键、关系、路径和重放错误，
+Agent 原地修复。Step 4 独立重放、冻结并原子发布；不再有单独的 Step 5。下载收据、硬校验、
+阶段收口、哈希和发布均由 Python 完成，不接受 Agent 自报结果。
 
 环境语义不能由字段名启发式决定。Python 负责路径、格式、哈希、类型、数量和
 引用覆盖率等可验证事实；声明 Agent 负责资源含义、实体边界和业务关系声明；
-Validator 再核对这些声明。`analysis/record_extraction.py` 等模块只提供画像和校验
-所需的确定性事实，不生成或覆盖最终 `environment.json`。
+Validator 再核对这些声明。`analysis/` 只保留各步骤实际调用的 Seed、场景、文件卡、摘要和最终状态
+校验函数，不再保留旧的全局画像、候选推断或计划式集成模块，也不会生成或覆盖最终
+`environment.json`。
 
 ### 4.4 `env_gen/tool_gen`
 
@@ -243,4 +264,4 @@ OpenRouter 与 DeepSeek Harness 均调用同一个加载器。`config/api_keys.e
 2. 把 `ToolSpec` 拆成公开工具契约、Runtime 内部实现和 ToolGen 验证材料。
 3. 以 OmniaBench 的 Schema/事务检查为基础增强 Runtime，同时保留当前 workspace、fork 和 outcome 能力。
 4. 让 DAG 图只读取标准化依赖，不再推断工具实现细节。
-5. 将 Program-form 已验证任务继续接入统一 rubric、求解 rollout 和最终数据集导出。
+5. 用真实 ToolGen `tools.json` 运行 Program-form Step 1--12，并根据实际通过率调整任务生成策略。

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/program-task-candidate.schema.json",
+  "title": "Program-form task candidates",
+  "type": "object",
+  "properties": {
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "task_internal": {
+            "type": "string",
+            "minLength": 40
+          },
+          "output_schema": {
+            "type": "object"
+          },
+          "solution_code": {
+            "type": "string",
+            "minLength": 20
+          }
+        },
+        "required": ["task_internal", "output_schema", "solution_code"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["candidates"],
+  "additionalProperties": false
+}

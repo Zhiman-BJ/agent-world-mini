@@ -44,6 +44,51 @@ def _duplicate_name_issues(
     )]
 
 
+def _source_reference_issues(
+    payload: dict[str, Any],
+) -> list[ScenarioResearchIssue]:
+    """Require every researched item to cite a registered external source."""
+
+    sources = payload.get("research_notes", {}).get("sources", [])
+    registered_urls = {
+        str(item.get("url") or "").strip()
+        for item in sources
+        if isinstance(item, dict) and str(item.get("url") or "").strip()
+    } if isinstance(sources, list) else set()
+    referenced_items: list[tuple[str, Any]] = [
+        ("$.environment.source_urls", payload.get("environment", {})),
+    ]
+    for collection in ("entities", "tools", "tasks"):
+        items = payload.get(collection, [])
+        if not isinstance(items, list):
+            continue
+        for index, item in enumerate(items):
+            referenced_items.append((f"$.{collection}[{index}].source_urls", item))
+
+    issues: list[ScenarioResearchIssue] = []
+    for path, item in referenced_items:
+        if not isinstance(item, dict):
+            continue
+        source_urls = item.get("source_urls", [])
+        if not isinstance(source_urls, list):
+            continue
+        unknown = sorted({
+            str(url).strip()
+            for url in source_urls
+            if isinstance(url, str)
+            and url.strip()
+            and url.strip() not in registered_urls
+        })
+        if unknown:
+            issues.append(ScenarioResearchIssue(
+                "unregistered_research_source",
+                path,
+                "引用的 URL 未登记在 research_notes.sources 中："
+                + ", ".join(unknown),
+            ))
+    return issues
+
+
 def validate_scenario_research_payload(
     payload: dict[str, Any],
     *,
@@ -76,6 +121,7 @@ def validate_scenario_research_payload(
 
     for collection in ("entities", "tools", "tasks"):
         issues.extend(_duplicate_name_issues(payload, collection))
+    issues.extend(_source_reference_issues(payload))
 
     reference_tool_names = {
         str(item.get("name") or "").strip()

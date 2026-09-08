@@ -1,4 +1,4 @@
-"""DataGen entry point: prepare one run, then execute five business steps."""
+"""DataGen entry point: prepare one run, then execute four business steps."""
 
 from __future__ import annotations
 
@@ -10,14 +10,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Protocol
 
-from env_gen.data_gen.analysis.environment_quality import EnvironmentQualityPolicy
 from env_gen.data_gen.config import CollectionPolicy, DEFAULT_OSS_OUTPUT_ROOT, DataGenConfig
 from env_gen.data_gen.steps.step0_prepare_run import prepare_generation_run
 from env_gen.data_gen.steps.step1_research_scenario import ScenarioResearchError, run_scenario_research
-from env_gen.data_gen.steps.step2_explore_sources import SourceExplorationError, run_source_exploration
+from env_gen.data_gen.steps.step2_collect_data import DataCollectionError, run_data_collection
 from env_gen.data_gen.steps.step3_integrate_data import IntegrationFinalizationError, run_integration_phase
-from env_gen.data_gen.steps.step4_freeze_environment import EnvironmentFreezeError, freeze_environment
-from env_gen.data_gen.steps.step5_validate_and_publish import FinalValidationError, validate_and_publish
+from env_gen.data_gen.steps.step4_freeze_environment import (
+    EnvironmentFreezeError,
+    freeze_and_publish_environment,
+)
+from utils.config import load_local_environment
 from utils.search_agent.codex import CodexAgentClient
 
 
@@ -45,6 +47,17 @@ def _make_agent_runner(
         if isinstance(previous_timeout, int):
             codex.timeout_seconds = min(previous_timeout, phase_seconds, remaining)  # type: ignore[attr-defined]
         try:
+            run_until_json_file = getattr(codex, "run_until_json_file", None)
+            if (
+                len(required_paths) == 1
+                and required_paths[0].suffix.lower() == ".json"
+                and callable(run_until_json_file)
+            ):
+                return run_until_json_file(
+                    prompt,
+                    working_directory=staging,
+                    required_path=required_paths[0],
+                )
             run_until_files = getattr(codex, "run_until_files", None)
             if callable(run_until_files):
                 return run_until_files(
@@ -69,17 +82,15 @@ class DataGenerationResult:
     seed_global_id: str
     seed_sha256: str
     scenario_research_path: Path
-    source_plan_path: Path
+    source_research_path: Path
     source_inventory_path: Path
-    integration_plan_path: Path
-    integration_profile_path: Path
-    quality_profile_path: Path
+    integration_receipt_path: Path
     source_manifest_path: Path
     validation_path: Path
     quality_tier: str
     integration_tier: str
     scenario_research_agent_calls: int
-    exploration_agent_calls: int
+    source_collection_agent_calls: int
     integration_agent_calls: int
     integration_assessment_runs: int
     elapsed_seconds: float
@@ -103,11 +114,11 @@ class DataGenerationResult:
 
     @property
     def collection_agent_calls(self) -> int:
-        return self.exploration_agent_calls + self.integration_agent_calls
+        return self.source_collection_agent_calls + self.integration_agent_calls
 
     @property
     def profile_runs(self) -> int:
-        return self.integration_assessment_runs + 2
+        return self.integration_assessment_runs
 
     @property
     def repair_rounds(self) -> int:
@@ -118,8 +129,8 @@ class DataGenerationError(RuntimeError):
     """环境未通过某个确定性阶段门。"""
 
 
-class InsufficientPublicDataError(DataGenerationError):
-    """Step 2 证明所有核心公开来源不可用。"""
+class InsufficientDataError(DataGenerationError):
+    """Step 2 证明所有核心来源均没有可用数据。"""
 
 
 def _safe_directory_name(value: str) -> str:
@@ -185,17 +196,12 @@ def run_pipeline(
     *,
     agent: CodexAgent | None = None,
     collection_policy: CollectionPolicy | None = None,
-    environment_quality_policy: EnvironmentQualityPolicy | None = None,
 ) -> DataGenerationResult:
-    """执行“准备 -> 场景研究 -> 来源探索 -> 集成 -> 冻结 -> 发布”。"""
+    """执行“准备 -> 场景研究 -> 文件采集 -> 直接集成 -> 冻结发布”。"""
 
-    policy = collection_policy or CollectionPolicy(
-        max_total_seconds=config.timeout_seconds,
-        max_collection_rounds=config.max_collection_rounds,
-    )
+    policy = collection_policy or CollectionPolicy(max_total_seconds=config.timeout_seconds)
     if collection_policy is not None and collection_policy.max_total_seconds != config.timeout_seconds:
         policy = replace(collection_policy, max_total_seconds=config.timeout_seconds)
-    quality_policy = environment_quality_policy or EnvironmentQualityPolicy()
     explicit_output = config.output_dir.resolve() if config.output_dir else None
     output_root = (config.output_root or DEFAULT_OSS_OUTPUT_ROOT).resolve()
     safe_global_id = _safe_directory_name(config.global_id)
@@ -206,15 +212,19 @@ def run_pipeline(
         overwrite=config.overwrite,
     )
     started = time.monotonic()
-    codex = agent or CodexAgentClient(
-        model=config.model,
-        timeout_seconds=config.timeout_seconds,
-        sandbox="danger-full-access",
-        enable_web_search=config.enable_web_search,
-        network_access=True,
-        reasoning_effort=config.reasoning_effort,
-        disabled_mcp_servers=("openaiDeveloperDocs",),
-    )
+    if agent is None:
+        load_local_environment()
+        codex: CodexAgent = CodexAgentClient(
+            model=config.model,
+            timeout_seconds=config.timeout_seconds,
+            sandbox="danger-full-access",
+            enable_web_search=config.enable_web_search,
+            network_access=True,
+            reasoning_effort=config.reasoning_effort,
+            disabled_mcp_servers=("openaiDeveloperDocs",),
+        )
+    else:
+        codex = agent
     if isinstance(codex, CodexAgentClient) and codex.log_directory is None:
         codex.log_directory = staging / ".datagen/agent_runs"
     agent_runner = _make_agent_runner(codex, staging=staging, policy=policy, started=started)
@@ -224,7 +234,6 @@ def run_pipeline(
             staging,
             config,
             limits=asdict(policy),
-            quality=asdict(quality_policy),
         )
         try:
             _, research_agent_calls = run_scenario_research(
@@ -234,15 +243,19 @@ def run_pipeline(
         except ScenarioResearchError as error:
             raise DataGenerationError(str(error)) from error
         try:
-            exploration = run_source_exploration(
+            source_result, _, source_agent_calls = run_data_collection(
                 run_dir=staging,
-                collection_policy=policy,
                 agent_runner=agent_runner,
             )
-        except SourceExplorationError as error:
+        except DataCollectionError as error:
             raise DataGenerationError(str(error)) from error
-        if exploration.result == "insufficient_public_data":
-            raise InsufficientPublicDataError("Step 2 未找到任何可用核心公开来源")
+        if source_result == "insufficient_data":
+            raise InsufficientDataError("Step 2 未找到任何可用核心数据来源")
+        if source_result == "partial" and not config.allow_partial_integration:
+            raise DataGenerationError(
+                "Step 2 已完成主要下载，但实体、工具、任务或资源形态仍有已证实缺口；"
+                "必须先审阅 collection_profile.gaps，不能自动进入 Step 3"
+            )
         try:
             integration = run_integration_phase(
                 run_dir=staging,
@@ -251,24 +264,21 @@ def run_pipeline(
             )
         except IntegrationFinalizationError as error:
             raise DataGenerationError(str(error)) from error
-        try:
-            frozen = freeze_environment(staging)
-        except EnvironmentFreezeError as error:
-            raise DataGenerationError(str(error)) from error
-        quality_tier = str(frozen["quality_profile"]["quality_tier"])
+        quality_tier = "partial" if source_result == "partial" else "rich"
         final_output = explicit_output or output_root / quality_tier / safe_global_id
         try:
-            published = validate_and_publish(
+            published = freeze_and_publish_environment(
                 staging,
                 final_output_dir=final_output,
                 overwrite=config.overwrite,
             )
-        except FinalValidationError as error:
+        except EnvironmentFreezeError as error:
             raise DataGenerationError(str(error)) from error
         output_dir = Path(published["output_dir"])
         if config.overwrite and explicit_output is None:
-            opposite = "not_rich" if quality_tier == "rich" else "rich"
-            shutil.rmtree(output_root / opposite / safe_global_id, ignore_errors=True)
+            for other_tier in ("rich", "not_rich", "partial"):
+                if other_tier != quality_tier:
+                    shutil.rmtree(output_root / other_tier / safe_global_id, ignore_errors=True)
         return DataGenerationResult(
             output_dir=output_dir,
             environment_path=output_dir / "environment.json",
@@ -277,17 +287,15 @@ def run_pipeline(
             seed_global_id=config.global_id,
             seed_sha256=seed_sha256,
             scenario_research_path=output_dir / "provenance/scenario_research.json",
-            source_plan_path=output_dir / "provenance/source_plan.json",
+            source_research_path=output_dir / "provenance/source_research.json",
             source_inventory_path=output_dir / "provenance/source_inventory.json",
-            integration_plan_path=output_dir / "provenance/integration_plan.json",
-            integration_profile_path=output_dir / "provenance/integration_profile.json",
-            quality_profile_path=output_dir / "provenance/quality_profile.json",
+            integration_receipt_path=output_dir / "provenance/integration_receipt.json",
             source_manifest_path=output_dir / "provenance/source_manifest.json",
             validation_path=output_dir / "validation.json",
             quality_tier=quality_tier,
             integration_tier=str(published["integration_tier"]),
             scenario_research_agent_calls=research_agent_calls,
-            exploration_agent_calls=exploration.agent_calls,
+            source_collection_agent_calls=source_agent_calls,
             integration_agent_calls=integration.agent_calls,
             integration_assessment_runs=integration.assessment_runs,
             elapsed_seconds=time.monotonic() - started,
@@ -304,4 +312,4 @@ def run_pipeline(
         raise
 
 
-__all__ = ["DataGenerationError", "DataGenerationResult", "InsufficientPublicDataError", "run_pipeline"]
+__all__ = ["DataGenerationError", "DataGenerationResult", "InsufficientDataError", "run_pipeline"]

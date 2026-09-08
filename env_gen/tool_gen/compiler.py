@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from task_gen.program_form.loader import CompleteEnvironmentPackage
-from task_gen.program_form.runtime import CompleteEnvironmentRuntime, workspace_diff
+from task_gen.program_form.utils.environment import CompleteEnvironmentPackage
+from task_gen.program_form.utils.tool_runtime import CompleteEnvironmentRuntime, workspace_diff
 from utils.io import write_json
 
 
