@@ -24,7 +24,7 @@ from typing import Any, overload
 from uuid import uuid4
 
 from utils.llm import LLMClient
-from utils.search_agent.codex import CodexAgentClient
+from .codex import CodexAgentClient
 
 
 Message = dict[str, str]
@@ -102,6 +102,7 @@ def _record_call(
     started: float,
     result: InferenceResult | None = None,
     error: Exception | None = None,
+    agent_log: dict[str, str] | None = None,
 ) -> None:
     if trace is None:
         return
@@ -121,6 +122,7 @@ def _record_call(
         "usage": _plain(result.usage) if result else {},
         "status": "succeeded" if result else "failed",
         "error": f"{type(error).__name__}: {error}" if error else None,
+        **({"agent_log": agent_log} if agent_log is not None else {}),
     })
 
 
@@ -256,6 +258,7 @@ def _infer_codex(
     """
     client = CodexAgentClient(
         model=str(config["model"]) if config.get("model") else None,
+        codex_home=str(config["codex_home"]) if config.get("codex_home") else None,
         timeout_seconds=int(config.get("timeout_seconds", 1800)),
         sandbox="read-only",
     )

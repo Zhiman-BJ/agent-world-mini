@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="910" viewBox="0 0 1920 910">
+<rect width="1920" height="910" fill="white"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L8 5 L1 9" fill="none" stroke="#78858b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<text x="40.00" y="65" font-family="DejaVu Sans" font-size="36" font-weight="bold" fill="#18282e">TaskGen</text>
+<text x="244.00" y="65" font-family="Droid Sans Fallback" font-size="34" font-weight="bold" fill="#18282e">任务生成与验证流程</text>
+<text x="45.00" y="120" font-family="Droid Sans Fallback" font-size="19" font-weight="normal" fill="#52646d">任务生成</text>
+<rect x="45" y="145" width="280" height="300" rx="12" fill="#f0f4fa" stroke="#93a5af" stroke-width="1.4"/>
+<text x="67.00" y="176" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">STEP 0</text>
+<text x="67.00" y="213" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">读取并检查环境</text>
+<text x="67.00" y="244" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">读取环境与工具阶段产物</text>
+<text x="67.00" y="277" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">检查合规性</text>
+<path d="M 330 295 H 350" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="355" y="145" width="280" height="300" rx="12" fill="#ecf7f7" stroke="#93a5af" stroke-width="1.4"/>
+<text x="377.00" y="176" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">STEP 1</text>
+<text x="377.00" y="213" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">建立工具图</text>
+<text x="377.00" y="244" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">逐工具判断其他所有工具是否</text>
+<text x="377.00" y="270" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">与其连接</text>
+<text x="377.00" y="303" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">三级边权：同一子任务深入推</text>
+<text x="377.00" y="329" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">进、子任务之间衔接、探索关</text>
+<text x="377.00" y="355" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">联</text>
+<text x="377.00" y="388" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">单独记录每一个工具的必要前</text>
+<text x="377.00" y="414" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">置调用</text>
+<path d="M 640 295 H 660" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="665" y="145" width="280" height="300" rx="12" fill="#f3f0fa" stroke="#93a5af" stroke-width="1.4"/>
+<text x="687.00" y="176" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">STEP 2</text>
+<text x="687.00" y="213" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">采样与确定目标</text>
+<text x="687.00" y="244" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">按边权与重复惩罚筛链</text>
+<text x="687.00" y="277" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">生成并冻结目标，按目标对链</text>
+<text x="687.00" y="303" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">增删改</text>
+<text x="687.00" y="336" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">按逻辑质量筛选候选链</text>
+<path d="M 950 295 H 970" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="975" y="145" width="280" height="300" rx="12" fill="#fff5ef" stroke="#93a5af" stroke-width="1.4"/>
+<text x="997.00" y="176" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">STEP 3</text>
+<text x="997.00" y="213" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">执行调用链</text>
+<text x="997.00" y="244" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">在独立环境副本中逐步填参</text>
+<text x="997.00" y="277" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">保留轨迹、失败历史与成功候</text>
+<text x="997.00" y="303" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">选的初末状态</text>
+<path d="M 1260 295 H 1280" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1285" y="145" width="280" height="300" rx="12" fill="#eef7fa" stroke="#93a5af" stroke-width="1.4"/>
+<text x="1307.00" y="176" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">STEP 4</text>
+<text x="1307.00" y="213" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">生成任务与答案</text>
+<text x="1307.00" y="244" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">根据成功调用链与任务目标转</text>
+<text x="1307.00" y="270" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">写任务</text>
+<text x="1307.00" y="303" font-family="DejaVu Sans" font-size="18" font-weight="normal" fill="#27343b">llm </text>
+<text x="1340.25" y="303" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">按任务生成原则一步反思</text>
+<text x="1307.00" y="329" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">并修改，优化表达</text>
+<text x="1307.00" y="362" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">据真实结果生成参考答案</text>
+<text x="1307.00" y="395" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">按任务划定资源修改边界</text>
+<path d="M 1570 295 H 1590" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1595" y="145" width="280" height="300" rx="12" fill="#f0f7ef" stroke="#93a5af" stroke-width="1.4"/>
+<text x="1617.00" y="176" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">STEP 5</text>
+<text x="1617.00" y="213" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">组装校验与导出</text>
+<text x="1617.00" y="244" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">检查目标是否完成</text>
+<text x="1617.00" y="277" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">审查文本自然性</text>
+<text x="1617.00" y="310" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">检查信息完整性</text>
+<text x="1617.00" y="343" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">格式检查与组装导出</text>
+<path d="M 1735 453 V 497 H 495 V 552" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="955.00" y="483" font-family="Droid Sans Fallback" font-size="17" font-weight="normal" fill="#657981">正式任务与参考执行产物</text>
+<text x="45.00" y="590" font-family="DejaVu Sans" font-size="26" font-weight="bold" fill="#195b57">Verifier</text>
+<text x="45.00" y="626" font-family="Droid Sans Fallback" font-size="20" font-weight="normal" fill="#52646d">任务完成验证</text>
+<rect x="355" y="560" width="280" height="300" rx="12" fill="#f0f8f5" stroke="#93a5af" stroke-width="1.4"/>
+<text x="377.00" y="591" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">VERIFIER 1</text>
+<text x="377.00" y="628" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">拆分子任务</text>
+<text x="377.00" y="659" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">拆成可分别验收的子任务</text>
+<text x="377.00" y="692" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">明确对象、范围与完成条件</text>
+<path d="M 640 710 H 660" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="665" y="560" width="280" height="300" rx="12" fill="#f0f8f5" stroke="#93a5af" stroke-width="1.4"/>
+<text x="687.00" y="591" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">VERIFIER 2</text>
+<text x="687.00" y="628" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">寻找对应文件证据</text>
+<text x="687.00" y="659" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">定位初末状态的文件与字段</text>
+<text x="687.00" y="692" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">明确完成、未完成与证据不足</text>
+<text x="687.00" y="718" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">的判断依据</text>
+<path d="M 950 710 H 970" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="975" y="560" width="280" height="300" rx="12" fill="#f0f8f5" stroke="#93a5af" stroke-width="1.4"/>
+<text x="997.00" y="591" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">VERIFIER 3</text>
+<text x="997.00" y="628" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">生成对应代码</text>
+<text x="997.00" y="659" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">按证据方案分别生成检查代码</text>
+<text x="997.00" y="692" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">组装为完整</text>
+<text x="1087.00" y="692" font-family="DejaVu Sans" font-size="18" font-weight="normal" fill="#27343b"> Verifier</text>
+<path d="M 1260 710 H 1280" fill="none" stroke="#78858b" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1285" y="560" width="280" height="300" rx="12" fill="#f0f4fa" stroke="#93a5af" stroke-width="1.4"/>
+<text x="1307.00" y="591" font-family="DejaVu Sans" font-size="15" font-weight="normal" fill="#637780">CODEX</text>
+<text x="1307.00" y="628" font-family="Droid Sans Fallback" font-size="23" font-weight="bold" fill="#18282e">沙盒执行与评判</text>
+<text x="1307.00" y="659" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">调用</text>
+<text x="1343.00" y="659" font-family="DejaVu Sans" font-size="18" font-weight="normal" fill="#27343b"> Codex </text>
+<text x="1411.17" y="659" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">在沙盒中实际执</text>
+<text x="1307.00" y="685" font-family="Droid Sans Fallback" font-size="18" font-weight="normal" fill="#27343b">行并评判</text>
+</svg>
