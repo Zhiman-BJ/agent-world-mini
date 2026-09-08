@@ -300,6 +300,7 @@ class ChainSampleTest(unittest.TestCase):
         )
         self.assertEqual(chain, ["a", "b", "c"])
 
+
     def test_sampler_accepts_any_prerequisite_alternative(self) -> None:
         adjacency = {"a": [("c", 3)], "b": [], "c": []}
         prerequisites = {"a": [], "b": [], "c": [frozenset({"a"}), frozenset({"b"})]}
@@ -307,6 +308,7 @@ class ChainSampleTest(unittest.TestCase):
             random.Random(1), ["a"], adjacency, prerequisites, {1: 1, 2: 1, 3: 1}, 2, 1
         )
         self.assertEqual(chain, ["a", "c"])
+
 
     def test_level_three_without_prerequisites_remains_a_root(self) -> None:
         graph = {
@@ -322,6 +324,7 @@ class ChainSampleTest(unittest.TestCase):
         _adjacency, prerequisites = _graph(graph, {"a", "b"})
 
         self.assertEqual(prerequisites, {"a": [], "b": []})
+
 
     def test_prerequisite_groups_are_independent_from_weight(self) -> None:
         graph = {
@@ -341,6 +344,7 @@ class ChainSampleTest(unittest.TestCase):
 
         self.assertEqual(prerequisites, {"a": [], "b": [frozenset({"a"})]})
 
+
     def test_diversity_penalty_can_skip_high_score_chain_from_new_start(self) -> None:
         candidates = [
             (("a", "x", "y", "z"), 10),
@@ -355,145 +359,194 @@ class ChainSampleTest(unittest.TestCase):
             ("a", "p", "q", "r"),
         ])
 
-    def test_samples_deterministically_reviews_and_deduplicates(self) -> None:
-        graph = {"edges": [
+    def test_post_review_selection_preserves_logic_score_then_diversifies(self) -> None:
+        candidates = [
+            {"chain": ["a", "x", "y", "z"], "score": 10, "logic_score": 5},
+            {"chain": ["b", "x", "y", "z"], "score": 9, "logic_score": 5},
+            {"chain": ["a", "p", "q", "r"], "score": 1, "logic_score": 5},
+            {"chain": ["m", "n"], "score": 100, "logic_score": 4},
+        ]
+
+        selected = step_2_chain_sample._select_final_chains(
+            candidates, count=2, diversity_lambda=10,
+        )
+
+        self.assertEqual([item["chain"] for item in selected], [
+            ["a", "x", "y", "z"],
+            ["a", "p", "q", "r"],
+        ])
+
+    def setUp(self):
+        probe = patch.object(step_2_chain_sample, "explore_initial_state", return_value={
+            "summary": "Initial evidence", "observations": [], "errors": [],
+        })
+        probe.start()
+        self.addCleanup(probe.stop)
+        review = patch.object(step_2_chain_sample, "review_with_initial_state", side_effect=
+            lambda prompts, **kwargs: step_2_chain_sample.infer(prompts, llm_config=kwargs["llm_config"]))
+        review.start()
+        self.addCleanup(review.stop)
+
+    def test_samples_deterministically_reviews_and_deduplicates(self):
+        graph = [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "b", "to_tool": "c", "weight": 2},
             {"from_tool": "b", "to_tool": "d", "weight": 1},
-        ], "prerequisites": []}
-        config = Config(planning={
-            "sample_count": 100,
-            "keep_top_count": 10,
-            "min_chain_length": 8,
-            "max_chain_length": 15,
-            "max_tool_visits": 2,
-            "random_seed": 42,
-        })
+        ]
+        config = Config(planning={"sample_count": 100, "review_count": 2, "keep_top_count": 10,
+                                  "min_chain_length": 3, "max_chain_length": 3})
+        captured = []
 
-        def fake_infer(prompts, **_kwargs):
-            # Force every review to the same valid chain to verify post-review deduplication.
-            return [InferenceResult(
-                '{"chain":["a","b","c","a","b","d","b","c"],"reason":"valid"}',
-                {},
-                "test",
-            ) for _ in prompts]
+        def fake_infer(prompts, **kwargs):
+            captured.append(prompts)
+            phase = (len(captured) - 1) % 2
+            payload = (
+                {"objective": "Inspect an existing record."} if phase == 0 else
+                {"accepted": True, "chain": ["a", "b", "c"], "reason": "Local repair", "score": 5}
+            )
+            return [InferenceResult(json.dumps(payload), {}, "test") for _ in prompts]
 
-        with patch("task_gen.tool_graph.step_2_chain_sample.infer", side_effect=fake_infer):
+        with patch.object(step_2_chain_sample, "infer", side_effect=fake_infer):
             first = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-        with patch("task_gen.tool_graph.step_2_chain_sample.infer", side_effect=fake_infer):
             second = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-
         self.assertEqual(first, second)
         self.assertEqual(len(first["tasks"]), 1)
-        self.assertEqual(first["tasks"][0]["chain"], ["a", "b", "c", "a", "b", "d", "b", "c"])
-        self.assertTrue(first["sampling_report"]["short_chain_fallback"])
-        self.assertEqual(first["sampling_report"]["attempt_count"], 100)
+        self.assertEqual(first["tasks"][0]["score"], 5)
+        self.assertEqual(first["tasks"][0]["logic_score"], 5)
+        self.assertEqual(len(captured), 4)
+        self.assertEqual(first["sampling_report"]["objective_generated_count"], 2)
+        self.assertIn("Initial evidence", captured[0][0])
+        self.assertIn("Inspect an existing record.", captured[1][0])
+        self.assertNotIn("SECRET", "".join(p for batch in captured for p in batch))
 
-    def test_review_prompt_judges_values_by_role_and_requires_real_progress(self) -> None:
-        graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 1}], "prerequisites": []}
-        captured: list[str] = []
-
-        def fake_infer(prompts, **_kwargs):
-            captured.extend(prompts)
-            return [InferenceResult('{"chain":["a","b"],"reason":"valid"}', {}, "test")]
-
-        with patch("task_gen.tool_graph.step_2_chain_sample.infer", side_effect=fake_infer):
-            sample_chains({
-                "config": Config(planning={
-                    "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
-                    "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
-                }),
-                "environment": graph_environment(), "tool_graph": graph,
+        # The current Step 1 object also feeds the objective/review pipeline.
+        current_graph = {"edges": graph, "prerequisites": [{
+            "to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a prepares b"}],
+        }]}
+        with patch.object(step_2_chain_sample, "infer", side_effect=fake_infer):
+            current = sample_chains({
+                "config": config, "environment": graph_environment(), "tool_graph": current_graph,
             })
-        prompt = "".join(captured)
-        self.assertIn("参数的实际语义", prompt)
-        self.assertIn("能够由任务自然规定", prompt)
-        self.assertIn("不得把已有对象的内部标识当作新对象的标识复用", prompt)
-        self.assertIn("每次调用必须处理新的对象、利用新的状态或产生新的进展", prompt)
-        self.assertIn("目标已经完整实现后应当结束", prompt)
-        self.assertNotIn("必填标识（如 *_id），只能依据前序", prompt)
-        self.assertIn("2 到 2 个工具", prompt)
+        self.assertEqual(current["tasks"], first["tasks"])
 
-    def test_logic_score_prompt_rates_one_goal_progress_and_natural_ending(self) -> None:
-        prompt = step_2_chain_sample._logic_score_prompt(
-            graph_environment(),
-            graph_environment()["tools"],
-            {"edges": [], "prerequisites": []},
-            {"chain": ["a", "b"], "llm_review": {"reason": "reviewed"}},
-        )
-
-        self.assertIn("所有调用共同服务于该目标", prompt)
-        self.assertIn("每一步都利用已有信息或状态产生新的任务进展", prompt)
-        self.assertIn("目标完成后仍继续操作", prompt)
-        self.assertIn("5：目标清楚", prompt)
-
-    def test_bad_review_falls_back_to_original_chain(self) -> None:
-        graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 3}], "prerequisites": [
-            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a"}]},
-        ]}
-        config = Config(planning={
-            "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
-            "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
-        })
-        with patch(
-            "task_gen.tool_graph.step_2_chain_sample.infer",
-            return_value=[InferenceResult("not json", {}, "test")],
+    def test_review_cannot_override_frozen_objective(self):
+        item = {"chain": ["a", "b"], "score": 3, "objective": "Frozen"}
+        for payload in (
+            {"accepted": True, "chain": ["a", "b"], "objective": "Replacement", "reason": "Changed", "score": 4},
+            {"accepted": True, "chain": ["a"], "reason": "Too short", "score": 4},
+            {"accepted": True, "chain": ["a", "unknown"], "reason": "Unknown", "score": 4},
         ):
-            output = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-        self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
-        self.assertIsNotNone(output["tasks"][0]["llm_review"]["error"])
+            with self.subTest(payload=payload), patch.object(step_2_chain_sample, "infer", return_value=[
+                InferenceResult(json.dumps(payload), {}, "test")
+            ]):
+                reviewed, errors, changed, rejected = step_2_chain_sample._review_chains(
+                    [item], graph_environment(), graph_environment()["tools"], [], set("abcd"), {}, 2, 2,
+                    initial_workspace=Path("unused"),
+                )
+            self.assertEqual(reviewed, [])
+            self.assertEqual(errors, 1)
+            self.assertEqual(item["objective"], "Frozen")
 
-    def test_review_that_breaks_prerequisite_falls_back_to_original_chain(self) -> None:
-        graph = {"edges": [{"from_tool": "a", "to_tool": "b", "weight": 3}], "prerequisites": [
-            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a prepares b"}]},
-        ]}
-        config = Config(planning={
-            "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
-            "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
-        })
-        with patch(
-            "task_gen.tool_graph.step_2_chain_sample.infer",
-            side_effect=[
-                [InferenceResult('{"chain":["b","a"],"reason":"reverse"}', {}, "test")],
-                [InferenceResult('{"score":5,"reason":"valid"}', {}, "test")],
-            ],
-        ):
-            output = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-        self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
-        self.assertIn("prerequisite", output["tasks"][0]["llm_review"]["error"])
+    def test_review_can_complete_objective_beyond_sampling_length(self):
+        objective = "Inspect both selected records and summarize their results."
+        completed = ["a", "b", "b", "c"]
+        replies = [
+            [InferenceResult(json.dumps({"objective": objective}), {}, "test")],
+            [InferenceResult(json.dumps({
+                "accepted": True, "chain": completed,
+                "reason": "Read the second record, then summarize both results.", "score": 5,
+            }), {}, "test")],
+        ]
+        with patch.object(step_2_chain_sample, "infer", side_effect=replies):
+            output = sample_chains({
+                "config": Config(planning={"sample_count": 1, "review_count": 1,
+                                           "min_chain_length": 2, "max_chain_length": 2,
+                                           "random_seed": 1}),
+                "environment": graph_environment(),
+                "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
+            })
+        self.assertEqual(output["sampling_report"]["review_error_count"], 0)
+        self.assertEqual(output["tasks"][0]["chain"], completed)
+        self.assertEqual(output["tasks"][0]["objective"], objective)
+        self.assertEqual(output["tasks"][0]["llm_review"]["original_chain"], ["a", "b"])
+        self.assertEqual(output["tasks"][0]["score"], 3)
 
-    def test_reviewed_chain_outside_length_limit_falls_back_to_original(self) -> None:
-        graph = {"edges": [
-            {"from_tool": "a", "to_tool": "b", "weight": 3},
-            {"from_tool": "b", "to_tool": "c", "weight": 3},
-        ], "prerequisites": [
-            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a"}]},
-            {"to_tool": "c", "any_of": [{"all_of": ["b"], "reason": "b"}]},
-        ]}
-        config = Config(planning={
-            "sample_count": 1, "keep_top_count": 1, "min_chain_length": 2,
-            "max_chain_length": 2, "max_tool_visits": 1, "random_seed": 1,
-        })
-        with patch(
-            "task_gen.tool_graph.step_2_chain_sample.infer",
-            return_value=[InferenceResult('{"chain":["a","b","c"],"reason":"too long"}', {}, "test")],
+    def test_short_chain_fallback_retains_only_longest_observed_candidates(self):
+        replies = [
+            [InferenceResult('{"objective":"Frozen"}', {}, "test")],
+            [InferenceResult('{"accepted":true,"chain":["a","b","c"],"reason":"Add missing final query","score":4}', {}, "test")],
+        ]
+        with patch.object(step_2_chain_sample, "infer", side_effect=replies):
+            output = sample_chains({
+                "config": Config(planning={"sample_count": 1, "min_chain_length": 3, "max_chain_length": 3, "random_seed": 1}),
+                "environment": graph_environment(),
+                "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
+            })
+        self.assertTrue(output["sampling_report"]["short_chain_fallback"])
+        self.assertEqual(output["sampling_report"]["longest_observed_length"], 2)
+        self.assertEqual(output["tasks"][0]["llm_review"]["original_chain"], ["a", "b"])
+
+    def test_invalid_objective_outputs_are_generation_errors_not_chain_rejections(self):
+        for payload in (
+            {"accepted": False, "objective": None, "reason": "Incoherent main chain"},
+            {"chain": ["a", "b"], "objective": "Changed chain"},
+            {"objective": " "},
         ):
-            output = sample_chains({"config": config, "environment": graph_environment(), "tool_graph": graph})
-        self.assertEqual(output["tasks"][0]["chain"], ["a", "b"])
-        self.assertIn("长度", output["tasks"][0]["llm_review"]["error"])
+            with self.subTest(payload=payload), patch.object(step_2_chain_sample, "infer", return_value=[
+                InferenceResult(json.dumps(payload), {}, "test")
+            ]) as mocked:
+                output = sample_chains({
+                    "config": Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1,
+                                               "min_chain_length": 2, "max_chain_length": 2}),
+                    "environment": graph_environment(),
+                    "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
+                })
+            self.assertEqual(mocked.call_count, 1)
+            self.assertEqual(output["tasks"], [])
+            self.assertEqual(output["sampling_report"]["objective_error_count"], 1)
+            self.assertNotIn("objective_rejected_count", output["sampling_report"])
+            self.assertNotIn("accepted", output["sampling_report"]["objective_records"][0])
+            self.assertEqual(len(output["sampling_report"]["objective_records"]), 1)
+
+    def test_explicit_review_rejection_does_not_enter_selection(self):
+        replies = [
+            [InferenceResult(json.dumps({"objective": "Frozen"}), {}, "test")],
+            [InferenceResult(json.dumps({"accepted": False, "chain": [], "reason": "Requires redesign", "score": 0}), {}, "test")],
+        ]
+        with patch.object(step_2_chain_sample, "infer", side_effect=replies) as mocked:
+            output = sample_chains({
+                "config": Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1,
+                                           "min_chain_length": 2, "max_chain_length": 2}),
+                "environment": graph_environment(),
+                "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
+            })
+        self.assertEqual(mocked.call_count, 2)
+        self.assertEqual(output["tasks"], [])
+        self.assertEqual(output["sampling_report"]["review_rejected_count"], 1)
+
+    def test_review_score_is_validated_per_candidate(self):
+        items = [{"chain": ["a", "b"], "score": 3, "objective": "Inspect a record"}] * 7
+        replies = [InferenceResult(json.dumps({
+            "accepted": True, "chain": ["a", "b"], "reason": "Read a then verify b", "score": score,
+        }), {}, "test") for score in (True, -1, 6, 4.5, "4", 0, 5)]
+        records = []
+        with patch.object(step_2_chain_sample, "infer", return_value=replies):
+            reviewed, errors, changed, rejected = step_2_chain_sample._review_chains(
+                items, graph_environment(), graph_environment()["tools"], [], set("abcd"), {}, 2, 2,
+                records=records, initial_workspace=Path("unused"),
+            )
+        self.assertEqual((errors, changed, rejected), (5, 0, 0))
+        self.assertEqual([item["logic_score"] for item in reviewed], [0, 5])
+        self.assertEqual([record["score"] for record in records[-2:]], [0, 5])
+        self.assertEqual(reviewed[1]["logic_reason"], "Read a then verify b")
 
     def test_rejects_graph_without_eligible_root(self) -> None:
-        graph = {"edges": [
+        graph = [
             {"from_tool": "a", "to_tool": "b", "weight": 3},
             {"from_tool": "b", "to_tool": "a", "weight": 3},
             {"from_tool": "c", "to_tool": "d", "weight": 3},
             {"from_tool": "d", "to_tool": "c", "weight": 3},
-        ], "prerequisites": [
-            {"to_tool": "a", "any_of": [{"all_of": ["b"], "reason": "b"}]},
-            {"to_tool": "b", "any_of": [{"all_of": ["a"], "reason": "a"}]},
-            {"to_tool": "c", "any_of": [{"all_of": ["d"], "reason": "d"}]},
-            {"to_tool": "d", "any_of": [{"all_of": ["c"], "reason": "c"}]},
-        ]}
+        ]
         with self.assertRaisesRegex(ValueError, "起点"):
             sample_chains({"config": Config(planning={
                 "sample_count": 1, "keep_top_count": 1, "min_chain_length": 1,
@@ -520,47 +573,6 @@ class ChainSampleTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "data"):
                 load_environment({"config": config})
 
-    def test_runs_review_and_logic_scoring_rounds(self) -> None:
-        graph = {"edges": [
-            {"from_tool": "a", "to_tool": "b", "weight": 3},
-            {"from_tool": "a", "to_tool": "c", "weight": 3},
-            {"from_tool": "b", "to_tool": "d", "weight": 3},
-            {"from_tool": "c", "to_tool": "d", "weight": 3},
-        ], "prerequisites": []}
-        config = Config(planning={
-            "sample_count": 100,
-            "review_count": 2,
-            "keep_top_count": 1,
-            "min_chain_length": 3,
-            "max_chain_length": 3,
-            "max_tool_visits": 1,
-            "random_seed": 1,
-        })
-        calls: list[list[str]] = []
-
-        def fake_infer(prompts, **_kwargs):
-            calls.append(prompts)
-            if len(calls) == 1:
-                chains = [["a", "b", "d"], ["a", "c", "d"]]
-                return [
-                    InferenceResult(json.dumps({"chain": chains[index], "reason": "keep"}), {}, "test")
-                    for index, _prompt in enumerate(prompts)
-                ]
-            return [
-                InferenceResult(json.dumps({"score": 5 - index, "reason": "natural objective"}), {}, "test")
-                for index, _prompt in enumerate(prompts)
-            ]
-
-        with patch("task_gen.tool_graph.step_2_chain_sample.infer", side_effect=fake_infer):
-            output = sample_chains({
-                "config": config,
-                "environment": graph_environment(),
-                "tool_graph": graph,
-            })
-
-        self.assertEqual(len(calls), 2)
-        self.assertTrue(any("评价下面的工具链" in prompt for prompt in calls[1]))
-        self.assertEqual(output["tasks"][0]["logic_score"], 5)
 
 
 if __name__ == "__main__":

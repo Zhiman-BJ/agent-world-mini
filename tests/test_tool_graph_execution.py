@@ -11,16 +11,12 @@ from task_gen.tool_graph.llm import InferenceResult
 from task_gen.tool_graph.step_3_chain_execute import _call_tool, execute_chains
 
 
-def is_intent_prompt(prompt: str) -> bool:
-    return "先根据完整调用链推测" in prompt
-
-
-def inference(prompt: str, arguments: dict | None = None) -> InferenceResult:
-    if is_intent_prompt(prompt):
-        return InferenceResult(
-            '{"task_intent":"沿整条工具链完成一致的测试任务"}', {}, "test",
-        )
+def inference(arguments: dict | None = None) -> InferenceResult:
     return InferenceResult(json.dumps({"arguments": arguments or {}}), {}, "test")
+
+
+def task_candidate(task_id: str, chain: list[str], objective: str = "Write the requested value.") -> dict:
+    return {"task_id": task_id, "chain": chain, "objective": objective}
 
 
 def tool(name: str, body: str, properties: dict | None = None, required: list[str] | None = None) -> dict:
@@ -94,11 +90,11 @@ class ExecuteChainsTest(unittest.TestCase):
             "environment_id": "example", "resources": [], "rules": [],
             "tools": [tool("write", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])],
         }
-        tasks = [{"task_id": "task2", "chain": ["write"]}, {"task_id": "task1", "chain": ["write"]}]
+        tasks = [task_candidate("task2", ["write"]), task_candidate("task1", ["write"])]
 
         def fake_infer(prompt, **_kwargs):
             task_id = "task2" if '"task_id": "task2"' in prompt else "task1"
-            return inference(prompt, {"value": task_id})
+            return inference({"value": task_id})
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             output = execute_chains({
@@ -115,7 +111,7 @@ class ExecuteChainsTest(unittest.TestCase):
             self.assertTrue((self.run_dir / execution["final_state"]).is_dir())
             self.assertEqual(json.loads((self.run_dir / execution["final_state"] / "state.json").read_text())["values"], [candidate["task_id"]])
 
-    def test_builds_one_intent_then_uses_it_with_the_full_chain_for_arguments(self) -> None:
+    def test_uses_objective_without_generating_a_second_intent(self) -> None:
         environment = {
             "environment_id": "example",
             "resources": [{"path": "records/second.json"}],
@@ -130,34 +126,28 @@ def run(arguments, context):
         }
         captured: list[str] = []
 
+        objective = "Process records/second.json and use QA automation as the signature."
+
         def fake_infer(prompt, **_kwargs):
             captured.append(prompt)
-            if is_intent_prompt(prompt):
-                return InferenceResult(
-                    '{"task_intent":"处理公开的 records/second.json，并使用 QA automation 作为署名"}',
-                    {},
-                    "test",
-                )
-            return inference(prompt, {"value": "records/second.json"} if '"name": "write"' in prompt else {})
+            return inference({"value": "records/second.json"} if '"name": "write"' in prompt else {})
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             candidate = execute_chains({
                 "config": self.config(retry_count=0), "run_dir": self.run_dir,
                 "environment": environment,
-                "tasks": [{"task_id": "task1", "chain": ["write", "finish"]}],
+                "tasks": [task_candidate("task1", ["write", "finish"], objective)],
             })["tasks"][0]
 
         self.assertTrue(candidate["execution"]["success"])
-        self.assertEqual(sum(is_intent_prompt(prompt) for prompt in captured), 1)
-        argument_prompt = next(
-            prompt for prompt in captured
-            if not is_intent_prompt(prompt) and '"name": "write"' in prompt
-        )
+        self.assertEqual(len(captured), 2)
+        self.assertTrue(all(objective in prompt for prompt in captured))
+        argument_prompt = next(prompt for prompt in captured if '"name": "write"' in prompt)
         self.assertIn("records/second.json", argument_prompt)
         self.assertIn("QA automation", argument_prompt)
         self.assertIn('"finish"', argument_prompt)
 
-    def test_argument_prompt_distinguishes_authored_values_from_existing_facts(self) -> None:
+    def test_argument_prompt_uses_observed_facts_without_changing_the_objective(self) -> None:
         environment = {
             "environment_id": "example", "resources": [], "rules": [],
             "tools": [tool("write", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])],
@@ -166,20 +156,44 @@ def run(arguments, context):
 
         def fake_infer(prompt, **_kwargs):
             captured.append(prompt)
-            return inference(prompt, {"value": "ok"})
+            return inference({"value": "ok"})
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             execute_chains({
                 "config": self.config(retry_count=0), "run_dir": self.run_dir,
-                "environment": environment, "tasks": [{"task_id": "task1", "chain": ["write"]}],
+                "environment": environment, "tasks": [task_candidate("task1", ["write"])],
             })
-        self.assertIn("任务创作值", "".join(captured))
-        self.assertIn("新建交易的日期、金额和分录内容", "".join(captured))
-        self.assertIn("动态 ID", "".join(captured))
-        self.assertIn("公开环境", "".join(captured))
-        self.assertIn("前序真实 result", "".join(captured))
-        self.assertIn("不得使用 <id>", "".join(captured))
-        self.assertIn("必填事实无法从公开环境或 completed_calls 获得", "".join(captured))
+        prompt = json.loads(captured[0])
+        self.assertEqual(prompt["objective"], "Write the requested value.")
+        self.assertEqual(prompt["completed_calls"], [])
+        self.assertEqual(prompt["initial_state_report"]["observations"], [])
+        self.assertEqual(prompt["current_tool"]["inputSchema"]["required"], ["value"])
+
+    def test_review_guidance_reaches_each_call_and_parameter_retry(self) -> None:
+        environment = {"resources": [], "rules": [], "tools": [
+            tool("write", WRITE_TOOL, {"value": {"type": "string"}}, ["value"]),
+        ]}
+        candidate = task_candidate("task1", ["write", "write"], "Record both findings.")
+        notes = "The first write records finding A; the second records finding B and its risk."
+        candidate["llm_review"] = {"reason": notes, "original_chain": ["write"], "error": None}
+        captured = []
+
+        def fake_infer(prompt, **kwargs):
+            payload = json.loads(prompt)
+            captured.append(payload)
+            if len(captured) == 1:
+                return InferenceResult('{"error":"Retry the current parameter request"}', {}, "test")
+            return inference({"value": "A" if payload["position"] == 0 else "B"})
+
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
+            result = execute_chains({
+                "config": self.config(), "run_dir": self.run_dir,
+                "environment": environment, "tasks": [candidate],
+            })["tasks"][0]
+        self.assertTrue(result["execution"]["success"])
+        self.assertEqual([p.get("review_guidance") for p in captured], [notes, notes, notes])
+        self.assertEqual([p["objective"] for p in captured], ["Record both findings."] * 3)
+        self.assertEqual([c["arguments"]["value"] for c in result["execution"]["tool_calls"]], ["A", "B"])
 
     def test_retries_current_argument_generation_without_replaying_prefix(self) -> None:
         first = tool("first", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])
@@ -187,13 +201,11 @@ def run(arguments, context):
         calls: list[str] = []
 
         def fake_infer(prompt, **_kwargs):
-            if is_intent_prompt(prompt):
-                return inference(prompt)
             calls.append(prompt)
             if len(calls) == 2:
                 return InferenceResult("not json", {}, "test")
             value = "first" if '"tool": "first"' in prompt else "second"
-            return inference(prompt, {"value": value})
+            return inference({"value": value})
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             output = execute_chains({
@@ -202,7 +214,7 @@ def run(arguments, context):
                     "environment_id": "example", "resources": [], "rules": [],
                     "tools": [first, second],
                 },
-                "tasks": [{"task_id": "task1", "chain": ["first", "second"]}],
+                "tasks": [task_candidate("task1", ["first", "second"])],
             })
 
         self.assertTrue(output["tasks"][0]["execution"]["success"])
@@ -221,8 +233,6 @@ def run(arguments, context):
 
         def fake_infer(prompt, **_kwargs):
             nonlocal argument_calls
-            if is_intent_prompt(prompt):
-                return inference(prompt)
             argument_calls += 1
             return InferenceResult("not json", {}, "test")
 
@@ -230,12 +240,63 @@ def run(arguments, context):
             candidate = execute_chains({
                 "config": self.config(retry_count=1), "run_dir": self.run_dir,
                 "environment": environment,
-                "tasks": [{"task_id": "task1", "chain": ["write"]}],
+                "tasks": [task_candidate("task1", ["write"])],
             })["tasks"][0]
 
         self.assertEqual(argument_calls, 2)
         self.assertEqual(len(candidate["execution"]["attempts"]), 1)
         self.assertEqual(candidate["execution"]["attempts"][0]["failure_kind"], "llm")
+
+    def test_retries_reported_parameter_error_with_the_reason(self) -> None:
+        environment = {
+            "environment_id": "example", "resources": [], "rules": [],
+            "tools": [tool("write", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])],
+        }
+        prompts: list[str] = []
+
+        def fake_infer(prompt, **_kwargs):
+            prompts.append(prompt)
+            if len(prompts) == 1:
+                return InferenceResult(json.dumps({
+                    "error": "No observed object currently satisfies the objective.",
+                }), {}, "test")
+            return inference({"value": "grounded"})
+
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
+            result = execute_chains({
+                "config": self.config(retry_count=1), "run_dir": self.run_dir,
+                "environment": environment, "tasks": [task_candidate("task1", ["write"])],
+            })["tasks"][0]
+
+        self.assertTrue(result["execution"]["success"])
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("No observed object currently satisfies the objective.", prompts[1])
+        self.assertEqual(result["execution"]["tool_calls"][0]["arguments"], {"value": "grounded"})
+
+    def test_exhausted_reported_parameter_error_fails_without_replacing_objective(self) -> None:
+        environment = {
+            "environment_id": "example", "resources": [], "rules": [],
+            "tools": [tool("write", WRITE_TOOL, {"value": {"type": "string"}}, ["value"])],
+        }
+        prompts: list[str] = []
+
+        def fake_infer(prompt, **_kwargs):
+            prompts.append(prompt)
+            return InferenceResult(json.dumps({
+                "error": "The required fact has not been observed.",
+            }), {}, "test")
+
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
+            result = execute_chains({
+                "config": self.config(retry_count=1), "run_dir": self.run_dir,
+                "environment": environment, "tasks": [task_candidate("task1", ["write"], "Fixed objective")],
+            })["tasks"][0]
+
+        self.assertFalse(result["execution"]["success"])
+        self.assertEqual(len(prompts), 2)
+        self.assertEqual(result["execution"]["attempts"][0]["failure_kind"], "llm")
+        self.assertEqual(result["objective"], "Fixed objective")
+        self.assertEqual(result["execution"]["tool_calls"], [])
 
     def test_truncates_large_result_before_next_argument_prompt(self) -> None:
         producer = tool("producer", """
@@ -249,10 +310,8 @@ def run(arguments, context):
         captured: list[str] = []
 
         def fake_infer(prompt, **_kwargs):
-            if is_intent_prompt(prompt):
-                return inference(prompt)
             captured.append(prompt)
-            return inference(prompt)
+            return inference()
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             execute_chains({
@@ -262,7 +321,7 @@ def run(arguments, context):
                     "environment_id": "example", "resources": [], "rules": [],
                     "tools": [producer, consumer],
                 },
-                "tasks": [{"task_id": "task1", "chain": ["producer", "consumer"]}],
+                "tasks": [task_candidate("task1", ["producer", "consumer"])],
             })
 
         self.assertEqual(len(captured), 2)
@@ -272,10 +331,10 @@ def run(arguments, context):
 
     def test_retries_business_failure_from_clean_workspace_then_removes_task(self) -> None:
         environment = {"environment_id": "example", "resources": [], "rules": [], "tools": [tool("fail", FAIL_TOOL)]}
-        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=lambda prompt, **_kwargs: inference(prompt)):
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=lambda prompt, **_kwargs: inference()):
             candidate = execute_chains({
                 "config": self.config(), "run_dir": self.run_dir,
-                "environment": environment, "tasks": [{"task_id": "task1", "chain": ["fail"]}],
+                "environment": environment, "tasks": [task_candidate("task1", ["fail"])],
             })["tasks"][0]
         execution = candidate["execution"]
         self.assertFalse(execution["success"])
@@ -294,12 +353,10 @@ def run(arguments, context):
         counts = {"first": 0, "second": 0}
 
         def fake_infer(prompt, **_kwargs):
-            if is_intent_prompt(prompt):
-                return inference(prompt)
             name = "first" if '"name": "first"' in prompt else "second"
             counts[name] += 1
             value = name if name == "first" else ("bad" if counts[name] == 1 else "good")
-            return inference(prompt, {"value": value})
+            return inference({"value": value})
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             candidate = execute_chains({
@@ -308,7 +365,7 @@ def run(arguments, context):
                     "environment_id": "example", "resources": [], "rules": [],
                     "tools": [first, second],
                 },
-                "tasks": [{"task_id": "task1", "chain": ["first", "second"]}],
+                "tasks": [task_candidate("task1", ["first", "second"])],
             })["tasks"][0]
 
         self.assertTrue(candidate["execution"]["success"])
@@ -319,17 +376,17 @@ def run(arguments, context):
             "environment_id": "example", "resources": [], "rules": [],
             "tools": [tool("sleep", SLEEP_TOOL)],
         }
-        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=lambda prompt, **_kwargs: inference(prompt)):
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=lambda prompt, **_kwargs: inference()):
             candidate = execute_chains({
                 "config": self.config(retry_count=3, tool_timeout_seconds=1),
                 "run_dir": self.run_dir, "environment": environment,
-                "tasks": [{"task_id": "task1", "chain": ["sleep"]}],
+                "tasks": [task_candidate("task1", ["sleep"])],
             })["tasks"][0]
         self.assertEqual(len(candidate["execution"]["attempts"]), 1)
 
     def test_preflight_rejects_duplicate_ids_before_creating_any_task(self) -> None:
         environment = {"tools": [tool("write", WRITE_TOOL)]}
-        tasks = [{"task_id": "same", "chain": ["write"]}] * 2
+        tasks = [task_candidate("same", ["write"])] * 2
         with self.assertRaisesRegex(ValueError, "task_id"):
             execute_chains({
                 "config": self.config(), "run_dir": self.run_dir,
@@ -337,13 +394,23 @@ def run(arguments, context):
             })
         self.assertEqual(list((self.run_dir / "tasks").iterdir()), [])
 
+    def test_preflight_rejects_missing_objective(self) -> None:
+        environment = {"tools": [tool("write", WRITE_TOOL)]}
+        with self.assertRaisesRegex(ValueError, "objective"):
+            execute_chains({
+                "config": self.config(), "run_dir": self.run_dir,
+                "environment": environment,
+                "tasks": [{"task_id": "task1", "chain": ["write"]}],
+            })
+        self.assertEqual(list((self.run_dir / "tasks").iterdir()), [])
+
     def test_times_out_tool_process(self) -> None:
         environment = {"environment_id": "example", "resources": [], "rules": [], "tools": [tool("sleep", SLEEP_TOOL)]}
-        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=lambda prompt, **_kwargs: inference(prompt)):
+        with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=lambda prompt, **_kwargs: inference()):
             candidate = execute_chains({
                 "config": self.config(retry_count=0, tool_timeout_seconds=1),
                 "run_dir": self.run_dir, "environment": environment,
-                "tasks": [{"task_id": "task1", "chain": ["sleep"]}],
+                "tasks": [task_candidate("task1", ["sleep"])],
             })["tasks"][0]
         self.assertEqual(candidate["execution"]["attempts"][0]["failure_kind"], "timeout")
 

@@ -2157,6 +2157,7 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("429 or 503", agent_calls[0][0])
             self.assertIn("do not ask the user", agent_calls[0][0])
             judge = json.loads(judge_prompts[0])
+            self.assertNotIn("resource_constraints", judge)
             self.assertEqual(judge["workspace_changes"], [])
             self.assertEqual(judge["environment_resources"], [])
             self.assertEqual((root / "evaluation/value.txt").read_text(encoding="utf-8"), "7")

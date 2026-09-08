@@ -132,45 +132,6 @@
         "additionalProperties": false
       }
     },
-    "resource_constraints": {
-      "type": "object",
-      "description": "任务语义层面的资源改动约束，粒度为 resource。只包含生成时显式判定的 resource_id；未出现在任何列表中的资源按默认禁止修改处理，判定规则由使用方实现。三个列表互不相交，元素必须是所属环境 resources[] 中的 resource_id，且 writable=false 的资源不得出现在 should_modify 或 can_modify 中。",
-      "properties": {
-        "should_modify": {
-          "type": "array",
-          "uniqueItems": true,
-          "description": "完成 task_text 要求的业务结果时必须产生最终净变化的资源。",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
-          }
-        },
-        "can_modify": {
-          "type": "array",
-          "uniqueItems": true,
-          "description": "不同合理解法可能修改、但任务不要求其必须变化的资源。",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
-          }
-        },
-        "must_not_modify": {
-          "type": "array",
-          "uniqueItems": true,
-          "description": "任何合理解法都不得改变的资源。只列出生成时显式判定的资源，不补全其余资源。",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
-          }
-        }
-      },
-      "required": [
-        "should_modify",
-        "can_modify",
-        "must_not_modify"
-      ],
-      "additionalProperties": false
-    },
     "reference": {
       "type": "object",
       "description": "Agent 不可见的参考工具调用、参考答案和执行后状态。",
@@ -228,7 +189,6 @@
     "difficulty",
     "initial_state",
     "available_tools",
-    "resource_constraints",
     "reference"
   ],
   "additionalProperties": false
