@@ -2,23 +2,16 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator
 
-from env_gen.data_gen.analysis.composition_estimation import build_composition_estimate
-from env_gen.data_gen.analysis.operation_candidates import build_operation_candidates
-from env_gen.data_gen.analysis.quality import build_quality_profile
 from env_gen.data_gen.analysis.scenario_research import validate_scenario_research_payload
-from env_gen.data_gen.analysis.source_plan import build_next_actions
-from env_gen.data_gen.steps.collection.commands.save_source_plan import (
-    save_source_plan_payload,
-)
-from env_gen.data_gen.steps.collection.support.round_feedback import (
-    collection_progress_snapshot,
-    write_round_feedback,
-)
+from env_gen.data_gen.config import CollectionPolicy, DataGenConfig
+from env_gen.data_gen.run_pipeline import _make_agent_runner, run_pipeline
 from env_gen.data_gen.steps.step1_research_scenario import (
     ScenarioResearchError,
     _build_research_prompt,
@@ -32,16 +25,12 @@ from env_gen.data_gen.steps.common.constants import (
 from env_gen.data_gen.steps.common.control_io import control_path
 from tests.data_gen_test_helpers import (
     ROOT,
-    minimal_richness_policy,
-    prepare_run,
     prepare_step0,
     sample_seed,
     scenario_payload,
-    source_plan_payload,
     write_json,
 )
 from env_gen.data_gen.analysis.seed import canonical_json_sha256
-from env_gen.data_gen.config import CollectionPolicy
 
 
 class ScenarioResearchTests(unittest.TestCase):
@@ -82,13 +71,58 @@ class ScenarioResearchTests(unittest.TestCase):
         )
         self.assertIn("missing_reference_tools", {item.code for item in issues})
 
-    def test_step1_prompt_starts_from_seed_tools_tasks_and_web_research(self) -> None:
+    def test_researched_items_must_reference_registered_sources(self) -> None:
+        payload = scenario_payload(self.seed, self.digest)
+        payload["tools"][0]["source_urls"] = ["https://other.example/tool"]
+        issues = validate_scenario_research_payload(
+            payload,
+            schema=self.schema,
+            seed=self.seed,
+            seed_sha256=self.digest,
+        )
+        self.assertIn("unregistered_research_source", {item.code for item in issues})
+
+    def test_entity_attributes_are_not_part_of_scenario_research(self) -> None:
+        payload = scenario_payload(self.seed, self.digest)
+        payload["entities"][0]["key_attributes"] = ["invented identifier"]
+        issues = validate_scenario_research_payload(
+            payload,
+            schema=self.schema,
+            seed=self.seed,
+            seed_sha256=self.digest,
+        )
+        self.assertIn("scenario_research_schema", {item.code for item in issues})
+
+    def test_concise_grounded_tool_description_is_valid(self) -> None:
+        payload = scenario_payload(self.seed, self.digest)
+        payload["tools"][0]["description"] = "Lists catalog items."
+        issues = validate_scenario_research_payload(
+            payload,
+            schema=self.schema,
+            seed=self.seed,
+            seed_sha256=self.digest,
+        )
+        self.assertEqual(issues, [])
+
+    def test_step1_prompt_uses_research_guide_as_single_task_definition(self) -> None:
         prompt = _build_research_prompt(Path("/tmp/example-step1"))
-        self.assertIn("selected_seed.json", prompt)
-        self.assertIn("Seed 中的 URL", prompt)
-        self.assertIn("同时完善环境、实体、工具和任务", prompt)
+        self.assertIn("/tmp/example-step1", prompt)
+        self.assertIn("完整读取并执行 `.datagen/RESEARCH_GUIDE.md`", prompt)
+        self.assertNotIn("selected_seed.json", prompt)
+        self.assertNotIn("停止条件", prompt)
+        self.assertNotIn("scenario_research.json", prompt)
         self.assertNotIn("seed_research_inputs.json", prompt)
         self.assertNotIn("researchctl", prompt)
+
+    def test_step1_repair_prompt_only_adds_validation_context(self) -> None:
+        prompt = _build_research_prompt(
+            Path("/tmp/example-step1"),
+            attempt=2,
+            failure="$.entities 缺少必要字段",
+        )
+        self.assertIn("完整读取并执行 `.datagen/RESEARCH_GUIDE.md`", prompt)
+        self.assertIn("scenario_research.invalid.json", prompt)
+        self.assertIn("$.entities 缺少必要字段", prompt)
 
     def test_step0_prepares_shared_context_without_step_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -191,127 +225,59 @@ class ScenarioResearchTests(unittest.TestCase):
             self.assertIn("missing_reference_tools", prompts[1])
             self.assertIn("scenario_research.invalid.json", prompts[1])
 
-class SourcePlanAndQualityTests(unittest.TestCase):
-    def test_source_plan_requires_all_scene_data_needs(self) -> None:
+
+class PipelineAgentRunnerTests(unittest.TestCase):
+    def test_default_agent_loads_local_download_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            run_dir = Path(directory)
-            seed, digest = prepare_run(run_dir)
-            payload = source_plan_payload(seed, digest)
-            payload["data_need_coverage"] = []
-            with self.assertRaisesRegex(RuntimeError, "缺少预调研需求覆盖"):
-                save_source_plan_payload(run_dir, payload)
-
-    def test_step2_can_record_new_deep_research_finding(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            run_dir = Path(directory)
-            seed, digest = prepare_run(run_dir)
-            payload = source_plan_payload(seed, digest)
-            payload["research_refinements"][0] = {
-                "refinement_id": "category_entity_found",
-                "finding_type": "entity",
-                "status": "new",
-                "description": "Documentation exposes a separate category entity.",
-                "evidence_source_ids": ["items"],
-                "impact_on_collection": "Collect category IDs and labels.",
-            }
-            saved = save_source_plan_payload(run_dir, payload)
-            self.assertEqual(saved["status"], "saved")
-
-    def test_operation_and_composition_counts_are_diagnostic(self) -> None:
-        entities = {
-            "item": {
-                "record_count": 2,
-                "fields": {
-                    "item_id": {"roles": ["identifier"], "non_null_count": 2, "distinct_count": 2},
-                    "name": {"roles": ["text", "varied"], "non_null_count": 2, "distinct_count": 2},
-                },
-            }
-        }
-        candidates = build_operation_candidates(entities, [], [])
-        estimate = build_composition_estimate(candidates)
-        self.assertGreater(len(candidates), 0)
-        self.assertIn("estimated_parameterized_cases", estimate)
-
-    def test_quality_does_not_gate_on_operation_estimate(self) -> None:
-        seed = sample_seed()
-        digest = canonical_json_sha256(seed)
-        scenario = scenario_payload(seed, digest)
-        plan = source_plan_payload(
-            seed,
-            digest,
-            status="complete",
-            record_count=2,
-            raw_files=["raw/items.json"],
-        )
-        data_profile = {
-            "entities": {
-                "item": {
-                    "record_count": 2,
-                    "field_count": 3,
-                    "primary_key_candidates": ["item_id"],
-                    "fields": {
-                        "item_id": {"roles": ["identifier"], "non_null_count": 2, "distinct_count": 2},
-                        "name": {"roles": ["text", "varied"], "non_null_count": 2, "distinct_count": 2},
-                        "category": {"roles": ["category", "varied"], "non_null_count": 2, "distinct_count": 2},
-                    },
-                }
-            },
-            "files": [],
-            "relation_candidates": [],
-            "relation_gap_candidates": [],
-        }
-        quality = build_quality_profile(
-            Path("."),
-            seed=seed,
-            seed_sha256=digest,
-            checkpoint={},
-            scenario_research=scenario,
-            source_plan=plan,
-            policy=minimal_richness_policy(),
-            data_profile=data_profile,
-        )
-        self.assertEqual(quality["quality_tier"], "rich")
-        self.assertTrue(quality["diagnostic_only"]["composition_estimate"])
-
-    def test_next_actions_include_unfinished_sources(self) -> None:
-        seed = sample_seed()
-        digest = canonical_json_sha256(seed)
-        actions = build_next_actions(source_plan_payload(seed, digest))
-        self.assertEqual(actions[0]["code"], "collect_planned_source")
-
-
-class RoundFeedbackTests(unittest.TestCase):
-    def test_progress_ignores_feedback_timestamp_churn(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            run_dir = Path(directory)
-            prepare_run(run_dir)
-            before = collection_progress_snapshot(run_dir)
-            feedback = write_round_feedback(
-                run_dir,
-                round_index=1,
-                max_rounds=2,
-                assessment={
-                    "decision": "continue",
-                    "quality_tier": "not_rich",
-                    "blocking_issues": [],
-                    "next_actions": [],
-                    "all_sources_resolved": False,
-                    "all_data_needs_assessed": False,
-                },
-                before=before,
-                after=collection_progress_snapshot(run_dir),
+            root = Path(directory)
+            config = DataGenConfig(
+                seed_path=root / "seeds.json",
+                global_id="credential_loading_test",
+                output_dir=root / "output",
             )
-            self.assertFalse(feedback["progress_changed"])
+            with (
+                patch("env_gen.data_gen.run_pipeline.load_local_environment") as load,
+                patch(
+                    "env_gen.data_gen.run_pipeline.CodexAgentClient",
+                    side_effect=RuntimeError("stop after credential loading"),
+                ),
+                self.assertRaisesRegex(RuntimeError, "stop after credential loading"),
+            ):
+                run_pipeline(config)
+            load.assert_called_once_with()
 
-    def test_business_file_changes_progress_fingerprint(self) -> None:
+        example = (ROOT / "config/api_keys.env.example").read_text(encoding="utf-8")
+        self.assertIn("GH_TOKEN=", example)
+        self.assertIn("HF_TOKEN=", example)
+        self.assertIn("KAGGLE_API_TOKEN=", example)
+
+    def test_single_json_checkpoint_waits_for_stable_json(self) -> None:
+        class Agent:
+            timeout_seconds = 60
+
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def run_until_json_file(self, *_args: object, **_kwargs: object) -> str:
+                self.calls.append("json")
+                return "stable"
+
+            def run_until_files(self, *_args: object, **_kwargs: object) -> str:
+                self.calls.append("files")
+                return "present"
+
         with tempfile.TemporaryDirectory() as directory:
-            run_dir = Path(directory)
-            prepare_run(run_dir)
-            before = collection_progress_snapshot(run_dir)
-            write_json(run_dir / "workspace/raw/new.json", {"items": []})
-            after = collection_progress_snapshot(run_dir)
-            self.assertNotEqual(before["fingerprint"], after["fingerprint"])
+            agent = Agent()
+            run = _make_agent_runner(
+                agent,
+                staging=Path(directory),
+                policy=CollectionPolicy(max_total_seconds=60),
+                started=time.monotonic(),
+            )
+            result = run("write json", 30, (Path(directory) / "result.json",))
 
+        self.assertEqual(result, "stable")
+        self.assertEqual(agent.calls, ["json"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,10 @@ def read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
+def read_optional_json(path: Path) -> dict[str, Any]:
+    return read_json(path) if path.is_file() else {}
+
+
 def json_value(value: Any) -> Any:
     if isinstance(value, bytes):
         return f"<{len(value)} bytes>"
@@ -51,6 +55,69 @@ def table_snapshot(database: Path, table: str) -> tuple[int, list[dict[str, Any]
         {key: json_value(row[key]) for key in row.keys()}
         for row in rows
     ]
+
+
+def relationship_snapshots(
+    database: Path, relationships: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with sqlite3.connect(database) as connection:
+        for item in relationships:
+            source = item.get("from", {})
+            target = item.get("to", {})
+            source_id = str(source.get("record_set_id") or "")
+            target_id = str(target.get("record_set_id") or "")
+            source_fields = [str(value) for value in source.get("fields", [])]
+            target_fields = [str(value) for value in target.get("fields", [])]
+            matched = missing = 0
+            if source_id and target_id and source_fields and len(source_fields) == len(target_fields):
+                joins = " AND ".join(
+                    f"s.{quote_identifier(left)} = t.{quote_identifier(right)}"
+                    for left, right in zip(source_fields, target_fields, strict=True)
+                )
+                populated = " AND ".join(
+                    f"s.{quote_identifier(field)} IS NOT NULL" for field in source_fields
+                )
+                target_present = f"t.{quote_identifier(target_fields[0])} IS NOT NULL"
+                query = (
+                    "SELECT "
+                    f"COALESCE(SUM(CASE WHEN {populated} AND {target_present} THEN 1 ELSE 0 END), 0), "
+                    f"COALESCE(SUM(CASE WHEN {populated} AND NOT ({target_present}) THEN 1 ELSE 0 END), 0) "
+                    f"FROM {quote_identifier(source_id)} AS s "
+                    f"LEFT JOIN {quote_identifier(target_id)} AS t ON {joins}"
+                )
+                matched, missing = (int(value) for value in connection.execute(query).fetchone())
+            rows.append({
+                "relationship_id": item.get("relationship_id"),
+                "from_record_set_id": source_id,
+                "to_record_set_id": target_id,
+                "matched_reference_count": matched,
+                "missing_reference_count": missing,
+                "valid": missing == 0,
+            })
+    return rows
+
+
+def direct_coverage_needs(receipt: dict[str, Any]) -> list[dict[str, Any]]:
+    coverage = receipt.get("coverage", {})
+    rows = []
+    for key, label, minimum in (
+        ("seed", "Seed 业务能力覆盖", 90),
+        ("scenario", "Step 1 场景覆盖", 75),
+    ):
+        metric = coverage.get(key, {}).get("overall", {})
+        percent = float(metric.get("percent") or 0)
+        rows.append({
+            "need_id": key + "_coverage",
+            "description": (
+                f"{label}：{metric.get('supported', 0)}/{metric.get('total', 0)}，"
+                f"当前 {percent:g}%，完整环境最低线 {minimum}%。"
+            ),
+            "record_set_ids": [],
+            "scope_ids": [],
+            "status": "realized" if percent >= minimum else "partial",
+        })
+    return rows
 
 
 def field_type(definition: dict[str, Any]) -> str:
@@ -83,10 +150,16 @@ def scope_files(package: Path, scope: dict[str, Any]) -> list[dict[str, Any]]:
 
 def build_environment(package: Path) -> dict[str, Any]:
     environment = read_json(package / "environment.json")
-    quality = read_json(package / "provenance/quality_profile.json")
-    integration = read_json(package / "provenance/integration_profile.json")
-    plan = read_json(package / "provenance/integration_plan.json")
-    validation = read_json(package / "validation.json")
+    validation = read_optional_json(package / "validation.json")
+    quality = read_optional_json(package / "provenance/quality_profile.json")
+    integration = read_optional_json(package / "provenance/integration_profile.json")
+    plan = read_optional_json(package / "provenance/integration_plan.json")
+    direct_receipt = read_optional_json(package / "provenance/integration_receipt.json")
+    assessment = read_optional_json(package / ".datagen/integration_assessment.json")
+    finalization = read_optional_json(package / ".datagen/integration_finalization.json")
+    collection = read_optional_json(package / ".datagen/collection_profile.json")
+    if not direct_receipt:
+        direct_receipt = assessment
     database = package / "state/records.sqlite"
 
     record_sets: list[dict[str, Any]] = []
@@ -111,7 +184,7 @@ def build_environment(package: Path) -> dict[str, Any]:
             "id": record_set_id,
             "name": item.get("name") or record_set_id,
             "description": item.get("description", ""),
-            "importance": item.get("importance", "supporting"),
+            "importance": item.get("importance", "business"),
             "access": item.get("access", "read_only"),
             "keyFields": item.get("key_fields", []),
             "count": count,
@@ -135,16 +208,48 @@ def build_environment(package: Path) -> dict[str, Any]:
         })
 
     relationships = integration.get("relationship_profile", {}).get("relationships", [])
-    needs = plan.get("need_bindings", [])
+    if not relationships:
+        relationships = relationship_snapshots(database, environment.get("relationships", []))
+    needs = plan.get("need_bindings", []) or direct_coverage_needs(direct_receipt)
     source_decisions = plan.get("source_decisions", [])
+    direct_coverage = direct_receipt.get("coverage", {})
+    scenario_coverage = direct_coverage.get("scenario", {}).get("overall", {}).get("percent", 0)
+    source_count = len({
+        str(item.get("source_id"))
+        for item in direct_receipt.get("raw_files", [])
+        if isinstance(item, dict) and item.get("source_id")
+    })
+    if not source_count:
+        source_count = len({
+            str(item.get("source_id"))
+            for item in collection.get("file_cards", [])
+            if isinstance(item, dict) and item.get("source_id")
+        })
+    replay_verified = (
+        assessment.get("decision") == "ready"
+        and bool(assessment.get("state_digest"))
+        and assessment.get("state_digest") == assessment.get("replay_state_digest")
+    )
+    valid = validation.get("valid") is True or replay_verified
+    quality_tier = (
+        quality.get("quality_tier")
+        or validation.get("quality_tier")
+        or finalization.get("result")
+        or "unknown"
+    )
+    integration_tier = (
+        integration.get("integration_tier")
+        or validation.get("integration_tier")
+        or ("integrated" if replay_verified else "unknown")
+    )
     return {
         "id": environment.get("environment_id") or package.name,
         "packageName": package.name,
         "name": environment.get("name") or package.name,
         "description": environment.get("description", ""),
-        "qualityTier": quality.get("quality_tier", "unknown"),
-        "integrationTier": integration.get("integration_tier", "unknown"),
-        "valid": validation.get("valid") is True,
+        "qualityTier": quality_tier,
+        "integrationTier": integration_tier,
+        "valid": valid,
         "recordSets": record_sets,
         "scopes": scopes,
         "relationships": relationships,
@@ -157,8 +262,8 @@ def build_environment(package: Path) -> dict[str, Any]:
             "relationships": len(relationships),
             "files": sum(len(item["files"]) for item in scopes),
             "fileBytes": sum(item["bytes"] for item in scopes),
-            "needCoverage": quality.get("need_profile", {}).get("weighted_coverage_percent", 0),
-            "sources": integration.get("source_integration_profile", {}).get("selected_source_count", 0),
+            "needCoverage": quality.get("need_profile", {}).get("weighted_coverage_percent", scenario_coverage),
+            "sources": integration.get("source_integration_profile", {}).get("selected_source_count", source_count),
         },
     }
 
@@ -298,7 +403,7 @@ pre { margin: 0; max-height: 360px; overflow: auto; padding: 14px; background: #
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><h1>AgentWorld 环境数据</h1><p>已发布环境 · v2 数据视角</p></div>
+    <div class="brand"><h1>AgentWorld 环境数据</h1><p>主体实体与非主体文件 · v2</p></div>
     <div class="env-list" id="envList"></div>
   </aside>
   <main class="main">
@@ -338,7 +443,7 @@ function renderHeader() {
   document.getElementById("title").textContent=item.name;
   document.getElementById("description").textContent=item.description;
   document.getElementById("status").innerHTML = badge(item.qualityTier, item.qualityTier==='rich'?'green':'amber') + badge(item.integrationTier, 'blue') + badge(item.valid?'已验证':'验证失败', item.valid?'green':'red');
-  const views=[["overview","总览"],["records","记录数据"],["relations","关系"],["files","文件工作区"]];
+  const views=[["overview","总览"],["records","主体实体"],["relations","实体关系"],["files","非主体文件"]];
   document.getElementById("tabs").innerHTML=views.map(([id,label])=>`<button class="tab ${state.view===id?'active':''}" data-view="${id}">${label}</button>`).join("");
   document.querySelectorAll("[data-view]").forEach(button=>button.onclick=()=>{state.view=button.dataset.view;render();});
 }
@@ -346,10 +451,10 @@ function renderHeader() {
 function metrics() {
   const m=env().metrics;
   return `<div class="metric-grid">
-    <div class="metric"><span>全部记录</span><strong>${fmt(m.records)}</strong></div>
-    <div class="metric"><span>Record Set</span><strong>${fmt(m.recordSets)}</strong></div>
+    <div class="metric"><span>主体记录</span><strong>${fmt(m.records)}</strong></div>
+    <div class="metric"><span>主体实体类型</span><strong>${fmt(m.recordSets)}</strong></div>
     <div class="metric"><span>有效关系</span><strong>${fmt(m.relationships)}</strong></div>
-    <div class="metric"><span>任务侧文件</span><strong>${fmt(m.files)}</strong></div>
+    <div class="metric"><span>非主体文件</span><strong>${fmt(m.files)}</strong></div>
     <div class="metric"><span>需求覆盖</span><strong>${fmt(m.needCoverage)}%</strong></div>
     <div class="metric"><span>选中来源</span><strong>${fmt(m.sources)}</strong></div>
   </div>`;
@@ -370,7 +475,7 @@ function graphSvg(item) {
 function overview() {
   const item=env();
   const needs=item.needs.map(n=>`<div class="need"><strong>${esc(n.need_id)}</strong><p>${esc(n.description)}</p><div class="binding">${(n.record_set_ids||[]).map(token).join('')}${(n.scope_ids||[]).map(v=>token(`scope:${v}`)).join('')}${badge(n.status,n.status==='realized'?'green':'amber')}</div></div>`).join('');
-  return `${metrics()}<section class="section"><div class="section-head"><h3>统一数据模型</h3><p>实线为记录关系，虚线为文件路径引用</p></div><div class="panel"><div class="model-wrap">${graphSvg(item)}</div><div class="need-grid">${needs}</div></div></section>`;
+  return `${metrics()}<section class="section"><div class="section-head"><h3>环境主体与文件边界</h3><p>实线为主体关系，虚线连接非主体文件 Scope</p></div><div class="panel"><div class="model-wrap">${graphSvg(item)}</div><div class="need-grid">${needs}</div></div></section>`;
 }
 
 function renderRecordDetail(record) {
@@ -381,7 +486,7 @@ function renderRecordDetail(record) {
 }
 
 function recordsView() {
-  const item=env(); if(!item.recordSets.length)return '<div class="empty">没有 Record Set</div>';
+  const item=env(); if(!item.recordSets.length)return '<div class="empty">没有主体实体</div>';
   if(!state.recordSet||!item.recordSets.some(r=>r.id===state.recordSet))state.recordSet=item.recordSets[0].id;
   const selected=item.recordSets.find(r=>r.id===state.recordSet);
   const html=`${metrics()}<section class="section"><div class="panel split"><div class="list">${item.recordSets.map(r=>`<button class="list-button ${r.id===state.recordSet?'active':''}" data-record="${esc(r.id)}"><strong>${esc(r.id)}</strong><small>${fmt(r.count)} 条 · ${esc(r.importance)}</small></button>`).join('')}</div><div class="detail" id="recordDetail">${renderRecordDetail(selected)}</div></div></section>`;
@@ -394,7 +499,7 @@ function relationsView() {
 }
 
 function filesView() {
-  const scopes=env().scopes;if(!scopes.length)return `${metrics()}<section class="section"><div class="panel empty">该环境没有任务侧文件工作区，全部能力来自结构化记录。</div></section>`;
+  const scopes=env().scopes;if(!scopes.length)return `${metrics()}<section class="section"><div class="panel empty">该环境没有非主体文件工作区，全部能力来自结构化主体记录。</div></section>`;
   state.scope=Math.min(state.scope,scopes.length-1);const scope=scopes[state.scope];state.file=Math.min(state.file,Math.max(0,scope.files.length-1));const file=scope.files[state.file];
   const scopeTabs=scopes.map((s,i)=>`<button class="sample-tab ${i===state.scope?'active':''}" data-scope="${i}">${esc(s.id)} · ${fmt(s.files.length)}</button>`).join('');
   const fileList=scope.files.map((f,i)=>`<button class="file-button ${i===state.file?'active':''}" data-file="${i}"><code>${esc(f.path)}</code><small>${esc(f.format)} · ${bytes(f.bytes)}</small></button>`).join('');

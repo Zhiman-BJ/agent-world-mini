@@ -9,11 +9,17 @@ from task_gen.program_form import (
     CompleteEnvironmentPackage,
     CompleteEnvironmentRuntime,
     ProgramGenerationPolicy,
-    ProgramTaskGenerator,
     execute_reference_program,
+    run_step1,
+    run_step2,
+    run_step3,
+    run_step4,
 )
-from task_gen.program_form.executor import validate_reference_program
-from task_gen.program_form.prompts import build_program_generation_prompt
+from task_gen.program_form.steps.step2_gen_task_solution import (
+    build_program_generation_prompt,
+)
+from task_gen.program_form.utils.io import read_records
+from task_gen.program_form.utils.reference_program import validate_reference_program
 
 
 def object_schema(properties, required):
@@ -227,23 +233,9 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                     {
                         "candidates": [
                             {
-                                "task": "请审查当前全部候选记录，排除不符合资格的对象，从剩余对象中选择评分最高者，并把最终选择正式记录为已选中，同时返回所选对象、评分和最新状态。",
+                                "task_internal": "请审查当前全部候选记录，排除不符合资格的对象，从剩余对象中选择评分最高者，并把最终选择正式记录为已选中，同时返回所选对象、评分和最新状态。",
                                 "output_schema": self.answer_schema(),
                                 "solution_code": self.solution_code(),
-                                "design": {
-                                    "business_goal": "从当前评审范围内选出最高评分的合格对象并正式记录选择结果。",
-                                    "evidence_sources": [
-                                        "候选对象的资格状态",
-                                        "候选对象的业务评分与当前流程状态",
-                                    ],
-                                    "exclusion_basis": "资格状态为不合格的候选即使评分更高也必须排除。",
-                                    "decision_rule": "在合格候选中按评分降序选择唯一最高者。",
-                                    "tool_plan": [
-                                        {"tool": "list_items", "purpose": "确定本次评审的完整候选范围。"},
-                                        {"tool": "get_item", "purpose": "逐项核实候选资格、评分和当前状态。"},
-                                        {"tool": "update_item_status", "purpose": "正式记录最终选中的候选对象。"},
-                                    ],
-                                },
                             }
                         ]
                     },
@@ -252,8 +244,14 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                 encoding="utf-8",
             )
             output = root / "tasks"
-            result = ProgramTaskGenerator(
-                None,
+            step1_path = run_step1(
+                environment_package=package_path,
+                output_dir=output,
+            )
+            step2 = run_step2(
+                step1_path=step1_path,
+                output_dir=output,
+                agent=None,
                 policy=ProgramGenerationPolicy(
                     task_count=1,
                     min_tool_calls=5,
@@ -261,17 +259,25 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                     clean_replays=2,
                     require_state_change=True,
                 ),
-            ).generate(
-                environment_package=package_path,
-                output_dir=output,
                 candidates_path=candidates,
             )
-            self.assertEqual(result.task_count, 1)
-            payload = json.loads(result.tasks_path.read_text(encoding="utf-8"))
-            task = payload["tasks"][0]
-            self.assertEqual(task["reference"]["answer"]["selected_item_id"], "c")
-            self.assertEqual(task["validation"]["clean_replays"], 2)
-            self.assertNotIn("internal", payload["public_environment"]["tools"][0])
+            step3 = run_step3(
+                step1_path=step1_path,
+                step2_path=step2.output_path,
+                output_dir=output,
+                policy=ProgramGenerationPolicy(),
+            )
+            step4 = run_step4(
+                step1_path=step1_path,
+                step3_path=step3.jsonl_path,
+                output_dir=output,
+                policy=ProgramGenerationPolicy(require_state_change=True),
+            )
+            task = read_records(step4.output_path)[0]
+            self.assertEqual(task["ground_truth"]["candidate_answer"]["selected_item_id"], "c")
+            self.assertEqual(task["solution_trace_length"], 5)
+            receipt = json.loads(step1_path.read_text(encoding="utf-8"))
+            self.assertNotIn("internal", receipt["public_environment"]["tools"][0])
 
     def test_generation_prompt_defines_business_quality_before_code_contract(self):
         prompt = build_program_generation_prompt(
@@ -284,7 +290,7 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
             ),
         )
         self.assertLess(prompt.index("# 合格任务的核心定义"), prompt.index("# 隐藏参考程序"))
-        self.assertIn("至少两类语义不同", prompt)
+        self.assertIn("至少三类语义不同", prompt)
         self.assertIn("表面相关但", prompt)
         self.assertIn("不得通过重复查询", prompt)
         self.assertIn("每个任务都必须完成一项", prompt)

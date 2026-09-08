@@ -21,7 +21,6 @@ def prepare_generation_run(
     config: DataGenConfig,
     *,
     limits: Mapping[str, int],
-    quality: Mapping[str, int] | None = None,
 ) -> str:
     """Select the Seed and write the minimal context shared by later steps."""
 
@@ -43,13 +42,9 @@ def prepare_generation_run(
     contract = (config.contract_path or schema_root / "环境契约-v2.0.md").resolve()
     schema_paths = {
         "scenario_research_schema_path": checkpoint_root / "scenario_research.schema.json",
-        "source_plan_schema_path": checkpoint_root / "source_plan.schema.json",
+        "source_research_schema_path": checkpoint_root / "source_research.schema.json",
         "source_inventory_schema_path": checkpoint_root / "source_inventory.schema.json",
-        "integration_plan_schema_path": checkpoint_root / "integration_plan.schema.json",
-        "integration_profile_schema_path": checkpoint_root / "integration_profile.schema.json",
-        "environment_quality_profile_schema_path": (
-            checkpoint_root / "environment_quality_profile.schema.json"
-        ),
+        "collection_profile_schema_path": checkpoint_root / "collection_profile.schema.json",
         "environment_schema_path": environment_schema,
     }
     required = (seed_path, seed_validation, contract, *schema_paths.values())
@@ -73,7 +68,7 @@ def prepare_generation_run(
         "contract_path": str(contract),
         **{name: str(path.resolve()) for name, path in schema_paths.items()},
         "collection_policy": dict(limits),
-        "environment_quality_policy": dict(quality or {}),
+        "allow_partial_integration": config.allow_partial_integration,
     }
     write_json(control_path(run_dir, CONTROL_RUN_CONFIG), run_config)
     write_json(selected_seed_path, seed)
