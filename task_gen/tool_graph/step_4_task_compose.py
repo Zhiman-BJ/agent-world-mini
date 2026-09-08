@@ -19,12 +19,15 @@ from .prompt_principles import REVIEW_GUIDANCE, TASK_STATE_CHAIN
 def compose_tasks(stage_input: ComposeTasksInput) -> ComposeTasksOutput:
     """按任务文本、表达反思、参考回答三轮 LLM 调用扩充候选。"""
     environment = stage_input["environment"]
-    resources = environment.get("resources")
     tools = environment.get("tools")
+    if environment.get("schema_version") == "2.0":
+        resources = [*environment.get("record_sets", []), *environment.get("filesystem_scopes", [])]
+    else:
+        resources = environment.get("resources")
     if not isinstance(resources, list) or not isinstance(tools, list):
-        raise ValueError("environment.resources/tools 必须是 array")
+        raise ValueError("新版环境的资源和工具必须是 array")
     public_tools = [
-        {key: tool.get(key) for key in ("name", "description", "inputSchema", "outputSchema")}
+        {key: tool.get(key) for key in ("name", "description", "inputSchema", "outputSchema", "usageConditions") if key in tool}
         for tool in tools if isinstance(tool, dict)
     ]
     if len(public_tools) != len(tools):
@@ -50,7 +53,7 @@ def compose_tasks(stage_input: ComposeTasksInput) -> ComposeTasksOutput:
             "objective": objective.strip(),
             "environment": {
                 key: environment.get(key)
-                for key in ("name", "description", "resources", "rules")
+                for key in (("name", "summary", "description", "record_sets", "relationships", "filesystem_scopes") if environment.get("schema_version") == "2.0" else ("name", "description", "resources", "rules"))
             },
             "tools": public_tools,
             "review_guidance": (candidate.get("llm_review") or {}).get("reason"),

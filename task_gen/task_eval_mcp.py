@@ -38,6 +38,7 @@ def call_environment_tool(
     memory_limit: int,
     write_limit: int,
     call_tool_fn: CallToolFn = _call_tool,
+    environment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     tool = tools.get(name)
     if tool is None:
@@ -52,6 +53,7 @@ def call_environment_tool(
         shutil.copytree(workspace, candidate, symlinks=True)
         outcome = call_tool_fn(
             tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
+            environment,
         )
         result = outcome.get("result")
         error = outcome.get("error")
@@ -77,6 +79,7 @@ def call_environment_tool(
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     tools = {tool["name"]: tool for tool in config["tools"]}
+    environment = config.get("environment", {})
     workspace = Path(config["workspace"]).resolve()
     trace = Path(config["trace"]).resolve()
     calls = 0
@@ -98,6 +101,7 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     "description": tool.get("description", ""),
                     "inputSchema": tool["inputSchema"],
                     "outputSchema": tool["outputSchema"],
+                    **({"usageConditions": tool["usageConditions"]} if "usageConditions" in tool else {}),
                 } for tool in tools.values()]}
             elif method == "tools/call":
                 if calls >= int(config["max_tool_calls"]):
@@ -120,6 +124,7 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     timeout=int(config["timeout"]),
                     memory_limit=int(config["memory_limit"]),
                     write_limit=int(config["write_limit"]),
+                    environment=environment,
                 )
                 trace.parent.mkdir(parents=True, exist_ok=True)
                 with trace.open("a", encoding="utf-8") as stream:

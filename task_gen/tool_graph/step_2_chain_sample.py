@@ -213,7 +213,7 @@ def _tools(environment: dict[str, Any]) -> tuple[set[str], list[dict[str, Any]]]
         required = ("name", "description", "inputSchema", "outputSchema")
         if any(key not in tool for key in required):
             raise ValueError(f"工具 {tool.get('name')} 缺少公开定义")
-        public.append({key: tool[key] for key in required})
+        public.append({key: tool[key] for key in (*required, "usageConditions") if key in tool})
     names = {tool["name"] for tool in public}
     if len(names) != len(public):
         raise ValueError("environment.tools 工具名重复")

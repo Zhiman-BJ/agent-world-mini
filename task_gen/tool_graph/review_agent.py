@@ -15,7 +15,7 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace):
         return []
     source = Path(initial_workspace).resolve()
     if not source.is_dir():
-        raise ValueError("review 初态 workspace 不存在")
+        raise ValueError("review 初态 state 不存在")
     _, _, error = _workspace_usage(source)
     if error:
         raise ValueError(error)

@@ -147,7 +147,7 @@ def _basic_errors(candidate: dict[str, Any], task: dict[str, Any]) -> list[str]:
 def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[str, Any]], candidate: dict[str, Any], initial_report: dict[str, Any] | None = None) -> str:
     execution = candidate["execution"]
     context = {
-        "environment": {key: environment.get(key) for key in ("name", "description", "resources", "rules")},
+        "environment": {key: environment.get(key) for key in (("name", "summary", "description", "record_sets", "relationships", "filesystem_scopes") if environment.get("schema_version") == "2.0" else ("name", "description", "resources", "rules"))},
         "tools": public_tools,
         "initial_state_report": report_context(initial_report),
         "review_guidance": (candidate.get("llm_review") or {}).get("reason"),
@@ -202,4 +202,4 @@ def _load_schema(path: Path):
 
 
 def _public_tool(tool: dict[str, Any]) -> dict[str, Any]:
-    return {key: tool.get(key) for key in ("name", "description", "inputSchema", "outputSchema")}
+    return {key: tool.get(key) for key in ("name", "description", "inputSchema", "outputSchema", "usageConditions") if key in tool}

@@ -19,7 +19,7 @@ from .step_3_chain_execute import (
 def explore_initial_state(config: Config, environment: dict[str, Any]) -> dict[str, Any]:
     report: dict[str, Any] = {"summary": "初态尚未获得可靠观察。", "observations": [], "errors": []}
     try:
-        source = (config.environment_dir / "workspace").resolve()
+        source = (config.environment_dir / "state").resolve()
         if not source.is_dir():
             raise ValueError("初态 workspace 不存在")
         _, _, error = _workspace_usage(source)
@@ -61,7 +61,7 @@ def explore_initial_state(config: Config, environment: dict[str, Any]) -> dict[s
                     workspace = Path(temporary) / "workspace"
                     shutil.copytree(source, workspace)
                     before = _workspace_signature(workspace)
-                    outcome = _call_tool(tool["internal"]["code"], arguments, workspace, timeout, memory, write)
+                    outcome = _call_tool(tool["internal"]["code"], arguments, workspace, timeout, memory, write, environment)
                     if _workspace_signature(workspace) != before:
                         raise ValueError("探索调用改变了 workspace，已丢弃观察")
                 if outcome["kind"] is not None:

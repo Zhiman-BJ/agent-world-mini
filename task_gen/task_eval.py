@@ -168,7 +168,7 @@ def evaluate_case(
     shutil.copytree(case.initial_state, workspace)
     tools = _tools(case.environment)
     expected_tools = [
-        {key: tool[key] for key in ("name", "description", "inputSchema", "outputSchema")}
+        {key: tool[key] for key in ("name", "description", "inputSchema", "outputSchema", "usageConditions") if key in tool}
         for tool in tools.values()
     ]
     if case.task.get("available_tools") != expected_tools:
@@ -253,7 +253,8 @@ def evaluate_case(
                 "timeout": tool_timeout_seconds,
                 "memory_limit": tool_max_memory_bytes,
                 "write_limit": tool_max_write_bytes,
-                "tools": list(tools.values()),
+            "tools": list(tools.values()),
+            "environment": case.environment,
             }, ensure_ascii=False), encoding="utf-8")
             answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
             if not answer:
@@ -398,7 +399,7 @@ def _judge_prompt(
             "参考答案是核对依据，不是必须逐字匹配的唯一表述",
         ],
         "task": task.get("task_text"),
-        "environment_resources": environment.get("resources"),
+        "environment_resources": environment.get("record_sets", []) + environment.get("filesystem_scopes", []),
         "workspace_changes": changes,
         "actual_tool_calls": _bounded_calls(calls, result_limit),
         "actual_answer": answer,

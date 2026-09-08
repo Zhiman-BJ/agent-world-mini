@@ -437,12 +437,15 @@ def _compact_tool_view(tool: dict[str, Any]) -> dict[str, Any]:
             entry["fields"] = nested
         parameters[key] = entry
 
-    return {
+    view = {
         "name": tool["name"],
         "description": tool["description"],
         "in": parameters,
         "out": _flatten_output(tool["outputSchema"]),
     }
+    if "usageConditions" in tool:
+        view["usageConditions"] = tool["usageConditions"]
+    return view
 
 
 def _nested_field_names(spec: dict[str, Any]) -> list[str]:
@@ -505,6 +508,8 @@ def _environment_context(environment: dict[str, Any]) -> dict[str, Any]:
 
     ``rules`` 必须包含 —— 跨资源的业务规则常常是状态依赖的唯一线索。
     """
+    if environment.get("schema_version") == "2.0":
+        return {key: environment.get(key) for key in ("name", "summary", "description", "record_sets", "relationships", "filesystem_scopes")}
     return {
         "name": environment.get("name"),
         "description": environment.get("description"),

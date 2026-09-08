@@ -388,6 +388,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+
 from .contracts import EnvironmentLoadInput, EnvironmentLoadOutput
 
 
@@ -408,6 +410,8 @@ def load_environment(stage_input: EnvironmentLoadInput) -> EnvironmentLoadOutput
 
     # ==================== 分区 0：读入三个被检查对象 ====================
     environment = _read_json_object(environment_dir / "environment.json")
+    if environment.get("schema_version") == "2.0":
+        return {"environment": _load_v2_environment(environment_dir, environment, stage_input["config"].schema_dir)}
     validation = _read_json_object(environment_dir / "validation.json")
     workspace = environment_dir / "workspace"
     if not workspace.is_dir():
@@ -415,6 +419,43 @@ def load_environment(stage_input: EnvironmentLoadInput) -> EnvironmentLoadOutput
 
     check_environment_compliance(environment, validation, workspace)
     return {"environment": environment}
+
+
+def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Path) -> dict[str, Any]:
+    Draft202012Validator(_read_json_object(schema_dir / "environment.schema.json")).validate(environment)
+    bundle = _read_json_object(root / "tools.json")
+    tools = bundle.get("tools")
+    if bundle.get("schema_version") != "1.0" or bundle.get("environment_id") != environment["environment_id"]:
+        raise ValueError("tools.json 与 environment.json 不匹配")
+    if not isinstance(tools, list) or not tools:
+        raise ValueError("tools.json.tools 必须是非空数组")
+    schema = _read_json_object(schema_dir / "validation/tool.schema.json")
+    schema["required"] = [*schema.get("required", []), "usageConditions"]
+    validator = Draft202012Validator(schema)
+    for tool in tools:
+        validator.validate(tool)
+    resources = {item["record_set_id"] for item in environment["record_sets"]}
+    resources |= {item["scope_id"] for item in environment["filesystem_scopes"]}
+    if len(resources) != len(environment["record_sets"]) + len(environment["filesystem_scopes"]):
+        raise ValueError("record_set_id 与 scope_id 不能重复")
+    for tool in tools:
+        unknown = set(tool["usageConditions"]["targetResources"]) - resources
+        if unknown:
+            raise ValueError(f"工具 {tool['name']} 引用未知资源：{sorted(unknown)}")
+    report = _read_json_object(root / "tool_generation/tool_validation.json")
+    passed = {item.get("tool") for item in report.get("reports", []) if item.get("status") == "passed"}
+    if report.get("environment_id") != environment["environment_id"] or any(tool["name"] not in passed for tool in tools):
+        raise ValueError("工具验证报告不完整或环境不匹配")
+    state = root / "state"
+    if not state.is_dir() or (environment["record_sets"] and not (state / "records.sqlite").is_file()):
+        raise ValueError("新版环境缺少合法 state")
+    scope_root = state / "filesystem_scopes"
+    for scope in environment["filesystem_scopes"]:
+        if not (scope_root / scope["scope_id"]).is_dir():
+            raise ValueError(f"Filesystem Scope 不存在：{scope['scope_id']}")
+    if any(path.is_symlink() for path in state.rglob("*")):
+        raise ValueError("state 不允许包含符号链接")
+    return {**environment, "tools": tools}
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:

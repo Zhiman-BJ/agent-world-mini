@@ -32,6 +32,7 @@ from contextvars import copy_context
 from copy import deepcopy
 import hashlib
 import json
+import sqlite3
 import os
 from pathlib import Path
 import shutil
@@ -52,7 +53,7 @@ def execute_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutput:
     """并发执行候选链，以干净初态重试，并记录成功轨迹或失败历史。"""
     config = stage_input["config"]
     run_dir = stage_input["run_dir"].resolve()
-    source = (config.environment_dir / "workspace").resolve()
+    source = (config.environment_dir / "state").resolve()
     if not source.is_dir():
         raise ValueError(f"源 workspace 不存在：{source}")
     tools = _tools(stage_input["environment"])
@@ -195,7 +196,7 @@ def _execute_candidate(
                     failure = parameter_failure
                     break
 
-                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit)
+                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment)
                 if outcome["kind"] is not None:
                     failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
                     break
@@ -468,6 +469,7 @@ import contextlib
 from copy import deepcopy
 import io
 import json
+import sqlite3
 from pathlib import Path
 import resource
 import sys
@@ -480,7 +482,46 @@ try:
     resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write_limit, write_limit))
     resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
-    namespace = {"json": json}
+    class Records:
+        def __init__(self, path): self.path = path
+        def _conn(self):
+            c = sqlite3.connect(self.path); c.row_factory = sqlite3.Row; return c
+        def list(self, record_set_id, filters=None, limit=100, offset=0, order_by=None, descending=False):
+            filters = filters or {}; c = self._conn();
+            try:
+                query = 'SELECT * FROM "' + record_set_id.replace('"','""') + '"'; values=[]
+                if filters:
+                    query += ' WHERE ' + ' AND '.join('"'+k.replace('"','""')+'" = ?' for k in filters); values=list(filters.values())
+                if order_by: query += ' ORDER BY "'+order_by.replace('"','""')+'" ' + ('DESC' if descending else 'ASC')
+                query += ' LIMIT ? OFFSET ?'; values += [int(limit), int(offset)]
+                return [dict(r) for r in c.execute(query, values)]
+            finally: c.close()
+        def get(self, record_set_id, key):
+            rows=self.list(record_set_id, key, 1, 0); return rows[0] if rows else None
+        def create(self, record_set_id, record):
+            c=self._conn();
+            try:
+                cols=list(record); c.execute('INSERT INTO "'+record_set_id+'" ('+','.join('"'+x+'"' for x in cols)+') VALUES ('+','.join('?' for _ in cols)+')',[record[x] for x in cols]); c.commit()
+            finally: c.close()
+        def update(self, record_set_id, key, changes):
+            c=self._conn();
+            try:
+                where=' AND '.join('"'+x+'" = ?' for x in key); values=list(key.values()); sets=', '.join('"'+x+'" = ?' for x in changes); cur=c.execute('UPDATE "'+record_set_id+'" SET '+sets+' WHERE '+where, [changes[x] for x in changes]+values); c.commit(); return cur.rowcount
+            finally: c.close()
+        def delete(self, record_set_id, key):
+            c=self._conn();
+            try:
+                where=' AND '.join('"'+x+'" = ?' for x in key); cur=c.execute('DELETE FROM "'+record_set_id+'" WHERE '+where, list(key.values())); c.commit(); return cur.rowcount
+            finally: c.close()
+    class Context:
+        def __init__(self, root, environment):
+            self.environment = environment; self.state_root = root; self.workspace_root = root
+            self.records = Records(str(root / 'records.sqlite'))
+        def scope_root(self, scope_id):
+            path=(self.state_root/'filesystem_scopes'/scope_id).resolve()
+            if path.parent != (self.state_root/'filesystem_scopes').resolve(): raise ValueError('非法 scope_id')
+            return path
+    namespace = {"json": json, "sqlite3": sqlite3}
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         exec(payload["code"], namespace)
         run = namespace.get("run")
@@ -488,7 +529,7 @@ try:
             raise ValueError("internal.code 没有定义 run(arguments, context)")
         result = run(
             deepcopy(payload["arguments"]),
-            SimpleNamespace(workspace_root=Path("/workspace")),
+            Context(Path("/workspace"), payload.get("environment", {})),
         )
     json.dumps(result, ensure_ascii=False)
     response = {"result": result, "error": None}
@@ -530,6 +571,7 @@ def _call_tool(
     timeout: int,
     memory_limit: int,
     write_limit: int,
+    environment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     workspace = workspace.resolve()
     if not workspace.is_dir():
@@ -571,6 +613,7 @@ def _call_tool(
     payload = json.dumps({
         "code": code,
         "arguments": arguments,
+        "environment": environment or {},
         "memory_limit": memory_limit,
         "write_limit": write_limit,
     }, ensure_ascii=False)
