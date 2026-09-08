@@ -24,7 +24,6 @@ from .tool_graph.step_3_chain_execute import (
     _workspace_signature,
 )
 from .task_eval_verifier import (
-    _confirm_results_semantically,
     aggregate_results,
     build_evidence,
     prepare_verifier,
@@ -35,7 +34,7 @@ from .task_eval_verifier import (
 
 
 DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"
-VERIFIER_CACHE_VERSION = 10
+VERIFIER_CACHE_VERSION = 15
 InferFn = Callable[..., InferenceResult]
 AgentRunFn = Callable[[str, Path, Path, Path], str]
 
@@ -291,18 +290,6 @@ def evaluate_case(
                 final_state=workspace,
                 tools=list(tools.values()),
             )
-            failed_results = [item for item in requirement_results if item["status"] != "pass"]
-            if failed_results:
-                reviewed = _confirm_results_semantically(
-                    verifier,
-                    failed_results,
-                    actual_evidence,
-                    judge_infer_fn,
-                    llm_config,
-                    str(case.task.get("task_text") or ""),
-                )
-                reviewed_by_id = {item["requirement_id"]: item for item in reviewed}
-                requirement_results = [reviewed_by_id.get(item["requirement_id"], item) for item in requirement_results]
             evaluation = aggregate_results(verifier["requirements"], requirement_results)
             verifier_tool_calls = actual_evidence.get("verifier_calls", [])
         except Exception as error:
@@ -378,6 +365,7 @@ def _run_agent(
         server,
         server_config,
         model=str(llm_config["model"]) if llm_config.get("model") else None,
+        codex_home=str(llm_config["codex_home"]) if llm_config.get("codex_home") else None,
         timeout_seconds=int(llm_config.get("timeout_seconds", 1800)),
         sandbox="workspace-write",
         network_access=False,

@@ -26,6 +26,7 @@ _OUTCOME_TYPES = {
 _CONTEXT_METHODS = {
     "answer", "calls", "changed_paths", "files", "file", "read_text", "read_json",
     "call_tool", "verifier_calls",
+    "candidate_group",
     "pass_requirement", "fail_requirement", "indeterminate_requirement", "semantic_requirement",
 }
 _BANNED_CALLS = {
@@ -34,7 +35,7 @@ _BANNED_CALLS = {
 }
 _BANNED_NODES = (
     ast.AsyncFunctionDef, ast.Await, ast.ClassDef, ast.Global, ast.Import,
-    ast.ImportFrom, ast.Nonlocal, ast.Raise, ast.With, ast.AsyncWith,
+    ast.ImportFrom, ast.Nonlocal, ast.With, ast.AsyncWith,
 )
 InferFn = Callable[..., InferenceResult | list[InferenceResult]]
 
@@ -218,9 +219,12 @@ def validate_verifier(package: dict[str, Any]) -> None:
 _RUNTIME = r'''
 import contextlib
 from copy import deepcopy
+import html
 import io
 import json
+import math
 from pathlib import Path
+import re
 import shutil
 from types import SimpleNamespace
 
@@ -231,6 +235,7 @@ class VerifierContext:
         self._max_tool_calls = arguments.get("max_tool_calls", 50)
         self._verifier_calls = []
         self._results = []
+        self._candidate_groups = []
 
     def answer(self):
         return self._evidence.get("answer", "")
@@ -347,6 +352,16 @@ class VerifierContext:
 
     def semantic_requirement(self, requirement_id, claim, evidence_refs):
         self._record(requirement_id, "semantic", claim, evidence_refs)
+
+    def candidate_group(self, group_id, requirement_ids, complete, reason, evidence_refs, rows):
+        self._candidate_groups.append({
+            "group_id": group_id,
+            "requirement_ids": list(requirement_ids),
+            "complete": complete,
+            "reason": reason,
+            "evidence_refs": list(evidence_refs),
+            "rows": rows,
+        })
 '''
 
 
@@ -356,7 +371,7 @@ def _runner_source(source: str) -> str:
 def run(arguments, context):
     ctx = VerifierContext(arguments)
     verify(ctx)
-    return {"results": ctx._results, "verifier_calls": ctx._verifier_calls}
+    return {"results": ctx._results, "candidate_groups": ctx._candidate_groups, "verifier_calls": ctx._verifier_calls}
 '''
 
 
@@ -383,6 +398,60 @@ def _valid_evidence_ref(reference: str, evidence: dict[str, Any]) -> bool:
         path = reference[len("workspace_change:"):]
         return any(item.get("path") == path for item in evidence.get("changed_paths", []))
     return False
+
+
+def _select_witness_group(group: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return results from one assignment that satisfies an existential group."""
+    rows = group["rows"]
+    for row in rows:
+        if all(result["status"] == "pass" for result in row["results"]):
+            return row["results"]
+    if not group["complete"]:
+        return [{
+            "requirement_id": requirement_id,
+            "status": "indeterminate",
+            "reason": group["reason"],
+            "evidence_refs": group["evidence_refs"],
+        } for requirement_id in group["requirement_ids"]]
+    if not rows:
+        return [{
+            "requirement_id": requirement_id,
+            "status": "fail",
+            "reason": group["reason"],
+            "evidence_refs": group["evidence_refs"],
+        } for requirement_id in group["requirement_ids"]]
+    return min(
+        rows,
+        key=lambda row: (
+            sum(result["status"] == "fail" for result in row["results"]),
+            sum(result["status"] == "indeterminate" for result in row["results"]),
+        ),
+    )["results"]
+
+
+def _validate_runtime_result(
+    result: Any,
+    allowed_ids: set[str],
+    evidence: dict[str, Any],
+) -> str:
+    if not isinstance(result, dict) or set(result) != {
+        "requirement_id", "status", "reason", "evidence_refs",
+    }:
+        raise ValueError("verifier requirement 结果结构非法")
+    requirement_id = result["requirement_id"]
+    if requirement_id not in allowed_ids:
+        raise ValueError("verifier 返回了未知的 requirement_id")
+    if result["status"] not in _STATUSES | {"semantic"}:
+        raise ValueError("verifier 返回了非法状态")
+    if not isinstance(result["reason"], str) or not result["reason"].strip():
+        raise ValueError("verifier reason 必须是非空字符串")
+    if not isinstance(result["evidence_refs"], list) or any(
+        not isinstance(ref, str) or not _valid_evidence_ref(ref, evidence)
+        for ref in result["evidence_refs"]
+    ):
+        raise ValueError("verifier 返回了无效 evidence_refs")
+    result["evidence_refs"] = list(dict.fromkeys(result["evidence_refs"]))
+    return requirement_id
 
 
 def run_verifier(
@@ -421,32 +490,65 @@ def run_verifier(
     if outcome.get("kind") is not None:
         raise ValueError(f"verifier 执行失败：{outcome.get('error')}")
     payload = outcome.get("result")
-    if (not isinstance(payload, dict) or set(payload) != {"results", "verifier_calls"}
-            or not isinstance(payload["results"], list) or not isinstance(payload["verifier_calls"], list)):
+    if (not isinstance(payload, dict)
+            or set(payload) not in ({"results", "verifier_calls"}, {
+                "results", "candidate_groups", "verifier_calls",
+            })
+            or not isinstance(payload["results"], list)
+            or not isinstance(payload["verifier_calls"], list)):
         raise ValueError("verifier 返回结构非法")
     evidence["verifier_calls"] = payload["verifier_calls"]
-    requirements = {item["id"] for item in package["requirements"]}
+    requirement_order = [item["id"] for item in package["requirements"]]
+    requirements = set(requirement_order)
     seen: set[str] = set()
     for result in payload["results"]:
-        if not isinstance(result, dict) or set(result) != {"requirement_id", "status", "reason", "evidence_refs"}:
-            raise ValueError("verifier requirement 结果结构非法")
-        requirement_id = result["requirement_id"]
-        if requirement_id not in requirements or requirement_id in seen:
-            raise ValueError("verifier 返回了未知或重复的 requirement_id")
+        requirement_id = _validate_runtime_result(result, requirements, evidence)
+        if requirement_id in seen:
+            raise ValueError("verifier 返回了重复的 requirement_id")
         seen.add(requirement_id)
-        if result["status"] not in _STATUSES | {"semantic"}:
-            raise ValueError("verifier 返回了非法状态")
-        if not isinstance(result["reason"], str) or not result["reason"].strip():
-            raise ValueError("verifier reason 必须是非空字符串")
-        if not isinstance(result["evidence_refs"], list) or any(
-            not isinstance(ref, str) or not _valid_evidence_ref(ref, evidence) for ref in result["evidence_refs"]
+
+    candidate_groups = payload.get("candidate_groups", [])
+    if not isinstance(candidate_groups, list):
+        raise ValueError("verifier candidate_groups 必须是数组")
+    all_results = list(payload["results"])
+    for group in candidate_groups:
+        if not isinstance(group, dict) or set(group) != {
+            "group_id", "requirement_ids", "complete", "reason", "evidence_refs", "rows",
+        }:
+            raise ValueError("verifier candidate group 结构非法")
+        group_ids = group["requirement_ids"]
+        if (not isinstance(group["group_id"], str) or not group["group_id"]
+                or not isinstance(group_ids, list) or not group_ids
+                or any(not isinstance(item, str) for item in group_ids)
+                or len(set(group_ids)) != len(group_ids)
+                or not set(group_ids) <= requirements
+                or set(group_ids) & seen):
+            raise ValueError("verifier candidate group requirement_ids 非法")
+        if not isinstance(group["complete"], bool):
+            raise ValueError("verifier candidate group complete 必须是 boolean")
+        if not isinstance(group["reason"], str) or not group["reason"].strip():
+            raise ValueError("verifier candidate group reason 必须非空")
+        if not isinstance(group["evidence_refs"], list) or any(
+            not isinstance(ref, str) or not _valid_evidence_ref(ref, evidence)
+            for ref in group["evidence_refs"]
         ):
-            raise ValueError("verifier 返回了无效 evidence_refs")
-        result["evidence_refs"] = list(dict.fromkeys(result["evidence_refs"]))
+            raise ValueError("verifier candidate group evidence_refs 非法")
+        if not isinstance(group["rows"], list):
+            raise ValueError("verifier candidate group rows 必须是数组")
+        for row in group["rows"]:
+            if (not isinstance(row, dict) or set(row) != {"assignment_id", "results"}
+                    or not isinstance(row["assignment_id"], str)
+                    or not isinstance(row["results"], list)):
+                raise ValueError("verifier candidate row 结构非法")
+            row_ids = [_validate_runtime_result(item, set(group_ids), evidence) for item in row["results"]]
+            if len(row_ids) != len(set(row_ids)) or set(row_ids) != set(group_ids):
+                raise ValueError("verifier candidate row 必须恰好覆盖分组 requirements")
+            all_results.extend(row["results"])
+        seen.update(group_ids)
     if seen != requirements:
         raise ValueError("verifier 未返回每一项 requirement 的结果")
-    results = payload["results"]
-    semantic_results = [item for item in results if item["status"] == "semantic"]
+
+    semantic_results = [item for item in all_results if item["status"] == "semantic"]
     if semantic_results and semantic_infer_fn is None:
         raise ValueError("verifier 包含 semantic_requirement，但未提供语义评审器")
     if semantic_infer_fn is not None:
@@ -471,7 +573,11 @@ def run_verifier(
                 raise ValueError("语义评审 reason 必须是非空字符串")
             item["status"] = semantic["status"]
             item["reason"] = semantic["reason"]
-    return results
+    results = list(payload["results"])
+    for group in candidate_groups:
+        results.extend(_select_witness_group(group))
+    by_id = {item["requirement_id"]: item for item in results}
+    return [by_id[requirement_id] for requirement_id in requirement_order]
 
 
 def _parse_semantic_result(text: str) -> dict[str, str]:
@@ -661,8 +767,8 @@ def validate_verification_spec(specification: dict[str, Any]) -> None:
         for key in ("pass_condition", "fail_condition", "indeterminate_condition"):
             if not isinstance(requirement[key], str) or not requirement[key].strip():
                 raise ValueError(f"{requirement_id}.{key} 必须是非空字符串")
-    if integrity_count != 1:
-        raise ValueError("verification spec 必须恰好包含一个 execution_integrity requirement")
+    if integrity_count > 1:
+        raise ValueError("verification spec 最多包含一个 execution_integrity requirement")
     missing = sorted(clause_ids - set(coverage))
     duplicated = sorted(item for item in clause_ids if coverage.count(item) != 1)
     if missing or duplicated:
@@ -690,9 +796,13 @@ def generate_verification_spec(
             "先完整拆出任务中的原子结果；每个结果只表达一个可独立失败的 claim，所有 claim 的并集覆盖任务，且每个 task clause 恰好覆盖一次。",
             "同一句中的并列结果仍分别建模；共同对象、范围和关系作为上下文绑定，不能用绑定掩盖独立失败。",
             "每个 requirement 必须同时给出充分通过、明确失败和证据不足三种边界；没有明确反证或完整权威缺失时不得判 fail。",
+            "当任务要求从明确的源集合生成、导出、转换或保留内容时，完整性（源集合中的每个要求项都被覆盖）是该结果的语义组成部分，必须单独或在同一原子 requirement 中明确表达；不要只检查产物中任意一个条目。若任务没有表达保留、全部或完整覆盖，则不得擅自增加源集合完整性要求。",
             "创建、修改、删除和保持必须由 workspace 初末状态证明；查询、计算和呈现可由工具结果与最终回答证明。",
             "evidence_channels 只说明可接受的证据来源，不规定工具、顺序、数量、路径或表示方式。",
-            "只额外增加一个 execution_integrity requirement：仅拒绝可观察的无关、破坏性或冲突副作用，不要求最小路径。",
+            "不得把新生成、初态不存在、唯一文件、固定数量、舍入容差、编码表示或特定更新方式写成通过条件，除非任务或环境契约明确要求；已有同样有效的结果可以被更新、覆盖或复用。",
+            "仅当任务和环境表明存在具体、风险较大的破坏性或冲突性副作用时，才可单独增加一个 "
+            "execution_integrity requirement，并明确检查的风险；没有此类风险则不添加。"
+            "任务相关的正常状态变化不算违规，不要求最小执行路径。",
         ],
         "task": task.get("task_text"),
         "environment": environment,
@@ -714,7 +824,12 @@ def generate_verification_spec(
     }
     if previous_issues:
         request["previous_issues"] = previous_issues
-        request["revision_instruction"] = "重新生成完整规格，逐项解决 previous_issues，且不得重新引入其中任何问题。"
+        request["revision_instruction"] = (
+            "重新生成完整规格，逐项解决 previous_issues，且不得重新引入其中任何问题。"
+            "保留已经正确覆盖的任务要求；只修改导致 issue 的 requirement。"
+            "再次检查：保留/导出/转换任务是否覆盖完整源集合；是否误加初态不存在、新生成、唯一性、"
+            "数量或表示容差等任务未声明条件。"
+        )
     specification = parse_json_object(infer_fn(
         json.dumps(request, ensure_ascii=False), llm_config=llm_config,
     ).text)
@@ -722,6 +837,251 @@ def generate_verification_spec(
         specification = specification["response_contract"]
     validate_verification_spec(specification)
     return specification
+
+
+def validate_evidence_plan(plan: dict[str, Any], specification: dict[str, Any]) -> None:
+    """Validate the small handoff between task decomposition and code generation."""
+    if not isinstance(plan, dict) or not {"schema_version", "requirements"} <= set(plan):
+        raise ValueError("evidence plan 必须包含 schema_version 和 requirements")
+    if plan["schema_version"] != "1" or not isinstance(plan["requirements"], list):
+        raise ValueError("evidence plan 结构非法")
+    expected = {item["id"] for item in specification["requirements"]}
+    seen: set[str] = set()
+    for item in plan["requirements"]:
+        if not isinstance(item, dict) or not {
+            "requirement_id", "sources", "strategy", "alternatives",
+        } <= set(item):
+            raise ValueError("evidence plan requirement 结构非法")
+        requirement_id = item["requirement_id"]
+        if requirement_id not in expected or requirement_id in seen:
+            raise ValueError("evidence plan requirement_id 未知或重复")
+        seen.add(requirement_id)
+        if (not isinstance(item["sources"], list) or not item["sources"]
+                or any(source not in _CHANNELS for source in item["sources"])):
+            raise ValueError("evidence plan sources 非法")
+        if not isinstance(item["strategy"], str) or not item["strategy"].strip():
+            raise ValueError("evidence plan strategy 必须是非空字符串")
+        if (not isinstance(item["alternatives"], list)
+                or any(not isinstance(value, str) or not value.strip() for value in item["alternatives"])):
+            raise ValueError("evidence plan alternatives 必须是字符串数组")
+    if seen != expected:
+        raise ValueError("evidence plan 必须恰好覆盖全部 requirements")
+
+
+def _unwrap_contract(value: dict[str, Any], required: set[str]) -> dict[str, Any]:
+    if required <= set(value):
+        return value
+    candidates = [
+        child for child in value.values()
+        if isinstance(child, dict) and required <= set(child)
+    ]
+    return candidates[0] if len(candidates) == 1 else value
+
+
+def _parse_contract_response(text: str, required: set[str]) -> dict[str, Any]:
+    """Prefer the last complete JSON object that actually satisfies a contract."""
+    decoder = json.JSONDecoder()
+    matches: list[dict[str, Any]] = []
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            candidate = _unwrap_contract(value, required)
+            if required <= set(candidate):
+                matches.append(candidate)
+    if matches:
+        return matches[-1]
+    return _unwrap_contract(parse_json_object(text), required)
+
+
+def generate_evidence_plan(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    specification: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Plan where a future verifier should look, without judging an execution."""
+    request = {
+        "role": (
+            "你负责为已经拆分好的任务要求规划证据。此时尚未执行待测 Agent；请说明未来 verifier "
+            "可以去哪里观察事实、如何保持对象和关系一致，以及哪些不同实现也能证明同一结果。"
+            "不要写验证代码，不要判断通过失败。"
+        ),
+        "principles": [
+            "每个 requirement 只写一项简洁策略，并且恰好出现一次。",
+            "参考执行只用于发现可能的证据位置和数据形态，不是白名单，也不是唯一正确路径。",
+            "允许任何满足任务结果的工具、顺序、文件或等价表达，除非任务明确限定。",
+            "需要组合多项事实时，明确它们必须属于同一业务对象、交付物或集合关系，不能跨对象拼接。",
+            "缺失只有在证据来源完整且权威时才能证明失败；否则 verifier 应保留 indeterminate。",
+        ],
+        "task": task.get("task_text"),
+        "environment": environment,
+        "specification": specification,
+        "reference_evidence": _generation_evidence(reference_evidence),
+        "output_instruction": "只输出 response_contract 对应的 JSON object，不要解释，不要 Markdown。",
+        "response_contract": {
+            "schema_version": "1",
+            "requirements": [{
+                "requirement_id": "R1",
+                "sources": ["workspace|tool_trace|answer 中 specification 允许的渠道"],
+                "strategy": "未来执行后应从哪里、按什么关系寻找充分证据",
+                "alternatives": ["同样可以证明该结果的其他实现或证据路径"],
+            }],
+        },
+    }
+    plan = _parse_contract_response(infer_fn(
+        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
+    ).text, {"schema_version", "requirements"})
+    validate_evidence_plan(plan, specification)
+    return plan
+
+
+def _generated_source(response: InferenceResult, *, stage: str) -> str:
+    try:
+        value = _parse_contract_response(response.text, {"source"})
+    except ValueError:
+        fenced = re.fullmatch(r"\s*```(?:python)?\s*(.*?)\s*```\s*", response.text, re.I | re.S)
+        if fenced:
+            source = fenced.group(1).strip()
+            if source:
+                return source
+        raise
+    if not isinstance(value, dict) or "source" not in value:
+        raise ValueError(f"{stage} 必须返回 source")
+    source = value["source"]
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError(f"{stage}.source 必须是非空字符串")
+    return source
+
+
+def generate_planned_verifier(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    specification: dict[str, Any],
+    evidence_plan: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Generate one complete verifier from the frozen subtasks and evidence plan."""
+    validate_evidence_plan(evidence_plan, specification)
+    request = {
+        "role": (
+            "你负责把冻结的任务子项和证据规划实现成一个完整 verifier。一次完成 verify(ctx)；"
+            "可以在 verify 内定义小函数，但不要把不同 requirement 分给其他模型。"
+        ),
+        "principles": [
+            "任务是唯一验收标准。任务未要求的操作或产物，即使参考执行做了，也禁止加入验收条件。"
+            "参考执行中的参数、路径和中间结果同样不能自行成为要求；凡是满足任务的实现，"
+            "都不能因与参考执行不同而判失败。",
+            "specification 和 evidence_plan 是辅助中间产物，不能增加或覆盖原始任务的要求。",
+            "副作用检查是按风险启用的例外：若 specification 包含 execution_integrity，"
+            "仅核验其中指出的具体高风险破坏性或冲突性副作用；不得扩大为禁止正常关联变化或所有额外操作。",
+            "每项 pass 必须有充分证据，fail 必须有明确反证；信息不完整、不可读或冲突时使用 indeterminate。",
+            "组合证据必须属于同一对象、交付物和关系；集合任务检查任务明确要求的整体范围。",
+            "结构化事实由代码判断；确实需要理解自然语言含义时使用 semantic_requirement。",
+            "可以读取完整初态、终态、实际调用及回答，也可以用 call_tool 只读核验终态；不能替 Agent 补做任务。",
+            "必须为 specification.requirements 中的全部 ID 在每条执行路径恰好记录一次结果，"
+            "包括已列出的 execution_integrity，并引用真实 evidence_ref；未列出时无需添加副作用检查。",
+        ],
+        "task": task.get("task_text"),
+        "environment": environment,
+        "specification": specification,
+        "evidence_plan": evidence_plan,
+        "reference_evidence": _generation_evidence(reference_evidence),
+        "verifier_context_api": {
+            "answer() / calls() / changed_paths()": "读取回答、调用链和状态变化",
+            "files(state) / file(path, state) / read_text(path, state) / read_json(path, state)": "只读初态或终态",
+            "call_tool(name, arguments)": (
+                "在终态副本中补充核验，返回 {tool, arguments, result, error, evidence_ref}；"
+                "工具自己的 success/data/error 位于外层记录的 result 字段内"
+            ),
+            "verifier_calls()": "返回 verifier 已执行的补充核验记录",
+            "pass_requirement(id, reason, refs) / fail_requirement(...) / indeterminate_requirement(...)": "记录确定结果",
+            "semantic_requirement(id, claim, refs)": "让运行期模型判断引用证据中的语义命题",
+        },
+        "evidence_reference_formats": [
+            "answer", "tool_call:N", "initial:relative/path", "final:relative/path",
+            "workspace_change:relative/path", "verifier_call:N",
+        ],
+        "output_instruction": "只输出 response_contract 对应的 JSON object，不要解释，不要 Markdown。",
+        "response_contract": {"source": "Python source defining verify(ctx)"},
+    }
+    response = infer_fn(json.dumps(request, ensure_ascii=False), llm_config=llm_config)
+    if not isinstance(response, InferenceResult):
+        raise ValueError("verifier generation 必须返回单条结果")
+    return {
+        "schema_version": "1",
+        "requirements": _planned_requirements(specification, evidence_plan),
+        "source": _generated_source(response, stage="verifier generation"),
+    }
+
+
+def review_and_revise_verifier(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    specification: dict[str, Any],
+    evidence_plan: dict[str, Any],
+    package: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    infer_fn: InferFn = infer,
+) -> dict[str, Any]:
+    """Review once and return the corrected verifier instead of issue feedback."""
+    _ = task, environment, reference_evidence
+    validate_evidence_plan(evidence_plan, specification)
+    try:
+        validate_verifier(package)
+    except ValueError as error:
+        draft_validation_error = str(error)
+    else:
+        draft_validation_error = None
+    request = {
+        "role": (
+            "你只负责把当前 verifier 转换成符合 code_constraints 的等价 Python 实现。业务判断已经冻结；"
+            "逐项检查全部限制，若已合规则原样返回，若不合规则只替换违规语法。不得删除判断，也不得修改"
+            "条件、常量、requirement ID、证据引用、ctx API 参数或 pass/fail/indeterminate 结果。"
+            "不要重新设计 verifier，不要输出问题清单。"
+        ),
+        "current_verifier": package,
+        "draft_validation_error": draft_validation_error,
+        "code_constraints": {
+            "required_structure": (
+                "source 顶层只能定义一个无装饰器的 verify(ctx)；只能有一个名为 ctx 的位置参数，"
+                "不得使用 *args 或 **kwargs；辅助函数只能定义在 verify 内。"
+            ),
+            "forbidden_syntax_nodes": sorted(node.__name__ for node in _BANNED_NODES),
+            "forbidden_calls": sorted(_BANNED_CALLS),
+            "forbidden_names": "不得使用以双下划线开头的名称，也不得访问任何以下划线开头的属性。",
+            "allowed_context_methods": sorted(_CONTEXT_METHODS),
+            "available_runtime_values": ["json", "re", "html", "math", "deepcopy", "Path"],
+            "behavior": [
+                "不得写文件、启动进程或访问 verifier 上下文的私有状态。",
+                "每个 requirement 在每条控制流恰好记录一次。",
+            ],
+        },
+        "output_instruction": "只输出 response_contract 对应的 JSON object，不要解释，不要 Markdown。",
+        "response_contract": {"source": "审查并直接修正后的完整 Python verify(ctx) 源码"},
+    }
+    response = infer_fn(json.dumps(request, ensure_ascii=False), llm_config=llm_config)
+    if not isinstance(response, InferenceResult):
+        raise ValueError("verifier review 必须返回单条结果")
+    reviewed = {
+        "schema_version": "1",
+        "requirements": _planned_requirements(specification, evidence_plan),
+        "source": _generated_source(response, stage="verifier review"),
+    }
+    validate_verifier(reviewed)
+    return reviewed
 
 
 def _validate_review(review: dict[str, Any], *, kind: str) -> None:
@@ -833,17 +1193,16 @@ def _normalize_proof_plan_channels(value: Any) -> None:
             _normalize_proof_plan_channels(child)
 
 
-def validate_proof_plan(plan: dict[str, Any], specification: dict[str, Any]) -> None:
-    """Validate a code-free, reference-aware proof plan against the frozen specification."""
-    validate_verification_spec(specification)
-    if not isinstance(plan, dict) or set(plan) != {
-        "schema_version", "bindings", "requirements", "integrity",
-    }:
-        raise ValueError("proof plan 顶层结构非法")
-    if plan["schema_version"] != "1":
-        raise ValueError("proof plan schema_version 必须为 1")
+def _proof_component(text: str, fields: set[str]) -> dict[str, Any]:
+    value = parse_json_object(text)
+    if set(value) == {"response_contract"} and isinstance(value["response_contract"], dict):
+        value = value["response_contract"]
+    if not fields <= set(value):
+        raise ValueError(f"proof plan component 缺少字段：{sorted(fields - set(value))}")
+    return {field: value[field] for field in fields}
 
-    bindings = plan["bindings"]
+
+def _validate_bindings(bindings: Any) -> set[str]:
     if not isinstance(bindings, list):
         raise ValueError("proof plan bindings 必须是数组")
     binding_ids: set[str] = set()
@@ -862,6 +1221,48 @@ def validate_proof_plan(plan: dict[str, Any], specification: dict[str, Any]) -> 
         excluded = binding["excluded_properties"]
         if not isinstance(excluded, list) or any(not isinstance(item, str) or not item for item in excluded):
             raise ValueError("proof plan excluded_properties 非法")
+    return binding_ids
+
+
+def _validate_requirement_proof_component(
+    value: dict[str, Any], requirement: dict[str, Any], binding_ids: set[str],
+) -> None:
+    used_bindings = value["binding_ids"]
+    if not isinstance(used_bindings, list) or set(used_bindings) - binding_ids:
+        raise ValueError("binding_ids 必须只引用 binding design 中的 ID")
+    _validate_plan_sources(
+        value["evidence_sources"], allowed_channels=set(requirement["evidence_channels"]),
+    )
+    if any(not isinstance(value[key], str) or not value[key].strip()
+           for key in ("proof", "disproof", "indeterminate")):
+        raise ValueError("proof、disproof 和 indeterminate 必须是非空字符串")
+
+
+def _validate_integrity_proof_component(value: dict[str, Any], requirement: dict[str, Any]) -> None:
+    _validate_plan_sources(
+        value["evidence_sources"], allowed_channels=set(requirement["evidence_channels"]),
+    )
+    if any(not isinstance(value[key], str) or not value[key].strip()
+           for key in ("observable_scope", "proof", "indeterminate")):
+        raise ValueError("integrity 文本字段必须是非空字符串")
+    violations = value["explicit_violations"]
+    if not isinstance(violations, list) or not violations or any(
+        not isinstance(item, str) or not item.strip() for item in violations
+    ):
+        raise ValueError("explicit_violations 必须是非空字符串数组")
+
+
+def validate_proof_plan(plan: dict[str, Any], specification: dict[str, Any]) -> None:
+    """Validate a code-free, reference-aware proof plan against the frozen specification."""
+    validate_verification_spec(specification)
+    if not isinstance(plan, dict) or set(plan) != {
+        "schema_version", "bindings", "requirements", "integrity",
+    }:
+        raise ValueError("proof plan 顶层结构非法")
+    if plan["schema_version"] != "1":
+        raise ValueError("proof plan schema_version 必须为 1")
+
+    binding_ids = _validate_bindings(plan["bindings"])
 
     spec_requirements = {item["id"]: item for item in specification["requirements"]}
     integrity_ids = {
@@ -941,58 +1342,192 @@ def generate_proof_plan(
         "absence_is_conclusive": False,
         "basis": "为什么该证据充分、部分或具有完整性",
     }
-    request: dict[str, Any] = {
-        "role": (
-            "你为已经冻结的验证规格制定不含代码的证明计划，不设计 Agent 应如何执行。"
-            "任务和规格定义业务结果；参考执行仅帮助理解证据位置和数据结构，不是唯一正确方案。"
-        ),
-        "principles": [
-            "参考执行只提供定位和例子；没有复现参考工具、顺序、ID、路径、字段或表示，不等于任务失败。",
-            "binding 是逻辑变量，不是任意属性值：身份必须独立于被审核属性，同一 binding 在相关 requirement 中保持一致。",
-            "binding 可以对应候选集合；不得擅自取第一个、要求恰好一个或把多个同类对象强行合并，除非任务明确限制。",
-            "默认一个 binding 表示一个业务实体；只有任务明确要求多个对象或集合结果时才使用集合，候选集合不能替代单实体 claim。",
-            "任务未明确限制数量时不得增加数量上限；候选集合的多个成员可以共同承载结果。",
-            "证明是寻找一组一致的见证赋值，使 claim 成立；不同 requirement 可以由同一对象或候选集合中的不同对象满足。",
-            "pass 需要充分直接证据；fail 需要明确反证或完整权威来源中的决定性缺失；partial、不可读和冲突证据只能 indeterminate。",
-            "task 定义标准，environment_contract 定义可使用的路径、字段、枚举和稳定标识；reference_observation 只能作 locator 或 example。",
-            "优先使用 Schema 完整的只读工具或明确数据契约，不猜测环境未声明的容器、字段或格式。",
-            "证据 channel 只能使用 workspace、tool_trace、answer；核验工具结果统一归入 tool_trace。",
-            "完整性检查判断可观察副作用是否与任务相关、无关、破坏性或冲突，不把参考 diff 当作变化白名单。",
-        ],
+    principles = [
+        "参考执行只提供定位和例子；没有复现参考工具、顺序、ID、路径、字段或表示，不等于任务失败。",
+        "binding 是待赋值的逻辑变量：候选域由业务类型和可观察范围界定，不能用正在审核的属性预先筛出正确答案。",
+        "binding 的业务身份必须包含任务明确给出的名称、类型、归属关系或其他稳定标识；不得遗漏这些身份条件，也不得用任务未要求的属性补强身份关联。",
+        "binding 只用于需要在候选域中独立选择的业务对象。若 requirement 要求父对象的完整成员集合满足全部、每个或覆盖条件，不要把每个集合成员建成存在性 binding；在父对象 assignment 内把完整集合交给该 requirement 整体判断。",
+        "同一 binding 出现在多个 requirement 时，这些 requirement 必须由同一个候选对象同时满足，不能跨对象拼接证据。",
+        "任务以单数指代的每个业务实体、交付物或关联实体都应有独立 binding；不能把评论、附件、关联等集合藏在父对象中，再让不同 requirement 各自选择不同成员。",
+        "候选域可以有任意多个成员；选择一个见证赋值不代表环境中只允许存在一个该类对象。",
+        "任务未明确限制数量时不得增加数量上限；候选域的每个成员分别形成 assignment，不能合并字段共同证明单个对象。",
+        "证明是寻找一组一致的见证赋值：共享 binding 的 requirement 共同约束同一对象；没有共享 binding 的并列结果可以分别寻找见证。",
+        "pass 需要充分直接证据；fail 需要明确反证或完整权威来源中的决定性缺失；partial、不可读和冲突证据只能 indeterminate。",
+        "task 定义标准，environment_contract 定义可使用的路径、字段、枚举和稳定标识；reference_observation 只能作 locator 或 example。",
+        "优先使用 Schema 完整的只读工具或明确数据契约，不猜测环境未声明的容器、字段或格式。",
+        "证据 channel 只能使用 workspace、tool_trace、answer；核验工具结果统一归入 tool_trace。",
+        "完整性检查只寻找明确的无关、破坏性或冲突副作用，不把参考 diff 或预期写入集合当作变化白名单。",
+    ]
+    common: dict[str, Any] = {
+        "principles": principles,
         "task": task.get("task_text"),
         "environment": environment,
-        "specification": specification,
         "reference_evidence": _generation_evidence(reference_evidence),
+        "output_instruction": "只输出 response_contract 描述的一个 JSON object，不要解释、markdown 或额外文字。",
+    }
+    non_integrity = [
+        item for item in specification["requirements"] if item["outcome_type"] != "execution_integrity"
+    ]
+    integrity = next(
+        item for item in specification["requirements"] if item["outcome_type"] == "execution_integrity"
+    )
+    binding_request = {
+        **common,
+        "component": "binding_design",
+        "role": (
+            "只设计证明计划中的逻辑变量和候选域，不写各 requirement 的判定。"
+            "同时一次性决定每项非完整性 requirement 使用哪些 binding；共享业务对象必须共享 binding，"
+            "同一条子实体承载多项要求时也必须共享其 binding。动态 ID 可以标识枚举出的候选，"
+            "但不能要求 Agent 必须通过参考工具返回该 ID。集合成员只有在任务要求独立选择某个成员时才建 binding；"
+            "全部、每个或覆盖等集合条件保留为父对象 assignment 内的整体谓词。"
+        ),
+        "specification": specification,
         "response_contract": {
-            "schema_version": "1",
             "bindings": [{
-                "id": "B1", "business_identity": "最小业务身份",
+                "id": "B1",
+                "business_identity": "候选业务类型、可观察范围和身份关联；不包含被审核属性",
                 "identity_evidence": [source_contract],
-                "excluded_properties": ["不能参与身份识别的被审核属性"],
+                "excluded_properties": ["不能用于预筛候选的被审核属性"],
             }],
-            "requirements": [{
-                "requirement_id": "R1", "binding_ids": ["B1"],
-                "evidence_sources": [source_contract],
-                "proof": "充分证明", "disproof": "明确反证",
-                "indeterminate": "证据不足边界",
-            }],
-            "integrity": {
-                "requirement_id": "execution_integrity 对应 ID",
-                "observable_scope": "实际可观察范围", "evidence_sources": [source_contract],
-                "proof": "如何证明可观察变化均可解释",
-                "explicit_violations": ["明确无关、破坏性或冲突的变化"],
-                "indeterminate": "无法归因或观察不完整的边界",
+            "requirement_bindings": {
+                item["id"]: ["B1"] for item in non_integrity
             },
         },
     }
     if previous_issues:
-        request["previous_issues"] = previous_issues
-        request["revision_instruction"] = "重新生成完整证明计划并逐项解决 previous_issues。"
-    plan = parse_json_object(infer_fn(
-        json.dumps(request, ensure_ascii=False), llm_config=llm_config,
-    ).text)
-    if set(plan) == {"response_contract"} and isinstance(plan["response_contract"], dict):
-        plan = plan["response_contract"]
+        binding_issues = [
+            issue for issue in previous_issues
+            if not isinstance(issue, dict) or issue.get("code") in {"identity_depends_on_result", "wrong_binding"}
+            or not issue.get("requirement_ids")
+        ]
+        if binding_issues:
+            binding_request["previous_issues"] = binding_issues
+    binding_error: Exception | None = None
+    for _ in range(3):
+        try:
+            binding_response = infer_fn(json.dumps(binding_request, ensure_ascii=False), llm_config=llm_config)
+            if not isinstance(binding_response, InferenceResult):
+                raise ValueError("proof plan binding design 必须返回单条结果")
+            binding_value = _proof_component(
+                binding_response.text, {"bindings", "requirement_bindings"},
+            )
+            bindings = binding_value["bindings"]
+            _normalize_proof_plan_channels(bindings)
+            binding_ids = _validate_bindings(bindings)
+            requirement_bindings = binding_value["requirement_bindings"]
+            expected_requirement_ids = {item["id"] for item in non_integrity}
+            if (not isinstance(requirement_bindings, dict)
+                    or set(requirement_bindings) != expected_requirement_ids
+                    or any(not isinstance(ids, list) or set(ids) - binding_ids
+                           for ids in requirement_bindings.values())):
+                raise ValueError("requirement_bindings 必须恰好覆盖非完整性 requirements 并只引用已有 binding")
+            break
+        except Exception as error:
+            binding_error = error
+            binding_request["format_correction"] = str(error)
+    else:
+        raise ValueError(f"proof plan binding design 结构非法：{binding_error}")
+
+    requests: list[str] = []
+    requirement_contract = {
+        "evidence_sources": [source_contract],
+        "proof": "充分证明", "disproof": "明确反证", "indeterminate": "证据不足边界",
+    }
+    for requirement in non_integrity:
+        request = {
+            **common,
+            "component": "requirement_proof",
+            "role": (
+                "只为给定的一项冻结 requirement 制定证明义务。binding_ids 已由全局 binding design 固定，"
+                "不要返回或改变它们；不要返回 requirement_id。proof 和 disproof 都只描述当前一个 assignment 的局部谓词，"
+                "候选域完整性和不存在共同满足 assignment 的全局结论由运行时代码处理。只验证本 requirement 的属性，"
+                "不要重复、强化或借用同组其他 requirement 负责的属性。所有合法的环境声明字段都可作为证据载体。"
+            ),
+            "bindings": bindings,
+            "binding_ids": requirement_bindings[requirement["id"]],
+            "requirement": requirement,
+            "response_contract": requirement_contract,
+        }
+        if previous_issues:
+            relevant = [
+                issue for issue in previous_issues
+                if not isinstance(issue, dict) or not issue.get("requirement_ids")
+                or requirement["id"] in issue["requirement_ids"]
+            ]
+            if relevant:
+                request["previous_issues"] = relevant
+        requests.append(json.dumps(request, ensure_ascii=False))
+    integrity_request = {
+        **common,
+        "component": "integrity_proof",
+        "role": (
+            "只制定执行完整性证明。通过表示在完整可观察范围内未发现明确违规；"
+            "失败必须指出实际可观察的无关、破坏性或冲突副作用，不能建立允许变化白名单。"
+            "不要返回 requirement_id，它由代码固定。"
+        ),
+        "requirement": integrity,
+        "response_contract": {
+            "observable_scope": "实际可观察范围", "evidence_sources": [source_contract],
+            "proof": "完整范围内没有明确违规",
+            "explicit_violations": ["明确无关、破坏性或冲突的变化"],
+            "indeterminate": "无法归因或观察不完整的边界",
+        },
+    }
+    if previous_issues:
+        relevant = [
+            issue for issue in previous_issues
+            if not isinstance(issue, dict) or not issue.get("requirement_ids")
+            or integrity["id"] in issue["requirement_ids"]
+        ]
+        if relevant:
+            integrity_request["previous_issues"] = relevant
+    requests.append(json.dumps(integrity_request, ensure_ascii=False))
+    requirement_fields = {"evidence_sources", "proof", "disproof", "indeterminate"}
+    integrity_fields = {
+        "observable_scope", "evidence_sources", "proof", "explicit_violations", "indeterminate",
+    }
+    expected_fields = [requirement_fields] * len(non_integrity) + [integrity_fields]
+    objects: list[dict[str, Any] | None] = [None] * len(requests)
+    pending = list(range(len(requests)))
+    errors: dict[int, Exception] = {}
+    for _ in range(3):
+        if not pending:
+            break
+        responses = _infer_component_batch([requests[index] for index in pending], llm_config, infer_fn)
+        retry: list[int] = []
+        for index, response in zip(pending, responses):
+            try:
+                value = _proof_component(response.text, expected_fields[index])
+                _normalize_proof_plan_channels(value)
+                if index < len(non_integrity):
+                    value["binding_ids"] = requirement_bindings[non_integrity[index]["id"]]
+                    _validate_requirement_proof_component(
+                        value, non_integrity[index], {item["id"] for item in bindings},
+                    )
+                else:
+                    _validate_integrity_proof_component(value, integrity)
+                objects[index] = value
+                errors.pop(index, None)
+            except (ValueError, TypeError) as error:
+                errors[index] = error
+                request = json.loads(requests[index])
+                request["format_correction"] = str(error)
+                requests[index] = json.dumps(request, ensure_ascii=False)
+                retry.append(index)
+        pending = retry
+    if pending:
+        detail = "; ".join(f"{index + 1}: {errors[index]}" for index in pending)
+        raise ValueError(f"proof plan components 结构非法：{detail}")
+    completed = [value for value in objects if value is not None]
+    plan = {
+        "schema_version": "1",
+        "bindings": bindings,
+        "requirements": [
+            {"requirement_id": requirement["id"], **value}
+            for requirement, value in zip(non_integrity, completed[:-1])
+        ],
+        "integrity": {"requirement_id": integrity["id"], **completed[-1]},
+    }
     _normalize_proof_plan_channels(plan)
     validate_proof_plan(plan, specification)
     return plan
@@ -1014,14 +1549,21 @@ def review_proof_plan(
         "role": (
             "你独立审核证明计划，不修改它。对每个 fail 条件追问：它是否有完整、直接、"
             "决定性的反证，还是只说明 Agent 没按参考方式执行；后者必须拒绝。检查 binding 是否"
-            "保持同一业务身份、是否保留候选集合、是否把 partial 缺失误当失败、是否引入数量上限，"
+            "保持同一业务身份、共享 binding 的要求是否必须由同一 assignment 满足、是否把 partial 缺失误当失败、是否引入数量上限，"
             "以及 integrity 是否把参考变化误当白名单。环境契约明确声明的事实是可用约束，不属于 reference_overfit；"
-            "任何会把正确替代实现判错的路径都必须拒绝。"
+            "任何会把正确替代实现判错的路径都必须拒绝。运行时会枚举候选域的 assignment，并接受其中任一同时满足"
+            "整个 witness group 的赋值；因此不要要求 proof plan 预先从参考工具调用锁定唯一动态 ID，也不要把一个候选"
+            "不满足误解为所有候选都不满足。每项 disproof 只淘汰当前 assignment；只有完整候选域不存在共同满足项时"
+            "才会全局失败。同一条评论、附件或关联若承载多个要求，必须有自己的 binding，不能在父对象集合内拼接。"
+            "binding 必须保留任务明示的业务身份，但不得用任务未要求的属性建立或补强身份。单项 proof/disproof 不能"
+            "重复或强化同组其他 requirement 负责的属性。不要把完整集合的每个成员误建成存在性 binding；集合全称条件"
+            "应在父对象 assignment 内基于完整成员集合判断。"
         ),
         "task": task.get("task_text"),
         "environment": environment,
         "specification": specification,
         "proof_plan": plan,
+        "witness_groups": _witness_groups(plan),
         "reference_evidence": _generation_evidence(reference_evidence),
         "response_contract": {
             "approved": "boolean；仅当 issues 为空时为 true",
@@ -1050,6 +1592,47 @@ def _frozen_requirements(specification: dict[str, Any]) -> list[dict[str, Any]]:
     } for item in specification["requirements"]]
 
 
+def _planned_requirements(
+    specification: dict[str, Any], evidence_plan: dict[str, Any],
+) -> list[dict[str, Any]]:
+    planned_sources = {
+        item["requirement_id"]: item["sources"] for item in evidence_plan["requirements"]
+    }
+    requirements = _frozen_requirements(specification)
+    for requirement in requirements:
+        requirement["evidence_channels"] = list(dict.fromkeys([
+            *requirement["evidence_channels"], *planned_sources[requirement["id"]],
+        ]))
+    return requirements
+
+
+def _witness_groups(proof_plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Derive existential groups from requirements that share binding variables."""
+    groups: list[dict[str, Any]] = []
+    for requirement in proof_plan.get("requirements", []):
+        binding_ids = set(requirement.get("binding_ids", []))
+        if not binding_ids:
+            continue
+        matches = [index for index, group in enumerate(groups) if binding_ids & set(group["binding_ids"])]
+        if not matches:
+            groups.append({
+                "group_id": "",
+                "requirement_ids": [requirement["requirement_id"]],
+                "binding_ids": sorted(binding_ids),
+            })
+            continue
+        target = groups[matches[0]]
+        target["requirement_ids"].append(requirement["requirement_id"])
+        target["binding_ids"] = sorted(set(target["binding_ids"]) | binding_ids)
+        for index in reversed(matches[1:]):
+            merged = groups.pop(index)
+            target["requirement_ids"].extend(merged["requirement_ids"])
+            target["binding_ids"] = sorted(set(target["binding_ids"]) | set(merged["binding_ids"]))
+    for index, group in enumerate(groups, start=1):
+        group["group_id"] = f"G{index}"
+    return groups
+
+
 def _component_function(response: InferenceResult, name: str, arguments: tuple[str, ...]) -> ast.FunctionDef:
     source = response.text.strip()
     lines = source.splitlines()
@@ -1057,12 +1640,28 @@ def _component_function(response: InferenceResult, name: str, arguments: tuple[s
             and lines[-1].strip() == "```":
         source = "\n".join(lines[1:-1]).strip()
     if not source.startswith(f"def {name}("):
-        generated = parse_json_object(response.text)
-        if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
-            generated = generated["response_contract"]
-        if not isinstance(generated.get("source"), str):
-            raise ValueError(f"verifier {name} component 必须返回 source")
-        source = generated["source"].strip()
+        try:
+            module = ast.parse(source)
+        except SyntaxError:
+            module = None
+        if module is not None:
+            imports = [node for node in module.body if isinstance(node, ast.Import)]
+            functions = [node for node in module.body if isinstance(node, ast.FunctionDef)]
+            allowed_modules = {"html", "json", "math", "re"}
+            if (len(functions) == 1 and len(imports) + len(functions) == len(module.body)
+                    and all(
+                        isinstance(node, ast.Import)
+                        and all(alias.name in allowed_modules and alias.asname is None for alias in node.names)
+                        for node in imports
+                    )):
+                source = ast.unparse(functions[0]).strip()
+        if not source.startswith(f"def {name}("):
+            generated = parse_json_object(response.text)
+            if set(generated) == {"response_contract"} and isinstance(generated["response_contract"], dict):
+                generated = generated["response_contract"]
+            if not isinstance(generated.get("source"), str):
+                raise ValueError(f"verifier {name} component 必须返回 source")
+            source = generated["source"].strip()
     try:
         tree = ast.parse(source)
     except SyntaxError as error:
@@ -1077,6 +1676,7 @@ def _component_function(response: InferenceResult, name: str, arguments: tuple[s
         raise ValueError(f"verifier {name} component 必须定义 {name}({', '.join(arguments)})")
     reporters = {
         "pass_requirement", "fail_requirement", "indeterminate_requirement", "semantic_requirement",
+        "candidate_group",
     }
     if any(
         isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
@@ -1157,6 +1757,83 @@ def _assemble_verifier(prepare: ast.FunctionDef, checks: list[ast.FunctionDef], 
     return ast.unparse(ast.fix_missing_locations(module))
 
 
+def _assemble_witness_verifier(
+    prepare: ast.FunctionDef,
+    checks: list[ast.FunctionDef],
+    groups: list[dict[str, Any]],
+    direct_requirement_ids: str | list[str],
+    requirement_ids: list[str] | None = None,
+) -> str:
+    """Assemble checks so one assignment must satisfy every requirement in its group."""
+    direct_ids = [direct_requirement_ids] if isinstance(direct_requirement_ids, str) else direct_requirement_ids
+    ordered_ids = requirement_ids or [
+        requirement_id for group in groups for requirement_id in group["requirement_ids"]
+    ] + direct_ids
+    check_names = {requirement_id: f"check_{index}" for index, requirement_id in enumerate(ordered_ids, start=1)}
+    group_source = "[" + ", ".join(
+        "(" + repr(group["group_id"]) + ", " + repr(group["binding_ids"]) + ", [" + ", ".join(
+            f"({requirement_id!r}, {check_names[requirement_id]})"
+            for requirement_id in group["requirement_ids"]
+        ) + "])" for group in groups
+    ) + "]"
+    body: list[ast.stmt] = [prepare, *checks, *ast.parse(
+        "shared = prepare(ctx)\n"
+        "prepared_groups = shared.get('groups', {}) if isinstance(shared, dict) else {}\n"
+        f"for group_id, binding_ids, requirement_checks in {group_source}:\n"
+        "    group = prepared_groups.get(group_id, {})\n"
+        "    assignments = group.get('assignments', []) if isinstance(group, dict) else []\n"
+        "    complete = group.get('complete') is True if isinstance(group, dict) else False\n"
+        "    reason = group.get('reason', 'candidate assignment domain is unavailable') if isinstance(group, dict) else 'candidate assignment domain is unavailable'\n"
+        "    evidence_refs = group.get('evidence_refs', []) if isinstance(group, dict) else []\n"
+        "    if not isinstance(assignments, list):\n"
+        "        assignments = []\n"
+        "        complete = False\n"
+        "    rows = []\n"
+        "    for assignment_index, assignment in enumerate(assignments):\n"
+        "        if not isinstance(assignment, dict) or any(binding_id not in assignment for binding_id in binding_ids):\n"
+        "            complete = False\n"
+        "            continue\n"
+        "        row_results = []\n"
+        "        for requirement_id, checker in requirement_checks:\n"
+        "            try:\n"
+        "                result = checker(deepcopy(shared), deepcopy(assignment))\n"
+        "            except Exception as error:\n"
+        "                result = {'status': 'indeterminate', 'reason': 'checker execution failed: ' + str(error), 'evidence_refs': []}\n"
+        "            if not isinstance(result, dict) or set(result) != {'status', 'reason', 'evidence_refs'}:\n"
+        "                result = {'status': 'indeterminate', 'reason': 'checker returned an invalid result', 'evidence_refs': []}\n"
+        "            elif result['status'] not in ('pass', 'fail', 'indeterminate', 'semantic'):\n"
+        "                result = {'status': 'indeterminate', 'reason': 'checker returned an invalid status', 'evidence_refs': []}\n"
+        "            row_results.append({'requirement_id': requirement_id, **result})\n"
+        "        rows.append({'assignment_id': str(assignment_index), 'results': row_results})\n"
+        "    ctx.candidate_group(group_id, [item[0] for item in requirement_checks], complete, reason, evidence_refs, rows)\n"
+    ).body]
+    for requirement_id in direct_ids:
+        check_name = check_names[requirement_id]
+        body.extend(ast.parse(
+            f"try:\n"
+            f"    result = {check_name}(deepcopy(shared), {{}})\n"
+            f"except Exception as error:\n"
+            f"    result = {{'status': 'indeterminate', 'reason': 'checker execution failed: ' + str(error), 'evidence_refs': []}}\n"
+            f"if not isinstance(result, dict) or set(result) != {{'status', 'reason', 'evidence_refs'}}:\n"
+            f"    ctx.indeterminate_requirement({requirement_id!r}, 'checker returned an invalid result', [])\n"
+            f"elif result['status'] == 'pass':\n"
+            f"    ctx.pass_requirement({requirement_id!r}, result['reason'], result['evidence_refs'])\n"
+            f"elif result['status'] == 'fail':\n"
+            f"    ctx.fail_requirement({requirement_id!r}, result['reason'], result['evidence_refs'])\n"
+            f"elif result['status'] == 'semantic':\n"
+            f"    ctx.semantic_requirement({requirement_id!r}, result['reason'], result['evidence_refs'])\n"
+            f"else:\n"
+            f"    ctx.indeterminate_requirement({requirement_id!r}, result['reason'], result['evidence_refs'])\n"
+        ).body)
+    module = ast.Module(body=[ast.FunctionDef(
+        name="verify",
+        args=ast.arguments(posonlyargs=[], args=[ast.arg(arg="ctx")], kwonlyargs=[], kw_defaults=[], defaults=[]),
+        body=body,
+        decorator_list=[],
+    )], type_ignores=[])
+    return ast.unparse(ast.fix_missing_locations(module))
+
+
 def generate_verifier(
     task: dict[str, Any],
     environment: dict[str, Any],
@@ -1174,6 +1851,12 @@ def generate_verifier(
         if proof_plan is None:
             raise ValueError("冻结规格必须提供 proof_plan")
         validate_proof_plan(proof_plan, specification)
+        witness_groups = _witness_groups(proof_plan)
+        grouped_ids = {
+            requirement_id for group in witness_groups for requirement_id in group["requirement_ids"]
+        }
+        requirement_ids = [item["id"] for item in specification["requirements"]]
+        direct_ids = [requirement_id for requirement_id in requirement_ids if requirement_id not in grouped_ids]
         principles = [
             "先把冻结规格和 proof_plan 当作唯一判定契约：prepare 只收集、解析和标注观察，check 只对一项 claim 判定。",
             "确定性结构、数值、ID、数量和状态由代码比较；自然语言含义才返回 semantic。",
@@ -1183,12 +1866,15 @@ def generate_verifier(
             "参考执行只用于定位证据；不得把参考 ID、路径、调用顺序、工具选择、表示方式或措辞变成条件。",
             "环境契约明确声明的路径、字段、枚举和稳定标识可以直接使用；不得猜测未声明的容器、字段或格式。",
             "Schema 完整的只读工具或明确数据契约优先；不得猜测环境未声明的容器、字段或格式。",
-            "proof_plan 中的 binding 是候选集合和身份约束，不得擅自取第一个、要求恰好一个或把不同候选强行合并。",
-            "默认一个 binding 解析为一个业务实体；只有任务明确要求多个对象或集合结果时才保留集合，不能用集合拼接单实体结果。",
+            "proof_plan 中的 binding 是逻辑变量；先枚举业务类型范围内所有可观察候选，再形成 assignment，不得用被审核属性预筛正确答案。",
+            "任务以单数指代的评论、附件、关联或其他子实体必须分别绑定；assignment 要保留实体关系，不能在父对象的集合字段中跨成员拼接要求。",
+            "同一 witness group 的所有 requirement 必须针对同一个 assignment 判断；不能让不同候选分别满足其中一部分要求。",
+            "选择一个通过的 assignment 只是存在性见证，不限制环境中同类对象的总数。",
             "完整证据明确反驳要求时必须 fail；缺失、不可读、partial 或冲突时才 indeterminate。",
             "执行完整性必须保留集合数量和重复项，并判断每个额外副作用是否与任务相关、无关、破坏性或冲突。",
             "prepare 可以使用 ctx 读取证据和调用核验工具，但不得记录 requirement；每次核验调用都必须保留稳定 evidence_ref。",
-            "check 的签名必须是 check(shared)，只能读取 shared，不能访问 ctx、调用工具、读取文件、写文件或使用私有状态。",
+            "check 的签名必须是 check(shared, assignment)，只能判断传入的一个 assignment，不能搜索或改选其他候选，也不能访问 ctx、调用工具、读取文件、写文件或使用私有状态。",
+            "组件源码不要包含 import；运行时已提供 json、re、html、math、deepcopy 和 Path。",
             "check 必须返回一个结果对象，不得自行记录 requirement；运行时会隔离每个 check，异常只影响该项并转为 indeterminate。",
         ]
         context_api = {
@@ -1209,11 +1895,15 @@ def generate_verifier(
             "implementation_principles": [
                 *principles,
                 "业务对象身份不得依赖正在审核的属性；共享结果必须保留候选集合、无法区分、明确缺失、读取失败和冲突状态。",
+                "返回 dict 必须包含 groups；每个固定 group_id 对应 assignments、complete、reason、evidence_refs，assignments 不得静默截断。",
+                "每个 assignment 必须为该 group 的每个 binding_id 提供一个候选值，并只保留环境证据支持的实体关系组合。",
+                "complete 只有在候选域被完整观察时才为 true；读取失败、分页未穷尽或来源 partial 时必须为 false。",
                 "source 只能定义 prepare(ctx)，并返回一个 dict；不得调用任何 requirement 记录方法。",
             ],
             "environment": environment,
             "specification": specification,
             "proof_plan": proof_plan,
+            "witness_groups": witness_groups,
             "verifier_context_api": context_api,
             "response_contract": {"source": "Python source defining prepare(ctx)"},
         }
@@ -1242,11 +1932,14 @@ def generate_verifier(
                 "environment": environment,
                 "requirement": requirement,
                 "proof_plan": plans.get(requirement["id"], {}),
+                "witness_group": next((
+                    group for group in witness_groups if requirement["id"] in group["requirement_ids"]
+                ), None),
                 "shared_source": ast.unparse(prepare),
                 "shared_contract": {
                     "observations": "已读取或核验的原始事实及其 complete|partial|unreadable|conflict 状态",
-                    "candidates": "按业务身份保留的候选集合，不得默认只有一个成员",
-                    "bindings": "proof_plan binding 到候选集合的解析结果及身份证据",
+                    "groups": "按固定 group_id 保存 assignments、complete、reason、evidence_refs",
+                    "assignment": "运行时单独传给 check 的 binding_id 到一个候选对象的映射",
                     "evidence": "每个观察的来源、完整性和稳定 evidence_ref",
                     "errors": "读取或核验失败，不得静默当作空结果",
                 },
@@ -1256,7 +1949,7 @@ def generate_verifier(
                 ],
                 "response_contract": {
                     "source": (
-                        "Python source defining check(shared), returning exactly "
+                        "Python source defining check(shared, assignment), returning exactly "
                         "{'status': 'pass|fail|indeterminate|semantic', 'reason': str, 'evidence_refs': list[str]}"
                     ),
                 },
@@ -1274,14 +1967,14 @@ def generate_verifier(
         for index, response in enumerate(check_responses, start=1):
             if not isinstance(response, InferenceResult):
                 raise ValueError("verifier requirement check 返回类型不正确")
-            function = _component_function(response, "check", ("shared",))
+            function = _component_function(response, "check", ("shared", "assignment"))
             function.name = f"check_{index}"
             checks.append(function)
         package = {
             "schema_version": "1",
             "requirements": _frozen_requirements(specification),
-            "source": _assemble_verifier(
-                prepare, checks, [item["id"] for item in specification["requirements"]],
+            "source": _assemble_witness_verifier(
+                prepare, checks, witness_groups, direct_ids, requirement_ids,
             ),
         }
         validate_verifier(package)
@@ -1396,9 +2089,9 @@ def review_verifier_implementation(
             "Each requirement is reported exactly once on every reachable path.",
             "Every pass path cites evidence sufficient for the frozen pass condition.",
             "Fail and indeterminate paths follow the frozen evidence boundaries.",
-            "The runtime contract is part of the implementation: prepare(ctx) observes evidence, each check(shared) receives only a copied shared object, and checker exceptions become indeterminate for that requirement without aborting later checks.",
+            "The runtime contract is part of the implementation: prepare(ctx) enumerates assignments, each check(shared, assignment) evaluates exactly one assignment, and checker exceptions become indeterminate without aborting later checks.",
             "Shared preparation preserves candidate multiplicity, identity evidence, completeness states, errors, and stable evidence references; it does not choose a witness or produce a verdict.",
-            "A check(shared) cannot access ctx, call tools, read or write files, or use private runtime state; it returns only one result object for its assigned requirement.",
+            "A check(shared, assignment) cannot access ctx, call tools, read or write files, search other candidates, or use private runtime state; it returns only one result object for its assigned requirement.",
             "No reference-specific tool, order, generated identifier, path, representation, or wording is required.",
             "Paths, fields, enums, and stable identifiers declared by the current environment contract are required specialization, not reference overfitting.",
             "Prefer schema-defined tools or explicit data contracts over guessed file representations; reject code that assumes undeclared containers or fields.",
@@ -1407,8 +2100,8 @@ def review_verifier_implementation(
             "Semantic judgments are not replaced by substring heuristics; deterministic facts are not delegated unnecessarily.",
         ],
         "runtime_contract": {
-            "prelude": "Generated verifier source runs with the runtime prelude, including deepcopy; the model must not add imports.",
-            "stages": "verify(ctx) calls prepare(ctx) once, then invokes each check(shared) with an isolated copy.",
+            "prelude": "Generated verifier source runs with json, re, html, math, deepcopy, and Path already loaded; component imports are removed before assembly.",
+            "stages": "verify(ctx) calls prepare(ctx) once, evaluates every requirement against each assignment in its witness group, then selects one consistent assignment mechanically.",
             "isolation": "A checker exception or malformed result becomes indeterminate for that requirement only; later requirements still run.",
             "evidence": "Verifier tool records expose stable verifier_call:N evidence references.",
         },
@@ -1795,14 +2488,14 @@ def assess_task_reference_conflict(
     return assessment
 
 
-def prepare_verifier(
+def _prepare_verifier_legacy(
     task: dict[str, Any],
     environment: dict[str, Any],
     reference_evidence: dict[str, Any],
     empty_evidence: dict[str, Any],
     llm_config: dict[str, Any],
     *,
-    attempts: int = 3,
+    attempts: int = 5,
     infer_fn: InferFn = infer,
     initial_state: Path | None = None,
     final_state: Path | None = None,
@@ -1811,6 +2504,11 @@ def prepare_verifier(
     """Freeze a reviewed specification, then generate and calibrate its implementation."""
     if attempts < 1:
         raise ValueError("attempts 必须大于 0")
+    # 规格和证明只判断任务语义与可观察证据；完整工具 Schema 只在生成可执行
+    # verifier 时需要。把两者分开可避免把大量无关参数定义重复塞进每次审查请求。
+    design_environment = {
+        key: value for key, value in environment.items() if key != "tools"
+    }
     history: list[dict[str, Any]] = []
     previous_spec_issues: list[dict[str, Any]] | None = None
     specification: dict[str, Any] | None = None
@@ -1819,12 +2517,12 @@ def prepare_verifier(
         candidate: dict[str, Any] | None = None
         try:
             candidate = generate_verification_spec(
-                task, environment, llm_config,
+                task, design_environment, llm_config,
                 infer_fn=infer_fn,
                 previous_issues=previous_spec_issues,
             )
             review = review_verification_spec(
-                task, environment, candidate, llm_config, infer_fn=infer_fn,
+                task, design_environment, candidate, llm_config, infer_fn=infer_fn,
             )
         except Exception as error:
             issue = {
@@ -1864,11 +2562,11 @@ def prepare_verifier(
         candidate_plan: dict[str, Any] | None = None
         try:
             candidate_plan = generate_proof_plan(
-                task, environment, specification, reference_evidence, llm_config,
+                task, design_environment, specification, reference_evidence, llm_config,
                 infer_fn=infer_fn, previous_issues=previous_plan_issues,
             )
             review = review_proof_plan(
-                task, environment, specification, candidate_plan, reference_evidence,
+                task, design_environment, specification, candidate_plan, reference_evidence,
                 llm_config, infer_fn=infer_fn,
             )
         except Exception as error:
@@ -1993,3 +2691,59 @@ def prepare_verifier(
         })
         return package, calibration, history
     raise VerifierPreparationError(history)
+
+
+def prepare_verifier(
+    task: dict[str, Any],
+    environment: dict[str, Any],
+    reference_evidence: dict[str, Any],
+    empty_evidence: dict[str, Any],
+    llm_config: dict[str, Any],
+    *,
+    attempts: int = 1,
+    infer_fn: InferFn = infer,
+    initial_state: Path | None = None,
+    final_state: Path | None = None,
+    tools: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    """Build one verifier through four single-pass stages before Agent execution."""
+    if attempts < 1:
+        raise ValueError("attempts 必须大于 0")
+    # Retain the established call signature while deliberately removing retry and calibration loops.
+    _ = empty_evidence, initial_state, final_state, tools
+    history: list[dict[str, Any]] = []
+
+    def run_stage(stage: str, operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        try:
+            result = operation()
+        except Exception as error:
+            history.append({
+                "stage": stage,
+                "attempt": 1,
+                "error": f"{type(error).__name__}: {error}"[:4000],
+            })
+            raise VerifierPreparationError(history) from error
+        history.append({"stage": stage, "attempt": 1, "error": None, stage: result})
+        return result
+
+    specification = run_stage("subtask_plan", lambda: generate_verification_spec(
+        task, environment, llm_config, infer_fn=infer_fn,
+    ))
+    evidence_plan = run_stage("evidence_plan", lambda: generate_evidence_plan(
+        task, environment, specification, reference_evidence, llm_config, infer_fn=infer_fn,
+    ))
+    generated = run_stage("implementation", lambda: generate_planned_verifier(
+        task, environment, specification, evidence_plan, reference_evidence,
+        llm_config, infer_fn=infer_fn,
+    ))
+    reviewed = run_stage("implementation_review", lambda: review_and_revise_verifier(
+        task, environment, specification, evidence_plan, generated, reference_evidence,
+        llm_config, infer_fn=infer_fn,
+    ))
+    validate_verifier(reviewed)
+    metadata = {
+        "status": "reviewed",
+        "specification": specification,
+        "evidence_plan": evidence_plan,
+    }
+    return reviewed, metadata, history

@@ -98,7 +98,10 @@ class ToolGraphLLMTest(unittest.TestCase):
         records: list[dict[str, object]] = []
 
         class FakeCodexClient:
+            last_kwargs = {}
+
             def __init__(self, **kwargs) -> None:
+                type(self).last_kwargs = kwargs
                 self.model = kwargs.get("model")
                 self.kwargs = kwargs
 
@@ -118,6 +121,7 @@ class ToolGraphLLMTest(unittest.TestCase):
                     "model": "test-codex",
                     "max_concurrency": 1,
                     "timeout_seconds": 30,
+                    "codex_home": "~/.codex-task-eval",
                 },
             )
 
@@ -131,6 +135,8 @@ class ToolGraphLLMTest(unittest.TestCase):
         self.assertTrue(all(record["step"] == "step_4_task_compose" for record in records))
         self.assertTrue(all(record["backend"] == "codex" for record in records))
         self.assertTrue(all(record["usage"] == {} for record in records))
+
+        self.assertEqual(FakeCodexClient.last_kwargs["codex_home"], "~/.codex-task-eval")
 
     def test_parse_json_object_accepts_reasoning_wrapper_and_fence(self) -> None:
         self.assertEqual(

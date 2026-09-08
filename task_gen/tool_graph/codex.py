@@ -81,6 +81,7 @@ class CodexAgentClient:
         model: str | None = None,
         base_url: str | None = None,
         api_key: str | None = None,
+        codex_home: str | Path | None = None,
         executable: str | None = None,
         timeout_seconds: int = 1800,
         sandbox: str = "workspace-write",
@@ -96,6 +97,7 @@ class CodexAgentClient:
         self.model = model
         self.base_url = base_url
         self.api_key = api_key
+        self.codex_home = Path(codex_home).expanduser().resolve() if codex_home else None
         self.executable = executable
         self.timeout_seconds = timeout_seconds
         self.sandbox = sandbox
@@ -224,10 +226,12 @@ class CodexAgentClient:
             stdout_log = Path(run_log_directory) / "stdout.log"
             stderr_log = Path(run_log_directory) / "stderr.log"
             environment = dict(os.environ)
+            if self.codex_home is not None:
+                environment["CODEX_HOME"] = str(self.codex_home)
             # DataGen 启动的是独立研究 Agent，不是当前 IDE/Codex 会话的子回合。
             # 继承这些标识会让 ``codex exec`` 误绑定父线程或父权限配置，出现
-            # 未执行任何工具就结束的情况。保留 CODEX_HOME 以继续使用认证和
-            # provider 配置，但显式移除父会话身份。
+            # 未执行任何工具就结束的情况。CODEX_HOME 可由调用方显式隔离；
+            # 未配置时继承当前用户的认证和 provider 配置。
             for name in _PARENT_SESSION_ENV:
                 environment.pop(name, None)
             environment.setdefault("NO_COLOR", "1")

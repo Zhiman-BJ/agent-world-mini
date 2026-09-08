@@ -256,6 +256,7 @@ def _infer_codex(
     """
     client = CodexAgentClient(
         model=str(config["model"]) if config.get("model") else None,
+        codex_home=str(config["codex_home"]) if config.get("codex_home") else None,
         timeout_seconds=int(config.get("timeout_seconds", 1800)),
         sandbox="read-only",
     )
