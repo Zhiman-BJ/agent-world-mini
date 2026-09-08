@@ -5,7 +5,9 @@
     "environment": {
       "basic_info": {
         "source": "smithery",
-        "url": "https://smithery.ai/servers/theagenttimes/news",
+        "url": [
+          "https://smithery.ai/servers/theagenttimes/news"
+        ],
         "name": "theagenttimes/news",
         "version": "2026-09-02",
         "index": 1
@@ -109,6 +111,7 @@
         "slug": "news",
         "verified": true,
         "use_count": 43392,
+        "tool_count": "todo",
         "remote": true,
         "is_deployed": true,
         "unlisted": false,
@@ -130,15 +133,14 @@
     }
   },
   {
-    "global_id 全局id": "smithery_theagenttimes_news_1",
+    "global_id 全局ID,格式为来源_名字_序号": "smithery_theagenttimes_news_1",
     "schema_version Schema版本号": "1.0",
     "environment 环境主体": {
       "basic_info 环境基本信息": {
         "source 来源目录": "smithery",
         "url 网站url": "https://smithery.ai/servers/theagenttimes/news",
         "name 环境名字,使用来源记录的qualifiedName": "theagenttimes/news",
-        "index 序号": 1,
-        "global_id 全局ID,格式为来源_名字_序号": "smithery_theagenttimes_news_1"
+        "index 序号": 1
       },
       "description 环境描述": "Agent News is a research and verification service for the AI-agent economy. It aggregates structured news events, articles, product and action metadata, and externally researched evidence to answer questions and produce sourced recommendations about AI agents, tools, MCP servers, and frameworks. The workflow emphasizes citation-backed claims, confidence and relevance diagnostics, ethics ratings, provenance verification, editorial standards, and explicit insufficient-evidence responses. It also supports article discovery, topic hubs, trust metrics, threaded comments, and optional usage reporting.",
       "domain 环境分类,暂未分类时为null": {

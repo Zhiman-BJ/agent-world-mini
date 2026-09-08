@@ -32,12 +32,13 @@ def write_json(path: Path, payload: object) -> None:
 def sample_seed() -> dict[str, Any]:
     return {
         "global_id": "demo_catalog_1",
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "environment": {
             "basic_info": {
                 "source": "demo",
-                "url": "https://example.test/catalog",
+                "url": ["https://example.test/catalog"],
                 "name": "catalog",
+                "version": "2026-09-02",
                 "index": 1,
             },
             "description": "A public catalog of items and categories.",
@@ -46,9 +47,11 @@ def sample_seed() -> dict[str, Any]:
         "init_ref_tools": [
             {
                 "name": "list_items",
+                "type": "function",
+                "module": None,
                 "description": "List and filter items.",
-                "inputSchema": {"type": "object"},
-                "outputSchema": {"type": "object"},
+                "input": {},
+                "output": {},
             }
         ],
         "init_ref_tasks": [
@@ -59,7 +62,10 @@ def sample_seed() -> dict[str, Any]:
                 "solution_path": [{"tool_name": "list_items"}],
             }
         ],
-        "others": {"data_directions": ["Public item and category records"]},
+        "others": {
+            "data_directions": ["Public item and category records"],
+            "tool_count": 1,
+        },
     }
 
 

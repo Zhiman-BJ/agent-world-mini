@@ -406,6 +406,7 @@ def main() -> None:
     # Each generated artifact describes one package, selected from the shared
     # multi-package example/template.
     payload = [seed]
+    seed["schema_version"] = "1.1"
 
     tools, source_files = extract_modules(args.source_root.resolve(), args.modules)
     if not tools:
@@ -432,6 +433,7 @@ def main() -> None:
         others = {}
         seed["others"] = others
     others.pop("..", None)
+    others["tool_count"] = len(tools)
     others["python_source_extraction"] = {
         "strategy": "static_ast",
         "requested_modules": args.modules,

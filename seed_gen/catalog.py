@@ -19,6 +19,7 @@ SMITHERY_API = "https://api.smithery.ai/servers"
 SEED_GEN_DATA = Path(__file__).resolve().parent / "data"
 DEFAULT_SERVER_SNAPSHOT = SEED_GEN_DATA / "smithery_servers.json"
 DEFAULT_SEED_OUTPUT = SEED_GEN_DATA / "smithery_1000_v1_0902.json"
+SMITHERY_SNAPSHOT_VERSION = "2026-09-02"
 
 
 def _get_json(url: str) -> dict[str, object]:
@@ -127,6 +128,24 @@ def _snake_key(value: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 
 
+def _schema_properties(value: object) -> dict[str, object]:
+    if not isinstance(value, dict) or not isinstance(value.get("properties"), dict):
+        return {}
+    return deepcopy(value["properties"])
+
+
+def _reference_tool(tool: dict[str, object]) -> dict[str, object]:
+    """Convert a Smithery MCP tool to the unified seed-tool representation."""
+    return {
+        "name": str(tool["name"]),
+        "type": "function",
+        "module": None,
+        "description": str(tool["description"]),
+        "input": _schema_properties(tool.get("inputSchema")),
+        "output": _schema_properties(tool.get("outputSchema")),
+    }
+
+
 def _seed_from_detail(
     detail: dict[str, object], index: int, *, organization_status: str = "catalog_detail"
 ) -> dict[str, object]:
@@ -135,14 +154,15 @@ def _seed_from_detail(
     description = str(detail.get("description") or "").strip()
     if not qualified_name or not description:
         raise ValueError("Smithery detail must contain qualifiedName and description")
-    tools = [
-        deepcopy(tool)
+    source_tools = [
+        tool
         for tool in detail.get("tools", [])
         if isinstance(tool, dict)
         and str(tool.get("name") or "").strip()
         and isinstance(tool.get("description"), str)
         and tool["description"].strip()
     ]
+    tools = [_reference_tool(tool) for tool in source_tools]
     metadata: dict[str, object] = {}
     for key, value in detail.items():
         if key in {"qualifiedName", "description", "tools", "iconUrl"}:
@@ -150,12 +170,13 @@ def _seed_from_detail(
         metadata[_snake_key(key)] = deepcopy(value)
     return {
         "global_id": f"smithery_{_global_id_name(qualified_name)}_{index}",
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "environment": {
             "basic_info": {
                 "source": "smithery",
-                "url": f"https://smithery.ai/servers/{qualified_name}",
+                "url": [f"https://smithery.ai/servers/{qualified_name}"],
                 "name": qualified_name,
+                "version": SMITHERY_SNAPSHOT_VERSION,
                 "index": index,
             },
             "description": description,
@@ -167,6 +188,7 @@ def _seed_from_detail(
             "source_metadata": metadata,
             "data_directions": deepcopy(detail.get("dataDirections") or []),
             "organization_status": organization_status,
+            "tool_count": len(tools),
         },
     }
 
@@ -332,7 +354,7 @@ def output_slug(seed: ThemeSeed) -> str:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Crawl Smithery detail pages into environment-seed v1 JSON")
+    parser = argparse.ArgumentParser(description="Crawl Smithery detail pages into environment-seed v1.1 JSON")
     parser.add_argument("--source", type=Path, default=DEFAULT_SERVER_SNAPSHOT, help="pre-crawled Smithery list JSON")
     parser.add_argument("--output", type=Path, default=DEFAULT_SEED_OUTPUT, help="environment-seed output JSON")
     parser.add_argument("--limit", type=int, default=1000, help="number of top useCount entries to continue crawling")

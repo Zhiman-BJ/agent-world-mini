@@ -9,10 +9,9 @@
 
 | 契约入口 | 机器校验文件 | 校验对象 |
 | --- | --- | --- |
-| `../env_seeds.schema.json` | `env_seeds.schema.json` | 环境种子数组 |
+| `../env_seeds.schema.json` | `env_seeds.schema.json` | v1.1 环境种子数组 |
 | `../environment.schema.json` | `../environment.schema.json` | 当前 Record Set / Filesystem Scope 环境对象 |
 | `../tool.schema.json` | `tool.schema.json` | 单个工具对象 |
 | `../complete_environment.schema.json` | `complete_environment.schema.json` | 带工具的完整环境对象 |
 
-跨资源引用、工作区文件存在性、工具代码编译和回滚行为不能只由 JSON Schema 表达，仍由
-对应的 Python Validator 检查。
+跨资源引用、环境种子 `tool_count` 与工具数组长度的等式、工作区文件存在性、工具代码编译和回滚行为不能只由 JSON Schema 表达，仍由对应的 Python Validator 检查。
