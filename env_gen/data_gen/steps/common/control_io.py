@@ -30,14 +30,20 @@ def atomic_write_text(path: Path, content: str) -> None:
 
 
 def write_json(path: Path, payload: object) -> None:
+    """将 JSON 完整写入临时文件后原子替换目标文件。"""
+
     atomic_write_text(path, json_text(payload))
 
 
 def json_text(payload: object) -> str:
+    """生成统一缩进并保留非 ASCII 字符的 JSON 文本。"""
+
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
 def read_json(path: Path, label: str) -> dict[str, Any]:
+    """读取根节点为对象的 JSON，并用业务标签生成清晰错误信息。"""
+
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as error:
@@ -50,14 +56,10 @@ def read_json(path: Path, label: str) -> dict[str, Any]:
 
 
 def control_path(run_dir: Path, name: str) -> Path:
+    """返回当前运行目录中的 `.datagen/<name>` 控制文件路径。"""
+
     return run_dir / CONTROL_DIRECTORY / name
 
-
-# 保留旧的私有名称，便于现有内部调用逐步迁移。
-_write_json = write_json
-_json_text = json_text
-_read_json = read_json
-_control_path = control_path
 
 __all__ = [
     "control_path",
@@ -65,8 +67,4 @@ __all__ = [
     "json_text",
     "read_json",
     "write_json",
-    "_control_path",
-    "_json_text",
-    "_read_json",
-    "_write_json",
 ]

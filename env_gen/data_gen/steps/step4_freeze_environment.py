@@ -1,64 +1,38 @@
-"""Step 4：独立重算后冻结 v2 状态，并整理最终环境包布局。"""
+"""Step 4: independently replay, freeze and publish the final v2 package."""
 
 from __future__ import annotations
 
-import json
 import shutil
 import sqlite3
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
-
-from env_gen.data_gen.analysis.artifact_integrity import table_digest, tree_digest
-from env_gen.data_gen.analysis.environment_quality import (
-    EnvironmentQualityPolicy,
-    build_environment_quality_profile,
-)
-from env_gen.data_gen.analysis.field_review import field_review_issues
-from env_gen.data_gen.analysis.integration_materialization import (
-    environment_from_plan,
-    materialize_record_set,
-    materialize_scope,
-)
-from env_gen.data_gen.analysis.integration_profiling import build_integration_profile
-from env_gen.data_gen.analysis.source_inventory import (
+from env_gen.data_gen.analysis.collection_analysis import (
     build_source_inventory,
     validate_source_inventory,
 )
 from env_gen.data_gen.analysis.v2_validator import V2EnvironmentPackageValidator
 
-from .collection.commands.download_raw import download_receipt_issues
-from .collection.commands.save_source_plan import (
-    read_saved_source_plan,
-    source_plan_receipt_issues,
-)
+from .step2_collect_data import read_saved_source_research
 from .common.constants import (
+    COLLECTION_PROFILE_PATH,
     ENVIRONMENT_CONTEXT_PATH,
-    FIELD_REVIEW_PATH,
     FREEZE_MANIFEST_PATH,
-    INTEGRATION_PLAN_PATH,
-    INTEGRATION_PROFILE_PATH,
-    QUALITY_PROFILE_PATH,
-    REPRODUCIBILITY_REPORT_PATH,
+    INTEGRATION_BUILD_PATH,
+    INTEGRATION_RECEIPT_PATH,
     SOURCE_INVENTORY_PATH,
     SOURCE_MANIFEST_PATH,
     CONTROL_DOWNLOAD_RECEIPTS,
-    CONTROL_INTEGRATION_MATERIALIZATION_RECEIPTS,
-    CONTROL_INTEGRATION_FINALIZATION,
     CONTROL_RUN_CONFIG,
-    CONTROL_SELECTED_SEED,
 )
 from .common.control_io import control_path, read_json, write_json
 from .common.workspace_files import file_sha256
-from .integration.commands import (
-    integration_plan_receipt_issues,
-    materialization_receipt_issues,
+from .integration.direct_commands import (
+    _state_manifest,
+    assess_environment,
+    finalization_issues,
 )
-from .integration.commands import _validated_plan as validated_integration_plan
-from .integration.transformation_runner import run_record_transformation
 
 
 class EnvironmentFreezeError(RuntimeError):
@@ -115,124 +89,7 @@ def _environment_markdown(environment: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _schema_validate(payload: dict[str, Any], schema_path: Path, label: str) -> None:
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    errors = list(Draft202012Validator(schema).iter_errors(payload))
-    if errors:
-        raise EnvironmentFreezeError(
-            f"{label} 不符合 Schema：" + "; ".join(error.message for error in errors[:12])
-        )
-
-
-def _reproducibility_report(
-    run_dir: Path,
-    *,
-    plan: dict[str, Any],
-) -> dict[str, Any]:
-    receipts_path = control_path(run_dir, CONTROL_INTEGRATION_MATERIALIZATION_RECEIPTS)
-    receipts_payload = read_json(receipts_path, "集成物化收据")
-    receipts = {
-        str(item.get("asset_id")): item
-        for item in receipts_payload.get("assets", []) if isinstance(item, dict)
-    }
-    database = run_dir / "state/records.sqlite"
-    assets: list[dict[str, Any]] = []
-    with tempfile.TemporaryDirectory(prefix="datagen-freeze-replay-") as directory:
-        replay_root = Path(directory)
-        replay_database = replay_root / "records.sqlite"
-        replay_scopes = replay_root / "filesystem_scopes"
-        for item in plan.get("record_sets", []):
-            asset_id = str(item["record_set_id"])
-            receipt = receipts[asset_id]
-            script = run_dir / str(receipt.get("script_path"))
-            output_directory = replay_root / "outputs" / asset_id
-            output = output_directory / "records.json"
-            run_record_transformation(
-                run_dir,
-                script=script,
-                output=output,
-                asset_id=asset_id,
-                timeout_seconds=300,
-            )
-            output_sha256 = file_sha256(output)
-            if output_sha256 != receipt.get("output_sha256"):
-                raise EnvironmentFreezeError(
-                    f"Record Set {asset_id} 独立重放输出与 Step 3 不同"
-                )
-            replay_count = materialize_record_set(
-                replay_database, record_set=item, input_path=output,
-            )
-            replay_digest = table_digest(replay_database, asset_id)
-            state_digest = table_digest(database, asset_id)
-            if replay_digest != state_digest:
-                raise EnvironmentFreezeError(
-                    f"Record Set {asset_id} 独立重放状态与候选状态不同"
-                )
-            if replay_count != int(receipt.get("item_count", -1)):
-                raise EnvironmentFreezeError(
-                    f"Record Set {asset_id} 独立重放记录数与收据不同"
-                )
-            assets.append({
-                "asset_kind": "record_set",
-                "asset_id": asset_id,
-                "transformation_id": receipt.get("transformation_id"),
-                "package_path": receipt.get("package_path"),
-                "package_sha256": receipt.get("package_sha256"),
-                "script_path": receipt.get("script_path"),
-                "script_sha256": receipt.get("script_sha256"),
-                "sandbox": receipt.get("sandbox"),
-                "source_files": receipt.get("source_files", []),
-                "output_sha256": output_sha256,
-                "state_digest": state_digest,
-                "replay_state_digest": replay_digest,
-                "item_count": replay_count,
-            })
-        for item in plan.get("filesystem_scopes", []):
-            asset_id = str(item["scope_id"])
-            receipt = receipts[asset_id]
-            source_paths = [
-                run_dir / "workspace" / str(source["path"])
-                for source in receipt.get("source_files", [])
-            ]
-            replay_count = materialize_scope(
-                replay_scopes,
-                scope_id=asset_id,
-                sources=source_paths,
-                mode=str(item["materialization"]),
-            )
-            replay_digest = tree_digest(replay_scopes / asset_id)
-            state_digest = tree_digest(run_dir / "state/filesystem_scopes" / asset_id)
-            if replay_digest != state_digest:
-                raise EnvironmentFreezeError(
-                    f"Filesystem Scope {asset_id} 独立重放状态与候选状态不同"
-                )
-            if replay_count != int(receipt.get("item_count", -1)):
-                raise EnvironmentFreezeError(
-                    f"Filesystem Scope {asset_id} 独立重放文件数与收据不同"
-                )
-            assets.append({
-                "asset_kind": "filesystem_scope",
-                "asset_id": asset_id,
-                "transformation_id": receipt.get("transformation_id"),
-                "package_path": None,
-                "package_sha256": None,
-                "script_path": None,
-                "script_sha256": None,
-                "sandbox": receipt.get("sandbox"),
-                "source_files": receipt.get("source_files", []),
-                "output_sha256": replay_digest,
-                "state_digest": state_digest,
-                "replay_state_digest": replay_digest,
-                "item_count": replay_count,
-            })
-    return {
-        "schema_version": "1.0",
-        "verified_at": datetime.now(timezone.utc).isoformat(),
-        "assets": sorted(assets, key=lambda value: str(value["asset_id"])),
-    }
-
-
-def _source_manifest(run_dir: Path, *, source_plan: dict[str, Any]) -> dict[str, Any]:
+def _source_manifest(run_dir: Path, *, source_research: dict[str, Any]) -> dict[str, Any]:
     receipt_path = control_path(run_dir, CONTROL_DOWNLOAD_RECEIPTS)
     downloads = read_json(receipt_path, "下载收据").get("downloads", [])
     by_path: dict[str, list[dict[str, Any]]] = {}
@@ -272,12 +129,12 @@ def _source_manifest(run_dir: Path, *, source_plan: dict[str, Any]) -> dict[str,
             "source_id": item.get("source_id"),
             "name": item.get("name"),
             "publisher_url": item.get("url"),
-            "priority": item.get("priority"),
+            "content_roles": item.get("content_roles"),
             "status": item.get("status"),
-            "access_status": item.get("access_status"),
-            "status_evidence": item.get("status_evidence"),
+            "findings": item.get("findings"),
+            "limitations": item.get("limitations"),
         }
-        for item in source_plan.get("sources", []) if isinstance(item, dict)
+        for item in source_research.get("sources", []) if isinstance(item, dict)
     ]
     return {
         "schema_version": "1.0",
@@ -312,137 +169,196 @@ def _freeze_manifest(run_dir: Path) -> dict[str, Any]:
     }
 
 
-def freeze_environment(run_dir: Path) -> dict[str, Any]:
-    """重算所有关键事实，随后把生成现场收敛为 v2 最终包。"""
+def _archive_direct_control_audit(run_dir: Path) -> None:
+    control_root = run_dir / ".datagen"
+    if not control_root.is_dir():
+        return
+    files: list[dict[str, Any]] = []
+    for path in sorted(control_root.rglob("*")):
+        if not path.is_file() or path.name.endswith(".lock"):
+            continue
+        relative = path.relative_to(control_root).as_posix()
+        if relative.startswith("drafts/") or relative.startswith("agent_runs/"):
+            continue
+        files.append({
+            "path": relative,
+            "bytes": path.stat().st_size,
+            "sha256": file_sha256(path),
+        })
+    write_json(
+        run_dir / "provenance/generation_audit.json",
+        {
+            "schema_version": "1.0",
+            "archived_at": datetime.now(timezone.utc).isoformat(),
+            "control_files": files,
+        },
+    )
+
+
+def _remove_python_caches(root: Path) -> None:
+    for directory in sorted(root.rglob("__pycache__"), reverse=True):
+        if directory.is_dir():
+            shutil.rmtree(directory)
+    for path in root.rglob("*.py[co]"):
+        if path.is_file():
+            path.unlink()
+
+
+def _direct_integration_receipt(
+    run_dir: Path,
+    *,
+    environment: dict[str, Any],
+    assessment: dict[str, Any],
+    source_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    collection = read_json(run_dir / COLLECTION_PROFILE_PATH, "Step 2 采集画像")
+    return {
+        "schema_version": "1.0",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "environment_sha256": file_sha256(run_dir / "environment.json"),
+        "build": {
+            "path": INTEGRATION_BUILD_PATH,
+            "sha256": file_sha256(run_dir / INTEGRATION_BUILD_PATH),
+            "runner": "bubblewrap_read_only_no_network",
+            "interface": "--raw-dir <path> --state-dir <path>",
+        },
+        "raw_files": [
+            {
+                "path": item.get("path"),
+                "source_id": item.get("source_id"),
+                "sha256": item.get("sha256"),
+                "bytes": item.get("bytes"),
+            }
+            for item in source_manifest.get("files", [])
+            if isinstance(item, dict)
+        ],
+        "state": _state_manifest(run_dir / "state", environment),
+        "replay_state_digest": assessment.get("replay_state_digest"),
+        "coverage": collection.get("metrics", {}),
+    }
+
+
+def freeze_and_publish_environment(
+    run_dir: Path,
+    *,
+    final_output_dir: Path,
+    overwrite: bool,
+) -> dict[str, Any]:
+    """Independently replay, freeze and atomically publish a direct Step 3 result."""
 
     run_dir = run_dir.resolve()
-    config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
-    seed = read_json(control_path(run_dir, CONTROL_SELECTED_SEED), "选中 Seed")
-    source_plan = read_saved_source_plan(run_dir)
-    preparation = (
-        source_plan_receipt_issues(run_dir)
-        + download_receipt_issues(run_dir)
-        + integration_plan_receipt_issues(run_dir)
-    )
-    if preparation:
+    receipt_issues = finalization_issues(run_dir)
+    if receipt_issues:
         raise EnvironmentFreezeError(
-            "冻结前来源或计划证据不完整："
-            + "; ".join(str(item.get("message")) for item in preparation[:12])
+            "Step 3 尚未可靠收口："
+            + "; ".join(item["message"] for item in receipt_issues[:12])
         )
-    integration_finalization_path = control_path(run_dir, CONTROL_INTEGRATION_FINALIZATION)
-    if not integration_finalization_path.is_file():
-        raise EnvironmentFreezeError("缺少 Step 3 集成收口证据")
-    integration_finalization = read_json(
-        integration_finalization_path, "集成收口"
+    assessment = assess_environment(run_dir, replay=True)
+    if assessment.get("decision") != "ready":
+        raise EnvironmentFreezeError(
+            "最终独立验收失败："
+            + "; ".join(
+                str(item.get("message"))
+                for item in assessment.get("blocking_issues", [])[:12]
+                if isinstance(item, dict)
+            )
+        )
+
+    config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
+    collection = read_json(run_dir / COLLECTION_PROFILE_PATH, "Step 2 采集画像")
+    partial = (
+        config.get("allow_partial_integration") is True
+        and collection.get("decision") == "partial"
     )
-    if integration_finalization.get("decision") != "finalized" or integration_finalization.get("result") not in {"ready", "exhausted"}:
-        raise EnvironmentFreezeError("Step 3 集成收口结果无效")
+    quality_tier = "partial" if partial else "rich"
+    source_research = read_saved_source_research(run_dir)
     source_inventory = build_source_inventory(
         run_dir,
         seed_global_id=str(config["seed_global_id"]),
         seed_sha256=str(config["seed_sha256"]),
-        source_plan=source_plan,
+        source_research=source_research,
     )
     inventory_issues = validate_source_inventory(
         source_inventory, Path(config["source_inventory_schema_path"])
     )
     if inventory_issues:
-        raise EnvironmentFreezeError("来源画像无效：" + "; ".join(inventory_issues[:12]))
+        raise EnvironmentFreezeError(
+            "最终来源文件卡无效：" + "; ".join(inventory_issues[:12])
+        )
     write_json(run_dir / SOURCE_INVENTORY_PATH, source_inventory)
-    plan = validated_integration_plan(run_dir)
-    receipt_issues = materialization_receipt_issues(run_dir, plan)
-    if receipt_issues:
-        raise EnvironmentFreezeError(
-            "冻结前物化证据失效："
-            + "; ".join(str(item.get("message")) for item in receipt_issues[:12])
-        )
-    integration_profile = build_integration_profile(
-        run_dir,
-        plan=plan,
-        seed_global_id=str(config["seed_global_id"]),
-        seed_sha256=str(config["seed_sha256"]),
-    )
-    _schema_validate(
-        integration_profile, Path(config["integration_profile_schema_path"]), "integration_profile"
-    )
-    review_issues = field_review_issues(
-        run_dir,
-        profile=integration_profile,
-        plan=plan,
-        review_path=run_dir / FIELD_REVIEW_PATH,
-        integration_plan_path=run_dir / INTEGRATION_PLAN_PATH,
-        integration_profile_path=run_dir / INTEGRATION_PROFILE_PATH,
-    )
-    if review_issues:
-        raise EnvironmentFreezeError(
-            "冻结前字段语义复核未闭合："
-            + "; ".join(str(item["message"]) for item in review_issues[:12])
-        )
-    quality_profile = build_environment_quality_profile(
-        run_dir,
-        plan=plan,
-        scenario_research=read_json(
-            run_dir / "provenance/scenario_research.json", "场景研究"
-        ),
-        source_plan=source_plan,
-        source_inventory=source_inventory,
-        integration_profile=integration_profile,
-        policy=EnvironmentQualityPolicy(**config.get("environment_quality_policy", {})),
-    )
-    _schema_validate(
-        quality_profile,
-        Path(config["environment_quality_profile_schema_path"]),
-        "quality_profile",
-    )
-    if integration_profile["integration_tier"] != "integrated":
-        raise EnvironmentFreezeError("冻结前独立集成画像不是 integrated")
-    if quality_profile["quality_tier"] not in {"rich", "not_rich"}:
-        raise EnvironmentFreezeError(
-            "冻结前独立质量画像无效："
-            + "; ".join(item["message"] for item in quality_profile["quality_gaps"][:10])
-        )
-    environment = environment_from_plan(plan)
-    write_json(run_dir / "environment.json", environment)
-    write_json(run_dir / INTEGRATION_PROFILE_PATH, integration_profile)
-    write_json(run_dir / QUALITY_PROFILE_PATH, quality_profile)
-    validator = V2EnvironmentPackageValidator(Path(config["environment_schema_path"]))
-    validation = validator.validate(run_dir, integration_plan=plan)
-    if not validation.valid:
-        raise EnvironmentFreezeError(
-            "冻结前 v2 独立校验失败："
-            + "; ".join(item.message for item in validation.errors[:12])
-        )
 
-    if (run_dir / "state/records.sqlite").is_file():
-        connection = sqlite3.connect(run_dir / "state/records.sqlite")
+    database = run_dir / "state/records.sqlite"
+    if database.is_file():
+        connection = sqlite3.connect(database)
         try:
             connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             connection.execute("VACUUM")
         finally:
             connection.close()
-    source_manifest = _source_manifest(run_dir, source_plan=source_plan)
+
+    environment = read_json(run_dir / "environment.json", "环境声明")
+    source_manifest = _source_manifest(run_dir, source_research=source_research)
     write_json(run_dir / SOURCE_MANIFEST_PATH, source_manifest)
-    reproducibility = _reproducibility_report(run_dir, plan=plan)
-    write_json(run_dir / REPRODUCIBILITY_REPORT_PATH, reproducibility)
-    (run_dir / ENVIRONMENT_CONTEXT_PATH).write_text(
-        _environment_markdown(environment), encoding="utf-8"
-    )
     raw_source = run_dir / "workspace/raw"
     raw_target = run_dir / "provenance/raw"
     if raw_target.exists():
         shutil.rmtree(raw_target)
     if raw_source.is_dir():
         shutil.copytree(raw_source, raw_target)
+    write_json(
+        run_dir / INTEGRATION_RECEIPT_PATH,
+        _direct_integration_receipt(
+            run_dir,
+            environment=environment,
+            assessment=assessment,
+            source_manifest=source_manifest,
+        ),
+    )
+    (run_dir / ENVIRONMENT_CONTEXT_PATH).write_text(
+        _environment_markdown(environment), encoding="utf-8"
+    )
+    _remove_python_caches(run_dir / "provenance")
+    _archive_direct_control_audit(run_dir)
     shutil.rmtree(run_dir / "workspace", ignore_errors=True)
+
+    validator = V2EnvironmentPackageValidator(Path(config["environment_schema_path"]))
+    validation = validator.validate(run_dir)
+    if not validation.valid:
+        raise EnvironmentFreezeError(
+            "冻结后的 v2 环境包无效："
+            + "; ".join(item.message for item in validation.errors[:12])
+        )
     manifest = _freeze_manifest(run_dir)
     write_json(run_dir / FREEZE_MANIFEST_PATH, manifest)
+    shutil.rmtree(run_dir / ".datagen", ignore_errors=True)
+    write_json(
+        run_dir / "validation.json",
+        {
+            **validation.to_dict(),
+            "validated_at": datetime.now(timezone.utc).isoformat(),
+            "seed_global_id": str(config["seed_global_id"]),
+            "seed_sha256": str(config["seed_sha256"]),
+            "quality_tier": quality_tier,
+            "integration_tier": "integrated",
+        },
+    )
+
+    final_output_dir = final_output_dir.resolve()
+    final_output_dir.parent.mkdir(parents=True, exist_ok=True)
+    if final_output_dir.exists():
+        if not overwrite:
+            raise FileExistsError(f"输出目录已经存在：{final_output_dir}")
+        shutil.rmtree(final_output_dir)
+    run_dir.replace(final_output_dir)
     return {
-        "environment": environment,
-        "integration_profile": integration_profile,
-        "quality_profile": quality_profile,
+        "output_dir": final_output_dir,
+        "quality_tier": quality_tier,
+        "integration_tier": "integrated",
         "validation": validation.to_dict(),
-        "freeze_manifest": manifest,
     }
 
 
-__all__ = ["EnvironmentFreezeError", "freeze_environment"]
+__all__ = [
+    "EnvironmentFreezeError",
+    "freeze_and_publish_environment",
+]

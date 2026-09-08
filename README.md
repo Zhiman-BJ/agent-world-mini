@@ -22,13 +22,13 @@ Agent-World Mini 用真实公开数据构建可复用的 Agent 环境，再基�
 | `seed_gen/` | 可用 | 保存和校验最终 Smithery Seed，提供正式 `global_id` |
 | `env_gen/data_gen/` | 可用 | 调用 Codex 采集真实数据，画像、冻结、声明、校验并发布环境 |
 | `env_gen/tool_gen/` | 待完善 | 预留从环境数据生成并验证工具的阶段 |
-| `task_gen/program_form/` | 可用 | 从已经包含工具的完整环境生成并重放 Program-form 任务 |
+| `task_gen/program_form/` | 可用 | 从 v2 `environment.json + state/ + tools.json` 生成并重放 Program-form 任务 |
 | `task_gen/dag_form/` | 待完善 | 预留 DAG-form 任务生成阶段 |
 | `dashboard/` | 可用 | 查看环境的资源层次、文件内容、实体、关系、能力和来源 |
 
 因此，当前最完整的链路是“Seed -> DataGen 环境包”；Program-form TaskGen 也已实现，但它
-要求输入环境已经包含通过工具契约的 `tools[]`。当前仓库还没有把 ToolGen 自动接到两者
-之间。
+还需要一份通过工具契约的 `tools.json`。当前仓库还没有把 v2 ToolGen 自动接到
+DataGen 和 TaskGen 之间。
 
 ## 项目职责图
 
@@ -38,12 +38,12 @@ Agent-World Mini 用真实公开数据构建可复用的 Agent 环境，再基�
    v
 DataGen
    职能：获取真实数据，整理实体与关系，验证并发布环境
-   产物：environment.json + workspace + provenance
+   产物：environment.json + state + provenance
    |
    v
 ToolGen（待完善）
    职能：根据环境资源生成工具接口与内部实现，并执行验证
-   产物：包含 resources + tools 的完整环境
+   产物：通过输入/输出 Schema 和真实执行验证的 tools.json
    |
    v
 TaskGen
@@ -131,10 +131,12 @@ python -m env_gen.data_gen \
 
 ## 生成 Program-form 任务
 
-输入必须是已经包含 `tools[]` 和 `workspace/` 的完整环境：
+输入必须是已通过 DataGen 校验的 v2 环境包，并在包根目录提供
+`tools.json`（或用 `--tools-path` 显式指定）：
 
 ```bash
 python -m task_gen.program_form \
+  --step all \
   --environment-package /path/to/complete_environment \
   --output-dir /tmp/program_tasks \
   --task-count 2 \
@@ -142,8 +144,11 @@ python -m task_gen.program_form \
   --min-distinct-tools 3
 ```
 
-TaskGen 会隐藏 `tools[].internal.code`，执行候选参考程序，校验每次工具调用的输入输出
-Schema，并在全新 workspace 上重复重放。详细说明见
+TaskGen 的 Step 1 直接冻结 DataGen `state/`；Step 2--12 对齐 OmniaBench，
+依次生成和调试参考解、固化 Ground Truth、生成 Verifier、运行独立
+Agent 一致性检查、改写任务、检查轨迹/状态、生成 Rubric 并评估难度。
+全程隐藏 `tools[].internal.code`，校验工具 Schema、访问边界和失败回滚。
+详细说明见
 [Program-form README](task_gen/program_form/README.md)。
 
 ## 查看环境
