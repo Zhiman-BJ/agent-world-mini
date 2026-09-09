@@ -33,7 +33,7 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
     planning = config.planning
     names, public_tools = _tools(stage_input["environment"])
     sample_count = _positive(planning, "sample_count", 10000)
-    review_count = _positive(planning, "review_count", 20)
+    review_count = _positive(planning, "review_count", 30)
     keep_count = _positive(planning, "keep_top_count", 10)
     minimum = _positive(planning, "min_chain_length", 8)
     maximum = _positive(planning, "max_chain_length", 15)

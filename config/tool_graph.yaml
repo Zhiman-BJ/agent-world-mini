@@ -4,10 +4,10 @@ paths:
   output_root: ../runs/taskgen
 
 llm:
-  # 使用 Codex CLI；阶段 prompt 和返回契约不变。
-  backend: codex
+  # 普通阶段使用 API；Step 2 review 由 review_agent 单独使用 Codex CLI。
+  backend: api
   model: gpt-5.6-terra
-  # 管线、链审查和评测使用独立 Codex 配置，不影响当前对话。
+  # review、管线和评测使用独立配置，不影响当前对话。
   codex_home: ~/.codex-task-eval
   # API 后端使用同一服务及独立 auth.json；密钥不进入配置或运行产物。
   base_url: http://47.237.200.112:8080/v1
@@ -31,8 +31,8 @@ planning:
   max_chain_length: 15
   max_tool_visits: 2
   random_seed: 42
-  # 先筛选 20 条生成目标，由 review 统一改链和评分，最多 10 条进入 Step 3。
-  review_count: 20
+  # 先筛选 30 条生成目标，由 review 改链和评分，最多 10 条进入 Step 3。
+  review_count: 30
   edge_sampling_probabilities:
     "1": 0.2
     "2": 0.3
