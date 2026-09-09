@@ -184,12 +184,13 @@ def evaluate_case(
             case.reference_calls,
             case.task.get("reference", {}).get("answer", ""),
             tool_result_max_bytes,
+            environment=case.environment,
         )
         verifier_environment = {
             **_public_environment(case.environment),
             "tools": case.task.get("available_tools", []),
         }
-        empty_evidence = build_evidence(case.initial_state, case.initial_state, [], "", tool_result_max_bytes)
+        empty_evidence = build_evidence(case.initial_state, case.initial_state, [], "", tool_result_max_bytes, environment=case.environment)
         cache_path = None
         if verifier_cache is not None:
             fingerprint_payload = {
@@ -276,10 +277,13 @@ def evaluate_case(
     if _workspace_signature(case.initial_state) != source_signature:
         raise ValueError("来源初态在评测期间被修改")
     changes = _workspace_changes(source_signature, _workspace_signature(workspace))
+    if case.environment.get('schema_version') == '2.0':
+        from .tool_graph.state_runtime import snapshot_state, state_diff
+        changes = state_diff(snapshot_state(case.initial_state, case.environment), snapshot_state(workspace, case.environment))
     verifier_error = None
     verifier_tool_calls: list[dict[str, Any]] = []
     if verifier is not None:
-        actual_evidence = build_evidence(case.initial_state, workspace, calls, answer, tool_result_max_bytes)
+        actual_evidence = build_evidence(case.initial_state, workspace, calls, answer, tool_result_max_bytes, environment=case.environment)
         try:
             requirement_results = run_verifier(
                 verifier,

@@ -435,13 +435,23 @@ def _client(config: Mapping[str, Any]) -> LLMClient:
     backend = str(config.get("backend") or "api")
     if backend != "api":
         raise ValueError(f"tool_graph.llm 仅支持 api 后端，不支持 {backend!r}")
-    client = LLMClient.from_environment()
+    client = LLMClient() if config.get("api_key_file") else LLMClient.from_environment()
     if "model" in config:
         client.model = str(config["model"] or "")
     if "base_url" in config:
         client.base_url = str(config["base_url"] or "")
     if "api_key_env" in config:
         client.api_key = os.environ.get(str(config["api_key_env"]), "")
+    if config.get("api_key_file"):
+        path = Path(str(config["api_key_file"])).expanduser()
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            key = payload.get("OPENAI_API_KEY") if isinstance(payload, dict) else None
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("缺少 OPENAI_API_KEY")
+        except (OSError, ValueError):
+            raise ValueError(f"无法读取管线凭据：{path}，需包含非空 OPENAI_API_KEY") from None
+        client.api_key = key.strip()
     if "timeout_seconds" in config:
         client.timeout_seconds = int(config["timeout_seconds"])
     return client

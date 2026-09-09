@@ -43,7 +43,7 @@ class Config:
         cost: 成本预算参数
     """
 
-    environment_dir: Path = PROJECT_ROOT / "artifacts/mcp_test3/bugagent"
+    environment_dir: Path = PROJECT_ROOT / "artifacts/toolgen-reality-openalex-run"
     schema_dir: Path = PROJECT_ROOT / "schemas"
     output_root: Path = PROJECT_ROOT / "runs/taskgen"
     llm: dict[str, Any] = field(default_factory=dict)

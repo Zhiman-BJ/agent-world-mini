@@ -1,5 +1,11 @@
 """Step 0：读取环境包，并检查生成任务所需的文件是否完整。
 
+当前生产环境使用 v2：environment.json + tools.json + state/。
+读取并校验环境与工具声明、上游工具验证结果以及完整的状态目录；
+输出 environment 原字段并合入 tools，供下游沿用统一 Input。
+Record Set 由 records.sqlite 承载，Filesystem Scope 位于 state/filesystem_scopes。
+以下旧版说明仅对应保留的旧包读取函数，不是 v2 的输入契约。
+
 输入 Schema（只列本阶段实际检查的字段）
 =======================================
 
@@ -434,6 +440,8 @@ def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Pa
     validator = Draft202012Validator(schema)
     for tool in tools:
         validator.validate(tool)
+    if len({tool['name'] for tool in tools}) != len(tools):
+        raise ValueError('tools.json 存在重复工具名')
     resources = {item["record_set_id"] for item in environment["record_sets"]}
     resources |= {item["scope_id"] for item in environment["filesystem_scopes"]}
     if len(resources) != len(environment["record_sets"]) + len(environment["filesystem_scopes"]):
@@ -447,6 +455,8 @@ def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Pa
     if report.get("environment_id") != environment["environment_id"] or any(tool["name"] not in passed for tool in tools):
         raise ValueError("工具验证报告不完整或环境不匹配")
     state = root / "state"
+    if state.is_symlink() or any(path.is_symlink() for path in state.rglob('*')):
+        raise ValueError('state 不允许包含符号链接')
     if not state.is_dir() or (environment["record_sets"] and not (state / "records.sqlite").is_file()):
         raise ValueError("新版环境缺少合法 state")
     scope_root = state / "filesystem_scopes"
@@ -455,6 +465,8 @@ def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Pa
             raise ValueError(f"Filesystem Scope 不存在：{scope['scope_id']}")
     if any(path.is_symlink() for path in state.rglob("*")):
         raise ValueError("state 不允许包含符号链接")
+    from .state_runtime import snapshot_state
+    snapshot_state(state, environment)
     return {**environment, "tools": tools}
 
 

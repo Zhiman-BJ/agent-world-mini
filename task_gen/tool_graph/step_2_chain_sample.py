@@ -107,7 +107,7 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
         maximum,
         initial_report,
         review_records,
-        initial_workspace=config.environment_dir / "workspace",
+        initial_workspace=config.environment_dir / ("state" if stage_input['environment'].get('schema_version') == '2.0' else 'workspace'),
     )
     for item in reviewed:
         item["score"] = _chain_score(item["chain"], adjacency)
@@ -423,13 +423,13 @@ def _select_final_chains(
     return selected
 
 
-def _batch_outcomes(prompts: list[str], llm_config: dict[str, Any], *, initial_workspace=None) -> list[Any]:
+def _batch_outcomes(prompts: list[str], llm_config: dict[str, Any], *, initial_workspace=None, environment=None) -> list[Any]:
     if not prompts:
         return []
     try:
         responses = (
             infer(prompts, llm_config=llm_config) if initial_workspace is None else
-            review_with_initial_state(prompts, llm_config=llm_config, initial_workspace=initial_workspace)
+            review_with_initial_state(prompts, llm_config=llm_config, initial_workspace=initial_workspace, environment=environment)
         )
         if len(responses) != len(prompts):
             raise ValueError("LLM 返回数量不一致")
@@ -444,7 +444,7 @@ def _batch_outcomes(prompts: list[str], llm_config: dict[str, Any], *, initial_w
 
 def _planning_context(environment, public_tools, chain, initial_report, *, all_tools=False):
     return {
-        "environment": {key: environment.get(key) for key in ("name", "description", "resources", "rules")},
+        "environment": {key: environment.get(key) for key in (("name", "summary", "description", "record_sets", "relationships", "filesystem_scopes") if environment.get("schema_version") == "2.0" else ("name", "description", "resources", "rules"))},
         "tools": [_compact_tool_view(tool) for tool in public_tools if all_tools or tool["name"] in chain],
         "chain": chain,
         "initial_state_report": report_context(initial_report),
@@ -519,7 +519,7 @@ def _review_chains(
     ]
     reviewed = []
     error_count = changed_count = rejected_count = 0
-    for item, outcome in zip(candidates, _batch_outcomes(prompts, llm_config, initial_workspace=initial_workspace)):
+    for item, outcome in zip(candidates, _batch_outcomes(prompts, llm_config, initial_workspace=initial_workspace, environment=environment)):
         record = {"original_chain": item["chain"], "objective": item["objective"],
                   "accepted": False, "chain": [], "reason": None, "score": None, "error": None}
         if records is not None:
@@ -572,11 +572,11 @@ def _review_prompt(
 ) -> str:
     context = _planning_context(environment, public_tools, chain, initial_report, all_tools=True)
     context["objective"] = objective
-    return f"""在当前目录的独立初态副本中收集信息，审查并调整候选链，使其能够完成 objective。
+    return f"""通过环境提供的只读工具探索独立初态副本，审查并调整候选链，使其能够完成 objective。
 {TASK_STATE_CHAIN}
 objective 并非任务终稿，不必苛求措辞，但必须遵守其最终目标、范围和实质约束。
 
-探索：使用只读命令查看当前目录的数据，收集足以判断匹配关系的信息；初态报告仅作参考。
+探索：使用 environment MCP 服务提供的只读工具收集足以判断匹配关系的信息，不直接读取 SQLite 或状态文件；初态报告仅作参考。
 不必执行整条链，不进行业务写入，不访问目录外文件或外部服务。
 
 改链：返回的 chain 是逐项执行的固定工具序列，没有隐含循环或条件跳过。
@@ -588,7 +588,7 @@ objective 并非任务终稿，不必苛求措辞，但必须遵守其最终目�
 接受时 chain 至少包含 {minimum_length} 个工具；采样上限 {maximum_length} 不限制必要补全，不为凑长度添加调用。
 只有公开工具能力或可核实条件使目标无法通过改链实现时才拒绝，原链缺少调用本身不是拒绝依据。
 
-说明：reason 将传给执行、初稿生成、反思、参考答案和最终校验；后续阶段不能像你一样直接探索初态文件。
+说明：reason 将传给执行、初稿生成、反思、参考答案和最终校验；后续阶段不能像你一样探索初态。
 reason 必须清楚分开写出以下三项：
 1. 初态事实：你实际观察到了哪些对象、状态、关系和结果，观察范围是什么；
 2. 证据范围：这些事实来自哪些查询、文件或结果，查询是否完整，哪些对象或字段没有被覆盖；

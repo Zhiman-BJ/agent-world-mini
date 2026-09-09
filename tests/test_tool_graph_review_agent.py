@@ -20,7 +20,9 @@ class ReviewAgentTest(unittest.TestCase):
                 self.assertNotEqual(working_directory, source)
                 self.assertEqual(client.sandbox, "read-only")
                 self.assertFalse(client.enable_web_search)
-                self.assertEqual((working_directory / "state.json").read_text(), '{"existing": 2}')
+                self.assertIn('features.shell_tool=false', client._llm_arguments({}))
+                self.assertEqual(list(working_directory.iterdir()), [])
+                self.assertEqual((working_directory.parent / "state/state.json").read_text(), '{"existing": 2}')
                 log = client.log_directory / "run_01"
                 log.mkdir(parents=True)
                 (log / "stderr.log").write_text("read state.json: existing=2")
@@ -45,7 +47,7 @@ class ReviewAgentTest(unittest.TestCase):
 
             def run(client, prompt, *, working_directory):
                 if prompt == "mutate":
-                    (working_directory / "state.json").write_text('{"changed": true}')
+                    (working_directory.parent / "state/state.json").write_text('{"changed": true}')
                 return '{}'
 
             with patch.object(review_agent.CodexAgentClient, "run", run):

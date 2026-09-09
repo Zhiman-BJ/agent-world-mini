@@ -101,6 +101,10 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     "description": tool.get("description", ""),
                     "inputSchema": tool["inputSchema"],
                     "outputSchema": tool["outputSchema"],
+                    "annotations": {
+                        "readOnlyHint": not bool(tool.get("usageConditions", {}).get("sideEffects", ["unknown"])),
+                        "openWorldHint": False,
+                    },
                     **({"usageConditions": tool["usageConditions"]} if "usageConditions" in tool else {}),
                 } for tool in tools.values()]}
             elif method == "tools/call":

@@ -128,6 +128,7 @@ def build_evidence(
     calls: list[dict[str, Any]],
     answer: str,
     result_limit: int,
+    environment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a bounded, path-free evidence package for one execution."""
     initial = initial.resolve()
@@ -140,13 +141,28 @@ def build_evidence(
     final_signature = _workspace_signature(final)
     changes = _workspace_changes(initial_signature, final_signature)
     changed_paths = {item["path"] for item in changes}
-    return {
+    evidence = {
         "answer": answer,
         "calls": _bounded_calls(calls, result_limit),
         "changed_paths": changes,
         "initial_files": _files(initial, result_limit, changed_paths),
         "final_files": _files(final, result_limit, changed_paths),
     }
+    if environment and environment.get('schema_version') == '2.0':
+        from .tool_graph.state_runtime import snapshot_state, state_diff
+        evidence['state_environment'] = {k: v for k, v in environment.items() if k != 'tools'}
+        diff = state_diff(snapshot_state(initial, environment), snapshot_state(final, environment))
+        evidence['state_changes'] = diff
+        logical_changes = [
+            {'path': 'record_sets/' + name, 'change': 'modified', 'records': change}
+            for name, change in diff['record_sets'].items()
+        ]
+        for scope, change in diff['filesystem_scopes'].items():
+            for category, label in [('created', 'added'), ('modified', 'modified'), ('deleted', 'deleted')]:
+                logical_changes.extend({'path': f'filesystem_scopes/{scope}/{path}', 'change': label}
+                                       for path in change[category])
+        evidence['changed_paths'] = logical_changes
+    return evidence
 
 
 def validate_verifier(package: dict[str, Any]) -> None:
@@ -236,6 +252,8 @@ class VerifierContext:
         self._verifier_calls = []
         self._results = []
         self._candidate_groups = []
+        self._environment = self._evidence.get('state_environment', {})
+        self._context_source = arguments.get('context_source', '')
 
     def answer(self):
         return self._evidence.get("answer", "")
@@ -317,7 +335,13 @@ class VerifierContext:
                 runner = namespace.get("run")
                 if not callable(runner):
                     raise ValueError("工具没有定义 run(arguments, context)")
-                result = runner(deepcopy(arguments), SimpleNamespace(workspace_root=workspace))
+                if self._environment.get('schema_version') == '2.0':
+                    runtime = {}
+                    exec(self._context_source, runtime)
+                    context = runtime['Context'](workspace, self._environment)
+                else:
+                    context = SimpleNamespace(workspace_root=workspace)
+                result = runner(deepcopy(arguments), context)
         except BaseException as exception:
             error = f"{type(exception).__name__}: {exception}"
         record = {
@@ -481,7 +505,8 @@ def run_verifier(
                 shutil.copytree(state.resolve(), target)
         outcome = _call_tool(
             _runner_source(package["source"]),
-            {"evidence": evidence, "tools": tools or [], "max_tool_calls": max_tool_calls},
+            {"evidence": evidence, "tools": tools or [], "max_tool_calls": max_tool_calls,
+             "context_source": Path(__file__).with_name('tool_graph').joinpath('state_runtime.py').read_text(encoding='utf-8')},
             runtime,
             timeout,
             memory_limit,

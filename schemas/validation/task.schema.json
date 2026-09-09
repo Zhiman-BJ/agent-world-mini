@@ -121,18 +121,18 @@
               }
             },
             "additionalProperties": true
-          }
-        },
-        "usageConditions": {
-          "type": "object",
-          "required": ["targetResources", "targetObjects", "preconditions", "sideEffects"],
-          "properties": {
-            "targetResources": {"type": "array", "items": {"type": "string"}},
-            "targetObjects": {"type": "array", "items": {"type": "object"}},
-            "preconditions": {"type": "array", "items": {"type": "string"}},
-            "sideEffects": {"type": "array", "items": {"type": "string"}}
           },
-          "additionalProperties": false
+          "usageConditions": {
+            "type": "object",
+            "required": ["targetResources", "targetObjects", "preconditions", "sideEffects"],
+            "properties": {
+              "targetResources": {"type": "array", "items": {"type": "string"}},
+              "targetObjects": {"type": "array", "items": {"type": "object"}},
+              "preconditions": {"type": "array", "items": {"type": "string"}},
+              "sideEffects": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": false
+          }
         },
         "required": [
           "name",
