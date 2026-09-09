@@ -38,6 +38,7 @@ def sample_seed() -> dict[str, Any]:
             },
             "description": "A public catalog of items and categories.",
             "domain": {"level1": "general", "level2": None, "level3": None},
+            "nums": {"class": 0, "function": 1, "class_func": 0, "all_func": 1},
         },
         "init_ref_tools": [
             {
@@ -77,10 +78,7 @@ def sample_seed() -> dict[str, Any]:
                 "solution_path": [{"tool_name": "list_items"}],
             }
         ],
-        "others": {
-            "data_directions": ["Public item and category records"],
-            "tool_count": 1,
-        },
+        "others": {},
     }
 
 

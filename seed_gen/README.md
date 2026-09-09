@@ -34,7 +34,9 @@ python -m seed_gen.catalog `
 
 详情工具统一写为 `name/type/module/description/input/output`，MCP 工具固定使用
 `type=function`、`module=null`；`iconUrl` 不写入种子核心数据，其余详情元数据置于
-`others.source_metadata`，实际工具数量写入 `others.tool_count`。该过程不调用 LLM，也不需要任何模型配置；
+`others.source_metadata`。工具分类计数写入 `environment.nums`；Smithery 的 `class` 和
+`class_func` 均为 0，`function` 和 `all_func` 均为参考工具数量。产物不再写入
+`others.tool_count/data_directions/organization_status`。该过程不调用 LLM，也不需要任何模型配置；
 Smithery API 的鉴权仍按接口要求使用 `SMITHERY_API_KEY`。
 - `data/theme_sources.json`：内置主题来源。
 

@@ -14,4 +14,4 @@
 | `../tool.schema.json` | `tool.schema.json` | 单个工具对象 |
 | `../complete_environment.schema.json` | `complete_environment.schema.json` | 带工具的完整环境对象 |
 
-跨资源引用、环境种子 `tool_count` 与工具数组长度的等式、工作区文件存在性、工具代码编译和回滚行为不能只由 JSON Schema 表达，仍由对应的 Python Validator 检查。
+跨资源引用、环境种子 `environment.nums` 与参考工具数组的统计关系、工作区文件存在性、工具代码编译和回滚行为不能只由 JSON Schema 表达，仍由对应的 Python Validator 检查。

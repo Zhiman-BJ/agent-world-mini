@@ -90,16 +90,29 @@ def load_selected_seed(
             f"Seed global_id 与 source/name/index 不一致：声明 {global_id}，应为 {expected}"
         )
 
-    tool_names = [
-        item.get("name")
+    tools = [
+        item
         for item in selected.get("init_ref_tools", [])
         if isinstance(item, dict)
     ]
-    declared_tool_count = selected.get("others", {}).get("tool_count")
-    if declared_tool_count != len(tool_names):
+    function_count = sum(item.get("type") == "function" for item in tools)
+    class_count = sum(item.get("type") == "class" for item in tools)
+    class_func_count = sum(
+        len(item.get("function", []))
+        for item in tools
+        if item.get("type") == "class"
+    )
+    expected_nums = {
+        "class": class_count,
+        "function": function_count,
+        "class_func": class_func_count,
+        "all_func": function_count + class_func_count,
+    }
+    declared_nums = selected.get("environment", {}).get("nums")
+    if declared_nums != expected_nums:
         raise ValueError(
-            "Seed others.tool_count 与 init_ref_tools 数量不一致："
-            f"声明 {declared_tool_count}，实际 {len(tool_names)}"
+            "Seed environment.nums 与 init_ref_tools 统计不一致："
+            f"声明 {declared_nums}，应为 {expected_nums}"
         )
     return selected, canonical_json_sha256(selected)
 

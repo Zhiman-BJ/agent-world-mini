@@ -18,6 +18,12 @@
         "level1": "semiconductor",
         "level2": null,
         "level3": null
+      },
+      "nums": {
+        "class": 17,
+        "function": 12,
+        "class_func": 68,
+        "all_func": 80
       }
     },
     "init_ref_tools": [

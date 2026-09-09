@@ -51,7 +51,7 @@ def raw_payload():
             },
         ],
         "init_ref_tasks": [],
-        "others": {"tool_count": 3},
+        "others": {},
     }]
 
 
@@ -92,7 +92,7 @@ class PythonRefToolSelectionTests(unittest.TestCase):
             "class_func": 1,
             "all_func": 2,
         })
-        self.assertEqual(selected[0]["others"]["tool_count"], 2)
+        self.assertNotIn("tool_count", selected[0]["others"])
         self.assertEqual(report["summary"]["selected_class_count"], 1)
         self.assertEqual(report["summary"]["selected_function_count"], 1)
         self.assertEqual(report["summary"]["selected_method_count"], 1)

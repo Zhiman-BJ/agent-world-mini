@@ -36,23 +36,34 @@ def migrate(seed):
 
     migrated_tools = []
     for source_tool in seed.get("init_ref_tools", []):
-        tool = {
-            "name": source_tool["name"],
-            "type": "function",
-            "module": None,
-            "description": source_tool["description"],
-            "input": schema_fields(source_tool.get("inputSchema")),
-            "output": schema_fields(source_tool.get("outputSchema")),
-        }
-        # Keep any source fields that are not part of the old schema contract.
-        for key, value in source_tool.items():
-            if key not in {"name", "description", "inputSchema", "outputSchema"}:
-                tool[key] = copy.deepcopy(value)
+        if "input" in source_tool:
+            tool = copy.deepcopy(source_tool)
+        else:
+            tool = {
+                "name": source_tool["name"],
+                "type": "function",
+                "module": None,
+                "description": source_tool["description"],
+                "input": schema_fields(source_tool.get("inputSchema")),
+                "output": schema_fields(source_tool.get("outputSchema")),
+            }
+            # Keep any source fields that are not part of the old schema contract.
+            for key, value in source_tool.items():
+                if key not in {"name", "description", "inputSchema", "outputSchema"}:
+                    tool[key] = copy.deepcopy(value)
         migrated_tools.append(tool)
     seed["init_ref_tools"] = migrated_tools
 
+    tool_count = len(migrated_tools)
+    seed["environment"]["nums"] = {
+        "class": 0,
+        "function": tool_count,
+        "class_func": 0,
+        "all_func": tool_count,
+    }
     others = seed.setdefault("others", {})
-    others["tool_count"] = len(migrated_tools)
+    for obsolete_key in ("tool_count", "data_directions", "organization_status"):
+        others.pop(obsolete_key, None)
     return seed
 
 

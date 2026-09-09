@@ -146,9 +146,7 @@ def _reference_tool(tool: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _seed_from_detail(
-    detail: dict[str, object], index: int, *, organization_status: str = "catalog_detail"
-) -> dict[str, object]:
+def _seed_from_detail(detail: dict[str, object], index: int) -> dict[str, object]:
     """Project a Smithery detail response into the environment-seed contract."""
     qualified_name = str(detail.get("qualifiedName") or "").strip()
     description = str(detail.get("description") or "").strip()
@@ -181,14 +179,17 @@ def _seed_from_detail(
             },
             "description": description,
             "domain": {"level1": "general", "level2": None, "level3": None},
+            "nums": {
+                "class": 0,
+                "function": len(tools),
+                "class_func": 0,
+                "all_func": len(tools),
+            },
         },
         "init_ref_tools": tools,
         "init_ref_tasks": [],
         "others": {
             "source_metadata": metadata,
-            "data_directions": deepcopy(detail.get("dataDirections") or []),
-            "organization_status": organization_status,
-            "tool_count": len(tools),
         },
     }
 
@@ -216,18 +217,16 @@ def prepare_smithery_catalog(
     fallback_count = 0
     skipped_count = 0
     for rank, detail in enumerate(details, start=1):
-        status = "catalog_detail"
         if detail is None:
             # Keep every one of the selected top-ranked environments even when
             # its detail endpoint is unavailable.  The list record still gives
             # us a traceable description and an honest empty tool reference.
             detail = servers[rank - 1]
-            status = "catalog_list_fallback"
             fallback_count += 1
         try:
             # Keep the rank in the sorted snapshot as the seed index, even when
             # an individual detail request fails and the output has a gap.
-            entries.append(_seed_from_detail(detail, rank, organization_status=status))
+            entries.append(_seed_from_detail(detail, rank))
         except (TypeError, ValueError):
             skipped_count += 1
             continue

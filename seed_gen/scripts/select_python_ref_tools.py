@@ -257,7 +257,7 @@ def select_seed(
         "all_func": function_count + method_count,
     }
     others = selected_seed.setdefault("others", {})
-    others["tool_count"] = len(selected_tools)
+    others.pop("tool_count", None)
     others["python_api_selection"] = {
         "profile_id": profile["profile_id"],
         "source_artifact": input_label,

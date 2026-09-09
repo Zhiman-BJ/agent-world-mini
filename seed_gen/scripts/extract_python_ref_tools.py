@@ -428,12 +428,25 @@ def main() -> None:
     if args.domain_level1:
         environment.setdefault("domain", {})["level1"] = args.domain_level1
     seed["init_ref_tools"] = tools
+    class_count = sum(tool.get("type") == "class" for tool in tools)
+    function_count = sum(tool.get("type") == "function" for tool in tools)
+    class_func_count = sum(
+        len(tool.get("function", []))
+        for tool in tools
+        if tool.get("type") == "class"
+    )
+    environment["nums"] = {
+        "class": class_count,
+        "function": function_count,
+        "class_func": class_func_count,
+        "all_func": function_count + class_func_count,
+    }
     others = seed.get("others")
     if not isinstance(others, dict):
         others = {}
         seed["others"] = others
     others.pop("..", None)
-    others["tool_count"] = len(tools)
+    others.pop("tool_count", None)
     others["python_source_extraction"] = {
         "strategy": "static_ast",
         "requested_modules": args.modules,

@@ -40,7 +40,13 @@ class SmitherySeedExportTests(unittest.TestCase):
                 "output": {},
             },
         )
-        self.assertEqual(seed["others"]["tool_count"], 1)
+        self.assertEqual(
+            seed["environment"]["nums"],
+            {"class": 0, "function": 1, "class_func": 0, "all_func": 1},
+        )
+        self.assertNotIn("tool_count", seed["others"])
+        self.assertNotIn("data_directions", seed["others"])
+        self.assertNotIn("organization_status", seed["others"])
 
     def test_records_are_sorted_and_preserve_catalog_fields(self):
         result = build_seed_records([
