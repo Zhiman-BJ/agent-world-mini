@@ -150,8 +150,10 @@ class SampleChainsInput(TypedDict):
 class SampleChainsOutput(TypedDict):
     """Step 2 returns candidates, sampling_report and one initial_state_report.
 
-    Objectives prioritize task quality, using original chains as inspiration and
-    the initial report as a reference, without chain acceptance decisions.
+    Objectives extract a core outcome from the chain rather than enumerate calls;
+    the initial report is a reference, without chain acceptance decisions.
+    One batch inference groups equivalent objectives before Codex review, selects
+    representatives without rewriting them, and does not refill removed candidates.
     An objective may combine independent subtasks. Review adapts the chain to the
     frozen objective and may exceed sampling length/visit caps; it retains the
     planning length floor. Each task contains task_id, chain,
@@ -161,7 +163,9 @@ class SampleChainsOutput(TypedDict):
     objective completion; its reason supplies logic_reason and task-state-chain
     guidance to execution, composition, reflection, answer and validation.
     There is no separate scoring inference. Invalid scores are review errors.
-    sampling_report records objective generation, review decisions, failures and coverage.
+    sampling_report records objective generation, objective_deduplication (groups
+    of zero-based generated-candidate indices, representative first, and reason),
+    review decisions, failures and coverage. Generated and reviewed counts differ.
     initial_state_report contains summary, observations and errors. It is limited
     evidence, not a complete state snapshot or proof of absence."""
 

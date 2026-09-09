@@ -1,5 +1,5 @@
 """Step 2: sample -> structural selection -> initial exploration -> frozen objective
--> objective-driven chain completion and scoring -> structural diversity.
+-> batch objective deduplication -> objective-driven chain completion and scoring -> structural diversity.
 
 The global probe runs queries; Codex review reads isolated initial-state copies.
 Sampled chains inspire quality-first
@@ -95,6 +95,7 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
     grounded, objective_records = _generate_objectives(
         selected_for_review, stage_input["environment"], public_tools, config.llm, initial_report,
     )
+    grounded, objective_deduplication = _deduplicate_objectives(grounded, config.llm)
     review_records: list[dict[str, Any]] = []
     reviewed, review_errors, review_changed, review_rejected = _review_chains(
         grounded,
@@ -139,7 +140,8 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
             "longest_observed_length": longest,
             "short_chain_fallback": fallback,
             "objective_candidate_count": len(selected_for_review),
-            "objective_generated_count": len(grounded),
+            "objective_generated_count": sum(r["objective"] is not None for r in objective_records),
+            "objective_deduplication": objective_deduplication,
             "objective_error_count": sum(r["error"] is not None for r in objective_records),
             "objective_records": objective_records,
             "probe_observation_count": len(initial_report["observations"]),
@@ -464,7 +466,10 @@ def _decision(payload: dict[str, Any], keys: set[str]) -> tuple[bool, str]:
 def _generate_objectives(candidates, environment, public_tools, llm_config, initial_report):
     prompts = [
         "生成有实际价值、自然、清楚且信息充分的用户任务目标，以任务质量为唯一优化标准。\n"
-        "采样链提供题材与能力线索，不限定任务的调用次数、顺序或对象数量；后续 review 会调整链以完成目标。"
+        "从采样链中寻找最核心、有实际价值的最终结果，以这个结果作为调用的共同目的；"
+        "不要把整条链平等地翻译成任务清单，不必为每个工具安排一项要求。"
+        "只保留定义核心结果必需的对象、范围、交付物和实质约束；查询、处理和核验方法留给执行。"
+        "不能支持核心结果的旁支可由 review 删除，不为保留调用而扩展业务目标。"
         "本阶段只生成 objective，不审查、不拒绝、不修改链。\n"
         "任务设计须符合实际，依据全部公开工具契约斟酌用词，使所需结果处于工具集可实现的能力范围内；"
         "不要用超出实际交付能力的措辞引入无法完成的要求，改链可以补调用，但不能创造工具能力。\n"
@@ -496,6 +501,34 @@ def _generate_objectives(candidates, environment, public_tools, llm_config, init
             record["error"] = str(error)
         records.append(record)
     return grounded, records
+
+
+def _deduplicate_objectives(candidates, llm_config):
+    """一次比较全部目标，只选代表项，不改写目标；非法分组直接报错。"""
+    if len(candidates) < 2:
+        return candidates, {"groups": [[i] for i in range(len(candidates))], "reason": "不足两项，无需去重"}
+    prompt = (
+        "比较整批任务目标，按业务实质去重。核心问题、对象范围和最终结果实质相同的目标归为一组；"
+        "措辞、执行顺序、中间格式或核验方式不同不能独自构成不同任务。"
+        "同领域或使用同类工具不代表重复；实质不同的对象范围、问题或交付结果应保留。"
+        "每组第一项是最清晰且最能表达该组核心结果的代表，其他项删除；不改写、合并或扩展目标，"
+        "不为减少数量强行分组。不重复的目标独立成组。"
+        "所有输入编号必须恰好出现一次，组和组内均非空；编号从0开始。"
+        "只返回 JSON：{\"groups\":[[0,2],[1]],\"reason\":\"具体分组与保留依据\"}。\n"
+        + json.dumps([{"index": i, "objective": c["objective"]} for i, c in enumerate(candidates)], ensure_ascii=False)
+    )
+    result = parse_json_object(infer(prompt, llm_config=llm_config).text)
+    if set(result) != {"groups", "reason"} or not isinstance(result["reason"], str) or not result["reason"].strip():
+        raise ValueError("objective 去重必须返回 groups 和非空 reason")
+    groups = result["groups"]
+    if not isinstance(groups, list) or not groups or any(not isinstance(g, list) or not g for g in groups):
+        raise ValueError("objective 去重分组必须是非空数组")
+    indices = [i for group in groups for i in group]
+    if any(type(i) is not int for i in indices) or sorted(indices) != list(range(len(candidates))):
+        raise ValueError("objective 去重编号必须完整且恰好覆盖一次")
+    # 保留原候选顺序，避免去重模型改变后续同分筛选的顺序。
+    kept = {group[0] for group in groups}
+    return [c for i, c in enumerate(candidates) if i in kept], result
 
 
 def _review_chains(
@@ -575,6 +608,8 @@ def _review_prompt(
     return f"""通过环境提供的只读工具探索独立初态副本，审查并调整候选链，使其能够完成 objective。
 {TASK_STATE_CHAIN}
 objective 并非任务终稿，不必苛求措辞，但必须遵守其最终目标、范围和实质约束。
+以核心结果判断调用的必要性：保留增删和重排权限，但不泛化目标，不为原链旁支新增需求；
+实现方法与核验依据写入 reason，不把它们自动升级为用户必须提出的要求。
 
 探索：使用 environment MCP 服务提供的只读工具收集足以判断匹配关系的信息，不直接读取 SQLite 或状态文件；初态报告仅作参考。
 不必执行整条链，不进行业务写入，不访问目录外文件或外部服务。

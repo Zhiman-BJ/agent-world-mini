@@ -31,7 +31,7 @@ planning:
   max_chain_length: 15
   max_tool_visits: 2
   random_seed: 42
-  # 先筛选 30 条生成目标，由 review 改链和评分，最多 10 条进入 Step 3。
+  # 初选 30 条生成核心目标，整批语义去重后送 review，最多 10 条进入 Step 3；不补足去重数量。
   review_count: 30
   edge_sampling_probabilities:
     "1": 0.2

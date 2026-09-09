@@ -398,6 +398,8 @@ class ChainSampleTest(unittest.TestCase):
         captured = []
 
         def fake_infer(prompts, **kwargs):
+            if isinstance(prompts, str):
+                return InferenceResult(json.dumps({"groups": [[0, 1]], "reason": "Same requested result"}), {}, "test")
             captured.append(prompts)
             phase = (len(captured) - 1) % 2
             payload = (
@@ -415,6 +417,9 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(first["tasks"][0]["logic_score"], 5)
         self.assertEqual(len(captured), 4)
         self.assertEqual(first["sampling_report"]["objective_generated_count"], 2)
+        self.assertEqual(first["sampling_report"]["review_candidate_count"], 1)
+        self.assertEqual(len(captured[1]), 1)
+        self.assertEqual(first["sampling_report"]["objective_deduplication"]["groups"], [[0, 1]])
         self.assertIn("Initial evidence", captured[0][0])
         self.assertIn("Inspect an existing record.", captured[1][0])
         self.assertNotIn("SECRET", "".join(p for batch in captured for p in batch))
@@ -428,6 +433,21 @@ class ChainSampleTest(unittest.TestCase):
                 "config": config, "environment": graph_environment(), "tool_graph": current_graph,
             })
         self.assertEqual(current["tasks"], first["tasks"])
+
+    def test_objective_deduplication_validates_partition_and_preserves_candidates(self):
+        candidates = [{"objective": str(i), "chain": [str(i)]} for i in range(3)]
+        with patch.object(step_2_chain_sample, "infer", return_value=InferenceResult(
+            json.dumps({"groups": [[2, 0], [1]], "reason": "Two distinct results"}), {}, "test"
+        )) as infer:
+            selected, _ = step_2_chain_sample._deduplicate_objectives(candidates, {"backend": "api"})
+        self.assertEqual(selected, [candidates[1], candidates[2]])
+        self.assertIs(selected[0], candidates[1])
+        infer.assert_called_once()
+        for groups in ([[0, 1]], [[0, 1], [1, 2]], [[0, 1, 3]], [[False, 1, 2]], [[], [0, 1, 2]]):
+            with self.subTest(groups=groups), patch.object(step_2_chain_sample, "infer", return_value=InferenceResult(
+                json.dumps({"groups": groups, "reason": "Invalid grouping"}), {}, "test"
+            )), self.assertRaises(ValueError):
+                step_2_chain_sample._deduplicate_objectives(candidates, {})
 
     def test_review_cannot_override_frozen_objective(self):
         item = {"chain": ["a", "b"], "score": 3, "objective": "Frozen"}
