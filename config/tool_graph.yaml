@@ -23,12 +23,11 @@ planning:
   # 初始试验值；实现后依据三个正式环境的有效率和候选质量调整。
   sample_count: 10000
   keep_top_count: 10
-  # 禁止修改。上一轮实测：设为 8 时 finstat 某轮只能凑出 9 条候选（不足
-  # keep_top_count），当时改成 2 来凑满 10 条。这里明确选择保持 8 —— 宁可候选
-  # 少于 10 条，也不要用 2 步短链充数。Step 2 已有回退：若全部观测链都短于 8，
-  # 则只让长度等于 longest_observed_length 的链参加排名，因此不会一条都没有。
-  min_chain_length: 8
-  max_chain_length: 15
+  # 自然采样后筛选整个链的长度，不在上限强制停止，不使用越界链兜底。
+  min_chain_length: 12
+  max_chain_length: 30
+  termination_tau: 0.4
+  length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
   # 初选 30 条生成核心目标，整批语义去重后送 review，最多 10 条进入 Step 3；不补足去重数量。

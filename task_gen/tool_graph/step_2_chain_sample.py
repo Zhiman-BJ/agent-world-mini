@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import math
 import random
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -27,17 +28,20 @@ DEFAULT_EDGE_SAMPLING_PROBABILITIES = {1: 0.2, 2: 0.3, 3: 0.5}
 SCORE_RANGE = range(6)
 
 
-def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
-    """按文件顶部规格完成采样、review、逻辑评分、去重和任务编号。"""
+def _sample_candidates(stage_input: SampleChainsInput) -> tuple[list[tuple[tuple[str, ...], float]], dict[str, Any]]:
+    """自然采样后整链过滤，再按平均边权、log 长度奖励和工具集合相似度贪心初选。"""
     config = stage_input["config"]
     planning = config.planning
-    names, public_tools = _tools(stage_input["environment"])
+    names, _ = _tools(stage_input["environment"])
     sample_count = _positive(planning, "sample_count", 10000)
     review_count = _positive(planning, "review_count", 30)
-    keep_count = _positive(planning, "keep_top_count", 10)
-    minimum = _positive(planning, "min_chain_length", 8)
-    maximum = _positive(planning, "max_chain_length", 15)
+    minimum = _positive(planning, "min_chain_length", 12)
+    maximum = _positive(planning, "max_chain_length", 30)
     max_visits = _positive(planning, "max_tool_visits", 2)
+    tau = _nonnegative_float(planning, "termination_tau", 0.4)
+    if tau == 0:
+        raise ValueError("planning.termination_tau 必须大于 0")
+    length_reward = _nonnegative_float(planning, "length_reward_alpha", 1.0)
     if minimum > maximum:
         raise ValueError("planning.min_chain_length 不能大于 max_chain_length")
     seed = planning.get("random_seed", 42)
@@ -59,7 +63,8 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
         raise ValueError("tool_graph 中不存在满足前置条件的合法起点")
 
     rng = random.Random(seed)
-    unique: dict[tuple[str, ...], int] = {}
+    unique: dict[tuple[str, ...], None] = {}
+    lengths: Counter[int] = Counter()
     longest = 0
     for _ in range(sample_count):
         chain = _sample_one_chain(
@@ -68,28 +73,58 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
             adjacency,
             prerequisites,
             probabilities,
-            maximum,
+            minimum,
             max_visits,
+            tau,
         )
         key = tuple(chain)
         longest = max(longest, len(chain))
-        unique.setdefault(key, _chain_score(chain, adjacency))
+        unique.setdefault(key, None)
+        lengths[len(chain)] += 1
 
     if not unique:
         raise ValueError("采样没有产生任何非空链")
     eligible = [
-        (chain, score)
-        for chain, score in unique.items()
+        (chain, _chain_score(chain, adjacency) / max(1, len(chain) - 1) + length_reward * math.log(len(chain)))
+        for chain in unique
         if minimum <= len(chain) <= maximum
     ]
-    fallback = not eligible
-    if fallback:
-        eligible = [(chain, score) for chain, score in unique.items() if len(chain) == longest]
+    if not eligible:
+        raise ValueError(f"采样 {sample_count} 次后没有长度在 {minimum}–{maximum} 的链；不使用越界链兜底")
     selected_for_review = _select_diverse_chains(
         eligible,
         review_count,
         diversity_lambda,
     )
+    return selected_for_review, {
+        "attempt_count": sample_count,
+        "unique_chain_count": len(unique),
+        "eligible_chain_count": len(eligible),
+        "longest_observed_length": longest,
+        "short_chain_fallback": False,
+        "sampled_length_distribution": dict(sorted(lengths.items())),
+        "eligible_length_distribution": dict(sorted(Counter(len(chain) for chain, _ in eligible).items())),
+        "selected_length_distribution": dict(sorted(Counter(len(chain) for chain, _ in selected_for_review).items())),
+        "sampling_parameters": {
+            "sample_count": sample_count, "review_count": review_count, "random_seed": seed,
+            "min_chain_length": minimum, "max_chain_length": maximum, "max_tool_visits": max_visits,
+            "termination_tau": tau, "length_reward_alpha": length_reward,
+            "diversity_lambda": diversity_lambda, "edge_sampling_probabilities": probabilities,
+        },
+    }
+
+
+def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
+    """按文件顶部规格完成采样、review、逻辑评分、去重和任务编号。"""
+    selected_for_review, sampling_report = _sample_candidates(stage_input)
+    config = stage_input["config"]
+    parameters = sampling_report["sampling_parameters"]
+    minimum, maximum = parameters["min_chain_length"], parameters["max_chain_length"]
+    diversity_lambda = parameters["diversity_lambda"]
+    keep_count = _positive(config.planning, "keep_top_count", 10)
+    names, public_tools = _tools(stage_input["environment"])
+    graph = stage_input["tool_graph"]
+    adjacency, _ = _legacy_graph(graph, names) if isinstance(graph, list) else _graph(graph, names)
 
     initial_report = explore_initial_state(config, stage_input["environment"])
     grounded, objective_records = _generate_objectives(
@@ -134,11 +169,7 @@ def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
         "tasks": tasks,
         "initial_state_report": initial_report,
         "sampling_report": {
-            "attempt_count": sample_count,
-            "unique_chain_count": len(unique),
-            "eligible_chain_count": len(eligible),
-            "longest_observed_length": longest,
-            "short_chain_fallback": fallback,
+            **sampling_report,
             "objective_candidate_count": len(selected_for_review),
             "objective_generated_count": sum(r["objective"] is not None for r in objective_records),
             "objective_deduplication": objective_deduplication,
@@ -324,12 +355,14 @@ def _sample_one_chain(
     adjacency: dict[str, list[tuple[str, int]]],
     prerequisites: dict[str, list[frozenset[str]]],
     probabilities: dict[int, float],
-    maximum: int,
+    minimum: int,
     max_visits: int,
+    tau: float = 0.4,
 ) -> list[str]:
     chain = [rng.choice(roots)]
     visits = {chain[0]: 1}
-    while len(chain) < maximum:
+    # 每个工具最多访问 max_visits 次，自然有限；长度上限只用于采样后过滤。
+    while True:
         options = [
             edge
             for edge in adjacency[chain[-1]]
@@ -337,6 +370,8 @@ def _sample_one_chain(
             and _prerequisites_satisfied(edge[0], visits, prerequisites)
         ]
         if not options:
+            break
+        if len(chain) >= minimum and rng.random() < tau / (tau + len(options)):
             break
         target, _weight = rng.choices(
             options,
@@ -358,7 +393,7 @@ def _prerequisites_satisfied(
     return not options or any(option.issubset(visited) for option in options)
 
 
-def _chain_score(chain: list[str], adjacency: dict[str, list[tuple[str, int]]]) -> int:
+def _chain_score(chain: list[str] | tuple[str, ...], adjacency: dict[str, list[tuple[str, int]]]) -> int:
     return sum(dict(adjacency[source]).get(target, 0) for source, target in zip(chain, chain[1:]))
 
 
@@ -367,6 +402,13 @@ def _chain_edges(chain: tuple[str, ...] | list[str]) -> set[tuple[str, str]]:
 
 
 def _chain_similarity(left: tuple[str, ...], right: tuple[str, ...]) -> float:
+    """初选相似度：忽略顺序和同一工具的重复次数。"""
+    left_tools, right_tools = set(left), set(right)
+    return len(left_tools & right_tools) / min(len(left_tools), len(right_tools)) if left_tools and right_tools else 0.0
+
+
+def _edge_similarity(left: list[str], right: list[str]) -> float:
+    """保留 review 后终选原有的有向边相似度。"""
     left_edges = _chain_edges(left)
     right_edges = _chain_edges(right)
     denominator = min(len(left_edges), len(right_edges))
@@ -376,25 +418,27 @@ def _chain_similarity(left: tuple[str, ...], right: tuple[str, ...]) -> float:
 
 
 def _select_diverse_chains(
-    candidates: list[tuple[tuple[str, ...], int]],
+    candidates: list[tuple[tuple[str, ...], float]],
     count: int,
     diversity_lambda: float,
-) -> list[tuple[tuple[str, ...], int]]:
+) -> list[tuple[tuple[str, ...], float]]:
     if not candidates or count <= 0:
         return []
-    ranked = sorted(candidates, key=lambda item: (-item[1], -len(item[0]), item[0]))
-    selected: list[tuple[tuple[str, ...], int]] = []
-    remaining = list(ranked)
-    maximum_score = max(item[1] for item in ranked) or 1
+    selected = []
+    remaining = dict(candidates)
+    similarities = dict.fromkeys(remaining, 0.0)
+    tool_sets = {chain: set(chain) for chain in remaining}
     while remaining and len(selected) < count:
-        def key(item: tuple[tuple[str, ...], int]) -> tuple[float, int, int, tuple[str, ...]]:
-            similarity = max((_chain_similarity(item[0], other[0]) for other in selected), default=0.0)
-            value = item[1] / maximum_score - diversity_lambda * similarity
-            return (value, item[1], len(item[0]), tuple(item[0]))
-
-        best = max(remaining, key=key)
-        selected.append(best)
-        remaining.remove(best)
+        best = max(remaining, key=lambda chain: (
+            remaining[chain] - diversity_lambda * similarities[chain],
+            remaining[chain], len(chain), chain,
+        ))
+        selected.append((best, remaining.pop(best)))
+        # 增量维护与已选链的最大相似度，避免每轮重新遍历所有已选链。
+        for chain in remaining:
+            denominator = min(len(tool_sets[chain]), len(tool_sets[best]))
+            similarity = len(tool_sets[chain] & tool_sets[best]) / denominator if denominator else 0.0
+            similarities[chain] = max(similarities[chain], similarity)
     return selected
 
 
@@ -411,7 +455,7 @@ def _select_final_chains(
         while remaining and len(selected) < count:
             def key(item: dict[str, Any]) -> tuple[float, int, int, tuple[str, ...]]:
                 similarity = max(
-                    (_chain_similarity(item["chain"], other["chain"]) for other in selected),
+                    (_edge_similarity(item["chain"], other["chain"]) for other in selected),
                     default=0.0,
                 )
                 value = item["score"] / maximum_score - diversity_lambda * similarity

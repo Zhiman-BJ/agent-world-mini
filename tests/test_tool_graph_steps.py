@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from pathlib import Path
 import tempfile
@@ -347,9 +348,9 @@ class ChainSampleTest(unittest.TestCase):
 
     def test_diversity_penalty_can_skip_high_score_chain_from_new_start(self) -> None:
         candidates = [
-            (("a", "x", "y", "z"), 10),
-            (("b", "x", "y", "z"), 9),
-            (("a", "p", "q", "r"), 1),
+            (("a", "x", "y", "z"), 5),
+            (("b", "x", "y", "z"), 4.9),
+            (("a", "p", "q", "r"), 4.7),
         ]
 
         selected = _select_diverse_chains(candidates, count=2, diversity_lambda=10)
@@ -491,20 +492,37 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(output["tasks"][0]["llm_review"]["original_chain"], ["a", "b"])
         self.assertEqual(output["tasks"][0]["score"], 3)
 
-    def test_short_chain_fallback_retains_only_longest_observed_candidates(self):
-        replies = [
-            [InferenceResult('{"objective":"Frozen"}', {}, "test")],
-            [InferenceResult('{"accepted":true,"chain":["a","b","c"],"reason":"Add missing final query","score":4}', {}, "test")],
-        ]
-        with patch.object(step_2_chain_sample, "infer", side_effect=replies):
-            output = sample_chains({
+    def test_short_chains_are_not_used_as_fallback(self):
+        with patch.object(step_2_chain_sample, "infer") as inference, self.assertRaisesRegex(ValueError, "兜底"):
+            sample_chains({
                 "config": Config(planning={"sample_count": 1, "min_chain_length": 3, "max_chain_length": 3, "random_seed": 1}),
                 "environment": graph_environment(),
                 "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
             })
-        self.assertTrue(output["sampling_report"]["short_chain_fallback"])
-        self.assertEqual(output["sampling_report"]["longest_observed_length"], 2)
-        self.assertEqual(output["tasks"][0]["llm_review"]["original_chain"], ["a", "b"])
+        inference.assert_not_called()
+
+    def test_natural_sampler_and_post_filter_scoring(self):
+        rng = random.Random(42)
+        with patch.object(rng, "random", return_value=0.99):
+            chain = step_2_chain_sample._sample_one_chain(
+                rng, ["a"], {"a": [("b", 3)], "b": [("a", 3)]}, {},
+                {1: .2, 2: .3, 3: .5}, 2, 2, .4,
+            )
+        self.assertEqual(chain, ["a", "b", "a", "b"])
+        with patch.object(step_2_chain_sample, "_sample_one_chain", side_effect=[
+            ["a"], ["a", "b"], ["a", "b", "c"], ["a", "b", "a", "b"],
+        ]):
+            selected, report = step_2_chain_sample._sample_candidates({
+                "config": Config(planning={"sample_count": 4, "min_chain_length": 2, "max_chain_length": 3}),
+                "environment": graph_environment(),
+                "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3},
+                               {"from_tool": "b", "to_tool": "c", "weight": 1}],
+            })
+        self.assertEqual(report["eligible_chain_count"], 2)
+        self.assertEqual(selected[0][0], ("a", "b"))
+        self.assertAlmostEqual(selected[0][1], 3 + math.log(2))
+        self.assertAlmostEqual(selected[1][1], 2 + math.log(3))
+        self.assertEqual(step_2_chain_sample._chain_similarity(("a", "b", "a"), ("b", "a")), 1)
 
     def test_invalid_objective_outputs_are_generation_errors_not_chain_rejections(self):
         for payload in (
@@ -517,7 +535,7 @@ class ChainSampleTest(unittest.TestCase):
             ]) as mocked:
                 output = sample_chains({
                     "config": Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1,
-                                               "min_chain_length": 2, "max_chain_length": 2}),
+                                               "min_chain_length": 2, "max_chain_length": 2, "random_seed": 1}),
                     "environment": graph_environment(),
                     "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
                 })
@@ -536,7 +554,7 @@ class ChainSampleTest(unittest.TestCase):
         with patch.object(step_2_chain_sample, "infer", side_effect=replies) as mocked:
             output = sample_chains({
                 "config": Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1,
-                                           "min_chain_length": 2, "max_chain_length": 2}),
+                                           "min_chain_length": 2, "max_chain_length": 2, "random_seed": 1}),
                 "environment": graph_environment(),
                 "tool_graph": [{"from_tool": "a", "to_tool": "b", "weight": 3}],
             })

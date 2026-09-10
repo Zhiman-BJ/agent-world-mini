@@ -16,8 +16,10 @@ graph: {}
 planning:
   sample_count: 10000
   keep_top_count: 10
-  min_chain_length: 8
-  max_chain_length: 15
+  min_chain_length: 12
+  max_chain_length: 30
+  termination_tau: 0.4
+  length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
   review_count: 30

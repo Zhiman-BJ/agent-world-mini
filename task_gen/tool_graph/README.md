@@ -131,14 +131,16 @@ llm:
 
 planning:
   sample_count: 10000
-  review_count: 20
+  review_count: 30
   keep_top_count: 10
-  min_chain_length: 8
-  max_chain_length: 15
+  min_chain_length: 12
+  max_chain_length: 30
+  termination_tau: 0.4
+  length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
   edge_sampling_probabilities: {"1": 0.2, "2": 0.3, "3": 0.5}
-  diversity_lambda: 0.3
+  diversity_lambda: 10
 
 execution:
   max_concurrency: 4
@@ -268,10 +270,16 @@ Schema 投影，不能看到 `tools[].internal` 或 workspace 状态。输出只
 1. 起点是没有 prerequisite 历史约束的工具；
 2. 后继按配置中的 `edge_sampling_probabilities` 重新归一化采样，权重和概率分开；
 3. 单条链中的工具访问次数不能超过 `max_tool_visits`；
-4. 后继的任一 `all_of` 方案必须已被链历史满足；到达最大长度或没有合法后继时自然结束；
-5. 完整有序链去重，记录尝试数、唯一链数和观察到的最长链；
-6. 通过共享有向边比例计算相似度，用 `diversity_lambda` 惩罚与已选链过于相似的
-   候选，尽量保留不同起点和不同调用关系。
+4. 后继的任一 `all_of` 方案必须已被链历史满足；达到最短长度后，每步以
+   `termination_tau / (termination_tau + 合法后继数)` 随机终止；没有合法后继也结束。
+   不在最大长度强制停止，工具访问次数上限保证采样有限；
+5. 采样 `sample_count` 次后对完整有序链去重，只保留 `[min_chain_length, max_chain_length]`
+   内的整条链，再评分。没有合格链则报错，不截短长链、不用短链兜底；
+6. 初选基础分为 `平均边权 + length_reward_alpha * ln(调用次数)`。
+   相似度为工具集合交集大小除以较小集合大小，忽略顺序和重复次数。
+   每轮选择 `基础分 - diversity_lambda * 与已选链的最大相似度` 最高的链，直到选满
+   `review_count` 或候选耗尽。初选分不归一化；默认长度奖励系数 1、相似度系数 10。
+   review 后的终选仍沿用逻辑分优先、同分内按原有边权总和和有向边相似度选择。
 
 初态探索由模型规划查询，每次在独立副本中运行。只有成功且没有改变 workspace 的结果
 进入描述报告；报告同时保留观察和错误，探索失败不阻断流水线，未覆盖状态仍然未知。

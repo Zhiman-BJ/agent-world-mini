@@ -77,7 +77,7 @@ class InitialStateTest(unittest.TestCase):
     def test_objective_precedes_review_and_score_uses_final_chain(self):
         environment = {"resources": [], "tools": [tool(n, "unused") for n in "abc"]}
         graph = [{"from_tool": "a", "to_tool": "b", "weight": 3}, {"from_tool": "b", "to_tool": "c", "weight": 3}]
-        config = Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1, "min_chain_length": 2, "max_chain_length": 3})
+        config = Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1, "min_chain_length": 2, "max_chain_length": 3, "random_seed": 1})
         report = {"summary": "Existing record-7", "observations": [], "errors": []}
         replies = [
             [response({"objective": "Inspect record-7"})],
@@ -104,7 +104,7 @@ class InitialStateTest(unittest.TestCase):
         replies = [[response({"objective": objective})],
                    [response({"accepted": True, "chain": chain, "reason": "Both independent subtask results are supported.", "score": 4})]]
         with patch.object(sampling, "explore_initial_state", return_value={"summary": "Observed", "observations": [], "errors": []}), patch.object(sampling, "infer", side_effect=replies) as mocked:
-            output = sampling.sample_chains({"config": Config(planning={"sample_count": 1, "min_chain_length": 2, "max_chain_length": 2}),
+            output = sampling.sample_chains({"config": Config(planning={"sample_count": 1, "min_chain_length": 2, "max_chain_length": 2, "random_seed": 0}),
                                              "environment": environment, "tool_graph": [{"from_tool": chain[0], "to_tool": chain[1], "weight": 1}]})
         self.assertEqual(output["tasks"][0]["objective"], objective)
         self.assertEqual(output["tasks"][0]["chain"], chain)
