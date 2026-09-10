@@ -194,6 +194,8 @@ def infer(
     parameters: dict[str, object] = {"temperature": float(config.get("temperature", 0.2))}
     if config.get("max_tokens") is not None:
         parameters["max_tokens"] = int(config["max_tokens"])
+    if config.get("reasoning_effort"):
+        parameters["reasoning_effort"] = str(config["reasoning_effort"])
 
     def run(index: int, item: str) -> InferenceResult:
         started_at = datetime.now().astimezone().isoformat()
@@ -259,6 +261,7 @@ def _infer_codex(
     client = CodexAgentClient(
         model=str(config["model"]) if config.get("model") else None,
         codex_home=str(config["codex_home"]) if config.get("codex_home") else None,
+        reasoning_effort=config.get("reasoning_effort"),
         timeout_seconds=int(config.get("timeout_seconds", 1800)),
         sandbox="read-only",
     )

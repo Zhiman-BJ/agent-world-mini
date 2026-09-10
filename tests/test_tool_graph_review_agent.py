@@ -19,6 +19,7 @@ class ReviewAgentTest(unittest.TestCase):
                 directories.append(working_directory)
                 self.assertNotEqual(working_directory, source)
                 self.assertEqual(client.sandbox, "read-only")
+                self.assertEqual(client.reasoning_effort, "low")
                 self.assertFalse(client.enable_web_search)
                 self.assertIn('features.shell_tool=false', client._llm_arguments({}))
                 self.assertEqual(list(working_directory.iterdir()), [])
@@ -30,7 +31,7 @@ class ReviewAgentTest(unittest.TestCase):
 
             with patch.object(review_agent.CodexAgentClient, "run", run), llm.capture_calls("review", records.append):
                 results = review_agent.review_with_initial_state(
-                    ["first", "second"], llm_config={"max_concurrency": 2}, initial_workspace=source,
+                    ["first", "second"], llm_config={"max_concurrency": 2, "reasoning_effort": "low"}, initial_workspace=source,
                 )
             self.assertEqual(len(results), 2)
             self.assertEqual(len(set(directories)), 2)
