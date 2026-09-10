@@ -114,6 +114,39 @@ class PythonRefToolSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(SelectionError, "Missing methods"):
             select_seed(raw, profile, input_label="raw.json", profile_label="profile.json")
 
+    def test_missing_description_exception_is_explicit_and_preserves_source(self):
+        raw = raw_payload()
+        raw[0]["init_ref_tools"][0]["description"] = ""
+        raw[0]["init_ref_tools"][0]["function"][0]["description"] = ""
+        profile = profile_for(raw)
+        with self.assertRaisesRegex(SelectionError, "empty description"):
+            select_seed(raw, profile, input_label="raw.json", profile_label="profile.json")
+        profile["capabilities"][0]["symbols"][0]["missing_description_reason"] = "Core fixture constructor; source has no docstring."
+        original = copy.deepcopy(raw)
+        selected, report = select_seed(raw, profile, input_label="raw.json", profile_label="profile.json")
+        self.assertEqual(raw, original)
+        self.assertEqual(selected[0]["init_ref_tools"][0]["description"], "")
+        self.assertEqual(selected[0]["init_ref_tools"][0]["function"][0]["description"], "")
+        self.assertEqual(report["summary"]["missing_description_count"], 2)
+        self.assertEqual(report["selected_symbols"][0]["excluded_methods"][0]["name"], "save")
+
+    def test_undocumented_method_requires_its_own_class_exception(self):
+        raw = raw_payload()
+        raw[0]["init_ref_tools"][0]["function"][0]["description"] = ""
+        profile = profile_for(raw)
+        with self.assertRaisesRegex(SelectionError, "Selected methods have empty descriptions"):
+            select_seed(raw, profile, input_label="raw.json", profile_label="profile.json")
+
+    def test_budget_counts_functions_and_methods_without_classes(self):
+        raw = raw_payload()
+        profile = profile_for(raw)
+        profile["target_all_func"] = {"min": 2, "max": 2}
+        _, report = select_seed(raw, profile, input_label="raw.json", profile_label="profile.json")
+        self.assertEqual(report["summary"]["selected_all_func"], 2)
+        profile["target_all_func"] = {"min": 3, "max": 4}
+        with self.assertRaisesRegex(SelectionError, "outside target"):
+            select_seed(raw, profile, input_label="raw.json", profile_label="profile.json")
+
 
 if __name__ == "__main__":
     unittest.main()

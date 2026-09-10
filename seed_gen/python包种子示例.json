@@ -7,6 +7,7 @@
         "source": "pypi",
         "url": [
           "https://github.com/materialsproject/pymatgen-core",
+          "https://pypi.org/project/pymatgen-core/",
           "https://pymatgen.org/pymatgen.html"
         ],
         "name": "pymatgen-core",
@@ -178,6 +179,7 @@
         "source": "pypi",
         "url": [
           "https://github.com/materialsproject/atomate2",
+          "https://pypi.org/project/atomate2/",
           "https://materialsproject.github.io/atomate2/user/index.html"
         ],
         "name": "atomate2",

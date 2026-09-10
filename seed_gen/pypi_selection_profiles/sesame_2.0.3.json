@@ -1,0 +1,261 @@
+{
+  "profile_id": "sesame_balanced_v1",
+  "package": "sesame",
+  "version": "2.0.3",
+  "source_sha256": "35d1b5ed52ca4aec44a725493a970d35bf657fb78352bf58843cb0c51c67f2e8",
+  "target_all_func": {
+    "min": 50,
+    "max": 100
+  },
+  "boundary": "小型一维/二维器件构建、缩放、漂移扩散求解、载流子/复合/电流分析、结果保存与必要绘图。排除 Qt GUI、MUMPS 包装、异常类和雅可比/残差装配。少量几何工具用于定位缺陷及校验网格；图形验证需无界面后端。仅静态筛选，数值求解和旧版依赖兼容性未验证。",
+  "capabilities": [
+    {
+      "id": "device_construction",
+      "description": "网格、材料、掺杂、缺陷与接触",
+      "selection_reason": "保留 Builder 完整公共构建链及 Scaling，支持有限网格上的材料与边界条件检查。",
+      "verification_tier": "numerical_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/sesame/doc/reference/sesame.builder.rst",
+        "seed_pypi_raw/sesame/sesame/builder.py"
+      ],
+      "symbols": [
+        {
+          "module": "sesame.builder",
+          "name": "Builder",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "add_material",
+            "add_defects",
+            "doping_profile",
+            "add_donor",
+            "add_acceptor",
+            "generation",
+            "contact_S",
+            "contact_type"
+          ],
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        },
+        {
+          "module": "sesame.builder",
+          "name": "Scaling",
+          "type": "class",
+          "methods": [
+            "__init__"
+          ],
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        }
+      ]
+    },
+    {
+      "id": "equilibrium_and_iv",
+      "description": "初值、平衡/非平衡求解与 IV 扫描",
+      "selection_reason": "从具体 Solver 类暴露求解方法，避免源码别名重复；仅对受控小网格验证收敛及残差。",
+      "verification_tier": "numerical_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/sesame/sesame/solvers.py"
+      ],
+      "symbols": [
+        {
+          "module": "sesame.solvers",
+          "name": "Solver",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "make_guess",
+            "solve",
+            "IVcurve"
+          ],
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        }
+      ]
+    },
+    {
+      "id": "result_analysis",
+      "description": "密度、电流、复合积分与基本结果图",
+      "selection_reason": "保留 Analyzer 的数值分析和二维电流展示；排除内部 current_map 调度器及通用 3D 图。",
+      "verification_tier": "numerical_fixture_and_headless_plot_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/sesame/doc/tutorial/analysis.rst"
+      ],
+      "symbols": [
+        {
+          "module": "sesame.analyzer",
+          "name": "Analyzer",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "line",
+            "band_diagram",
+            "electron_density",
+            "hole_density",
+            "bulk_srh_rr",
+            "auger_rr",
+            "radiative_rr",
+            "defect_rr",
+            "total_rr",
+            "electron_current",
+            "hole_current",
+            "electron_current_map",
+            "hole_current_map",
+            "integrated_bulk_srh_recombination",
+            "integrated_auger_recombination",
+            "integrated_radiative_recombination",
+            "integrated_recombination",
+            "integrated_defect_recombination",
+            "full_current"
+          ],
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        }
+      ]
+    },
+    {
+      "id": "local_observables",
+      "description": "显式坐标上的载流子与电流计算",
+      "selection_reason": "官方 observables 提供 Analyzer 未覆盖场景的细粒度接口；仅保留值计算，排除导数和雅可比。",
+      "verification_tier": "numerical_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/sesame/doc/reference/sesame.observables.rst"
+      ],
+      "symbols": [
+        {
+          "module": "sesame.observables",
+          "name": "get_n",
+          "type": "function"
+        },
+        {
+          "module": "sesame.observables",
+          "name": "get_p",
+          "type": "function"
+        },
+        {
+          "module": "sesame.observables",
+          "name": "get_jn",
+          "type": "function"
+        },
+        {
+          "module": "sesame.observables",
+          "name": "get_jp",
+          "type": "function"
+        },
+        {
+          "module": "sesame.observables",
+          "name": "get_bulk_rr",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        }
+      ]
+    },
+    {
+      "id": "persistence_and_geometry",
+      "description": "保存恢复、缺陷定位及网格交叉检查",
+      "selection_reason": "保存加载构成任务结果闭环；几何函数补充位置/索引映射，check_equal_sim_settings 仅比较源码覆盖的数组属性，不是完整状态验证器。",
+      "verification_tier": "local_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/sesame/sesame/utils.py"
+      ],
+      "symbols": [
+        {
+          "module": "sesame.utils",
+          "name": "save_sim",
+          "type": "function"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "load_sim",
+          "type": "function"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "get_indices",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "get_xyz_from_s",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "get_dl",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "get_point_defects_sites",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "get_line_defects_sites",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        },
+        {
+          "module": "sesame.utils",
+          "name": "check_equal_sim_settings",
+          "type": "function",
+          "missing_description_reason": "为构建设备、生成求解初值或结果定位必需；已核对源码实现，缺少独立 docstring 的字段继续留空，不能视为运行验证已通过。"
+        }
+      ]
+    },
+    {
+      "id": "device_visualization",
+      "description": "网格和缺陷的二维可视化",
+      "selection_reason": "为构建结果提供图形检查入口，后续需固定无界面绘图后端和输出路径。",
+      "verification_tier": "headless_plot_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "sesame.plotter",
+          "name": "plot_grid",
+          "type": "function"
+        },
+        {
+          "module": "sesame.plotter",
+          "name": "plot_line_defects",
+          "type": "function"
+        },
+        {
+          "module": "sesame.plotter",
+          "name": "plot",
+          "type": "function"
+        }
+      ]
+    }
+  ]
+}

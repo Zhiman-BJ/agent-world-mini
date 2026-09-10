@@ -1,0 +1,1577 @@
+[
+  {
+    "global_id": "pypi_nextnanopy_4",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/nextnano-GmbH/nextnanopy",
+          "https://pypi.org/project/nextnanopy/",
+          "https://www.nextnano.com/docu/nextnanopy/"
+        ],
+        "name": "nextnanopy",
+        "version": "v1.3.2",
+        "index": 4
+      },
+      "description": "nextnanopy 是 nextnano 半导体纳米结构仿真软件的 Python 接口工具包，用于读取和修改输入文件、管理仿真配置、批量执行与参数扫描，并读取、分析和绘制计算输出。它可组织 nextnano 软件的自动化研究流程，实际仿真需要相应的 nextnano 程序及许可。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 15,
+        "function": 5,
+        "class_func": 67,
+        "all_func": 72
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "InputFile",
+        "type": "class",
+        "module": "nextnanopy.inputs",
+        "input": "InputFileTemplate",
+        "description": "Load a nextnano input file as the product-specific class that fits it.  ``InputFile(path)`` detects the product from the file's text and returns an instance of that product's class (``nextnanopy.nnp.inputs.InputFile``, ``nextnanopy.nn3.inputs.InputFile``, and so on), or a bare ``InputFileTemplate`` if the text matches no known product.  Pass ``text`` to build from a string instead of from disk: ``InputFile(text=...)`` detects the product from that text and never opens a file. ``fullpath`` is then just the name to give the result (``InputFile(path, text=...)`` reads nothing, but the object saves back to ``path``). With neither, there is nothing to detect and nothing to load, so an empty ``InputFileTemplate`` comes back.  **Building from a string: use InputFile(text=...), not InputFile() + .text = ....** The latter cannot work: ``InputFile()`` has no text to detect from, so it returns a product-agnostic ``InputFileTemplate`` whose ``load_variables()`` is a no-op, and assigning ``.text`` afterwards cannot re-class the object it is called on. The text round-trips, but ``.variables`` stays empty and ``.product`` stays ``'not valid'``, silently. Dispatch happens in ``__new__`` or not at all, so the contents must be supplied at construction. (Assigning ``.text`` to a file loaded *from a path* is fine — that object is already a product class.)  Two limitations follow from dispatching in ``__new__``, both deliberate:  - **The result is not an InputFile.** The product classes are siblings of this class, not subclasses, so ``isinstance(InputFile(path), InputFile)`` is ``False``. Check against, annotate with, and subclass ``InputFileTemplate`` — the base every product class shares. - **This class cannot be subclassed.** ``__new__`` picks the class from the file's contents and ignores ``cls``, so a subclass would be silently discarded; it raises ``TypeError`` instead. To extend one product, subclass that product's class; to extend all of them, subclass ``InputFileTemplate``.  See Also -------- InputFileTemplate : Parameters, attributes and methods of the object returned.",
+        "function": []
+      },
+      {
+        "name": "InputFileTemplate",
+        "type": "class",
+        "module": "nextnanopy.inputs",
+        "input": "",
+        "description": "This class stores and manipulates any kind of nextnano input files.  For each nextnano product, the syntax is different but the core information is very similar like the variables that can be changed. This class contains useful methods such as to get a preview of the file or execute a simulation.  The initialization of the class will execute the load method and setup the config file.  Parameters ---------- fullpath : str or pathlib.Path, default=None Path to the file. If given, the file is loaded, unless `text` is given as well: then `fullpath` only names the file and nothing is read from disk. configpath : str or pathlib.Path, default=None Path to the config file. If omitted, a copy of the process-wide configuration (`nextnanopy.config`) is taken instead of reading a file; see Notes. parse : bool, default=False Experimental feature to parse the input file into a structured object. Please refrain from using it. text : str, default=None Contents of the input file. If given, the file content is read from this string instead of from disk at `fullpath`.  Attributes ---------- fullpath : str or pathlib.Path Path to the file. configpath : str or pathlib.Path Path of the configuration file behind `.config`. Read-only; assign `.config` to point this file at a different configuration. variables : DictList of InputVariable Input variables defined in the file, keyed by name. raw_lines : list of str Each line of the file as it was loaded. raw_text : str The `.raw_lines` as one string, without the current input variable values applied. Read-only. text : str Text of the file with the current variable values applied. Assigning replaces `.raw_lines` and reloads `.variables`, but does not re-detect `.product`. lines : list of str The `.raw_lines` updated with the current input variable parameters. filename : str File name with the extension. Assigning changes `.fullpath` to the same folder with the new name. filename_only : str File name without the extension. Assigning changes `.fullpath` to the new name, keeping the folder and the extension. folder_input : str Folder containing the input file. Assigning changes `.fullpath` to the new folder, keeping the file name. product : str Detected nextnano product when the file is loaded. Defaults to 'not valid' if the product is not recognised. config : NNConfig The configuration this file runs on, bound at construction (see Notes). execute_info : dict Information about the last execution. Empty until `.execute()` has run.  Notes ----- The configuration is bound at construction and never re-read afterwards. With no ``configpath``, the file takes a *copy* of the process-wide configuration (``nextnanopy.config``) as it stands at that moment. Two things follow, both intended:  - ``nextnanopy.config.set(...)`` reaches every input file built after it, and no ``save()`` is needed for that -- saving only matters for other processes. It reaches no file that already exists. - The copy is this file's own. Editing ``.config`` here changes neither ``nextnanopy.config`` nor any other input file, and later edits to ``nextnanopy.config`` do not reach this file.  So configure first, then build the input files. To point a file that already exists at a different configuration, assign ``.config``; to build one on a config file of its own, pass ``configpath``.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              },
+              "configpath": {
+                "type": "",
+                "description": ""
+              },
+              "parse": {
+                "type": "",
+                "description": ""
+              },
+              "text": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath = None, configpath = None, parse = False, text = None",
+            "ori_description": ""
+          },
+          {
+            "name": "text",
+            "description": "",
+            "input": {
+              "self": null,
+              "text": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, text",
+            "ori_description": ""
+          },
+          {
+            "name": "raw_text",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "lines",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "filename",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name",
+            "ori_description": ""
+          },
+          {
+            "name": "folder_input",
+            "description": "",
+            "input": {
+              "self": null,
+              "folder": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, folder",
+            "ori_description": ""
+          },
+          {
+            "name": "folder_output",
+            "description": "Folder where the simulated data is stored. Read-only.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "pathlib.Path",
+                "description": "Output directory of the last execution, as chosen by `execute()` from `overwrite` and `create_subdirectory`."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Folder where the simulated data is stored. Read-only.  Returns ------- pathlib.Path Output directory of the last execution, as chosen by `execute()` from `overwrite` and `create_subdirectory`.  Raises ------ KeyError If the input file has not been executed yet."
+          },
+          {
+            "name": "load",
+            "description": "Load the input file.  The steps are the following:  1. Clear `.raw_lines`, `.variables` and `.fullpath`. 2. Load the raw text (updates `.fullpath` and `.raw_lines`). 3. Find the nextnano product (updates `.product`). 4. Validate the input file. 5. Load the input variables (updates `.variables`). 6. Load the content, when applicable.",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "str or pathlib.Path",
+                "description": "Path to the file to be loaded."
+              },
+              "text": {
+                "type": "str, default=None",
+                "description": "Contents of `fullpath`, if the caller has already read them. Saves re-reading the file from disk. If omitted, the file is read here."
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath, text = None",
+            "ori_description": "Load the input file.  The steps are the following:  1. Clear `.raw_lines`, `.variables` and `.fullpath`. 2. Load the raw text (updates `.fullpath` and `.raw_lines`). 3. Find the nextnano product (updates `.product`). 4. Validate the input file. 5. Load the input variables (updates `.variables`). 6. Load the content, when applicable.  Parameters ---------- fullpath : str or pathlib.Path Path to the file to be loaded. text : str, default=None Contents of `fullpath`, if the caller has already read them. Saves re-reading the file from disk. If omitted, the file is read here.  Raises ------ FileNotFoundError If `fullpath` does not exist and `text` is not given."
+          },
+          {
+            "name": "save",
+            "description": "Save the current information into a file.  `.fullpath` is updated to the path that was written.",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "str or pathlib.Path, default=None",
+                "description": "Path including the file name where it will be saved. If None, the current `.fullpath` is used."
+              },
+              "overwrite": {
+                "type": "bool, default=False",
+                "description": "If False, an index is appended to the file name when it is already taken (`example.nnp`, then `example_0.nnp`, `example_1.nnp`, ...), so an existing file is never overwritten. If True, the file is written even if it exists and no index is appended."
+              },
+              "automkdir": {
+                "type": "bool, default=True",
+                "description": "If True, create the parent folder if it does not exist."
+              },
+              "temp": {
+                "type": "bool, default=False",
+                "description": "If True, save into a temporary folder that is removed when the process exits, keeping the current `.filename`. Ignored with a warning when `fullpath` is given."
+              },
+              "content": {
+                "type": "bool, default=False",
+                "description": "Experimental feature, refrain from using it. If True, save the parsed `.content` instead of `.text`. Comments are not preserved. It requires the file to be loaded with `parse=True`."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "str",
+                "description": "Path of the file that was written. Not necessarily `fullpath`: with `overwrite=False` an index may have been appended."
+              }
+            },
+            "ori_input": "self, fullpath = None, overwrite = False, automkdir = True, temp = False, content = False",
+            "ori_description": "Save the current information into a file.  `.fullpath` is updated to the path that was written.  Parameters ---------- fullpath : str or pathlib.Path, default=None Path including the file name where it will be saved. If None, the current `.fullpath` is used. overwrite : bool, default=False If False, an index is appended to the file name when it is already taken (`example.nnp`, then `example_0.nnp`, `example_1.nnp`, ...), so an existing file is never overwritten. If True, the file is written even if it exists and no index is appended. automkdir : bool, default=True If True, create the parent folder if it does not exist. temp : bool, default=False If True, save into a temporary folder that is removed when the process exits, keeping the current `.filename`. Ignored with a warning when `fullpath` is given. content : bool, default=False Experimental feature, refrain from using it. If True, save the parsed `.content` instead of `.text`. Comments are not preserved. It requires the file to be loaded with `parse=True`.  Returns ------- str Path of the file that was written. Not necessarily `fullpath`: with `overwrite=False` an index may have been appended.  Raises ------ ValueError If neither `fullpath` nor `.fullpath` is set, or if `content` is True and the file was not loaded with `parse=True`. FileNotFoundError If `automkdir` is False and the parent folder does not exist."
+          },
+          {
+            "name": "get_variable",
+            "description": "Return the input variable called `name`.  Equivalent to `.variables[name]`, except that only lookup by name is supported: `.variables` also accepts an integer index, this method does not.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": "Name of the input variable."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "InputVariable",
+                "description": "The input variable stored under `name`."
+              }
+            },
+            "ori_input": "self, name",
+            "ori_description": "Return the input variable called `name`.  Equivalent to `.variables[name]`, except that only lookup by name is supported: `.variables` also accepts an integer index, this method does not.  Parameters ---------- name : str Name of the input variable.  Returns ------- InputVariable The input variable stored under `name`.  Raises ------ KeyError If `name` is not a key of `.variables`."
+          },
+          {
+            "name": "set_variable",
+            "description": "Change the value, the comment and/or the unit of an input variable.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": "Name of the input variable."
+              },
+              "value": {
+                "type": "int, float or str, default=None",
+                "description": "New value of the variable. If None, the value is left unchanged."
+              },
+              "comment": {
+                "type": "str, default=None",
+                "description": "New comment of the variable. If None, the comment is left unchanged."
+              },
+              "unit": {
+                "type": "str, default=None",
+                "description": "New unit of the variable. If None, the unit is left unchanged. The unit is not part of the input file text: it only feeds `.unit` and `.label` of the variable."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "InputVariable",
+                "description": "The input variable that was changed."
+              }
+            },
+            "ori_input": "self, name, value = None, comment = None, unit = None",
+            "ori_description": "Change the value, the comment and/or the unit of an input variable.  Parameters ---------- name : str Name of the input variable. value : int, float or str, default=None New value of the variable. If None, the value is left unchanged. comment : str, default=None New comment of the variable. If None, the comment is left unchanged. unit : str, default=None New unit of the variable. If None, the unit is left unchanged. The unit is not part of the input file text: it only feeds `.unit` and `.label` of the variable.  Returns ------- InputVariable The input variable that was changed.  Raises ------ KeyError If `name` is not a key of `.variables`."
+          },
+          {
+            "name": "execute",
+            "description": "Execute the input file located at `.fullpath`.  Individual kwargs can be passed like `license` or `database`; anything not given comes from `.config`.",
+            "input": {
+              "self": null,
+              "show_log": {
+                "type": "bool, default=True",
+                "description": "If False, do not print the simulation log to the console. The log file is written either way."
+              },
+              "convergenceCheck": {
+                "type": "bool, default=False",
+                "description": "If True, check the log for convergence once the simulation has finished. Ignored when the file is executed in parallel, as a sweep or an execution queue does."
+              },
+              "convergence_check_mode": {
+                "type": "{'pause', 'terminate', 'continue'}",
+                "description": "What to do when the simulation did not converge. Only used when `convergenceCheck` is True.  - 'pause': ask the user how to proceed. If no interactive terminal is attached (e.g. CI, cluster jobs), behaves like 'terminate' instead of blocking on input. - 'terminate': terminate the script. - 'continue': notify the user but continue the script. This is also the only mode that tolerates a missing log file."
+              },
+              "overwrite": {
+                "type": "bool, default=False",
+                "description": "If False, the output directory is created under an unused name: an index is appended (`example_0`, `example_1`, ...) when the name is already taken, so a run never writes into an earlier run's output. If True, an existing directory is used as it is - which means writing next to whatever the earlier run left there; nothing is deleted. Has no effect when `create_subdirectory` is False."
+              },
+              "create_subdirectory": {
+                "type": "bool, default=True",
+                "description": "If True, the simulation writes into `<outputdirectory>/<input file name>/`. If False, it writes into the `outputdirectory` itself."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "The nextnano product's own command line arguments, passed on as they are. Anything not given here comes from `.config`. `kwargs` may contain:  exe : str, optional Path to the executable. license : str, optional Path to the license file. database : str, optional Path to the database file. outputdirectory : str, optional Path where to save the simulated data.  and other parameters depending on the nextnano product. For example, 'threads' is accepted by nextnano++. See the documentation of the command line arguments of each nextnano product on the online Manual (https://www.nextnano.com/docu/)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dict",
+                "description": "Information about the started simulation, also stored in `.execute_info`. Keys: 'process', 'outputdirectory', 'filename', 'logfile', 'cmd', 'wdir', 'queue', 'tout', 'terr'."
+              }
+            },
+            "ori_input": "self, show_log = True, convergenceCheck = False, convergence_check_mode = 'pause', overwrite = False, create_subdirectory = True, **kwargs",
+            "ori_description": "Execute the input file located at `.fullpath`.  Individual kwargs can be passed like `license` or `database`; anything not given comes from `.config`.  Parameters ---------- show_log : bool, default=True If False, do not print the simulation log to the console. The log file is written either way. convergenceCheck : bool, default=False If True, check the log for convergence once the simulation has finished. Ignored when the file is executed in parallel, as a sweep or an execution queue does. convergence_check_mode : {'pause', 'terminate', 'continue'} What to do when the simulation did not converge. Only used when `convergenceCheck` is True.  - 'pause': ask the user how to proceed. If no interactive terminal is attached (e.g. CI, cluster jobs), behaves like 'terminate' instead of blocking on input. - 'terminate': terminate the script. - 'continue': notify the user but continue the script. This is also the only mode that tolerates a missing log file. overwrite : bool, default=False If False, the output directory is created under an unused name: an index is appended (`example_0`, `example_1`, ...) when the name is already taken, so a run never writes into an earlier run's output. If True, an existing directory is used as it is - which means writing next to whatever the earlier run left there; nothing is deleted. Has no effect when `create_subdirectory` is False. create_subdirectory : bool, default=True If True, the simulation writes into `<outputdirectory>/<input file name>/`. If False, it writes into the `outputdirectory` itself. **kwargs : dict The nextnano product's own command line arguments, passed on as they are. Anything not given here comes from `.config`. `kwargs` may contain:  exe : str, optional Path to the executable. license : str, optional Path to the license file. database : str, optional Path to the database file. outputdirectory : str, optional Path where to save the simulated data.  and other parameters depending on the nextnano product. For example, 'threads' is accepted by nextnano++. See the documentation of the command line arguments of each nextnano product on the online Manual (https://www.nextnano.com/docu/).  Returns ------- dict Information about the started simulation, also stored in `.execute_info`. Keys: 'process', 'outputdirectory', 'filename', 'logfile', 'cmd', 'wdir', 'queue', 'tout', 'terr'.  Raises ------ ValueError If `.fullpath` is empty or is not an existing file, or if `convergence_check_mode` is not one of the values listed above. FileNotFoundError If the executable path in `.config` is empty or invalid. RuntimeError If `convergenceCheck` is True and the simulation was terminated or did not converge, unless `convergence_check_mode` is 'continue'. NotImplementedError If `convergenceCheck` is True and the product is nextnano.MSB.  Notes ----- The simulation is launched through the system shell, so `execute_info['process']` is the shell process, not the simulator itself. On Windows, calling `.kill()`/`.terminate()` on it stops only the shell wrapper; the running simulation is NOT stopped.  Where the output goes is decided by `overwrite`/`create_subdirectory`, which are parameters rather than members of ``**kwargs``: they steer nextnanopy, not the simulator, so they are also not config options. `.folder_output` holds the directory that was chosen once the run has started."
+          },
+          {
+            "name": "check_convergence",
+            "description": "",
+            "input": {
+              "self": null,
+              "mode": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mode = 'pause'",
+            "ori_description": ""
+          },
+          {
+            "name": "validate",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Config",
+        "type": "class",
+        "module": "nextnanopy.utils.config",
+        "input": "",
+        "description": "This class stores and manipulates a configuration file.  The initialization of the class will execute the load method.  Parameters ---------- fullpath : str path to the file. It does not need to exist yet: loading a missing file yields an empty configuration which can be filled in and then saved. It must not be empty or None, otherwise a ValueError is raised. validators : dict dict where the keys are the name of the sections and the values are another dict. In the latter dict, the keys are the name of the options and the values are methods to convert the raw information (e.g: int)  Attributes ---------- fullpath : str path to the file config : dict validated values of each option of each section configparser : configparser.ConfigParser object ConfigParser object with raw values (str format) of each option of each section validators : dict dict of validator methods for each section and option (default is {}) sections : list list of the section names  Methods ------- preview() print the text of the file. load() load the file located at .fullpath save(fullpath=None) save the current configuration into a file. (default is None) If it is None, it will use the current .fullpath get_options(section) get the list of option names of a given section config_to_configparser() copy the information in .config to .configparser set(section, option, value) change the value of a given option of a section in .config it applies the validator if there is any get(section, option) return the value of a given option of a section in .config add_section(section) create a new section in the configuration  Raises ------ ValueError if fullpath is empty or None.  Notes ----- Known bug: a value containing a '%' can be loaded but never saved. Reads go through the parser's raw store, so the '%' survives, but save() -> config_to_configparser() assigns through configparser's default BasicInterpolation, which rejects a lone '%'::  config.set('nextnano++', 'outputdirectory', r'C:\\Users\\%USERNAME%\\out') config.save() # ValueError: invalid interpolation syntax ... at position 9  This bites real paths (%USERNAME%, %APPDATA%, an output folder named 50%_doping). The fix is one argument -- build the parser as ConfigParser(interpolation=None); the values here are filesystem paths, never templates, so interpolation buys nothing. Left unfixed deliberately: no user has hit it. Apply the one argument if one ever does, and stop there -- nothing else in this class needs to change. See .local_dev/decisions_later.md for the full write-up.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              },
+              "validators": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath, validators = None",
+            "ori_description": ""
+          },
+          {
+            "name": "load",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "save",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath = None",
+            "ori_description": ""
+          },
+          {
+            "name": "get",
+            "description": "",
+            "input": {
+              "self": null,
+              "section": {
+                "type": "",
+                "description": ""
+              },
+              "option": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, section, option",
+            "ori_description": ""
+          },
+          {
+            "name": "set",
+            "description": "",
+            "input": {
+              "self": null,
+              "section": {
+                "type": "",
+                "description": ""
+              },
+              "option": {
+                "type": "",
+                "description": ""
+              },
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, section, option, value",
+            "ori_description": ""
+          },
+          {
+            "name": "sections",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "get_options",
+            "description": "",
+            "input": {
+              "self": null,
+              "section": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, section",
+            "ori_description": ""
+          },
+          {
+            "name": "add_section",
+            "description": "",
+            "input": {
+              "self": null,
+              "section": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, section",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "NNConfig",
+        "type": "class",
+        "module": "nextnanopy.defaults",
+        "input": "Config",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath = None",
+            "ori_description": ""
+          },
+          {
+            "name": "to_default",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "check_complete",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "get_unsupported_products",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "get_config",
+        "type": "function",
+        "module": "nextnanopy.defaults",
+        "description": "Return the process-wide NNConfig, building it on first use.  Constructing an NNConfig reads ~/.nextnanopy-config, and creates it if it is missing, so it is deliberately not done at import time: importing the package must not touch the user's home directory. ``nextnanopy.config`` resolves here via the module __getattr__ in nextnanopy/__init__.py, so the config is built on first access instead.  This is the configuration new input files start from: with no ``configpath``, InputFileTemplate.__init__ takes a copy of it. It lives here rather than in nextnanopy/__init__.py, where it used to, because nextnanopy.inputs has to reach it and cannot import the package root -- the package root imports nextnanopy.inputs.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "Return the process-wide NNConfig, building it on first use.  Constructing an NNConfig reads ~/.nextnanopy-config, and creates it if it is missing, so it is deliberately not done at import time: importing the package must not touch the user's home directory. ``nextnanopy.config`` resolves here via the module __getattr__ in nextnanopy/__init__.py, so the config is built on first access instead.  This is the configuration new input files start from: with no ``configpath``, InputFileTemplate.__init__ takes a copy of it. It lives here rather than in nextnanopy/__init__.py, where it used to, because nextnanopy.inputs has to reach it and cannot import the package root -- the package root imports nextnanopy.inputs."
+      },
+      {
+        "name": "Sweep",
+        "type": "class",
+        "module": "nextnanopy.inputs",
+        "input": "",
+        "description": "A parameter sweep over the input variables of one input file.  One simulation is run for every combination of the swept values, combined as a Cartesian product: sweeping two variables with 3 and 4 values gives 12 simulations.  Building and running are separate steps. `save()` writes one input file per combination, and `execute()` runs those files and collects their output. Calling `execute()` on a sweep that was never saved does not raise: it warns that no input files were created and returns.  Parameters ---------- variables_to_sweep : dict of {str : list} Values to sweep for each input variable, keyed by variable name, as `{'name1': values1, 'name2': values2}`. Every name must already be a variable of the input file, and every value must be iterable. A single string counts as iterable and sweeps its characters, so wrap single values in a list. fullpath : str or pathlib.Path, default=None Path to the input file to sweep, as for `InputFile`. Without it there are no variables to sweep over, so only an empty `variables_to_sweep` is accepted. configpath : str or pathlib.Path, default=None Path to the config file, as for `InputFile`. It is handed to every input file the sweep generates, so they all run on the same configuration as the sweep itself.  Attributes ---------- input_file : InputFileTemplate The prototype input file whose variables are swept, parsed once at construction. var_sweep : dict of {str : list} The validated `variables_to_sweep`, keyed by variable name. input_files : list of InputFileTemplate One input file per swept combination. Empty until `save()` has run, which replaces the list on every call. sweep_output_directory : str Directory holding the output of every simulation of the sweep. None until `execute()` has run. sweep_infodict : DictList of dict Variable combination of each generated input file, keyed by that file's path. Empty until `save()` has run. sweep_output_infodict : DictList of dict The same combinations keyed by output folder instead. This is what is written to `sweep_infodict.json` in the sweep directory. Empty until `execute()` has run. fullpath : str or pathlib.Path Path of the input file being swept. Read-only. filename_only : str File name of the input file without the extension. Read-only. product : str Detected nextnano product of the input file. Read-only. config : NNConfig The configuration `.input_file` runs on. Settable, but the assignment reaches only `.input_file`: the files `save()` generates take their configuration from the `configpath` given at construction. configpath : str or pathlib.Path Path of the configuration file behind `.config`. Read-only.  Raises ------ ValueError If a name in `variables_to_sweep` is not a variable of the input file. TypeError If a value in `variables_to_sweep` is not iterable.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "variables_to_sweep": {
+                "type": "",
+                "description": ""
+              },
+              "fullpath": {
+                "type": "",
+                "description": ""
+              },
+              "configpath": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, variables_to_sweep, fullpath = None, configpath = None",
+            "ori_description": ""
+          },
+          {
+            "name": "save_sweep",
+            "description": "Write and save on disk one input file per swept combination.  `save()` is the preferred name for this method. `save_sweep()` is kept for compatibility and will be deprecated.  The files are written next to the input file being swept, with the swept values appended to the name (`example__BIAS_1.5_.in`), and are collected in `.input_files` and `.sweep_infodict`.",
+            "input": {
+              "self": null,
+              "delete_old_files": {
+                "type": "bool, default=True",
+                "description": "If True, delete the input files generated by an earlier `save()` on this sweep before writing the new ones. Files from other sweeps are never touched."
+              },
+              "round_decimal": {
+                "type": "int, default=8",
+                "description": "Number of decimals the swept values are rounded to in the file names. Values that are strings are used as they are."
+              },
+              "integer_only_in_name": {
+                "type": "bool, default=False",
+                "description": "If True, name the files after the input file with an index appended (`example_0.in`, `example_1.in`, ...) instead of after the swept values."
+              },
+              "temp": {
+                "type": "bool, default=False",
+                "description": "If True, write the files into a temporary folder that is removed when the process exits, instead of next to the input file."
+              },
+              "variables_comb_screen_fn": {
+                "type": "Callable[..., Any]",
+                "description": "Filter for the combinations to generate. It is called with one combination of values at a time, in the order of the swept variables, and the combination is kept when the call returns true. If omitted, every combination is generated."
+              }
+            },
+            "output": null,
+            "ori_input": "self, delete_old_files = True, round_decimal = 8, integer_only_in_name = False, temp = False, variables_comb_screen_fn: Callable[..., Any] = None",
+            "ori_description": "Write and save on disk one input file per swept combination.  `save()` is the preferred name for this method. `save_sweep()` is kept for compatibility and will be deprecated.  The files are written next to the input file being swept, with the swept values appended to the name (`example__BIAS_1.5_.in`), and are collected in `.input_files` and `.sweep_infodict`.  Parameters ---------- delete_old_files : bool, default=True If True, delete the input files generated by an earlier `save()` on this sweep before writing the new ones. Files from other sweeps are never touched. round_decimal : int, default=8 Number of decimals the swept values are rounded to in the file names. Values that are strings are used as they are. integer_only_in_name : bool, default=False If True, name the files after the input file with an index appended (`example_0.in`, `example_1.in`, ...) instead of after the swept values. temp : bool, default=False If True, write the files into a temporary folder that is removed when the process exits, instead of next to the input file. variables_comb_screen_fn : callable, default=None Filter for the combinations to generate. It is called with one combination of values at a time, in the order of the swept variables, and the combination is kept when the call returns true. If omitted, every combination is generated.  See Also -------- save : Preferred name for this method."
+          },
+          {
+            "name": "save",
+            "description": "Save the sweep input files. See :meth:`save_sweep` for the parameters.",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": "Save the sweep input files. See :meth:`save_sweep` for the parameters.  Notes ----- This is the preferred name. For now it simply forwards to :meth:`save_sweep`. In a future patch the two will swap: ``save`` will hold the implementation and ``save_sweep`` will become the mirror, emitting a deprecation warning."
+          },
+          {
+            "name": "create_input_files",
+            "description": "",
+            "input": {
+              "self": null,
+              "input_file_path": {
+                "type": "",
+                "description": ""
+              },
+              "round_decimal": {
+                "type": "",
+                "description": ""
+              },
+              "integer_only_in_name": {
+                "type": "",
+                "description": ""
+              },
+              "variables_comb_screen_fn": {
+                "type": "Callable[..., Any]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_file_path, round_decimal, integer_only_in_name = False, variables_comb_screen_fn: Callable[..., Any] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "execute_sweep",
+            "description": "Execute the input files written by `save()`.  `execute()` is the preferred name for this method. `execute_sweep()` is kept for compatibility and will be deprecated.  Each input file is run in turn, or `parallel_limit` at a time. The output is collected under `.sweep_output_directory` together with `sweep_info.txt` and `sweep_infodict.json`, and every simulation's variable combination is recorded in `.sweep_output_infodict`.",
+            "input": {
+              "self": null,
+              "delete_input_files": {
+                "type": "bool, default=False",
+                "description": "If True, delete the generated input files once they have been executed."
+              },
+              "overwrite": {
+                "type": "bool, default=False",
+                "description": "If True, the output overwrites the old output data. If False, execution creates a new output folder, adding an integer to the folder name. It applies to the sweep folder and to the folder of every simulation in it, so a sweep run with `overwrite=False` writes over no earlier output at either level. The per-file subfolder itself is always created: it is what keeps the sweep points apart."
+              },
+              "show_log": {
+                "type": "bool, default=True",
+                "description": "If True, the simulation log is displayed in the console. If False, only the count of the current simulation is displayed. The log file is written to the output folder either way."
+              },
+              "convergenceCheck": {
+                "type": "bool, default=False",
+                "description": "If True, check the log of every simulation for convergence once it has finished. What happens on a simulation that did not converge is decided by `convergence_check_mode`."
+              },
+              "convergence_check_mode": {
+                "type": "{'pause', 'terminate', 'continue'}",
+                "description": "What to do when a simulation did not converge. Only used when `convergenceCheck` is True.  - 'pause': ask the user how to proceed. If no interactive terminal is attached (e.g. CI, cluster jobs), behaves like 'terminate' instead of blocking on input. - 'terminate': terminate the script. - 'continue': notify the user but continue the script."
+              },
+              "parallel_limit": {
+                "type": "int, default=1",
+                "description": "Number of simulations to run simultaneously. Especially useful for simple simulations, which may run more efficiently in parallel. Be aware that some nextnano solvers parallelize computations internally in threads (controlled by `threads` in the nextnanopy configuration): to avoid an undesirable slowdown, keep `parallel_limit * threads` at or below the number of physical cores of the machine."
+              },
+              "separate_sweep_dir": {
+                "type": "bool, default=True",
+                "description": "If True, create one directory for the sweep and put every simulation's output folder inside it. If False, the output folders are created directly in the output directory."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Forwarded to `InputFile.execute()` for every simulation. `outputdirectory` is the exception: it is taken as the parent of the sweep directory rather than passed on, and defaults to the `outputdirectory` of `.config`."
+              }
+            },
+            "output": null,
+            "ori_input": "self, delete_input_files = False, overwrite = False, show_log = True, convergenceCheck = False, convergence_check_mode = 'pause', parallel_limit = 1, separate_sweep_dir = True, **kwargs",
+            "ori_description": "Execute the input files written by `save()`.  `execute()` is the preferred name for this method. `execute_sweep()` is kept for compatibility and will be deprecated.  Each input file is run in turn, or `parallel_limit` at a time. The output is collected under `.sweep_output_directory` together with `sweep_info.txt` and `sweep_infodict.json`, and every simulation's variable combination is recorded in `.sweep_output_infodict`.  Parameters ---------- delete_input_files : bool, default=False If True, delete the generated input files once they have been executed. overwrite : bool, default=False If True, the output overwrites the old output data. If False, execution creates a new output folder, adding an integer to the folder name. It applies to the sweep folder and to the folder of every simulation in it, so a sweep run with `overwrite=False` writes over no earlier output at either level. The per-file subfolder itself is always created: it is what keeps the sweep points apart. show_log : bool, default=True If True, the simulation log is displayed in the console. If False, only the count of the current simulation is displayed. The log file is written to the output folder either way. convergenceCheck : bool, default=False If True, check the log of every simulation for convergence once it has finished. What happens on a simulation that did not converge is decided by `convergence_check_mode`. convergence_check_mode : {'pause', 'terminate', 'continue'} What to do when a simulation did not converge. Only used when `convergenceCheck` is True.  - 'pause': ask the user how to proceed. If no interactive terminal is attached (e.g. CI, cluster jobs), behaves like 'terminate' instead of blocking on input. - 'terminate': terminate the script. - 'continue': notify the user but continue the script. parallel_limit : int, default=1 Number of simulations to run simultaneously. Especially useful for simple simulations, which may run more efficiently in parallel. Be aware that some nextnano solvers parallelize computations internally in threads (controlled by `threads` in the nextnanopy configuration): to avoid an undesirable slowdown, keep `parallel_limit * threads` at or below the number of physical cores of the machine. separate_sweep_dir : bool, default=True If True, create one directory for the sweep and put every simulation's output folder inside it. If False, the output folders are created directly in the output directory. **kwargs : dict Forwarded to `InputFile.execute()` for every simulation. `outputdirectory` is the exception: it is taken as the parent of the sweep directory rather than passed on, and defaults to the `outputdirectory` of `.config`.  Raises ------ RuntimeError If `convergenceCheck` is True and a simulation did not converge, unless `convergence_check_mode` is 'continue'. The sweep stops at that simulation and the remaining input files are not executed.  Warns ----- UserWarning If no input files were created, i.e. `save()` has not been called. Nothing is executed, but the sweep directory has already been created.  See Also -------- InputFile.execute : Meaning of the arguments passed on to each simulation. execute : Preferred name for this method."
+          },
+          {
+            "name": "create_infodict_json",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "ExecutionPool",
+        "type": "class",
+        "module": "nextnanopy.inputs",
+        "input": "",
+        "description": "Run added InputFiles concurrently, at most parallel_limit at a time.  Candidate replacement for ExecutionQueue, built on concurrent.futures.ThreadPoolExecutor instead of a hand-rolled scheduler thread. Each worker thread runs one simulation at a time through the blocking execution path (InputFile.execute() with __parallel__ = False): commands.start_log() itself waits for the simulator process, joins the log-pump threads and finishes the log file, and the convergence check runs inline in InputFile.execute(). Completion is therefore event-driven — no polling loop, no poll_interval — and an exception in a worker cannot kill a scheduler thread: it is captured in the corresponding future and re-raised by join().  Unlike ExecutionQueue there is no terminate_empty flag: the pool accepts add() at any point — before or after start(), even after join() — until stop() shuts it down. Idle worker threads cost nothing and exit with the interpreter, so calling stop() is optional.  Parameters ---------- parallel_limit : int maximum number of simulations running simultaneously (default: 1). Same spelling as Sweep.execute_sweep(parallel_limit=...); note that ExecutionQueue calls this limit_parallel. **execution_kwargs forwarded to InputFile.execute() of every added file: outputdirectory, show_log, convergenceCheck, convergence_check_mode, exe, license, database, ... With parallel_limit > 1 and show_log=True the console logs of concurrent simulations interleave (the per-simulation .log files are unaffected). convergenceCheck with mode 'pause' can prompt for several finished simulations at once (unlike ExecutionQueue, which serialized the prompts through its manager thread); with parallel_limit > 1 prefer mode 'terminate' or 'continue'.  Attributes ---------- finished : list info dicts (as returned by InputFile.execute()) of the completed simulations, in completion order. errors : list exceptions raised by workers; filled by join() once all work is done.  Methods ------- ``add(*input_files)`` hand InputFiles to the pool. Buffered before start(), submitted to the workers immediately after it. start() create the worker threads and submit everything buffered so far. join(timeout=None) wait until the work submitted so far is done, or timeout (in seconds) elapses — check is_alive() to tell which. Once everything is done, re-raises the first worker exception, if any (all of them are kept in .errors; successful runs are in .finished either way). is_alive() True while at least one added simulation has not finished. stop() wait for outstanding work and shut the pool down; add() raises afterwards.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "parallel_limit": {
+                "type": "int",
+                "description": ""
+              },
+              "execution_kwargs": {
+                "type": "**execution_kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, parallel_limit: int = 1, **execution_kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add",
+            "description": "",
+            "input": {
+              "self": null,
+              "input_files": {
+                "type": "InputFileTemplate",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *input_files: InputFileTemplate",
+            "ori_description": ""
+          },
+          {
+            "name": "start",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "join",
+            "description": "",
+            "input": {
+              "self": null,
+              "timeout": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, timeout = None",
+            "ori_description": ""
+          },
+          {
+            "name": "is_alive",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "stop",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "DataFolder",
+        "type": "class",
+        "module": "nextnanopy.outputs",
+        "input": "",
+        "description": "This class stores information about output directory.  The stored data contains files (.files) and folders (.folders) Navigation between folders could be done in 3 ways:  1. DataFolder.folders['folder_name'] 2. DataFolder.go_to('subfolder1', 'subfolder2', 'subfolder3') 3. DataFolder.subfolder1.subfolder2.subfolder3  For each method see details below.  The initialization of the class will execute load and create_navigation methods.  Parameters ---------- fullpath : str path to a file  Attributes ---------- fullpath : str path to a file folders : DictList subfolders of the DataFolder,  keys : str names of subfolders values : DataFolder DataFolder objects of subfolders files : list paths to files in folder  Methods ------- load() load a DataFolder create_navigation creates attributes for navigation like DataFolder.subfolder1.subfolder2.subfolder3 if name of subfolder corresponds to existed attribute of DataFolder class, attribute will not be created! if name of subfolder contains spaces, dots or special characters, attribute will be created, but navigation to this subfolder will not work - attribute error. find(template, deep = False) searches for a files which names contain template. template should be string. if deep = True, searches in subfolders as well.  return: list of files ``go_to(*args)`` goes to the location DataFolder_path\\arg1\\arg2\\arg3...  if location is a file: return filepath if location is a folder: return DataFolder(location) filenames() return filenames of files in folder",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath",
+            "ori_description": ""
+          },
+          {
+            "name": "load",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "find",
+            "description": "",
+            "input": {
+              "self": null,
+              "template": {
+                "type": "",
+                "description": ""
+              },
+              "deep": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, template, deep = False",
+            "ori_description": ""
+          },
+          {
+            "name": "find_multiple",
+            "description": "",
+            "input": {
+              "self": null,
+              "templates": {
+                "type": "",
+                "description": ""
+              },
+              "deep": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, templates, deep = False",
+            "ori_description": ""
+          },
+          {
+            "name": "file",
+            "description": "",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename",
+            "ori_description": ""
+          },
+          {
+            "name": "go_to",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args",
+            "ori_description": ""
+          },
+          {
+            "name": "filenames",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "read_sweep_infodict",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Output",
+        "type": "class",
+        "module": "nextnanopy.outputs",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              },
+              "loader_kwargs": {
+                "type": "**loader_kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath, **loader_kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "data",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "get_coord",
+            "description": "",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key",
+            "ori_description": ""
+          },
+          {
+            "name": "get_variable",
+            "description": "",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key",
+            "ori_description": ""
+          },
+          {
+            "name": "filename",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "DataFileTemplate",
+        "type": "class",
+        "module": "nextnanopy.outputs",
+        "input": "Output",
+        "description": "This class stores the data from any kind of nextnano data files with the same structure.  The stored data contains coordinates (.coords) and dependent variables (.variables). Each coordinate or variable would contain attributes like name, unit and value. For more information, see their specific documentation.  The initialization of the class will execute the load method.  Parameters ---------- fullpath : str path to the file.  Attributes ---------- fullpath : str path to the file (default: None) coords : DictList Coord objects (default: DictList()) variables : DictList Variable objects (default: DictList()) data : DictList coords and variables together metadata : dict extra information filename : str name with the file extension filename_only name without the file extension extension : str file extension folder : str folder of the fullpath product : str flag about nextnano product to help to find the best loading routine  Methods ------- load(fullpath) load a data file get_coord(name) equivalent to self.coords[name] get_variable(name) equivalent to self.variables[name]",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "fullpath": {
+                "type": "",
+                "description": ""
+              },
+              "product": {
+                "type": "",
+                "description": ""
+              },
+              "loader_kwargs": {
+                "type": "**loader_kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fullpath, product = None, **loader_kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "load",
+            "description": "Find the loader and update the stored information with the loaded data",
+            "input": {
+              "self": null,
+              "loader_kwargs": {
+                "type": "**loader_kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **loader_kwargs",
+            "ori_description": "Find the loader and update the stored information with the loaded data"
+          },
+          {
+            "name": "export",
+            "description": "",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "",
+                "description": ""
+              },
+              "format": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename, format",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "DataFile",
+        "type": "class",
+        "module": "nextnanopy.outputs",
+        "input": "DataFileTemplate",
+        "description": "",
+        "function": [
+          {
+            "name": "save",
+            "description": "Save the data from the DataFile instance to a specified file in various formats.",
+            "input": {
+              "self": null,
+              "filepath": {
+                "type": "str",
+                "description": "The file path where the data will be saved."
+              },
+              "format": {
+                "type": "str, optional",
+                "description": "The format in which the data should be saved. Default is 'dat'. Supported formats:  - 'dat' (for 1D files): Data is saved in a plain text format (.dat) with whitespace-separated values. - 'VTKAscii' (for 2D/3D files): Data is saved in VTK ASCII format (.vtk) suitable for visualization tools. - 'AvsAscii_one_file' (for 2D/3D files): Data is saved in AVS/Express ASCII format (.fld) for AVS/Express software."
+              }
+            },
+            "output": null,
+            "ori_input": "self, filepath, format = 'dat'",
+            "ori_description": "Save the data from the DataFile instance to a specified file in various formats.  Parameters ---------- filepath : str The file path where the data will be saved. format : str, optional The format in which the data should be saved. Default is 'dat'. Supported formats:  - 'dat' (for 1D files): Data is saved in a plain text format (.dat) with whitespace-separated values. - 'VTKAscii' (for 2D/3D files): Data is saved in VTK ASCII format (.vtk) suitable for visualization tools. - 'AvsAscii_one_file' (for 2D/3D files): Data is saved in AVS/Express ASCII format (.fld) for AVS/Express software.  Raises ------ NotImplementedError If the provided 'format' is not supported for saving.  Notes ----- - For the 'dat' format, the DataFile instance should be one-dimensional (ndim=1). - The 'VTKAscii' format requires 'nextnanopy.utils.formatting' module for creating the VTK header. - The 'AvsAscii_one_file' format requires the 'write_avsascii_one_file' function.  Examples -------- >>> # Assuming `data_file` is an instance of the `DataFile` class >>> data_file.save('data_file.dat', format='dat') # Save data in .dat format >>> data_file.save('data_file.vtk', format='VTKAscii') # Save data in VTK ASCII format >>> data_file.save('data_file.fld', format='AvsAscii_one_file') # Save data in AVS/Express ASCII format"
+          }
+        ]
+      },
+      {
+        "name": "resolve_loader",
+        "type": "function",
+        "module": "nextnanopy.outputs",
+        "description": "Map a datafile extension to its loader class.  Every nextnano product shares this table except for '.txt', which is the only product-specific format: products that support it pass their own txt_loader(filename_only) hook, the rest get a NotImplementedError.",
+        "input": {
+          "extension": {
+            "type": "",
+            "description": ""
+          },
+          "filename_only": {
+            "type": "",
+            "description": ""
+          },
+          "txt_loader": {
+            "type": "",
+            "description": ""
+          },
+          "product": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "extension, filename_only, txt_loader = None, product = None",
+        "ori_description": "Map a datafile extension to its loader class.  Every nextnano product shares this table except for '.txt', which is the only product-specific format: products that support it pass their own txt_loader(filename_only) hook, the rest get a NotImplementedError."
+      },
+      {
+        "name": "values_metadata",
+        "type": "function",
+        "module": "nextnanopy.outputs",
+        "description": "Return a dict for: kind, num, file, filetype, skip, offset, stride",
+        "input": {
+          "line": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "line",
+        "ori_description": "Return a dict for: kind, num, file, filetype, skip, offset, stride"
+      },
+      {
+        "name": "load_values",
+        "type": "function",
+        "module": "nextnanopy.outputs",
+        "description": "Return flat array of floating values",
+        "input": {
+          "file": {
+            "type": "",
+            "description": ""
+          },
+          "filetype": {
+            "type": "",
+            "description": ""
+          },
+          "datatype": {
+            "type": "",
+            "description": ""
+          },
+          "skip": {
+            "type": "",
+            "description": ""
+          },
+          "offset": {
+            "type": "",
+            "description": ""
+          },
+          "stride": {
+            "type": "",
+            "description": ""
+          },
+          "size": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "file, filetype = 'ascii', datatype = 'double', skip = 0, offset = 0, stride = 1, size = None",
+        "ori_description": "Return flat array of floating values"
+      },
+      {
+        "name": "Data",
+        "type": "class",
+        "module": "nextnanopy.utils.datasets",
+        "input": "",
+        "description": "This class stores any kind of information from nextnano files (input files, data files).  This is a template class for datasets like Variables, Coords, InputVariables, etc.  Parameters ---------- name : str name of the dataset value : not defined stored value unit : str, optional unit of the value (default is None) metadata : dict, optional extra information (default is {}) label_fmt : method, optional formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})'  Attributes ---------- name : str name of the dataset value : not defined stored value unit : str unit of the value (default is None) metadata : dict extra information (default is {}) label_fmt : method formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})'",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "value": {
+                "type": "",
+                "description": ""
+              },
+              "unit": {
+                "type": "",
+                "description": ""
+              },
+              "metadata": {
+                "type": "",
+                "description": ""
+              },
+              "label_fmt": {
+                "type": "",
+                "description": ""
+              },
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, value, unit = None, metadata = None, label_fmt = None, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "parameters",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "label",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Variable",
+        "type": "class",
+        "module": "nextnanopy.utils.datasets",
+        "input": "Data",
+        "description": "This class stores independent variables from data files.  Parameters ---------- name : str name of the dataset value : not defined stored value unit : str, optional unit of the value (default is None) metadata : dict, optional extra information (default is {}) label_fmt : method, optional formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})'  Attributes ---------- name : str name of the dataset value : not defined stored value unit : str unit of the value (default is None) metadata : dict extra information (default is {}) label_fmt : method formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})'  Methods ------- get_value() return a copy of the value",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "value": {
+                "type": "",
+                "description": ""
+              },
+              "unit": {
+                "type": "",
+                "description": ""
+              },
+              "metadata": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, value, unit = None, metadata = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "get_value",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Coord",
+        "type": "class",
+        "module": "nextnanopy.utils.datasets",
+        "input": "Data",
+        "description": "This class stores the coordinates from data files.  Parameters ---------- name : str name of the dataset value : not defined stored value dim : int dim for the Variable.value For example, for a dataset of (100, 2) and a coordinate x of 100 pts, dim = 0 unit : str, optional unit of the value (default is None) offset : not defined, optional offset to be added to value (default is 0) metadata : dict, optional extra information (default is {}) label_fmt : method, optional formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})'  Attributes ---------- name : str name of the dataset value : not defined stored value dim : int dim for the Variable.value For example, for a dataset of (100, 2) and a coordinate x of 100 pts, dim = 0 unit : str unit of the value (default is None) offset : not defined offset to be added to value (default is 0) metadata : dict extra information (default is {}) label_fmt : method formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})' valueo : not defined value with offset  Methods ------- get_value(use_offset=False) return a copy of the value with or without the offset",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "value": {
+                "type": "",
+                "description": ""
+              },
+              "dim": {
+                "type": "",
+                "description": ""
+              },
+              "unit": {
+                "type": "",
+                "description": ""
+              },
+              "offset": {
+                "type": "",
+                "description": ""
+              },
+              "metadata": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, value, dim, unit = None, offset = 0, metadata = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "get_value",
+            "description": "",
+            "input": {
+              "self": null,
+              "use_offset": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, use_offset = False",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "InputVariable",
+        "type": "class",
+        "module": "nextnanopy.utils.datasets",
+        "input": "Data",
+        "description": "Template class for the input variables.  For each nextnano product, it will be specified the variable character (e.g $ for nextnano++) and the comment character (e.g # for nextnano++).  Parameters ---------- name : str name of the dataset value : not defined stored value unit : str, optional unit of the value (default is '') comment : str, optional (default is '') metadata : dict, optional extra information (default is {}) label_fmt : method, optional formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})'  Attributes ---------- name : str name of the dataset value : not defined stored value unit : str unit of the value (default is '') comment : str (default is '') metadata : dict extra information (default is {}) label_fmt : method formatting label with label_fmt(name, unit) (default is None) If it is None, label_fmt = default_label_fmt, i.e. f'{name} ({unit})' text : str return the raw text for the input file  Methods ------- get_value(use) return a copy of the value",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "value": {
+                "type": "",
+                "description": ""
+              },
+              "unit": {
+                "type": "",
+                "description": ""
+              },
+              "comment": {
+                "type": "",
+                "description": ""
+              },
+              "metadata": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, value, unit = '', comment = '', metadata = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "get_value",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "text",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "DictList",
+        "type": "class",
+        "module": "nextnanopy.utils.mycollections",
+        "input": "OrderedDict",
+        "description": "This is a customized collections.OrderedDict  It is a mixture between a dictionary and a list because it allows to access the values via keys or integer indexes. Common usage::  d = DictList(a=3, b='t') d[0] = 3 d['a'] = 3  It has all the methods and attributes from a dictionary like .keys(), .values(), .items()  Moreover, it supports iterations like a list::  for value in d: print(value) >>> 3 >>> 't'  Two deliberate deviations from normal Mapping semantics:  1. Iteration yields VALUES, not keys. This is the documented behaviour of this class and much of nextnanopy relies on it (e.g. ``for var in datafile.variables: var.name``). Note that dict/OrderedDict C-level fast paths bypass __iter__, so ``dict(d)``, ``d.update(other)``, ``key in d`` and ``**d`` keep their usual key-based behaviour. Use .keys() when you need keys. 2. Integer subscripts are positions, not keys, so integer keys are unreachable via d[...]. All keys used in nextnanopy are strings (variable/file/folder names).",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "get_indx",
+            "description": "",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "calculate_CV",
+        "type": "function",
+        "module": "nextnanopy.postprocess",
+        "description": "Calculates CV characteristic based on integrated_density_electron.dat and integrated_density_hole.dat files in output_directory_path",
+        "input": {
+          "output_directory_path": {
+            "type": "str",
+            "description": ""
+          },
+          "bias1": {
+            "type": "str, optional",
+            "description": "name of the first reference bias"
+          },
+          "bias2": {
+            "type": "str, optional",
+            "description": "name of the second reference bias"
+          },
+          "total": {
+            "type": "",
+            "description": "calculate in all regions together (sum of all regions) (for now only False is valid, otherwise return NotImplementedError)"
+          },
+          "net_charge_sign": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "numpy array",
+            "description": "with capacitance voltage : numpy array with voltages"
+          }
+        },
+        "ori_input": "output_directory_path, bias1 = None, bias2 = None, total = False, net_charge_sign = -1",
+        "ori_description": "Calculates CV characteristic based on integrated_density_electron.dat and integrated_density_hole.dat files in output_directory_path  Parameters ---------- output_directory_path : str bias1 : str, optional name of the first reference bias bias2 : str, optional name of the second reference bias total calculate in all regions together (sum of all regions) (for now only False is valid, otherwise return NotImplementedError)  Returns ------- capacitance : numpy array with capacitance voltage : numpy array with voltages"
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/nextnano-GmbH/nextnanopy",
+        "documentation": "https://www.nextnano.com/docu/nextnanopy/",
+        "pypi": "https://pypi.org/project/nextnanopy/",
+        "pypi_version": "1.3.1",
+        "tag": "v1.3.2",
+        "commit": "5da921ff29f9861596c0906aba37ede8da7daf60",
+        "release_published_at": "2026-09-10T14:18:12Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "GitHub 最新 Release 为 v1.3.2，标签内 pyproject.toml 版本为 1.3.2；核查时 PyPI 最新版本仍为 1.3.1。",
+          "未安装或执行 nextnano 仿真程序。"
+        ],
+        "release_url": "https://github.com/nextnano-GmbH/nextnanopy/releases/tag/v1.3.2",
+        "release_api": "https://api.github.com/repos/nextnano-GmbH/nextnanopy/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/nextnanopy",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "nextnanopy"
+        ],
+        "source_files": [
+          "nextnanopy/__init__.py",
+          "nextnanopy/commands.py",
+          "nextnanopy/defaults.py",
+          "nextnanopy/inputs.py",
+          "nextnanopy/msb/__init__.py",
+          "nextnanopy/msb/defaults.py",
+          "nextnanopy/msb/inputs.py",
+          "nextnanopy/msb/outputs.py",
+          "nextnanopy/negf/__init__.py",
+          "nextnanopy/negf/defaults.py",
+          "nextnanopy/negf/inputs.py",
+          "nextnanopy/negf/inputs_classic.py",
+          "nextnanopy/negf/outputs.py",
+          "nextnanopy/nn3/__init__.py",
+          "nextnanopy/nn3/defaults.py",
+          "nextnanopy/nn3/inputs.py",
+          "nextnanopy/nn3/outputs.py",
+          "nextnanopy/nnevo/__init__.py",
+          "nextnanopy/nnevo/defaults.py",
+          "nextnanopy/nnp/__init__.py",
+          "nextnanopy/nnp/assistants.py",
+          "nextnanopy/nnp/defaults.py",
+          "nextnanopy/nnp/inputs.py",
+          "nextnanopy/nnp/outputs.py",
+          "nextnanopy/nnp/shapes.py",
+          "nextnanopy/outputs.py",
+          "nextnanopy/postprocess.py",
+          "nextnanopy/shapes.py",
+          "nextnanopy/utils/__init__.py",
+          "nextnanopy/utils/config.py",
+          "nextnanopy/utils/datasets.py",
+          "nextnanopy/utils/formatting.py",
+          "nextnanopy/utils/misc.py",
+          "nextnanopy/utils/mycollections.py",
+          "nextnanopy/utils/plotting.py",
+          "nextnanopy/utils/shapes_deprecated.py",
+          "nextnanopy/utils/styles/__init__.py",
+          "nextnanopy/utils/timer.py"
+        ],
+        "source_file_sha256": {
+          "nextnanopy/__init__.py": "ade2d664400c78cc3105fad2710b5039e53d29a1da948efe85d79e30fb2f8b26",
+          "nextnanopy/commands.py": "6cd4b92b73264b0e4c8f3a7cd320e7af4315401b58ac7d6411ce1b3284e8f095",
+          "nextnanopy/defaults.py": "31eeb3db963c8396ff1edaf1b4afa658ebef715ebe185a5eb0728da6b8bc87ff",
+          "nextnanopy/inputs.py": "182a36005b7f2f775b3f70f9954a420b192e3fa3ed90b5b35bbf009cc39d5eae",
+          "nextnanopy/msb/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/msb/defaults.py": "02d837a9477cf009f85483a896fb117d35f8a863c64490eb41c4e049b833aadb",
+          "nextnanopy/msb/inputs.py": "e41653acbb326c82c50dbd8dae951186cb6a7ce735777ad0d97013f79ca9cba5",
+          "nextnanopy/msb/outputs.py": "3e4b7836b863504c021dafa5027f5c73401cb857b2316d8427d947534de1f2cd",
+          "nextnanopy/negf/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/negf/defaults.py": "2960cfff27d29a0151cf41e8f61cee967a092ec5ced694b1234bf377bb05b03b",
+          "nextnanopy/negf/inputs.py": "ba671d1bc52a5f862ce7ef74d2e03f460503ed89d036068bcc1fe3cee1fc1163",
+          "nextnanopy/negf/inputs_classic.py": "0590ccb75dd469152eab40c5a13b733e96dcdac2640772d05dfd3d7302d7c2c0",
+          "nextnanopy/negf/outputs.py": "62143d176dff8a591465a52d1ec022680cef8bb5dff839b97a890912c524339f",
+          "nextnanopy/nn3/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/nn3/defaults.py": "946a06bb7180ae6f8d899f07ce2af48e0c8ea42c68332b53ff6bc972d5c271c3",
+          "nextnanopy/nn3/inputs.py": "02f57945e3a88c28d05c34e16413c7d16a7560092eb5f247300c13919a67dd55",
+          "nextnanopy/nn3/outputs.py": "b083d11d65cbd4d20236dab114901ef0b84f42ea738ae40a48e3140414f149ba",
+          "nextnanopy/nnevo/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/nnevo/defaults.py": "836b2d4a1b785cc5d6bc4fc0a3160726946c9a008e493479cfa55c1aead21d83",
+          "nextnanopy/nnp/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/nnp/assistants.py": "b372d5cdd09eaaebbe53949a4ea92444e45496d725530a2a5bd4b76f412fc61c",
+          "nextnanopy/nnp/defaults.py": "3d9efa9df3086a5c1a465aecaefa4411646a302fd3be958f2a99b9c5a3f814d5",
+          "nextnanopy/nnp/inputs.py": "9847b4d55b9d2a118071cd1a84b005305eb3615531473188b1d46f39d45969fe",
+          "nextnanopy/nnp/outputs.py": "5d5243e54070a0a69eb23c3727378eb8024009e2c1590996448f12ca4307ccda",
+          "nextnanopy/nnp/shapes.py": "ae64d8ba29d32e8583a61e04f904db7321c26188866a810585da8d65197f82de",
+          "nextnanopy/outputs.py": "237738171037bf7c05fadda1f096b6904cb285f7d9f94ef0853ab967661bc516",
+          "nextnanopy/postprocess.py": "444329142c4b86f2bc437a7ee736f44f428b8d94b1c40f3058657807e68fb1d5",
+          "nextnanopy/shapes.py": "037fb9d1177e65fa9055ee3c28392596da1c8cc57605e9c8927bfc18ed012ba2",
+          "nextnanopy/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/utils/config.py": "b8387e8a74b0a7a6b4f753f3c913f17cb274af1194c2b2cc659496f7de14724b",
+          "nextnanopy/utils/datasets.py": "3ee6a81c0225a1a319b6ff9d2345bd04a0b0550091a136dd3bb59a324e0e6cac",
+          "nextnanopy/utils/formatting.py": "0e78f58fa00db6156053520c45337f27a42e3d189c8054953b2d7684ab4b29a6",
+          "nextnanopy/utils/misc.py": "a3e61bdd3398c597e09fbb092942ecd5efc79419af2f4243e7f029dfde73663d",
+          "nextnanopy/utils/mycollections.py": "7e3c6a545510d332eedd217baa01d12dab326ae4ce018f9a22f3d98a942e9d3f",
+          "nextnanopy/utils/plotting.py": "041145b3fefbbf6231bca0ecad74a1c7142b46c27f690f56f1f8a91af5e8b020",
+          "nextnanopy/utils/shapes_deprecated.py": "33c35de4c33d3f1de4328b3a417e99bca7253c7e9b6e4ad038db865c76a94bba",
+          "nextnanopy/utils/styles/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "nextnanopy/utils/timer.py": "62f342cbce615de00c447d1b6afc6f8bec65ba7c94ffa3b655696467e9e59bd8"
+        },
+        "source_version": "v1.3.2",
+        "source_commit": "5da921ff29f9861596c0906aba37ede8da7daf60",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "nextnanopy_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/nextnanopy_v1.3.2.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/nextnanopy_v1.3.2.json",
+        "source_sha256": "cb6fdc26edb5b3647dab024ad8b6c94bdd0f12dbe9c7828344624fe8650e05e4",
+        "profile_sha256": "d4295aecd62645823421cf417e00fd0c3a75ae4a060c5c29f74053d5ed67f1ce",
+        "boundary": "输入文件生命周期、配置、扫描编排、输出目录/文件读取和基本数据对象。排除内部解析器、产品专属重复别名、GDS/绘图、任意 shell 或脚本执行及自动优化。execute/execute_sweep/ExecutionPool.start 需要 nextnano 程序和许可；其余候选以本地文本/输出 fixture 检查。工厂和继承方法按源码归属保留，当前未执行运行验证。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 139,
+        "selected_tool_count": 20,
+        "selected_class_count": 15,
+        "selected_function_count": 5,
+        "selected_method_count": 67,
+        "selected_all_func": 72,
+        "missing_description_count": 59,
+        "excluded_tool_count": 119,
+        "capability_count": 6
+      }
+    }
+  }
+]

@@ -1,0 +1,312 @@
+{
+  "profile_id": "nextnanopy_balanced_v1",
+  "package": "nextnanopy",
+  "version": "v1.3.2",
+  "source_sha256": "cb6fdc26edb5b3647dab024ad8b6c94bdd0f12dbe9c7828344624fe8650e05e4",
+  "target_all_func": {
+    "min": 50,
+    "max": 100
+  },
+  "boundary": "输入文件生命周期、配置、扫描编排、输出目录/文件读取和基本数据对象。排除内部解析器、产品专属重复别名、GDS/绘图、任意 shell 或脚本执行及自动优化。execute/execute_sweep/ExecutionPool.start 需要 nextnano 程序和许可；其余候选以本地文本/输出 fixture 检查。工厂和继承方法按源码归属保留，当前未执行运行验证。",
+  "capabilities": [
+    {
+      "id": "input_lifecycle",
+      "description": "输入文件构建、变量修改与保存",
+      "selection_reason": "保留包级 InputFile 工厂与其 InputFileTemplate 公共接口；方法记在定义类，工厂不重复计数。",
+      "verification_tier": "fixture_or_external_runtime",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/nextnanopy/nextnanopy/__init__.py",
+        "seed_pypi_raw/nextnanopy/nextnanopy/inputs.py"
+      ],
+      "symbols": [
+        {
+          "module": "nextnanopy.inputs",
+          "name": "InputFile",
+          "type": "class",
+          "methods": []
+        },
+        {
+          "module": "nextnanopy.inputs",
+          "name": "InputFileTemplate",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "text",
+            "raw_text",
+            "lines",
+            "filename",
+            "folder_input",
+            "folder_output",
+            "load",
+            "save",
+            "get_variable",
+            "set_variable",
+            "execute",
+            "check_convergence",
+            "validate"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        }
+      ]
+    },
+    {
+      "id": "configuration",
+      "description": "显式路径配置与产品默认值",
+      "selection_reason": "包含 NNConfig 及其 Config 基类必要操作；后续测试使用隔离配置目录，不依赖个人配置。",
+      "verification_tier": "local_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "nextnanopy.utils.config",
+          "name": "Config",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "load",
+            "save",
+            "get",
+            "set",
+            "sections",
+            "get_options",
+            "add_section"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.defaults",
+          "name": "NNConfig",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "to_default",
+            "check_complete",
+            "get_unsupported_products"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.defaults",
+          "name": "get_config",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "sweep_orchestration",
+      "description": "扫描输入生成及执行编排",
+      "selection_reason": "保留一个并发编排实现 ExecutionPool，不同时暴露旧 ExecutionQueue；本地验证输入组合，执行需要外部许可。",
+      "verification_tier": "fixture_or_external_runtime",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "nextnanopy.inputs",
+          "name": "Sweep",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "save_sweep",
+            "save",
+            "create_input_files",
+            "execute_sweep",
+            "create_infodict_json"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.inputs",
+          "name": "ExecutionPool",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "add",
+            "start",
+            "join",
+            "is_alive",
+            "stop"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        }
+      ]
+    },
+    {
+      "id": "output_navigation",
+      "description": "输出发现、坐标变量读取与文件保存",
+      "selection_reason": "DataFolder 定位输出；Output/DataFileTemplate 提供 DataFile 继承接口；低层格式加载器不额外暴露。",
+      "verification_tier": "local_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/nextnanopy/nextnanopy/outputs.py"
+      ],
+      "symbols": [
+        {
+          "module": "nextnanopy.outputs",
+          "name": "DataFolder",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "load",
+            "find",
+            "find_multiple",
+            "file",
+            "go_to",
+            "filenames",
+            "read_sweep_infodict"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.outputs",
+          "name": "Output",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "data",
+            "get_coord",
+            "get_variable",
+            "filename"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.outputs",
+          "name": "DataFileTemplate",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "load",
+            "export"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.outputs",
+          "name": "DataFile",
+          "type": "class",
+          "methods": [
+            "save"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.outputs",
+          "name": "resolve_loader",
+          "type": "function"
+        },
+        {
+          "module": "nextnanopy.outputs",
+          "name": "values_metadata",
+          "type": "function"
+        },
+        {
+          "module": "nextnanopy.outputs",
+          "name": "load_values",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "data_containers",
+      "description": "坐标、变量与有序索引",
+      "selection_reason": "保留输出/输入对象使用的基本容器和按索引访问接口，可核对数组形状、名称及单位。",
+      "verification_tier": "local_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "nextnanopy.utils.datasets",
+          "name": "Data",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "parameters",
+            "label"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.utils.datasets",
+          "name": "Variable",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "get_value"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.utils.datasets",
+          "name": "Coord",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "get_value"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.utils.datasets",
+          "name": "InputVariable",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "get_value",
+            "text"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        },
+        {
+          "module": "nextnanopy.utils.mycollections",
+          "name": "DictList",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "get_indx"
+          ],
+          "missing_description_reason": "类级说明、公开入口及源码提供行为依据；部分构造器/方法没有独立说明，按用户要求保留空字段，后续封装前核对输入输出。"
+        }
+      ]
+    },
+    {
+      "id": "capacitance_analysis",
+      "description": "从已有输出计算电容电压曲线",
+      "selection_reason": "选用固定输出文件做后处理，不触发优化器中的重复仿真。",
+      "verification_tier": "local_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "nextnanopy.postprocess",
+          "name": "calculate_CV",
+          "type": "function"
+        }
+      ]
+    }
+  ]
+}

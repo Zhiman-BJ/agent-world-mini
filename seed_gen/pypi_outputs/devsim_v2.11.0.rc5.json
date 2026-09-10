@@ -1,0 +1,2020 @@
+[
+  {
+    "global_id": "pypi_devsim_3",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/devsim/devsim",
+          "https://pypi.org/project/devsim/",
+          "https://devsim.net/"
+        ],
+        "name": "devsim",
+        "version": "v2.11.0.rc5",
+        "index": 3
+      },
+      "description": "DEVSIM 是采用有限体积法的开源半导体器件仿真软件，通过 Python 接口定义网格、材料参数、物理模型和方程，支持一维、二维和三维器件的直流、交流及瞬态计算，并提供电路耦合、符号微分和仿真结果读写功能。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 0,
+        "function": 75,
+        "class_func": 0,
+        "all_func": 75
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "reset_devsim",
+        "type": "function",
+        "module": "devsim",
+        "description": "Resets all data for clean restart.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "devsim.reset_devsim ()  Resets all data for clean restart."
+      },
+      {
+        "name": "get_device_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets a list of devices on the simulation.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "devsim.get_device_list ()  Gets a list of devices on the simulation."
+      },
+      {
+        "name": "get_region_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets a list of regions on a device, contact, or interface.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str, optional",
+            "description": "If specified, gets the name of the region belonging to this contact on the device"
+          },
+          "interface": {
+            "type": "str, optional",
+            "description": "If specified, gets the name of the regions belonging to this interface on the device"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, interface",
+        "ori_description": "devsim.get_region_list (device, contact, interface)  Gets a list of regions on a device, contact, or interface.  Parameters ---------- device : str The selected device contact : str, optional If specified, gets the name of the region belonging to this contact on the device interface : str, optional If specified, gets the name of the regions belonging to this interface on the device"
+      },
+      {
+        "name": "get_interface_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets a list of interfaces on a device.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          }
+        },
+        "output": null,
+        "ori_input": "device",
+        "ori_description": "devsim.get_interface_list (device)  Gets a list of interfaces on a device.  Parameters ---------- device : str The selected device"
+      },
+      {
+        "name": "get_contact_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets a list of contacts on a device.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          }
+        },
+        "output": null,
+        "ori_input": "device",
+        "ori_description": "devsim.get_contact_list (device)  Gets a list of contacts on a device.  Parameters ---------- device : str The selected device"
+      },
+      {
+        "name": "get_dimension",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get the dimension of the device",
+        "input": {
+          "device": {
+            "type": "str, optional",
+            "description": "The selected device"
+          }
+        },
+        "output": null,
+        "ori_input": "device",
+        "ori_description": "devsim.get_dimension (device)  Get the dimension of the device  Parameters ---------- device : str, optional The selected device"
+      },
+      {
+        "name": "delete_device",
+        "type": "function",
+        "module": "devsim",
+        "description": "Delete a device and its parameters",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "name of the device being deleted"
+          }
+        },
+        "output": null,
+        "ori_input": "device",
+        "ori_description": "devsim.delete_device (device)  Delete a device and its parameters  Parameters ---------- device : str name of the device being deleted"
+      },
+      {
+        "name": "delete_mesh",
+        "type": "function",
+        "module": "devsim",
+        "description": "Delete a mesh so devices can no longer be instantiated from it.",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to delete"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh",
+        "ori_description": "devsim.delete_mesh (mesh)  Delete a mesh so devices can no longer be instantiated from it.  Parameters ---------- mesh : str Mesh to delete"
+      },
+      {
+        "name": "get_mesh_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get list of meshes",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "devsim.get_mesh_list ()  Get list of meshes"
+      },
+      {
+        "name": "create_1d_mesh",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a mesh to create a 1D device",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "name of the 1D mesh being created"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh",
+        "ori_description": "devsim.create_1d_mesh (mesh)  Create a mesh to create a 1D device  Parameters ---------- mesh : str name of the 1D mesh being created"
+      },
+      {
+        "name": "add_1d_mesh_line",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add a mesh line to a 1D mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the line to"
+          },
+          "tag": {
+            "type": "str, optional",
+            "description": "Text label for the position"
+          },
+          "pos": {
+            "type": "str",
+            "description": "Position for the mesh point"
+          },
+          "ns": {
+            "type": "Float, optional",
+            "description": "Spacing from this point in the negative direction (default ps value)"
+          },
+          "ps": {
+            "type": "Float",
+            "description": "Spacing from this point in the positive direction"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, tag, pos, ns, ps",
+        "ori_description": "devsim.add_1d_mesh_line (mesh, tag, pos, ns, ps)  Add a mesh line to a 1D mesh  Parameters ---------- mesh : str Mesh to add the line to tag : str, optional Text label for the position pos : str Position for the mesh point ns : Float, optional Spacing from this point in the negative direction (default ps value) ps : Float Spacing from this point in the positive direction"
+      },
+      {
+        "name": "add_1d_region",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add a region to a 1D mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the line to"
+          },
+          "tag1": {
+            "type": "str",
+            "description": "Text label for the position bounding the region being added"
+          },
+          "tag2": {
+            "type": "str",
+            "description": "Text label for the position bounding the region being added"
+          },
+          "region": {
+            "type": "str",
+            "description": "Name for the region being created"
+          },
+          "material": {
+            "type": "str",
+            "description": "Material for the region being created"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, tag1, tag2, region, material",
+        "ori_description": "devsim.add_1d_region (mesh, tag1, tag2, region, material)  Add a region to a 1D mesh  Parameters ---------- mesh : str Mesh to add the line to tag1 : str Text label for the position bounding the region being added tag2 : str Text label for the position bounding the region being added region : str Name for the region being created material : str Material for the region being created"
+      },
+      {
+        "name": "add_1d_contact",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add a contact to a 1D mesh",
+        "input": {
+          "material": {
+            "type": "str",
+            "description": "material for the contact being created"
+          },
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the contact to"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name for the contact being created"
+          },
+          "tag": {
+            "type": "str",
+            "description": "Text label for the position to add the contact"
+          }
+        },
+        "output": null,
+        "ori_input": "material, mesh, name, tag",
+        "ori_description": "devsim.add_1d_contact (material, mesh, name, tag)  Add a contact to a 1D mesh  Parameters ---------- material : str material for the contact being created mesh : str Mesh to add the contact to name : str Name for the contact being created tag : str Text label for the position to add the contact"
+      },
+      {
+        "name": "add_1d_interface",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add an interface to a 1D mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the interface to"
+          },
+          "tag": {
+            "type": "str",
+            "description": "Text label for the position to add the interface"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name for the interface being created"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, tag, name",
+        "ori_description": "devsim.add_1d_interface (mesh, tag, name)  Add an interface to a 1D mesh  Parameters ---------- mesh : str Mesh to add the interface to tag : str Text label for the position to add the interface name : str Name for the interface being created"
+      },
+      {
+        "name": "create_2d_mesh",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a mesh to create a 2D device",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "name of the 2D mesh being created"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh",
+        "ori_description": "devsim.create_2d_mesh (mesh)  Create a mesh to create a 2D device  Parameters ---------- mesh : str name of the 2D mesh being created"
+      },
+      {
+        "name": "add_2d_mesh_line",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add a mesh line to a 2D mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the line to"
+          },
+          "pos": {
+            "type": "str",
+            "description": "Position for the mesh point"
+          },
+          "ns": {
+            "type": "Float",
+            "description": "Spacing from this point in the negative direction"
+          },
+          "ps": {
+            "type": "Float",
+            "description": "Spacing from this point in the positive direction"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, pos, ns, ps",
+        "ori_description": "devsim.add_2d_mesh_line (mesh, pos, ns, ps)  Add a mesh line to a 2D mesh  Parameters ---------- mesh : str Mesh to add the line to pos : str Position for the mesh point ns : Float Spacing from this point in the negative direction ps : Float Spacing from this point in the positive direction"
+      },
+      {
+        "name": "add_2d_region",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add a region to a 2D mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the region to"
+          },
+          "region": {
+            "type": "str",
+            "description": "Name for the region being created"
+          },
+          "material": {
+            "type": "str",
+            "description": "Material for the region being created"
+          },
+          "xl": {
+            "type": "Float, optional",
+            "description": "x position for corner of bounding box (default -MAXDOUBLE)"
+          },
+          "xh": {
+            "type": "Float, optional",
+            "description": "x position for corner of bounding box (default +MAXDOUBLE)"
+          },
+          "yl": {
+            "type": "Float, optional",
+            "description": "y position for corner of bounding box (default -MAXDOUBLE)"
+          },
+          "yh": {
+            "type": "Float, optional",
+            "description": "y position for corner of bounding box (default +MAXDOUBLE)"
+          },
+          "bloat": {
+            "type": "Float, optional",
+            "description": "Extend bounding box by this amount when search for mesh to include in region (default 1e-10)"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, region, material, xl, xh, yl, yh, bloat",
+        "ori_description": "devsim.add_2d_region (mesh, region, material, xl, xh, yl, yh, bloat)  Add a region to a 2D mesh  Parameters ---------- mesh : str Mesh to add the region to region : str Name for the region being created material : str Material for the region being created xl : Float, optional x position for corner of bounding box (default -MAXDOUBLE) xh : Float, optional x position for corner of bounding box (default +MAXDOUBLE) yl : Float, optional y position for corner of bounding box (default -MAXDOUBLE) yh : Float, optional y position for corner of bounding box (default +MAXDOUBLE) bloat : Float, optional Extend bounding box by this amount when search for mesh to include in region (default 1e-10)"
+      },
+      {
+        "name": "add_2d_contact",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add an interface to a 2D mesh",
+        "input": {
+          "name": {
+            "type": "str",
+            "description": "Name for the contact being created"
+          },
+          "material": {
+            "type": "str",
+            "description": "material for the contact being created"
+          },
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the contact to"
+          },
+          "region": {
+            "type": "str",
+            "description": "Name of the region included in the contact"
+          },
+          "xl": {
+            "type": "Float, optional",
+            "description": "x position for corner of bounding box (default -MAXDOUBLE)"
+          },
+          "xh": {
+            "type": "Float, optional",
+            "description": "x position for corner of bounding box (default +MAXDOUBLE)"
+          },
+          "yl": {
+            "type": "Float, optional",
+            "description": "y position for corner of bounding box (default -MAXDOUBLE)"
+          },
+          "yh": {
+            "type": "Float, optional",
+            "description": "y position for corner of bounding box (default +MAXDOUBLE)"
+          },
+          "bloat": {
+            "type": "Float, optional",
+            "description": "Extend bounding box by this amount when search for mesh to include in region (default 1e-10)"
+          }
+        },
+        "output": null,
+        "ori_input": "name, material, mesh, region, xl, xh, yl, yh, bloat",
+        "ori_description": "devsim.add_2d_contact (name, material, mesh, region, xl, xh, yl, yh, bloat)  Add an interface to a 2D mesh  Parameters ---------- name : str Name for the contact being created material : str material for the contact being created mesh : str Mesh to add the contact to region : str Name of the region included in the contact xl : Float, optional x position for corner of bounding box (default -MAXDOUBLE) xh : Float, optional x position for corner of bounding box (default +MAXDOUBLE) yl : Float, optional y position for corner of bounding box (default -MAXDOUBLE) yh : Float, optional y position for corner of bounding box (default +MAXDOUBLE) bloat : Float, optional Extend bounding box by this amount when search for mesh to include in region (default 1e-10)"
+      },
+      {
+        "name": "add_2d_interface",
+        "type": "function",
+        "module": "devsim",
+        "description": "Add an interface to a 2D mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to add the interface to"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name for the interface being created"
+          },
+          "region0": {
+            "type": "str",
+            "description": "Name of the region included in the interface"
+          },
+          "region1": {
+            "type": "str",
+            "description": "Name of the region included in the interface"
+          },
+          "xl": {
+            "type": "Float, optional",
+            "description": "x position for corner of bounding box (default -MAXDOUBLE)"
+          },
+          "xh": {
+            "type": "Float, optional",
+            "description": "x position for corner of bounding box (default +MAXDOUBLE)"
+          },
+          "yl": {
+            "type": "Float, optional",
+            "description": "y position for corner of bounding box (default -MAXDOUBLE)"
+          },
+          "yh": {
+            "type": "Float, optional",
+            "description": "y position for corner of bounding box (default +MAXDOUBLE)"
+          },
+          "bloat": {
+            "type": "Float, optional",
+            "description": "Extend bounding box by this amount when search for mesh to include in region (default 1e-10)"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, name, region0, region1, xl, xh, yl, yh, bloat",
+        "ori_description": "devsim.add_2d_interface (mesh, name, region0, region1, xl, xh, yl, yh, bloat)  Add an interface to a 2D mesh  Parameters ---------- mesh : str Mesh to add the interface to name : str Name for the interface being created region0 : str Name of the region included in the interface region1 : str Name of the region included in the interface xl : Float, optional x position for corner of bounding box (default -MAXDOUBLE) xh : Float, optional x position for corner of bounding box (default +MAXDOUBLE) yl : Float, optional y position for corner of bounding box (default -MAXDOUBLE) yh : Float, optional y position for corner of bounding box (default +MAXDOUBLE) bloat : Float, optional Extend bounding box by this amount when search for mesh to include in region (default 1e-10)"
+      },
+      {
+        "name": "create_gmsh_mesh",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a mesh to import a Gmsh mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "name of the mesh being generated"
+          },
+          "file": {
+            "type": "str, optional",
+            "description": "name of the Gmsh mesh file being read into DEVSIM"
+          },
+          "coordinates": {
+            "type": "list, optional",
+            "description": "List of coordinate positions on mesh."
+          },
+          "elements": {
+            "type": "list, optional",
+            "description": "List of elements on the mesh."
+          },
+          "physical_names": {
+            "type": "list, optional",
+            "description": "List of names for each contact, interface, and region on mesh."
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, file, coordinates, elements, physical_names",
+        "ori_description": "devsim.create_gmsh_mesh (mesh, file, coordinates, elements, physical_names)  Create a mesh to import a Gmsh mesh  Parameters ---------- mesh : str name of the mesh being generated file : str, optional name of the Gmsh mesh file being read into DEVSIM coordinates : list, optional List of coordinate positions on mesh. elements : list, optional List of elements on the mesh. physical_names : list, optional List of names for each contact, interface, and region on mesh.  Notes -----  This file will import a Gmsh format mesh from a file. Alternatively, the mesh structure may be passed in as as arguments:  ``coordinates`` is a float list of positions in the mesh. Each coordinate adds an x, y, and z position so that the coordinate list length is 3 times the number of coordinates.  ``physical_names`` is a list of contact, interface, and region names. It is referenced by index by the ``elements`` list.  ``elements`` is a list of elements. Each element adds  * Element Type (float)  - 0 node - 1 edge - 2 triangle - 3 tetrahedron  * Physical Index  - This indexes into the ``physical_names`` list.  * Nodes  - Each node of the element indexes into the coordinates list."
+      },
+      {
+        "name": "add_gmsh_region",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a region for an imported Gmsh mesh",
+        "input": {
+          "gmsh_name": {
+            "type": "str",
+            "description": "physical group name in the Gmsh file"
+          },
+          "mesh": {
+            "type": "str",
+            "description": "name of the mesh being generated"
+          },
+          "region": {
+            "type": "str",
+            "description": "name of the region begin created"
+          },
+          "material": {
+            "type": "str",
+            "description": "material for the region being created"
+          }
+        },
+        "output": null,
+        "ori_input": "gmsh_name, mesh, region, material",
+        "ori_description": "devsim.add_gmsh_region (gmsh_name, mesh, region, material)  Create a region for an imported Gmsh mesh  Parameters ---------- gmsh_name : str physical group name in the Gmsh file mesh : str name of the mesh being generated region : str name of the region begin created material : str material for the region being created"
+      },
+      {
+        "name": "add_gmsh_contact",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a mesh to import a Gmsh mesh",
+        "input": {
+          "gmsh_name": {
+            "type": "str",
+            "description": "physical group name in the Gmsh file"
+          },
+          "material": {
+            "type": "str",
+            "description": "material for the contact being created"
+          },
+          "mesh": {
+            "type": "str",
+            "description": "name of the mesh being generated"
+          },
+          "name": {
+            "type": "str",
+            "description": "name of the contact begin created"
+          },
+          "region": {
+            "type": "str",
+            "description": "region that the contact is attached to"
+          }
+        },
+        "output": null,
+        "ori_input": "gmsh_name, material, mesh, name, region",
+        "ori_description": "devsim.add_gmsh_contact (gmsh_name, material, mesh, name, region)  Create a mesh to import a Gmsh mesh  Parameters ---------- gmsh_name : str physical group name in the Gmsh file material : str material for the contact being created mesh : str name of the mesh being generated name : str name of the contact begin created region : str region that the contact is attached to"
+      },
+      {
+        "name": "add_gmsh_interface",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create an interface for an imported Gmsh mesh",
+        "input": {
+          "gmsh_name": {
+            "type": "str",
+            "description": "physical group name in the Gmsh file"
+          },
+          "mesh": {
+            "type": "str",
+            "description": "name of the mesh being generated"
+          },
+          "name": {
+            "type": "str",
+            "description": "name of the interface begin created"
+          },
+          "region0": {
+            "type": "str",
+            "description": "first region that the interface is attached to"
+          },
+          "region1": {
+            "type": "str",
+            "description": "second region that the interface is attached to"
+          }
+        },
+        "output": null,
+        "ori_input": "gmsh_name, mesh, name, region0, region1",
+        "ori_description": "devsim.add_gmsh_interface (gmsh_name, mesh, name, region0, region1)  Create an interface for an imported Gmsh mesh  Parameters ---------- gmsh_name : str physical group name in the Gmsh file mesh : str name of the mesh being generated name : str name of the interface begin created region0 : str first region that the interface is attached to region1 : str second region that the interface is attached to"
+      },
+      {
+        "name": "finalize_mesh",
+        "type": "function",
+        "module": "devsim",
+        "description": "Finalize a mesh so no additional mesh specifications can be added and devices can be created.",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "Mesh to finalize"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh",
+        "ori_description": "devsim.finalize_mesh (mesh)  Finalize a mesh so no additional mesh specifications can be added and devices can be created.  Parameters ---------- mesh : str Mesh to finalize"
+      },
+      {
+        "name": "create_device",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a device from a mesh",
+        "input": {
+          "mesh": {
+            "type": "str",
+            "description": "name of the mesh being used to create a device"
+          },
+          "device": {
+            "type": "str",
+            "description": "name of the device being created"
+          }
+        },
+        "output": null,
+        "ori_input": "mesh, device",
+        "ori_description": "devsim.create_device (mesh, device)  Create a device from a mesh  Parameters ---------- mesh : str name of the mesh being used to create a device device : str name of the device being created"
+      },
+      {
+        "name": "get_element_node_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets a list of nodes for each element on a device, region, contact, or interface.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "contact": {
+            "type": "str, optional",
+            "description": "If specified, gets the element nodes for the contact on the specified region"
+          },
+          "interface": {
+            "type": "str, optional",
+            "description": "If specified, gets the element nodes for the interface on the specified region"
+          },
+          "reorder": {
+            "type": "bool, optional",
+            "description": "If specified, reorders the element nodes in a manner compatible in meshing software (default False)"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, contact, interface, reorder",
+        "ori_description": "devsim.get_element_node_list (device, region, contact, interface, reorder)  Gets a list of nodes for each element on a device, region, contact, or interface.  Parameters ---------- device : str The selected device region : str The selected region contact : str, optional If specified, gets the element nodes for the contact on the specified region interface : str, optional If specified, gets the element nodes for the interface on the specified region reorder : bool, optional If specified, reorders the element nodes in a manner compatible in meshing software (default False)"
+      },
+      {
+        "name": "set_parameter",
+        "type": "function",
+        "module": "devsim",
+        "description": "Set a parameter on region, device, or globally",
+        "input": {
+          "device": {
+            "type": "str, optional",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str, optional",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the parameter name being retrieved"
+          },
+          "value": {
+            "type": "any",
+            "description": "value to set for the parameter"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name, value",
+        "ori_description": "devsim.set_parameter (device, region, name, value)  Set a parameter on region, device, or globally  Parameters ---------- device : str, optional The selected device region : str, optional The selected region name : str Name of the parameter name being retrieved value : any value to set for the parameter  Notes -----  Note that the device and region options are optional. If the region is not specified, the parameter is set for the entire device. If the device is not specified, the parameter is set for all devices."
+      },
+      {
+        "name": "get_parameter",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get a parameter on a region, device, or globally.",
+        "input": {
+          "device": {
+            "type": "str, optional",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str, optional",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the parameter name being retrieved"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.get_parameter (device, region, name)  Get a parameter on a region, device, or globally.  Parameters ---------- device : str, optional The selected device region : str, optional The selected region name : str Name of the parameter name being retrieved  Notes -----  Note that the ``device`` and ``region`` options are optional. If the region is not specified, the parameter is retrieved for the entire device. If the device is not specified, the parameter is retrieved for all devices. If the parameter is not found on the region, it is retrieved on the device. If it is not found on the device, it is retrieved over all devices."
+      },
+      {
+        "name": "get_parameter_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get list of parameter names on region, device, or globally",
+        "input": {
+          "device": {
+            "type": "str, optional",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str, optional",
+            "description": "The selected region"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region",
+        "ori_description": "devsim.get_parameter_list (device, region)  Get list of parameter names on region, device, or globally  Parameters ---------- device : str, optional The selected device region : str, optional The selected region  Notes -----  Note that the ``device`` and ``region`` options are optional. If the region is not specified, the parameter is retrieved for the entire device. If the device is not specified, the parameter is retrieved for all devices. Unlike the :meth:`devsim.getParameter`, parameter names on the the device are not retrieved if they do not exist on the region. Similarly, the parameter names over all devices are not retrieved if they do not exist on the device."
+      },
+      {
+        "name": "set_material",
+        "type": "function",
+        "module": "devsim",
+        "description": "Sets the new material for a region",
+        "input": {
+          "device": {
+            "type": "str, optional",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str, optional",
+            "description": "The selected region"
+          },
+          "contact": {
+            "type": "str, optional",
+            "description": "Contact on which to apply this command"
+          },
+          "material": {
+            "type": "str",
+            "description": "New material name"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, contact, material",
+        "ori_description": "devsim.set_material (device, region, contact, material)  Sets the new material for a region  Parameters ---------- device : str, optional The selected device region : str, optional The selected region contact : str, optional Contact on which to apply this command material : str New material name"
+      },
+      {
+        "name": "get_material",
+        "type": "function",
+        "module": "devsim",
+        "description": "Returns the material for the specified region",
+        "input": {
+          "device": {
+            "type": "str, optional",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str, optional",
+            "description": "The selected region"
+          },
+          "contact": {
+            "type": "str, optional",
+            "description": "Contact on which to apply this command"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, contact",
+        "ori_description": "devsim.get_material (device, region, contact)  Returns the material for the specified region  Parameters ---------- device : str, optional The selected device region : str, optional The selected region contact : str, optional Contact on which to apply this command"
+      },
+      {
+        "name": "node_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a node model from an equation.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the node model being created"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Equation used to describe the node model being created"
+          },
+          "display_type": {
+            "type": "{'scalar', 'nodisplay'}",
+            "description": "Option for output display in graphical viewer"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name, equation, display_type",
+        "ori_description": "devsim.node_model (device, region, name, equation, display_type)  Create a node model from an equation.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the node model being created equation : str Equation used to describe the node model being created display_type : {'scalar', 'nodisplay'} Option for output display in graphical viewer"
+      },
+      {
+        "name": "node_solution",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create node model whose values are set.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the solution being created"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.node_solution (device, region, name)  Create node model whose values are set.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the solution being created"
+      },
+      {
+        "name": "edge_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Creates an edge model based on an equation",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the edge model being created"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Equation used to describe the edge model being created"
+          },
+          "display_type": {
+            "type": "{'scalar', 'nodisplay', 'vector'}",
+            "description": "Option for output display in graphical viewer"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name, equation, display_type",
+        "ori_description": "devsim.edge_model (device, region, name, equation, display_type)  Creates an edge model based on an equation  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the edge model being created equation : str Equation used to describe the edge model being created display_type : {'scalar', 'nodisplay', 'vector'} Option for output display in graphical viewer  Notes -----  The ``vector`` option uses an averaging scheme for the edge values projected in the direction of each edge. For a given model, ``model``, the generated components in the visualization files is:  - ``model_x_onNode`` - ``model_y_onNode`` - ``model_z_onNode`` (3D)  This averaging scheme does not produce accurate results, and it is recommended to use the :meth:`devsim.element_from_edge_model` to create components better suited for visualization. See :ref:`ch__visualization` for more information about creating data files for external visualization programs."
+      },
+      {
+        "name": "edge_from_node_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "For a node model, creates an 2 edge models referring to the node model value at both ends of the edge.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "node_model": {
+            "type": "str",
+            "description": "The node model from which we are creating the edge model"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, node_model",
+        "ori_description": "devsim.edge_from_node_model (device, region, node_model)  For a node model, creates an 2 edge models referring to the node model value at both ends of the edge.  Parameters ---------- device : str The selected device region : str The selected region node_model : str The node model from which we are creating the edge model  Notes -----  For example, to calculate electric field:  ..  devsim.edge_from_node_model(device=device, region=region, node_model=\"Potential\")"
+      },
+      {
+        "name": "edge_average_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Creates an edge model based on the node model values",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "node_model": {
+            "type": "str",
+            "description": "The node model from which we are creating the edge model. If ``derivative`` is specified, the edge model is created from ``nodeModel:derivativeModel``"
+          },
+          "edge_model": {
+            "type": "str",
+            "description": "The edge model name being created. If ``derivative`` is specified, the edge models created are ``edgeModel:derivativeModel@n0`` ``edgeModel:derivativeModel@n1``, which are the derivatives with respect to the derivative model on each side of the edge"
+          },
+          "derivative": {
+            "type": "str, optional",
+            "description": "The node model of the variable for which the derivative is being taken. The node model ``nodeModel:derivativeModel`` is used to create the resulting edge models."
+          },
+          "average_type": {
+            "type": "{'arithmetic', 'geometric', 'gradient', 'negative_gradient'}",
+            "description": "The node models on both sides of the edge are averaged together to create one of the following types of averages."
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, node_model, edge_model, derivative, average_type",
+        "ori_description": "devsim.edge_average_model (device, region, node_model, edge_model, derivative, average_type)  Creates an edge model based on the node model values  Parameters ---------- device : str The selected device region : str The selected region node_model : str The node model from which we are creating the edge model. If ``derivative`` is specified, the edge model is created from ``nodeModel:derivativeModel`` edge_model : str The edge model name being created. If ``derivative`` is specified, the edge models created are ``edgeModel:derivativeModel@n0`` ``edgeModel:derivativeModel@n1``, which are the derivatives with respect to the derivative model on each side of the edge derivative : str, optional The node model of the variable for which the derivative is being taken. The node model ``nodeModel:derivativeModel`` is used to create the resulting edge models. average_type : {'arithmetic', 'geometric', 'gradient', 'negative_gradient'} The node models on both sides of the edge are averaged together to create one of the following types of averages.  Notes -----  For a node model, creates 2 edge models referring to the node model value at both ends of the edge. For example, to calculate electric field:  ..  devsim.edge_average_model(device=device, region=region, node_model=\"Potential\", edge_model=\"ElecticField\", average_type=\"negative_gradient\")  and the derivatives ``ElectricField:Potential@n0`` and ``ElectricField:Potential@n1`` are then created from  ..  devsim.edge_average_model(device=device, region=region, node_model=\"Potential\", edge_model=\"ElecticField\", average_type=\"negative_gradient\", derivative=\"Potential\")"
+      },
+      {
+        "name": "interface_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create an interface model from an equation.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "interface": {
+            "type": "str",
+            "description": "Interface on which to apply this command"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Equation used to describe the interface node model being created"
+          }
+        },
+        "output": null,
+        "ori_input": "device, interface, equation",
+        "ori_description": "devsim.interface_model (device, interface, equation)  Create an interface model from an equation.  Parameters ---------- device : str The selected device interface : str Interface on which to apply this command equation : str Equation used to describe the interface node model being created"
+      },
+      {
+        "name": "contact_node_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create an node model evaluated at a contact",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the contact node model being created"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Equation used to describe the contact node model being created"
+          },
+          "display_type": {
+            "type": "{'scalar', 'nodisplay'}",
+            "description": "Option for output display in graphical viewer"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, name, equation, display_type",
+        "ori_description": "devsim.contact_node_model (device, contact, name, equation, display_type)  Create an node model evaluated at a contact  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command name : str Name of the contact node model being created equation : str Equation used to describe the contact node model being created display_type : {'scalar', 'nodisplay'} Option for output display in graphical viewer"
+      },
+      {
+        "name": "contact_edge_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create an edge model evaluated at a contact",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the contact edge model being created"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Equation used to describe the contact edge model being created"
+          },
+          "display_type": {
+            "type": "{'vector', 'nodisplay', 'scalar'}",
+            "description": "Option for output display in graphical viewer"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, name, equation, display_type",
+        "ori_description": "devsim.contact_edge_model (device, contact, name, equation, display_type)  Create an edge model evaluated at a contact  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command name : str Name of the contact edge model being created equation : str Equation used to describe the contact edge model being created display_type : {'vector', 'nodisplay', 'scalar'} Option for output display in graphical viewer"
+      },
+      {
+        "name": "set_node_values",
+        "type": "function",
+        "module": "devsim",
+        "description": "Set node model values from another node model, or a list of values.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the node model being initialized"
+          },
+          "init_from": {
+            "type": "str, optional",
+            "description": "Node model we are using to initialize the node solution"
+          },
+          "values": {
+            "type": "list, optional",
+            "description": "List of values for each node in the region."
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name, init_from, values",
+        "ori_description": "devsim.set_node_values (device, region, name, init_from, values)  Set node model values from another node model, or a list of values.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the node model being initialized init_from : str, optional Node model we are using to initialize the node solution values : list, optional List of values for each node in the region."
+      },
+      {
+        "name": "set_node_value",
+        "type": "function",
+        "module": "devsim",
+        "description": "A uniform value is used if index is not specified. Note that equation based node models will lose this value if their equation is recalculated.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the node model being whose value is being set"
+          },
+          "index": {
+            "type": "int",
+            "description": "Index of node being set"
+          },
+          "value": {
+            "type": "Float",
+            "description": "Value of node being set"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name, index, value",
+        "ori_description": "devsim.set_node_value (device, region, name, index, value)  A uniform value is used if index is not specified. Note that equation based node models will lose this value if their equation is recalculated.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the node model being whose value is being set index : int Index of node being set value : Float Value of node being set"
+      },
+      {
+        "name": "get_node_model_values",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get node model values evaluated at each node in a region.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the node model values being returned as a list"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.get_node_model_values (device, region, name)  Get node model values evaluated at each node in a region.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the node model values being returned as a list"
+      },
+      {
+        "name": "get_edge_model_values",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get the edge model values calculated at each edge.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the edge model values being returned as a list"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.get_edge_model_values (device, region, name)  Get the edge model values calculated at each edge.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the edge model values being returned as a list"
+      },
+      {
+        "name": "get_interface_model_values",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets interface model values evaluated at each interface node.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "interface": {
+            "type": "str",
+            "description": "Interface on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the interface model values being returned as a list"
+          }
+        },
+        "output": null,
+        "ori_input": "device, interface, name",
+        "ori_description": "devsim.get_interface_model_values (device, interface, name)  Gets interface model values evaluated at each interface node.  Parameters ---------- device : str The selected device interface : str Interface on which to apply this command name : str Name of the interface model values being returned as a list"
+      },
+      {
+        "name": "get_node_model_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Returns a list of the node models on the device region",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region",
+        "ori_description": "devsim.get_node_model_list (device, region)  Returns a list of the node models on the device region  Parameters ---------- device : str The selected device region : str The selected region"
+      },
+      {
+        "name": "get_edge_model_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Returns a list of the edge models on the device region",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region",
+        "ori_description": "devsim.get_edge_model_list (device, region)  Returns a list of the edge models on the device region  Parameters ---------- device : str The selected device region : str The selected region"
+      },
+      {
+        "name": "get_interface_model_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Returns a list of the interface models on the interface",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "interface": {
+            "type": "str",
+            "description": "Interface on which to apply this command"
+          }
+        },
+        "output": null,
+        "ori_input": "device, interface",
+        "ori_description": "devsim.get_interface_model_list (device, interface)  Returns a list of the interface models on the interface  Parameters ---------- device : str The selected device interface : str Interface on which to apply this command"
+      },
+      {
+        "name": "delete_node_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Deletes a node model from a region",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the node model being deleted"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.delete_node_model (device, region, name)  Deletes a node model from a region  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the node model being deleted"
+      },
+      {
+        "name": "delete_edge_model",
+        "type": "function",
+        "module": "devsim",
+        "description": "Deletes an edge model from a region",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the edge model being deleted"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.delete_edge_model (device, region, name)  Deletes an edge model from a region  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the edge model being deleted"
+      },
+      {
+        "name": "symdiff",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command returns an expression. All strings are treated as independent variables. It is primarily used for defining new functions to the parser.",
+        "input": {
+          "expr": {
+            "type": "str",
+            "description": "Expression to send to SYMDIFF"
+          }
+        },
+        "output": null,
+        "ori_input": "expr",
+        "ori_description": "devsim.symdiff (expr)  This command returns an expression. All strings are treated as independent variables. It is primarily used for defining new functions to the parser.  Parameters ---------- expr : str Expression to send to SYMDIFF"
+      },
+      {
+        "name": "equation",
+        "type": "function",
+        "module": "devsim",
+        "description": "Specify an equation to solve on a device",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the equation being created"
+          },
+          "variable_name": {
+            "type": "str",
+            "description": "Name of the node solution being solved"
+          },
+          "node_model": {
+            "type": "str, optional",
+            "description": "Name of the node model being integrated at each node in the device volume"
+          },
+          "edge_model": {
+            "type": "str, optional",
+            "description": "Name of the edge model being integrated over each edge in the device volume"
+          },
+          "edge_volume_model": {
+            "type": "str, optional",
+            "description": "Name of the edge model being integrated over the volume of each edge in the device volume"
+          },
+          "time_node_model": {
+            "type": "str, optional",
+            "description": "Name of the time dependent node_model being integrated at each node in the device volume"
+          },
+          "element_model": {
+            "type": "str, optional",
+            "description": "Name of the element model being integrated over each edge in the device volume"
+          },
+          "volume_node0_model": {
+            "type": "str, optional",
+            "description": "Name of the element model being integrated over the volume of node 0 of each edge on the contact"
+          },
+          "volume_node1_model": {
+            "type": "str, optional",
+            "description": "Name of the element model being integrated over the volume of node 1 of each edge on the contact"
+          },
+          "variable_update": {
+            "type": "{'default', 'log_damp', 'positive'}",
+            "description": "update type for circuit variable"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name, variable_name, node_model, edge_model, edge_volume_model, time_node_model, element_model, volume_node0_model, volume_node1_model, variable_update",
+        "ori_description": "devsim.equation (device, region, name, variable_name, node_model, edge_model, edge_volume_model, time_node_model, element_model, volume_node0_model, volume_node1_model, variable_update)  Specify an equation to solve on a device  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the equation being created variable_name : str Name of the node solution being solved node_model : str, optional Name of the node model being integrated at each node in the device volume edge_model : str, optional Name of the edge model being integrated over each edge in the device volume edge_volume_model : str, optional Name of the edge model being integrated over the volume of each edge in the device volume time_node_model : str, optional Name of the time dependent node_model being integrated at each node in the device volume element_model : str, optional Name of the element model being integrated over each edge in the device volume volume_node0_model : str, optional Name of the element model being integrated over the volume of node 0 of each edge on the contact volume_node1_model : str, optional Name of the element model being integrated over the volume of node 1 of each edge on the contact variable_update : {'default', 'log_damp', 'positive'} update type for circuit variable  Notes -----  The integration variables can be changed in 2D for cylindrical coordinate systems by setting the appropriate parameters as described in :ref:`sec__cylindrical`.  In order to set the node volumes for integration of the ``edge_volume_model``, it is possible to do something like this:  ..  devsim.edge_model(device=\"device\", region=\"region\", name=\"EdgeNodeVolume\", equation=\"0.5*SurfaceArea*EdgeLength\") devsim.set_parameter(name=\"edge_node0_volume_model\", value=\"EdgeNodeVolume\") devsim.set_parameter(name=\"edge_node1_volume_model\", value=\"EdgeNodeVolume\")"
+      },
+      {
+        "name": "contact_equation",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create a contact equation on a device",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the contact equation being created"
+          },
+          "circuit_node": {
+            "type": "str, optional",
+            "description": "Name of the circuit we integrate the flux into"
+          },
+          "edge_charge_model": {
+            "type": "str, optional",
+            "description": "Name of the edge model used to determine the charge at this contact"
+          },
+          "edge_current_model": {
+            "type": "str, optional",
+            "description": "Name of the edge model used to determine the current flowing out of this contact"
+          },
+          "edge_model": {
+            "type": "str, optional",
+            "description": "Name of the edge model being integrated at each edge at this contact"
+          },
+          "edge_volume_model": {
+            "type": "str, optional",
+            "description": "Name of the edge model being integrated over the volume of each edge on the contact"
+          },
+          "element_charge_model": {
+            "type": "str, optional",
+            "description": "Name of the element edge model used to determine the charge at this contact"
+          },
+          "element_current_model": {
+            "type": "str, optional",
+            "description": "Name of the element edge model used to determine the current flowing out of this contact"
+          },
+          "element_model": {
+            "type": "str, optional",
+            "description": "Name of the element edge model being integrated at each edge at this contact"
+          },
+          "volume_node0_model": {
+            "type": "str, optional",
+            "description": "Name of the element model being integrated over the volume of node 0 of each edge on the contact"
+          },
+          "volume_node1_model": {
+            "type": "str, optional",
+            "description": "Name of the element model being integrated over the volume of node 1 of each edge on the contact"
+          },
+          "node_charge_model": {
+            "type": "str, optional",
+            "description": "Name of the node model used to determine the charge at this contact"
+          },
+          "node_current_model": {
+            "type": "str, optional",
+            "description": "Name of the node model used to determine the current flowing out of this contact"
+          },
+          "node_model": {
+            "type": "str, optional",
+            "description": "Name of the node model being integrated at each node at this contact"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, name, circuit_node, edge_charge_model, edge_current_model, edge_model, edge_volume_model, element_charge_model, element_current_model, element_model, volume_node0_model, volume_node1_model, node_charge_model, node_current_model, node_model",
+        "ori_description": "devsim.contact_equation (device, contact, name, circuit_node, edge_charge_model, edge_current_model, edge_model, edge_volume_model, element_charge_model, element_current_model, element_model, volume_node0_model, volume_node1_model, node_charge_model, node_current_model, node_model)  Create a contact equation on a device  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command name : str Name of the contact equation being created circuit_node : str, optional Name of the circuit we integrate the flux into edge_charge_model : str, optional Name of the edge model used to determine the charge at this contact edge_current_model : str, optional Name of the edge model used to determine the current flowing out of this contact edge_model : str, optional Name of the edge model being integrated at each edge at this contact edge_volume_model : str, optional Name of the edge model being integrated over the volume of each edge on the contact element_charge_model : str, optional Name of the element edge model used to determine the charge at this contact element_current_model : str, optional Name of the element edge model used to determine the current flowing out of this contact element_model : str, optional Name of the element edge model being integrated at each edge at this contact volume_node0_model : str, optional Name of the element model being integrated over the volume of node 0 of each edge on the contact volume_node1_model : str, optional Name of the element model being integrated over the volume of node 1 of each edge on the contact node_charge_model : str, optional Name of the node model used to determine the charge at this contact node_current_model : str, optional Name of the node model used to determine the current flowing out of this contact node_model : str, optional Name of the node model being integrated at each node at this contact"
+      },
+      {
+        "name": "interface_equation",
+        "type": "function",
+        "module": "devsim",
+        "description": "Command to specify an equation at an interface",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "interface": {
+            "type": "str",
+            "description": "Interface on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the interface equation being created"
+          },
+          "name0": {
+            "type": "str, optional",
+            "description": "Name of the equation coupling in region 0 being created (default 'name')"
+          },
+          "name1": {
+            "type": "str, optional",
+            "description": "Name of the equation coupling in region 1 being created (default 'name')"
+          },
+          "interface_model": {
+            "type": "str",
+            "description": "When specified, the bulk equations on both sides of the interface are integrated together. This model is then used to specify how nodal quantities on both sides of the interface are balanced"
+          },
+          "type": {
+            "type": "{'continuous', 'fluxterm', 'hybrid'} required",
+            "description": "Specifies the type of boundary condition"
+          }
+        },
+        "output": null,
+        "ori_input": "device, interface, name, name0, name1, interface_model, type",
+        "ori_description": "devsim.interface_equation (device, interface, name, name0, name1, interface_model, type)  Command to specify an equation at an interface  Parameters ---------- device : str The selected device interface : str Interface on which to apply this command name : str Name of the interface equation being created name0 : str, optional Name of the equation coupling in region 0 being created (default 'name') name1 : str, optional Name of the equation coupling in region 1 being created (default 'name') interface_model : str When specified, the bulk equations on both sides of the interface are integrated together. This model is then used to specify how nodal quantities on both sides of the interface are balanced type : {'continuous', 'fluxterm', 'hybrid'} required Specifies the type of boundary condition"
+      },
+      {
+        "name": "get_equation_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command gets a list of equations on the specified region.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region",
+        "ori_description": "devsim.get_equation_list (device, region)  This command gets a list of equations on the specified region.  Parameters ---------- device : str The selected device region : str The selected region"
+      },
+      {
+        "name": "get_contact_equation_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command gets a list of equations on the specified contact.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact",
+        "ori_description": "devsim.get_contact_equation_list (device, contact)  This command gets a list of equations on the specified contact.  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command"
+      },
+      {
+        "name": "get_interface_equation_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command gets a list of equations on the specified interface.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "interface": {
+            "type": "str",
+            "description": "Interface on which to apply this command"
+          }
+        },
+        "output": null,
+        "ori_input": "device, interface",
+        "ori_description": "devsim.get_interface_equation_list (device, interface)  This command gets a list of equations on the specified interface.  Parameters ---------- device : str The selected device interface : str Interface on which to apply this command"
+      },
+      {
+        "name": "get_equation_command",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command gets the options used when creating this equation.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the equation being command options returned"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.get_equation_command (device, region, name)  This command gets the options used when creating this equation.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the equation being command options returned"
+      },
+      {
+        "name": "get_contact_equation_command",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command gets the options used when creating this contact equation.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the contact equation being command options returned"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, name",
+        "ori_description": "devsim.get_contact_equation_command (device, contact, name)  This command gets the options used when creating this contact equation.  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command name : str Name of the contact equation being command options returned"
+      },
+      {
+        "name": "get_interface_equation_command",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command gets the options used when creating this interface equation.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "interface": {
+            "type": "str",
+            "description": "Interface on which to apply this command"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the interface equation being command options returned"
+          }
+        },
+        "output": null,
+        "ori_input": "device, interface, name",
+        "ori_description": "devsim.get_interface_equation_command (device, interface, name)  This command gets the options used when creating this interface equation.  Parameters ---------- device : str The selected device interface : str Interface on which to apply this command name : str Name of the interface equation being command options returned"
+      },
+      {
+        "name": "delete_equation",
+        "type": "function",
+        "module": "devsim",
+        "description": "This command deletes an equation from a region.",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "region": {
+            "type": "str",
+            "description": "The selected region"
+          },
+          "name": {
+            "type": "str",
+            "description": "Name of the equation being deleted"
+          }
+        },
+        "output": null,
+        "ori_input": "device, region, name",
+        "ori_description": "devsim.delete_equation (device, region, name)  This command deletes an equation from a region.  Parameters ---------- device : str The selected device region : str The selected region name : str Name of the equation being deleted"
+      },
+      {
+        "name": "solve",
+        "type": "function",
+        "module": "devsim",
+        "description": "Call the solver. A small-signal AC source is set with the circuit voltage source.",
+        "input": {
+          "type": {
+            "type": "{'dc', 'ac', 'noise', 'transient_dc', 'transient_bdf1', 'transient_bdf2', 'transient_tr'} required",
+            "description": "type of solve being performed"
+          },
+          "solver_type": {
+            "type": "{'direct', 'iterative'} required",
+            "description": "Linear solver type"
+          },
+          "absolute_error": {
+            "type": "Float, optional",
+            "description": "Required update norm in the solve (default 0.0)"
+          },
+          "relative_error": {
+            "type": "Float, optional",
+            "description": "Required relative update in the solve (default 0.0)"
+          },
+          "maximum_error": {
+            "type": "Float, optional",
+            "description": "Maximum absolute error before solve stops (default MAXDOUBLE)"
+          },
+          "charge_error": {
+            "type": "Float, optional",
+            "description": "Relative error between projected and solved charge during transient simulation (default 0.0)"
+          },
+          "gamma": {
+            "type": "Float, optional",
+            "description": "Scaling factor for transient time step (default 1.0)"
+          },
+          "tdelta": {
+            "type": "Float, optional",
+            "description": "time step (default 0.0)"
+          },
+          "maximum_iterations": {
+            "type": "int, optional",
+            "description": "Maximum number of iterations in the DC solve (default 20)"
+          },
+          "maximum_divergence": {
+            "type": "int, optional",
+            "description": "Maximum number of diverging iterations during solve (default 20)"
+          },
+          "frequency": {
+            "type": "Float, optional",
+            "description": "Frequency for small-signal AC simulation (default 0.0)"
+          },
+          "output_node": {
+            "type": "str, optional",
+            "description": "Output circuit node for noise simulation"
+          },
+          "info": {
+            "type": "bool, optional",
+            "description": "Solve command return convergence information (default False)"
+          },
+          "symbolic_iteration_limit": {
+            "type": "int, optional",
+            "description": "Reuse symbolic matrix factorization after this number of iterations (default 1)"
+          }
+        },
+        "output": null,
+        "ori_input": "type, solver_type, absolute_error, relative_error, maximum_error, charge_error, gamma, tdelta, maximum_iterations, maximum_divergence, frequency, output_node, info, symbolic_iteration_limit",
+        "ori_description": "devsim.solve (type, solver_type, absolute_error, relative_error, maximum_error, charge_error, gamma, tdelta, maximum_iterations, maximum_divergence, frequency, output_node, info, symbolic_iteration_limit)  Call the solver. A small-signal AC source is set with the circuit voltage source.  Parameters ---------- type : {'dc', 'ac', 'noise', 'transient_dc', 'transient_bdf1', 'transient_bdf2', 'transient_tr'} required type of solve being performed solver_type : {'direct', 'iterative'} required Linear solver type absolute_error : Float, optional Required update norm in the solve (default 0.0) relative_error : Float, optional Required relative update in the solve (default 0.0) maximum_error : Float, optional Maximum absolute error before solve stops (default MAXDOUBLE) charge_error : Float, optional Relative error between projected and solved charge during transient simulation (default 0.0) gamma : Float, optional Scaling factor for transient time step (default 1.0) tdelta : Float, optional time step (default 0.0) maximum_iterations : int, optional Maximum number of iterations in the DC solve (default 20) maximum_divergence : int, optional Maximum number of diverging iterations during solve (default 20) frequency : Float, optional Frequency for small-signal AC simulation (default 0.0) output_node : str, optional Output circuit node for noise simulation info : bool, optional Solve command return convergence information (default False) symbolic_iteration_limit : int, optional Reuse symbolic matrix factorization after this number of iterations (default 1)"
+      },
+      {
+        "name": "get_contact_current",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get current at the contact",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Name of the contact equation from which we are retrieving the current"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, equation",
+        "ori_description": "devsim.get_contact_current (device, contact, equation)  Get current at the contact  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command equation : str Name of the contact equation from which we are retrieving the current"
+      },
+      {
+        "name": "get_contact_charge",
+        "type": "function",
+        "module": "devsim",
+        "description": "Get charge at the contact",
+        "input": {
+          "device": {
+            "type": "str",
+            "description": "The selected device"
+          },
+          "contact": {
+            "type": "str",
+            "description": "Contact on which to apply this command"
+          },
+          "equation": {
+            "type": "str",
+            "description": "Name of the contact equation from which we are retrieving the charge"
+          }
+        },
+        "output": null,
+        "ori_input": "device, contact, equation",
+        "ori_description": "devsim.get_contact_charge (device, contact, equation)  Get charge at the contact  Parameters ---------- device : str The selected device contact : str Contact on which to apply this command equation : str Name of the contact equation from which we are retrieving the charge"
+      },
+      {
+        "name": "set_initial_condition",
+        "type": "function",
+        "module": "devsim",
+        "description": "Sets the initial condition for subsequent transient solver steps.",
+        "input": {
+          "static_rhs": {
+            "type": "list, optional",
+            "description": "List of double values for non time-displacement terms in right hand side."
+          },
+          "dynamic_rhs": {
+            "type": "list, optional",
+            "description": "List of double values for time-displacement terms in right hand side."
+          }
+        },
+        "output": null,
+        "ori_input": "static_rhs, dynamic_rhs",
+        "ori_description": "devsim.set_initial_condition (static_rhs, dynamic_rhs)  Sets the initial condition for subsequent transient solver steps.  Parameters ---------- static_rhs : list, optional List of double values for non time-displacement terms in right hand side. dynamic_rhs : list, optional List of double values for time-displacement terms in right hand side."
+      },
+      {
+        "name": "write_devices",
+        "type": "function",
+        "module": "devsim",
+        "description": "Write a device to a file for visualization or restart",
+        "input": {
+          "file": {
+            "type": "str",
+            "description": "name of the file to write the meshes to"
+          },
+          "device": {
+            "type": "str, optional",
+            "description": "name of the device to write"
+          },
+          "type": {
+            "type": "{'devsim', 'devsim_data', 'tecplot', 'vtk'}",
+            "description": "format to use"
+          },
+          "include_test": {
+            "type": "str",
+            "description": "Callback function which tests whether a model should be written to the tecplot or vtk format"
+          }
+        },
+        "output": null,
+        "ori_input": "file, device, type, include_test",
+        "ori_description": "devsim.write_devices (file, device, type, include_test)  Write a device to a file for visualization or restart  Parameters ---------- file : str name of the file to write the meshes to device : str, optional name of the device to write type : {'devsim', 'devsim_data', 'tecplot', 'vtk'} format to use include_test : str Callback function which tests whether a model should be written to the tecplot or vtk format"
+      },
+      {
+        "name": "load_devices",
+        "type": "function",
+        "module": "devsim",
+        "description": "Load devices from a DEVSIM file",
+        "input": {
+          "file": {
+            "type": "str",
+            "description": "name of the file to load the meshes from"
+          }
+        },
+        "output": null,
+        "ori_input": "file",
+        "ori_description": "devsim.load_devices (file)  Load devices from a DEVSIM file  Parameters ---------- file : str name of the file to load the meshes from"
+      },
+      {
+        "name": "add_circuit_node",
+        "type": "function",
+        "module": "devsim",
+        "description": "Adds a circuit node for use in circuit or multi-device simulation",
+        "input": {
+          "name": {
+            "type": "str",
+            "description": "Name of the circuit node being created"
+          },
+          "value": {
+            "type": "Float, optional",
+            "description": "initial value (default 0.0)"
+          },
+          "variable_update": {
+            "type": "{'default', 'log_damp', 'positive'}",
+            "description": "update type for circuit variable"
+          }
+        },
+        "output": null,
+        "ori_input": "name, value, variable_update",
+        "ori_description": "devsim.add_circuit_node (name, value, variable_update)  Adds a circuit node for use in circuit or multi-device simulation  Parameters ---------- name : str Name of the circuit node being created value : Float, optional initial value (default 0.0) variable_update : {'default', 'log_damp', 'positive'} update type for circuit variable"
+      },
+      {
+        "name": "circuit_element",
+        "type": "function",
+        "module": "devsim",
+        "description": "Adds a circuit element external to the devices",
+        "input": {
+          "name": {
+            "type": "str",
+            "description": "Name of the circuit element being created. A prefix of 'V' is for voltage source, 'I' for current source, 'R' for resistor, 'L' for inductor, and 'C' for capacitor."
+          },
+          "value": {
+            "type": "Float, optional",
+            "description": "value for the default parameter of the circuit element (default 0.0)"
+          },
+          "n1": {
+            "type": "str",
+            "description": "circuit node"
+          },
+          "n2": {
+            "type": "str",
+            "description": "circuit node"
+          },
+          "acreal": {
+            "type": "Float, optional",
+            "description": "real part of AC source for voltage (default 0.0)"
+          },
+          "acimag": {
+            "type": "Float, optional",
+            "description": "imag part of AC source for voltage (default 0.0)"
+          }
+        },
+        "output": null,
+        "ori_input": "name, value, n1, n2, acreal, acimag",
+        "ori_description": "devsim.circuit_element (name, value, n1, n2, acreal, acimag)  Adds a circuit element external to the devices  Parameters ---------- name : str Name of the circuit element being created. A prefix of 'V' is for voltage source, 'I' for current source, 'R' for resistor, 'L' for inductor, and 'C' for capacitor. value : Float, optional value for the default parameter of the circuit element (default 0.0) n1 : str circuit node n2 : str circuit node acreal : Float, optional real part of AC source for voltage (default 0.0) acimag : Float, optional imag part of AC source for voltage (default 0.0)"
+      },
+      {
+        "name": "circuit_alter",
+        "type": "function",
+        "module": "devsim",
+        "description": "Alter the value of a circuit element parameter",
+        "input": {
+          "name": {
+            "type": "str",
+            "description": "Name of the circuit node being created"
+          },
+          "param": {
+            "type": "str, optional",
+            "description": "parameter being modified (default 'value')"
+          },
+          "value": {
+            "type": "Float",
+            "description": "value for the parameter"
+          }
+        },
+        "output": null,
+        "ori_input": "name, param, value",
+        "ori_description": "devsim.circuit_alter (name, param, value)  Alter the value of a circuit element parameter  Parameters ---------- name : str Name of the circuit node being created param : str, optional parameter being modified (default 'value') value : Float value for the parameter"
+      },
+      {
+        "name": "circuit_node_alias",
+        "type": "function",
+        "module": "devsim",
+        "description": "Create an alias for a circuit node",
+        "input": {
+          "node": {
+            "type": "str",
+            "description": "circuit node being aliased"
+          },
+          "alias": {
+            "type": "str",
+            "description": "alias for the circuit node"
+          }
+        },
+        "output": null,
+        "ori_input": "node, alias",
+        "ori_description": "devsim.circuit_node_alias (node, alias)  Create an alias for a circuit node  Parameters ---------- node : str circuit node being aliased alias : str alias for the circuit node"
+      },
+      {
+        "name": "delete_circuit",
+        "type": "function",
+        "module": "devsim",
+        "description": "Deletes any present circuit and its solutions.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "devsim.delete_circuit ()  Deletes any present circuit and its solutions."
+      },
+      {
+        "name": "get_circuit_node_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets the list of the nodes in the circuit.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "devsim.get_circuit_node_list ()  Gets the list of the nodes in the circuit."
+      },
+      {
+        "name": "get_circuit_solution_list",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets the list of available circuit solutions.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "devsim.get_circuit_solution_list ()  Gets the list of available circuit solutions."
+      },
+      {
+        "name": "get_circuit_node_value",
+        "type": "function",
+        "module": "devsim",
+        "description": "Gets the value of a circuit node for a given solution type.",
+        "input": {
+          "solution": {
+            "type": "str, optional",
+            "description": "name of the solution. 'dcop' is the name for the DC solution (default 'dcop')"
+          },
+          "node": {
+            "type": "str",
+            "description": "circuit node of interest"
+          }
+        },
+        "output": null,
+        "ori_input": "solution, node",
+        "ori_description": "devsim.get_circuit_node_value (solution, node)  Gets the value of a circuit node for a given solution type.  Parameters ---------- solution : str, optional name of the solution. 'dcop' is the name for the DC solution (default 'dcop') node : str circuit node of interest"
+      },
+      {
+        "name": "set_circuit_node_value",
+        "type": "function",
+        "module": "devsim",
+        "description": "Sets the value of a circuit node for a given solution type.",
+        "input": {
+          "solution": {
+            "type": "str, optional",
+            "description": "name of the solution. 'dcop' is the name for the DC solution (default 'dcop')"
+          },
+          "node": {
+            "type": "str",
+            "description": "circuit node of interest"
+          },
+          "value": {
+            "type": "Float, optional",
+            "description": "new value (default 0.0)"
+          }
+        },
+        "output": null,
+        "ori_input": "solution, node, value",
+        "ori_description": "devsim.set_circuit_node_value (solution, node, value)  Sets the value of a circuit node for a given solution type.  Parameters ---------- solution : str, optional name of the solution. 'dcop' is the name for the DC solution (default 'dcop') node : str circuit node of interest value : Float, optional new value (default 0.0)"
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/devsim/devsim",
+        "documentation": "https://devsim.net/",
+        "pypi": "https://pypi.org/project/devsim/",
+        "pypi_version": "2.11.0",
+        "tag": "v2.11.0.rc5",
+        "commit": "43b41ca845184c47e22b72d144db7e7db8509377",
+        "release_published_at": "2026-08-15T15:02:06Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "采用 GitHub releases/latest 返回的发布标签；标签含 rc5，但官方 prerelease=false，且该标签 CHANGES.md 对应 Version 2.11.0。保留实际标签，不改写成不存在的 v2.11.0 标签。",
+          "核心 API 从 src/pythonapi/CommandTable.cc 与 DevsimDoc.cc 提取；Python 辅助模块按 dist/bdist_wheel/setup.py 的安装布局加 devsim 前缀。",
+          "只克隆主仓库，未初始化构建用第三方子模块；未编译、安装或运行仿真。"
+        ],
+        "release_url": "https://github.com/devsim/devsim/releases/tag/v2.11.0.rc5",
+        "release_api": "https://api.github.com/repos/devsim/devsim/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/devsim",
+        "submodule_status": [
+          "-423423e6b88b22171a6677d599f2fc58a666091f external/boostorg/config",
+          "-f4685530293e666a952675944762e473a3667f70 external/boostorg/math",
+          "-de345f639720b0dde731d0e7b2f62db2c535b6e5 external/boostorg/multiprecision",
+          "-bc3b39870ecb690a623a3f49149a358b95c5781d external/eigen",
+          "-e8ed45225963c85a708c129bbcec17ec745d09f5 external/superlu",
+          "-ca07978f41b9cc02672e69baea0ea8d476194756 external/symdiff",
+          "-20ecaabd6d689a02e70c0debbb781301243dbe96 external/umfpack_lgpl"
+        ]
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast_and_native_export_docs",
+        "requested_modules": [
+          "python_packages",
+          "umfpack"
+        ],
+        "source_files": [
+          "python_packages/__init__.py",
+          "python_packages/Klaassen.py",
+          "python_packages/fermi_physics.py",
+          "python_packages/model_create.py",
+          "python_packages/mos_physics.py",
+          "python_packages/pythonmesh.py",
+          "python_packages/ramp.py",
+          "python_packages/simple_dd.py",
+          "python_packages/simple_physics.py",
+          "umfpack/umfpack_loader.py",
+          "umfpack/umfshim.py",
+          "src/pythonapi/CommandTable.cc",
+          "src/pythonapi/DevsimDoc.cc"
+        ],
+        "source_file_sha256": {
+          "python_packages/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "python_packages/Klaassen.py": "56db2f9b612626a7859732e4bdedd644885fa510e50c5bafd88a31b921696f33",
+          "python_packages/fermi_physics.py": "69f587cc24afaef7da7615c0092245b70d1b04fa33876d01579fabb2bc433f9b",
+          "python_packages/model_create.py": "370fdd717d52d25b5406120f26472b51dea06c5f47caacea5a932377539ef5f6",
+          "python_packages/mos_physics.py": "cafefbfddf184f1d856df450829050e4192b3d448633f1c9b559a34a2ec9ed48",
+          "python_packages/pythonmesh.py": "b29f6eae38c87ff1d7901183a12887b3b5b3e4bd9703b15ad903add6744b8742",
+          "python_packages/ramp.py": "646f063f03189534246a458f547db90b6be1756b30d718d5887a111b1e1453a2",
+          "python_packages/simple_dd.py": "a3afeeb73a00199f481608587465ad42b453c715cdcb409240d6742574d0d91d",
+          "python_packages/simple_physics.py": "c1f66b11df7d1b96f41f123b9c5841681655438fc17e13e60906274f7d99490f",
+          "umfpack/umfpack_loader.py": "9b7e43e37c904ad90c8358e9e44ba54e97b98e58336d811df9d841a6f2415f09",
+          "umfpack/umfshim.py": "67ff504af1a3bf11660a647e5efc649054972e49e4fd8edf9cb8f1e4c0783460",
+          "src/pythonapi/CommandTable.cc": "7e6d9637dcc7ec16bcf48cbeb7b860960bd96e49f50bc3d5fd8cbab52c1b2f56",
+          "src/pythonapi/DevsimDoc.cc": "f4dab99b9eeb3e99337d40911712a2d3dd89dfdbce6d8ab19deed10d6c096bce"
+        },
+        "source_version": "v2.11.0.rc5",
+        "source_commit": "43b41ca845184c47e22b72d144db7e7db8509377",
+        "native_function_count": 106,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "devsim_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/devsim_v2.11.0.rc5.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/devsim_v2.11.0.rc5.json",
+        "source_sha256": "001a04c54979ab47d042c10dae38c872eb29ea70c3f4da6914fbf7128a58dc45",
+        "profile_sha256": "cd574312501ecc0a1d0084535a16b3e20fe17da3ceb870d04a8cb296a1fbc4d0",
+        "boundary": "面向小型一维/二维器件的网格、材料参数、节点/边模型、方程、求解及结果检查，兼顾外部网格导入和简单电路耦合。排除 C++ 内部 API、Python UMFPACK 绑定、调试输出、手工矩阵装配和高阶元素长尾接口。需要 DEVSIM 原生运行库；当前仅静态筛选，数值验证待执行。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 173,
+        "selected_tool_count": 75,
+        "selected_class_count": 0,
+        "selected_function_count": 75,
+        "selected_method_count": 0,
+        "selected_all_func": 75,
+        "missing_description_count": 0,
+        "excluded_tool_count": 98,
+        "capability_count": 7
+      }
+    }
+  }
+]

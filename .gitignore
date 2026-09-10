@@ -46,3 +46,5 @@ Thumbs.db
 
 seed_data_raw/
 seed_pypi_raw/
+seed_gen/pypi_outputs/ori_all/
+seed_gen/pypi_outputs/selection_reports

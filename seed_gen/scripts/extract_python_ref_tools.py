@@ -62,6 +62,50 @@ def _section_heading(lines: list[str], index: int) -> tuple[str, bool] | None:
     return None
 
 
+def _sphinx_doc_sections(docstring: str) -> tuple[str, dict[str, tuple[list[str], bool]]]:
+    """Map reStructuredText fields to the same sections as Google/NumPy docs."""
+    lines = docstring.splitlines()
+    fields = []
+    for index, line in enumerate(lines):
+        match = re.match(r"^\s*:(param|parameter|arg|type|returns?|rtype|raises?)\b([^:]*):\s*(.*)$", line)
+        if match:
+            fields.append((index, match.group(1), match.group(2).strip(), match.group(3)))
+    if not fields:
+        return _compact_text(docstring), {}
+    parameters: dict[str, dict[str, str]] = {}
+    return_description, return_type = "", ""
+    for position, (start, kind, label, first) in enumerate(fields):
+        end = fields[position + 1][0] if position + 1 < len(fields) else len(lines)
+        value = _compact_text([first, *lines[start + 1:end]])
+        if kind in {"param", "parameter", "arg"} and label:
+            parts = label.rsplit(None, 1)
+            name = parts[-1]
+            info = parameters.setdefault(name, {"type": "", "description": ""})
+            info["description"] = value
+            if len(parts) == 2:
+                info["type"] = parts[0]
+        elif kind == "type" and label:
+            parameters.setdefault(label, {"type": "", "description": ""})["type"] = value
+        elif kind in {"return", "returns"}:
+            return_description = value
+        elif kind == "rtype":
+            return_type = value
+    sections = {}
+    if parameters:
+        sections["args"] = ([
+            f"{name} ({info['type']}): {info['description']}" if info["type"]
+            else f"{name}: {info['description']}"
+            for name, info in parameters.items()
+        ], False)
+    if return_type or return_description:
+        # A NumPy block preserves an explicit rtype separately from prose.
+        sections["returns"] = (
+            [return_type, return_description] if return_type else [return_description],
+            bool(return_type),
+        )
+    return _compact_text(lines[:fields[0][0]]), sections
+
+
 def _doc_sections(docstring: str) -> tuple[str, dict[str, tuple[list[str], bool]]]:
     """Split a docstring into its summary and named sections."""
     lines = docstring.splitlines()
@@ -72,7 +116,7 @@ def _doc_sections(docstring: str) -> tuple[str, dict[str, tuple[list[str], bool]
             headings.append((index, *heading))
 
     if not headings:
-        return _compact_text(docstring), {}
+        return _sphinx_doc_sections(docstring)
 
     summary = _compact_text(lines[: headings[0][0]])
     sections: dict[str, tuple[list[str], bool]] = {}

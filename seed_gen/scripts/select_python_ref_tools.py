@@ -92,7 +92,7 @@ def _tool_index(tools: list[Any]) -> dict[tuple[str, str, str], dict[str, Any]]:
     return index
 
 
-def _select_methods(tool: dict[str, Any], requested: Any) -> list[dict[str, Any]]:
+def _select_methods(tool: dict[str, Any], requested: Any, *, allow_missing_description: bool = False) -> list[dict[str, Any]]:
     if not isinstance(requested, list) or not all(isinstance(name, str) and name for name in requested):
         raise SelectionError(f"Class method selection must be an array of names: {tool['module']}.{tool['name']}")
     if len(requested) != len(set(requested)):
@@ -108,7 +108,7 @@ def _select_methods(tool: dict[str, Any], requested: Any) -> list[dict[str, Any]
 
     selected = [copy.deepcopy(available[name]) for name in requested]
     undocumented = [method["name"] for method in selected if not str(method.get("description") or "").strip()]
-    if undocumented:
+    if undocumented and not allow_missing_description:
         raise SelectionError(f"Selected methods have empty descriptions on {tool['module']}.{tool['name']}: {undocumented}")
     return selected
 
@@ -184,12 +184,17 @@ def select_seed(
             source_tool = index.get(key)
             if source_tool is None:
                 raise SelectionError(f"Profile symbol is absent from raw seed: {'.'.join(key[:2])} ({key[2]})")
-            if not str(source_tool.get("description") or "").strip():
+            missing_reason = spec.get("missing_description_reason", "")
+            if not isinstance(missing_reason, str) or ("missing_description_reason" in spec and not missing_reason.strip()):
+                raise SelectionError(f"missing_description_reason must be non-empty text: {'.'.join(key[:2])}")
+            if not str(source_tool.get("description") or "").strip() and not missing_reason:
                 raise SelectionError(f"Selected symbol has an empty description: {'.'.join(key[:2])}")
 
             selected_tool = copy.deepcopy(source_tool)
             if key[2] == "class":
-                selected_tool["function"] = _select_methods(source_tool, spec.get("methods"))
+                selected_tool["function"] = _select_methods(
+                    source_tool, spec.get("methods"), allow_missing_description=bool(missing_reason)
+                )
                 method_count = len(selected_tool["function"])
             elif "methods" in spec:
                 raise SelectionError(f"Function symbol cannot declare methods: {'.'.join(key[:2])}")
@@ -210,6 +215,19 @@ def select_seed(
                 "evidence": sorted(set(evidence)),
                 "reason": reason,
                 "selected_method_count": method_count,
+                "selected_methods": [method["name"] for method in selected_tool.get("function", [])],
+                "excluded_methods": [
+                    {"name": method["name"], "reason": "outside_curated_method_boundary"}
+                    for method in source_tool.get("function", [])
+                    if method["name"] not in {m["name"] for m in selected_tool.get("function", [])}
+                ],
+                "verification_tier": capability.get("verification_tier", "unspecified"),
+                "missing_description": not bool(str(selected_tool.get("description") or "").strip()),
+                "missing_method_descriptions": [
+                    method["name"] for method in selected_tool.get("function", [])
+                    if not str(method.get("description") or "").strip()
+                ],
+                "missing_description_reason": missing_reason,
             })
 
         capability_report.append({
@@ -237,6 +255,14 @@ def select_seed(
     class_count = sum(tool.get("type") == "class" for tool in selected_tools)
     function_count = sum(tool.get("type") == "function" for tool in selected_tools)
     method_count = sum(len(tool.get("function", [])) for tool in selected_tools if tool.get("type") == "class")
+    target = profile.get("target_all_func")
+    if target is not None:
+        if (not isinstance(target, dict) or set(target) != {"min", "max"}
+                or any(type(target[k]) is not int for k in ("min", "max"))
+                or not 0 <= target["min"] <= target["max"]):
+            raise SelectionError("target_all_func must contain non-negative integer min/max bounds")
+        if not target["min"] <= function_count + method_count <= target["max"]:
+            raise SelectionError(f"Selected all_func={function_count + method_count} outside target {target}")
     exclusion_counts = Counter(item["reason"] for item in excluded_report)
     summary = {
         "raw_tool_count": len(tools),
@@ -244,6 +270,10 @@ def select_seed(
         "selected_class_count": class_count,
         "selected_function_count": function_count,
         "selected_method_count": method_count,
+        "selected_all_func": function_count + method_count,
+        "missing_description_count": sum(
+            item["missing_description"] + len(item["missing_method_descriptions"]) for item in selected_report
+        ),
         "excluded_tool_count": len(excluded_report),
         "capability_count": len(capability_report),
     }
@@ -265,6 +295,7 @@ def select_seed(
         "source_sha256": source_sha256,
         "profile_sha256": profile_sha256,
         "boundary": profile.get("boundary", ""),
+        "target_all_func": target,
         **summary,
     }
 
@@ -277,6 +308,7 @@ def select_seed(
         "source_sha256": source_sha256,
         "profile_sha256": profile_sha256,
         "boundary": profile.get("boundary", ""),
+        "target_all_func": target,
         "summary": summary,
         "exclusion_counts": dict(sorted(exclusion_counts.items())),
         "capabilities": capability_report,

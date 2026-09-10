@@ -1,0 +1,2513 @@
+[
+  {
+    "global_id": "pypi_solcore_6",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/qpv-research-group/solcore5",
+          "https://pypi.org/project/solcore/",
+          "https://solcore5.readthedocs.io/en/latest/"
+        ],
+        "name": "solcore",
+        "version": "v5.10.1",
+        "index": 6
+      },
+      "description": "Solcore 是面向太阳能电池和半导体材料的多尺度 Python 建模库，提供材料参数、单位换算、光源、层状结构及结结构定义，并结合光学吸收、量子阱、详细平衡、耗尽近似和漂移扩散模型，计算单结及多结太阳能电池的量子效率和电流电压特性。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 17,
+        "function": 27,
+        "class_func": 56,
+        "all_func": 83
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "UnitsSystem",
+        "type": "class",
+        "module": "solcore.units_system.units_system",
+        "input": "SourceManagedClass",
+        "description": "Contains all the functions related with the conversion of units. While defined inside this class, most of these functions are available outside it, being decorated with 'breakout' (see 'Singleton')",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "sources": {
+                "type": "Optional[Callable]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sources: Optional[Callable] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "si",
+            "description": "Utility function that forwards to either siUnit or siUnitFromString",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args",
+            "ori_description": "Utility function that forwards to either siUnit or siUnitFromString"
+          },
+          {
+            "name": "asUnit",
+            "description": "Converts from si unit to other unit. It is the reversed of siUnits function  >>> print(asUnit(1, \"mA\")) # print 1A in mA. 1000.0",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "the value to convert, assumed in SI units"
+              },
+              "unit": {
+                "type": "",
+                "description": "the new units"
+              }
+            },
+            "output": null,
+            "ori_input": "self, value, unit",
+            "ori_description": "Converts from si unit to other unit. It is the reversed of siUnits function  >>> print(asUnit(1, \"mA\")) # print 1A in mA. 1000.0  :param value: the value to convert, assumed in SI units :param unit: the new units :param dimension: the value expressed in the new units. :return:"
+          },
+          {
+            "name": "siUnits",
+            "description": "Convert value from unit to equivalent si-unit  >>> print(siUnits(1,\"mm\")) # yields meters 0.001 >>> print(siUnits(1,\"um\")) # yields meters 1e-06",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "the value to convert"
+              },
+              "unit": {
+                "type": "",
+                "description": "the units of the value"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "the value expresed in SI units"
+              }
+            },
+            "ori_input": "self, value, unit",
+            "ori_description": "Convert value from unit to equivalent si-unit  >>> print(siUnits(1,\"mm\")) # yields meters 0.001 >>> print(siUnits(1,\"um\")) # yields meters 1e-06  :param value: the value to convert :param unit: the units of the value :return: the value expresed in SI units"
+          },
+          {
+            "name": "siUnitFromString",
+            "description": "Converts a string of a number with units into si units of that quantity  >>> print(si(\"5 mm s-1\")) # output in m/s 0.005 >>> print(si(\"5e-0mm-2\")) # output in m2 5000000.0 >>> print(si(\"5\")) 5.0",
+            "input": {
+              "self": null,
+              "string": {
+                "type": "",
+                "description": "the string to convert"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "the value in SI units"
+              }
+            },
+            "ori_input": "self, string",
+            "ori_description": "Converts a string of a number with units into si units of that quantity  >>> print(si(\"5 mm s-1\")) # output in m/s 0.005 >>> print(si(\"5e-0mm-2\")) # output in m2 5000000.0 >>> print(si(\"5\")) 5.0  :param string: the string to convert :return: the value in SI units"
+          },
+          {
+            "name": "convert",
+            "description": "Converts between comparable units, does NOT check if units are comparable.  >>> print(convert(1, \"nm\", \"mm\")) 1e-06 >>> print(convert(1, \"um\", \"nm\")) 1000.0 >>> print(convert(1, \"cm s-1\", \"km h-1\")) 0.036",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "the value ot convert"
+              },
+              "from_unit": {
+                "type": "",
+                "description": "the original unit"
+              },
+              "to_unit": {
+                "type": "",
+                "description": "the final unit"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "the value expressed in the final unit"
+              }
+            },
+            "ori_input": "self, value, from_unit, to_unit",
+            "ori_description": "Converts between comparable units, does NOT check if units are comparable.  >>> print(convert(1, \"nm\", \"mm\")) 1e-06 >>> print(convert(1, \"um\", \"nm\")) 1000.0 >>> print(convert(1, \"cm s-1\", \"km h-1\")) 0.036  :param value: the value ot convert :param from_unit: the original unit :param to_unit: the final unit :return: the value expressed in the final unit"
+          },
+          {
+            "name": "eVnm",
+            "description": "Bi-directional conversion between nm and eV.  >>> print('%.3f'%eVnm(1000)) 1.240 >>> print('%i'%round(eVnm(1))) 1240",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "a number with units [nm] or [eV]."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "either the conversion [nm] --> [eV], or [eV] --> [nm]"
+              }
+            },
+            "ori_input": "self, value",
+            "ori_description": "Bi-directional conversion between nm and eV.  >>> print('%.3f'%eVnm(1000)) 1.240 >>> print('%i'%round(eVnm(1))) 1240  :param value: a number with units [nm] or [eV]. :return: either the conversion [nm] --> [eV], or [eV] --> [nm]"
+          },
+          {
+            "name": "nmJ",
+            "description": "Bi-directional conversion between nm and J.  >>> print(nmJ(1000)) 1.9864452126e-19 >>> print(nmJ(2e-18)) 99.3222606298",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "a number with units [nm] or [J]."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "either the conversion [nm] --> [J], or [J] --> [nm]"
+              }
+            },
+            "ori_input": "self, value",
+            "ori_description": "Bi-directional conversion between nm and J.  >>> print(nmJ(1000)) 1.9864452126e-19 >>> print(nmJ(2e-18)) 99.3222606298  :param value: a number with units [nm] or [J]. :return: either the conversion [nm] --> [J], or [J] --> [nm]"
+          },
+          {
+            "name": "mJ",
+            "description": "Bi-directional conversion between m and J.  >>> print(mJ(1000)) 1.986445212595144e-25 >>> print(mJ(2e-18)) 9.93222606297572e-08",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "a number with units [m] or [J]."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "either the conversion [m] --> [J], or [J] --> [m]"
+              }
+            },
+            "ori_input": "self, value",
+            "ori_description": "Bi-directional conversion between m and J.  >>> print(mJ(1000)) 1.986445212595144e-25 >>> print(mJ(2e-18)) 9.93222606297572e-08  :param value: a number with units [m] or [J]. :return: either the conversion [m] --> [J], or [J] --> [m]"
+          },
+          {
+            "name": "nmHz",
+            "description": "Bi-directional conversion between nm and Hz.",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": "a number with units [nm] or [Hz]."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Either a number which is the conversion [nm] --> [Hz] or [Hz] --> [nm]"
+              }
+            },
+            "ori_input": "self, value",
+            "ori_description": "Bi-directional conversion between nm and Hz.  :param value: a number with units [nm] or [Hz]. :return: Either a number which is the conversion [nm] --> [Hz] or [Hz] --> [nm]"
+          },
+          {
+            "name": "spectral_conversion_nm_ev",
+            "description": "Bi-directional conversion between a spectrum per nanometer and a spectrum per electronvolt.  Example: 1) nm --> eV conversion wavelength_nm photon_flux_per_nm energy_ev, photon_flux_per_ev = spectral_conversion_nm_ev(wavelength_nm, photon_flux_per_nm)  2) eV --> nm conversion energy_ev photon_flux_per_ev wavelength_nm, photon_flux_per_nm = spectral_conversion_nm_ev(energy_ev, photon_flux_per_ev)  Discussion: A physical quantities such as total number of photon in a spectrum or total energy of a spectrum should remain invariant after a transformation to different units. This is called a spectral conversion. This function is bi-directional because the mathematics of the conversion processes is symmetrical.  >>> import numpy as np >>> x = np.array([1,2,3]) >>> y = np.array([1,1,1]) >>> area_before = np.trapezoid(y, x=x) >>> x_new, y_new = spectral_conversion_nm_ev(x, y) >>> area_after = np.trapezoid(y_new, x=x_new) >>> compare_floats(area_before, area_after, relative_precision=0.2) True",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "abscissa of the spectrum in units of [nm] or [eV]"
+              },
+              "y": {
+                "type": "",
+                "description": "ordinate of the spectrum in units of [something/nm] or [something/eV]"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A tuple (x, y) which has units either [eV, something/eV] or [nm. something/nm]."
+              }
+            },
+            "ori_input": "self, x, y",
+            "ori_description": "Bi-directional conversion between a spectrum per nanometer and a spectrum per electronvolt.  Example: 1) nm --> eV conversion wavelength_nm photon_flux_per_nm energy_ev, photon_flux_per_ev = spectral_conversion_nm_ev(wavelength_nm, photon_flux_per_nm)  2) eV --> nm conversion energy_ev photon_flux_per_ev wavelength_nm, photon_flux_per_nm = spectral_conversion_nm_ev(energy_ev, photon_flux_per_ev)  Discussion: A physical quantities such as total number of photon in a spectrum or total energy of a spectrum should remain invariant after a transformation to different units. This is called a spectral conversion. This function is bi-directional because the mathematics of the conversion processes is symmetrical.  >>> import numpy as np >>> x = np.array([1,2,3]) >>> y = np.array([1,1,1]) >>> area_before = np.trapezoid(y, x=x) >>> x_new, y_new = spectral_conversion_nm_ev(x, y) >>> area_after = np.trapezoid(y_new, x=x_new) >>> compare_floats(area_before, area_after, relative_precision=0.2) True  :param x: abscissa of the spectrum in units of [nm] or [eV] :param y: ordinate of the spectrum in units of [something/nm] or [something/eV] :return: A tuple (x, y) which has units either [eV, something/eV] or [nm. something/nm]."
+          },
+          {
+            "name": "spectral_conversion_nm_hz",
+            "description": "Bi-directional conversion between a spectrum per nanometer and a spectrum per Hertz.  Example: 1) nm --> Hz conversion wavelength_nm photon_flux_per_nm energy_hz, photon_flux_per_hz = spectral_conversion_nm_hz(wavelength_nm, photon_flux_per_nm)  2) Hz --> nm conversion energy_hz photon_flux_per_hz wavelength_nm, photon_flux_per_nm = spectral_conversion_nm_ev(energy_hz, photon_flux_per_hz)  Discussion: A physical quantities such as total number of photon in a spectrum or total energy of a spectrum should remain invariant after a transformation to different units. This is called a spectral conversion. This function is bi-directional because the mathematics of the conversion processes is symmetrical.  >>> import numpy as np >>> x = np.array([1,2,3]) >>> y = np.array([1,1,1]) >>> area_before = np.trapezoid(y, x=x) >>> x_new, y_new = spectral_conversion_nm_hz(x, y) >>> area_after = np.trapezoid(y_new, x=x_new) >>> compare_floats(area_before, area_after, relative_precision=0.2) True",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "abscissa of the spectrum in units of [nm] or [Hz]"
+              },
+              "y": {
+                "type": "",
+                "description": "ordinate of the spectrum in units of [something/nm] or [something/Hz]"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A tuple (x, y) which has units either [eV, something/nm] or [nm. something/Hz]."
+              }
+            },
+            "ori_input": "self, x, y",
+            "ori_description": "Bi-directional conversion between a spectrum per nanometer and a spectrum per Hertz.  Example: 1) nm --> Hz conversion wavelength_nm photon_flux_per_nm energy_hz, photon_flux_per_hz = spectral_conversion_nm_hz(wavelength_nm, photon_flux_per_nm)  2) Hz --> nm conversion energy_hz photon_flux_per_hz wavelength_nm, photon_flux_per_nm = spectral_conversion_nm_ev(energy_hz, photon_flux_per_hz)  Discussion: A physical quantities such as total number of photon in a spectrum or total energy of a spectrum should remain invariant after a transformation to different units. This is called a spectral conversion. This function is bi-directional because the mathematics of the conversion processes is symmetrical.  >>> import numpy as np >>> x = np.array([1,2,3]) >>> y = np.array([1,1,1]) >>> area_before = np.trapezoid(y, x=x) >>> x_new, y_new = spectral_conversion_nm_hz(x, y) >>> area_after = np.trapezoid(y_new, x=x_new) >>> compare_floats(area_before, area_after, relative_precision=0.2) True  :param x: abscissa of the spectrum in units of [nm] or [Hz] :param y: ordinate of the spectrum in units of [something/nm] or [something/Hz] :return: A tuple (x, y) which has units either [eV, something/nm] or [nm. something/Hz]."
+          },
+          {
+            "name": "guess_dimension",
+            "description": "Guess the dimension of a unit.  >>> print guess_dimension(\"nm\") length",
+            "input": {
+              "self": null,
+              "unit": {
+                "type": "",
+                "description": "the unit."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, unit",
+            "ori_description": "Guess the dimension of a unit.  >>> print guess_dimension(\"nm\") length  :param unit: the unit. :return: None"
+          }
+        ]
+      },
+      {
+        "name": "MaterialSystem",
+        "type": "class",
+        "module": "solcore.material_system.material_system",
+        "input": "",
+        "description": "The core class that manage the materials in solcore.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "sources": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sources = None",
+            "ori_description": ""
+          },
+          {
+            "name": "material",
+            "description": "This function checks if the requested material exists and creates a class that contains its properties, assuming that the material does not exists in the database, yet.  Such class will serve as the base class for all the derived materials based on that SpecificMaterial. For example, N-type GaAs and P-type GaAs use the same SpecificMaterial, just with a different doping, and the happens with GaAs at 300K or 200K.  The derived materials based on a SpecificMaterial are instances of the SpecificMaterial class.  >>> GaAs = solcore.material('GaAs') # The SpecificMaterial class >>> n_GaAs = GaAs(Nd=1e23) # Instance of the class >>> p_GaAs = GaAs(Na=1e22) # Another instance of GaAs with different doping  >>> AlGaAs = solcore.material('AlGaAs') # The SpecificMaterial class >>> AlGaAs_1 = AlGaAs(Al=0.3) # Instance of the class. For compounds, the variable element MUST be present >>> AlGaAs_2 = AlGaAs(Al=0.7, T=290) # Different composition and T (the default is T=300K)  The material is created from the parameters in the parameter_system and the n and k data if available. If the n and k data does not exists - at all or for that composition - then n=1 and k=0 at all wavelengths. Keep in mind that the available n and k data is valid only at room temperature.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": "Name of the material"
+              },
+              "sopra": {
+                "type": "",
+                "description": "If a SOPRA material must be used, rather than the normal database material, in case both exist."
+              },
+              "nk_db": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A class of that material"
+              }
+            },
+            "ori_input": "self, name, sopra = False, nk_db = False",
+            "ori_description": "This function checks if the requested material exists and creates a class that contains its properties, assuming that the material does not exists in the database, yet.  Such class will serve as the base class for all the derived materials based on that SpecificMaterial. For example, N-type GaAs and P-type GaAs use the same SpecificMaterial, just with a different doping, and the happens with GaAs at 300K or 200K.  The derived materials based on a SpecificMaterial are instances of the SpecificMaterial class.  >>> GaAs = solcore.material('GaAs') # The SpecificMaterial class >>> n_GaAs = GaAs(Nd=1e23) # Instance of the class >>> p_GaAs = GaAs(Na=1e22) # Another instance of GaAs with different doping  >>> AlGaAs = solcore.material('AlGaAs') # The SpecificMaterial class >>> AlGaAs_1 = AlGaAs(Al=0.3) # Instance of the class. For compounds, the variable element MUST be present >>> AlGaAs_2 = AlGaAs(Al=0.7, T=290) # Different composition and T (the default is T=300K)  The material is created from the parameters in the parameter_system and the n and k data if available. If the n and k data does not exists - at all or for that composition - then n=1 and k=0 at all wavelengths. Keep in mind that the available n and k data is valid only at room temperature.  :param name: Name of the material :param sopra: If a SOPRA material must be used, rather than the normal database material, in case both exist. :return: A class of that material"
+          }
+        ]
+      },
+      {
+        "name": "ParameterSystem",
+        "type": "class",
+        "module": "solcore.parameter_system.parameter_system",
+        "input": "SourceManagedClass",
+        "description": "Parameter database/bowing system for compound materials.  Once instantiated, this plugin loads the materials parameterisations Parameters for compound materials can be retrieved with the get_parameter function.",
+        "function": [
+          {
+            "name": "get_parameter",
+            "description": "Calculate/look up parameters for materials, returns in SI units  Usage: .get_parameter(material_name, parameter_name, **kwargs) - material_name is a string, the name of the material in Solcore's database. Note that alloy fractions need to be specified in **others - parameter_name is a string, name of the parameter to get - **kwargs captures parameters that may be necessary for some calculations, eg. Temperature material fractions may also be specified here, e.g.: .get_parameter(\"InGaAs\", \"band_gap\", In=0.2) for the bandgap of In0.2Ga0.8As.  If a compound material is bowed between two parent materials, the parent materials' parameters are calculated recursively with this function. The final parameter is calculated as: result=parent_0_value * (1-x) + parent_1_value*x - bowing_parameter * (1-x) * x  The function is cached, so that multiple calls with the same parameters do not incur additional overhead.",
+            "input": {
+              "self": null,
+              "material": {
+                "type": "",
+                "description": ""
+              },
+              "parameter": {
+                "type": "",
+                "description": ""
+              },
+              "verbose": {
+                "type": "",
+                "description": ""
+              },
+              "others": {
+                "type": "**others",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, material, parameter, verbose = False, **others",
+            "ori_description": "Calculate/look up parameters for materials, returns in SI units  Usage: .get_parameter(material_name, parameter_name, **kwargs) - material_name is a string, the name of the material in Solcore's database. Note that alloy fractions need to be specified in **others - parameter_name is a string, name of the parameter to get - **kwargs captures parameters that may be necessary for some calculations, eg. Temperature material fractions may also be specified here, e.g.: .get_parameter(\"InGaAs\", \"band_gap\", In=0.2) for the bandgap of In0.2Ga0.8As.  If a compound material is bowed between two parent materials, the parent materials' parameters are calculated recursively with this function. The final parameter is calculated as: result=parent_0_value * (1-x) + parent_1_value*x - bowing_parameter * (1-x) * x  The function is cached, so that multiple calls with the same parameters do not incur additional overhead."
+          }
+        ]
+      },
+      {
+        "name": "BaseMaterial",
+        "type": "class",
+        "module": "solcore.material_system.material_system",
+        "input": "",
+        "description": "The solcore base material class",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "T": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, T, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "get",
+            "description": "",
+            "input": {
+              "self": null,
+              "parameter": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, parameter",
+            "ori_description": ""
+          },
+          {
+            "name": "alpha",
+            "description": "",
+            "input": {
+              "self": null,
+              "wavelength": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, wavelength",
+            "ori_description": ""
+          },
+          {
+            "name": "alphaE",
+            "description": "",
+            "input": {
+              "self": null,
+              "energy": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, energy",
+            "ori_description": ""
+          },
+          {
+            "name": "n_interpolated",
+            "description": "",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x",
+            "ori_description": ""
+          },
+          {
+            "name": "k_interpolated",
+            "description": "",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Layer",
+        "type": "class",
+        "module": "solcore.structure",
+        "input": "",
+        "description": "Class that stores the information about layers of materials, such as thickness and composition. It is the building block of the 'Structures'",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Layer class constructor.",
+            "input": {
+              "self": null,
+              "width": {
+                "type": "",
+                "description": "Width of the layer, in SI units."
+              },
+              "material": {
+                "type": "",
+                "description": "Solcore material"
+              },
+              "role": {
+                "type": "",
+                "description": "Role of the layer."
+              },
+              "geometry": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Any other keyword parameter which will become part of the layer attributes"
+              }
+            },
+            "output": null,
+            "ori_input": "self, width, material, role = None, geometry = None, **kwargs",
+            "ori_description": "Layer class constructor.  :param width: Width of the layer, in SI units. :param material: Solcore material :param role: Role of the layer. :param kwargs: Any other keyword parameter which will become part of the layer attributes"
+          }
+        ]
+      },
+      {
+        "name": "Junction",
+        "type": "class",
+        "module": "solcore.structure",
+        "input": "list",
+        "description": "Class that groups together the layers that make a junction. Essentially, it is just a list with attributes you can update.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "TunnelJunction",
+        "type": "class",
+        "module": "solcore.structure",
+        "input": "Junction",
+        "description": "Class that contains the minimum definitions for a tunnel junction, ie. a series resistance in our case.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Structure",
+        "type": "class",
+        "module": "solcore.structure",
+        "input": "list",
+        "description": "Subclass of lists that stores information of a 'sample' consisting of several 'layers'.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "append",
+            "description": "",
+            "input": {
+              "self": null,
+              "new_layer": {
+                "type": "",
+                "description": ""
+              },
+              "layer_label": {
+                "type": "",
+                "description": ""
+              },
+              "repeats": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, new_layer, layer_label = None, repeats = 1",
+            "ori_description": ""
+          },
+          {
+            "name": "width",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "relative_widths",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "SolarCell",
+        "type": "class",
+        "module": "solcore.solar_cell",
+        "input": "Structure",
+        "description": "This class is almost identical to the basic Structure class in Solcore (it is a subclass of it, actually) but implementing some default parameter values and control about the types of layers. It should work anywhere where a Structure object works.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Constructor of the class.",
+            "input": {
+              "self": null,
+              "layers": {
+                "type": "",
+                "description": "A list with the layers to add. The layers might include individual Layer objects of whole Junction objects."
+              },
+              "T": {
+                "type": "",
+                "description": "Temperature."
+              },
+              "cell_area": {
+                "type": "",
+                "description": "The area of the cell."
+              },
+              "reflectivity": {
+                "type": "",
+                "description": "Function that calculates the reflectivity as a function of energy."
+              },
+              "shading": {
+                "type": "",
+                "description": "Shading losses due to the front metal contacts."
+              },
+              "substrate": {
+                "type": "",
+                "description": "Substrate of the solar cell."
+              },
+              "incidence": {
+                "type": "",
+                "description": "Material above the solar cell. Nominally air."
+              },
+              "R_series": {
+                "type": "",
+                "description": "Series resistance of the structure"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Other possible attributes."
+              }
+            },
+            "output": null,
+            "ori_input": "self, layers = None, T = 298, cell_area = 1, reflectivity = None, shading = 0, substrate = None, incidence = None, R_series = 0, **kwargs",
+            "ori_description": "Constructor of the class.  :param layers: A list with the layers to add. The layers might include individual Layer objects of whole Junction objects. :param T: Temperature. :param cell_area: The area of the cell. :param reflectivity: Function that calculates the reflectivity as a function of energy. :param shading: Shading losses due to the front metal contacts. :param substrate: Substrate of the solar cell. :param incidence: Material above the solar cell. Nominally air. :param R_series: Series resistance of the structure :param kwargs: Other possible attributes."
+          },
+          {
+            "name": "append",
+            "description": "Appends a layer to the structure a certain number of times to the structure.",
+            "input": {
+              "self": null,
+              "new_layer": {
+                "type": "",
+                "description": "The layer to append."
+              },
+              "layer_label": {
+                "type": "",
+                "description": "An optional label for that layer."
+              },
+              "repeats": {
+                "type": "",
+                "description": "Number of times to repeat add the layer."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, new_layer, layer_label = None, repeats = 1",
+            "ori_description": "Appends a layer to the structure a certain number of times to the structure.  :param new_layer: The layer to append. :param layer_label: An optional label for that layer. :param repeats: Number of times to repeat add the layer. :return: None"
+          },
+          {
+            "name": "append_multiple",
+            "description": "Appends multiple layers a certain umber of times to the structure.",
+            "input": {
+              "self": null,
+              "layers": {
+                "type": "",
+                "description": "A list with the layers to append."
+              },
+              "layer_labels": {
+                "type": "",
+                "description": "An optional list with the labels. If present, it must have the same length that the layers list."
+              },
+              "repeats": {
+                "type": "",
+                "description": "Number of times to add this set of layers."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, layers, layer_labels = None, repeats = 1",
+            "ori_description": "Appends multiple layers a certain umber of times to the structure.  :param layers: A list with the layers to append. :param layer_labels: An optional list with the labels. If present, it must have the same length that the layers list. :param repeats: Number of times to add this set of layers. :return: None"
+          },
+          {
+            "name": "update_junction",
+            "description": "Adds or updates the attributes - not the layers - of a junction.",
+            "input": {
+              "self": null,
+              "junction": {
+                "type": "",
+                "description": "The junction to update."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "The attributes to update."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, junction, **kwargs",
+            "ori_description": "Adds or updates the attributes - not the layers - of a junction.  :param junction: The junction to update. :param kwargs: The attributes to update. :return: None"
+          }
+        ]
+      },
+      {
+        "name": "State",
+        "type": "class",
+        "module": "solcore.state",
+        "input": "OrderedDict",
+        "description": "This class defines a convent way of expanding the attributes of an object, usually fixed during the definition of the class. In this case, the class is just a dictionary - a special type of it - and attributes are expanded by adding new keys to it.",
+        "function": []
+      },
+      {
+        "name": "LightSource",
+        "type": "class",
+        "module": "solcore.light_source.light_source",
+        "input": "",
+        "description": "Common interface to access all types of light sources supported by Solcore.  It includes standard solar spectra (AM0, AM1.5g, and AM1.5d), blackbody radiation, laser light or spectra created from atmospheric data using SPECTRAL2 or SMARTS. Additionally, it can also use experimentally measured spectra.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "source_type": {
+                "type": "",
+                "description": ""
+              },
+              "x": {
+                "type": "",
+                "description": ""
+              },
+              "output_units": {
+                "type": "",
+                "description": ""
+              },
+              "concentration": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, source_type, x = None, output_units = 'power_density_per_nm', concentration = 1, **kwargs",
+            "ori_description": ":param source_type: :param kwargs:"
+          },
+          {
+            "name": "spectrum",
+            "description": "Returns the spectrum of the light in the requested units. Internally, the spectrum is always managed in power density per nanometers, but the output can be provided in other compatible units, such as power density per Hertz or photon flux per eV.",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "(Default=None) If \"x\" is provided, it must be an array with the spectral range in which to calculate the spectrum. Depending on the \"units\" defined when creating the light source, this array must be in nm, m, eV, J or hz."
+              },
+              "output_units": {
+                "type": "",
+                "description": "Units of the output spectrum"
+              },
+              "concentration": {
+                "type": "",
+                "description": "Concentration of the light source"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Options to update the light source. It can be \"units\", \"concentration\" or any of the options specific to the chosen type of light source."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Array with the spectrum in the requested units"
+              }
+            },
+            "ori_input": "self, x = None, output_units = None, concentration = None, **kwargs",
+            "ori_description": "Returns the spectrum of the light in the requested units. Internally, the spectrum is always managed in power density per nanometers, but the output can be provided in other compatible units, such as power density per Hertz or photon flux per eV.  :param x: (Default=None) If \"x\" is provided, it must be an array with the spectral range in which to calculate the spectrum. Depending on the \"units\" defined when creating the light source, this array must be in nm, m, eV, J or hz. :param output_units: Units of the output spectrum :param concentration: Concentration of the light source :param kwargs: Options to update the light source. It can be \"units\", \"concentration\" or any of the options specific to the chosen type of light source. :return: Array with the spectrum in the requested units"
+          }
+        ]
+      },
+      {
+        "name": "reference_spectra",
+        "type": "function",
+        "module": "solcore.light_source.light_source",
+        "description": "Function providing the standard reference spectra: AM0, AM1.5g and AM1.5d.",
+        "input": {},
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A 2D array with 4 columns representing the wavelength, AM0, AM1.5g and AM1.5d standard spectra."
+          }
+        },
+        "ori_input": "",
+        "ori_description": "Function providing the standard reference spectra: AM0, AM1.5g and AM1.5d.  :return: A 2D array with 4 columns representing the wavelength, AM0, AM1.5g and AM1.5d standard spectra."
+      },
+      {
+        "name": "power_density_per_nm",
+        "type": "function",
+        "module": "solcore.light_source.light_source",
+        "description": "Function that returns the spectrum in power density per nanometer.  The input spectrum is assumed to be in power density per nanometer.",
+        "input": {
+          "spectrum": {
+            "type": "Callable[[np.ndarray], np.ndarray]",
+            "description": "The spectrum to interpolate."
+          },
+          "x": {
+            "type": "np.ndarray",
+            "description": "Array with the wavelengths (in nm)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The spectrum in the chosen units."
+          }
+        },
+        "ori_input": "spectrum: Callable[[np.ndarray], np.ndarray], x: np.ndarray",
+        "ori_description": "Function that returns the spectrum in power density per nanometer.  The input spectrum is assumed to be in power density per nanometer.  :param spectrum: The spectrum to interpolate. :param x: Array with the wavelengths (in nm) :return: The spectrum in the chosen units."
+      },
+      {
+        "name": "photon_flux_per_nm",
+        "type": "function",
+        "module": "solcore.light_source.light_source",
+        "description": "Function that returns the spectrum in photon flux per nanometer.  The input spectrum is assumed to be in power density per nanometer.",
+        "input": {
+          "spectrum": {
+            "type": "Callable[[np.ndarray], np.ndarray]",
+            "description": "The spectrum to interpolate."
+          },
+          "x": {
+            "type": "np.ndarray",
+            "description": "Array with the wavelengths (in nm)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The spectrum in the chosen units."
+          }
+        },
+        "ori_input": "spectrum: Callable[[np.ndarray], np.ndarray], x: np.ndarray",
+        "ori_description": "Function that returns the spectrum in photon flux per nanometer.  The input spectrum is assumed to be in power density per nanometer.  :param spectrum: The spectrum to interpolate. :param x: Array with the wavelengths (in nm) :return: The spectrum in the chosen units."
+      },
+      {
+        "name": "power_density_per_ev",
+        "type": "function",
+        "module": "solcore.light_source.light_source",
+        "description": "Function that returns the spectrum in power density per eV.  The input spectrum is assumed to be in power density per nanometer.",
+        "input": {
+          "spectrum": {
+            "type": "Callable[[np.ndarray], np.ndarray]",
+            "description": "The spectrum to interpolate."
+          },
+          "x": {
+            "type": "np.ndarray",
+            "description": "Array with the energies (in eV)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The spectrum in the chosen units."
+          }
+        },
+        "ori_input": "spectrum: Callable[[np.ndarray], np.ndarray], x: np.ndarray",
+        "ori_description": "Function that returns the spectrum in power density per eV.  The input spectrum is assumed to be in power density per nanometer.  :param spectrum: The spectrum to interpolate. :param x: Array with the energies (in eV) :return: The spectrum in the chosen units."
+      },
+      {
+        "name": "photon_flux_per_ev",
+        "type": "function",
+        "module": "solcore.light_source.light_source",
+        "description": "Function that returns the spectrum in photon flux per eV.  The input spectrum is assumed to be in power density per nanometer.",
+        "input": {
+          "spectrum": {
+            "type": "Callable[[np.ndarray], np.ndarray]",
+            "description": "The spectrum to interpolate."
+          },
+          "x": {
+            "type": "np.ndarray",
+            "description": "Array with the energies (in eV)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The spectrum in the chosen units."
+          }
+        },
+        "ori_input": "spectrum: Callable[[np.ndarray], np.ndarray], x: np.ndarray",
+        "ori_description": "Function that returns the spectrum in photon flux per eV.  The input spectrum is assumed to be in power density per nanometer.  :param spectrum: The spectrum to interpolate. :param x: Array with the energies (in eV) :return: The spectrum in the chosen units."
+      },
+      {
+        "name": "DielectricConstantModel",
+        "type": "class",
+        "module": "solcore.absorption_calculator.dielectric_constant_models",
+        "input": "list",
+        "description": "This class groups together several models for the dielectric constant applicable to a given layer. Based on all of them, it calculates the dielectric constant and the complex refractive index at any energy. It requires as input an offset, offen refered as epsilon_infinity.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Creates the dielectric constant model. The default model is air (constant dielectric constant = 1 at all wavelengths.",
+            "input": {
+              "self": null,
+              "e_inf": {
+                "type": "",
+                "description": "The offset dielectric constant. Default=1"
+              },
+              "oscillators": {
+                "type": "",
+                "description": "A list containing the oscillators. Default=()"
+              }
+            },
+            "output": null,
+            "ori_input": "self, e_inf = 1.0, oscillators = ()",
+            "ori_description": "Creates the dielectric constant model. The default model is air (constant dielectric constant = 1 at all wavelengths.  :param e_inf: The offset dielectric constant. Default=1 :param oscillators: A list containing the oscillators. Default=()"
+          },
+          {
+            "name": "add_oscillator",
+            "description": "Adds an oscillator to the dielectric constant model.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": "The name of the oscillator"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "The arguments needed to create that oscillator."
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, **kwargs",
+            "ori_description": "Adds an oscillator to the dielectric constant model.  :param name: The name of the oscillator :param kwargs: The arguments needed to create that oscillator. :return:"
+          },
+          {
+            "name": "remove_oscillator",
+            "description": "Removes an oscillator from the model.",
+            "input": {
+              "self": null,
+              "idx": {
+                "type": "",
+                "description": "The number of the oscillator (starting in 1)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, idx",
+            "ori_description": "Removes an oscillator from the model.  :param idx: The number of the oscillator (starting in 1) :return: None"
+          },
+          {
+            "name": "dielectric_constants",
+            "description": "Returns the complex dielectric constant in the form e1 + ie2",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "The spectral possition in nm (it can be an array)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The complex dielectric constant."
+              }
+            },
+            "ori_input": "self, x",
+            "ori_description": "Returns the complex dielectric constant in the form e1 + ie2  :param x: The spectral possition in nm (it can be an array) :return: The complex dielectric constant."
+          },
+          {
+            "name": "n_and_k",
+            "description": "Returns the complex refractive index in the form n + ik",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "The spectral possition in nm (it can be an array)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The complex refractive index."
+              }
+            },
+            "ori_input": "self, x",
+            "ori_description": "Returns the complex refractive index in the form n + ik  :param x: The spectral possition in nm (it can be an array) :return: The complex refractive index."
+          }
+        ]
+      },
+      {
+        "name": "Lorentz",
+        "type": "class",
+        "module": "solcore.absorption_calculator.dielectric_constant_models",
+        "input": "",
+        "description": "Classic Lorentz oscillator involving a central energy and a broadening responsible for the absorption.  .. math:: \\epsilon = \\frac {A_n E_n^2} {E_n^2 - E^2 - i Br_n E}  with:  - An = the amplitud of the oscillator (dimensionless) - Brn = the broadening (eV) - En = the central energy (eV)  It is equivalent to Lor.2 in WVASE.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Constructor of the Lorentz oscillator. By default, the amplitude and broadening are set to zero meaning that there are no oscillator.",
+            "input": {
+              "self": null,
+              "An": {
+                "type": "",
+                "description": "Amplitud of the oscillator (dimensionless)"
+              },
+              "En": {
+                "type": "",
+                "description": "Center energy of the oscillator (in eV)."
+              },
+              "Brn": {
+                "type": "",
+                "description": "Broadening (in eV)"
+              }
+            },
+            "output": null,
+            "ori_input": "self, An = 0.0, En = 2.0, Brn = 0.1",
+            "ori_description": "Constructor of the Lorentz oscillator. By default, the amplitude and broadening are set to zero meaning that there are no oscillator.  :param An: Amplitud of the oscillator (dimensionless) :param En: Center energy of the oscillator (in eV). :param Brn: Broadening (in eV)"
+          },
+          {
+            "name": "dielectric",
+            "description": "Returns the dielectric function as modelled by this class at the given x input values (a single value or an array of values.",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "Spectral position in nm"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The dielectric constant at this spectral position"
+              }
+            },
+            "ori_input": "self, x",
+            "ori_description": "Returns the dielectric function as modelled by this class at the given x input values (a single value or an array of values.  :param x: Spectral position in nm :return: The dielectric constant at this spectral position"
+          }
+        ]
+      },
+      {
+        "name": "Drude",
+        "type": "class",
+        "module": "solcore.absorption_calculator.dielectric_constant_models",
+        "input": "",
+        "description": "The classic Drude oscillator describes free carrier effects on the dielectric response. Its form is a Lorentz oscillator with zero center energy.  .. math:: \\epsilon = - \\frac {A_n Br_n} {E^2 + i Br_n E}  with:  - An = the amplitud of the oscillator (eV) - Brn = the broadening (eV)  It is equivalent to Drd.0 in WVASE.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Constructor of the Drude oscillator. By default, the amplitude is set to zero meaning that there are no oscillator.",
+            "input": {
+              "self": null,
+              "An": {
+                "type": "",
+                "description": "Amplitud of the oscillator (in eV)"
+              },
+              "Brn": {
+                "type": "",
+                "description": "Broadening (in eV)"
+              }
+            },
+            "output": null,
+            "ori_input": "self, An = 0.0, Brn = 0.1",
+            "ori_description": "Constructor of the Drude oscillator. By default, the amplitude is set to zero meaning that there are no oscillator.  :param An: Amplitud of the oscillator (in eV) :param Brn: Broadening (in eV)"
+          },
+          {
+            "name": "dielectric",
+            "description": "Returns the dielectric function as modelled by this class at the given x input values (a single value or an array of values.",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "Spectral position in nm"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The dielectric constant at this spectral position"
+              }
+            },
+            "ori_input": "self, x",
+            "ori_description": "Returns the dielectric function as modelled by this class at the given x input values (a single value or an array of values.  :param x: Spectral position in nm :return: The dielectric constant at this spectral position"
+          }
+        ]
+      },
+      {
+        "name": "Cauchy",
+        "type": "class",
+        "module": "solcore.absorption_calculator.dielectric_constant_models",
+        "input": "",
+        "description": "Cauchy oscillator model for fitting ellipsometry data. It is generally used to fit non absorbing materials, although an Urbach tail is included to indicate the onset of absorption.  .. math:: N = An + \\frac {Bn} {E^2} + \\frac {Cn} {E^4} .. math:: K = A_k \\exp(B_k (E-C_k)) .. math:: \\epsilon = (N + iK)^2  with:  - An, Bn and Cn = the Cauchy coeficients (dimensionless, µm-2 and µm-4, respectively) - Ak = the amplitud of the Urbach tail (dimensionless) - Bk = the multiplicative factor of the Urbach tail (eV-1) - Ck = the energy offset of the Urbach tail (eV) - it is user selected, but redundant with Ak. with Ak.  It is equivalent to Chy.0 in WVASE.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Constructor of the Cauchy oscillator.",
+            "input": {
+              "self": null,
+              "An": {
+                "type": "",
+                "description": "1st Cauchy coefficient (dimensionless)"
+              },
+              "Bn": {
+                "type": "",
+                "description": "2nd Cauchy coefficient (µm-2)"
+              },
+              "Cn": {
+                "type": "",
+                "description": "3rd Cauchy coefficient (µm-4)"
+              },
+              "Ak": {
+                "type": "",
+                "description": "Amplitude of the Urback tail (dimensionless)"
+              },
+              "Bk": {
+                "type": "",
+                "description": "multiplicative factor of the Urbach tail (eV-1)"
+              },
+              "Ck": {
+                "type": "",
+                "description": "energy offset (eV)"
+              }
+            },
+            "output": null,
+            "ori_input": "self, An = 0.0, Bn = 0.0, Cn = 0.0, Ak = 0.0, Bk = 0.0, Ck = 0",
+            "ori_description": "Constructor of the Cauchy oscillator.  :param An: 1st Cauchy coefficient (dimensionless) :param Bn: 2nd Cauchy coefficient (µm-2) :param Cn: 3rd Cauchy coefficient (µm-4) :param Ak: Amplitude of the Urback tail (dimensionless) :param Bk: multiplicative factor of the Urbach tail (eV-1) :param Ck: energy offset (eV)"
+          },
+          {
+            "name": "dielectric",
+            "description": "Returns the dielectric function as modelled by this class at the given x input values (a single value or an array of values.",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "",
+                "description": "Spectral position in nm"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The dielectric constant at this spectral position"
+              }
+            },
+            "ori_input": "self, x",
+            "ori_description": "Returns the dielectric function as modelled by this class at the given x input values (a single value or an array of values.  :param x: Spectral position in nm :return: The dielectric constant at this spectral position"
+          }
+        ]
+      },
+      {
+        "name": "OptiStack",
+        "type": "class",
+        "module": "solcore.absorption_calculator.transfer_matrix",
+        "input": "object",
+        "description": "Class that contains an optical structure: a sequence of layers with a thickness and a complex refractive index.  It serves as an intermediate step between solcore layers and materials and the stack of thicknesses and n and k values necessary to run calculations involving TMM. When creating an OptiStack object, the thicknesses of all the layers forming the Solcore structure and the optical data of the materials of the layers are extracted and arranged in such a way they can be easily and fastly read by the TMM functions.  In addition to a solcore structure with Layers, it can also take a list where each element represent a layer written as a list and contains the layer thickness and the dielectrical model, the raw n and k data as a function of wavelengths, or a whole Device structure as the type used in the PDD model.  In summary, this class acepts:  - A solcore structure with layers - A list where each element is [thickness, DielectricModel] - A list where each element is [thickness, wavelength, n, k] - A list mixing the above: [ [thickness, DielectricModel], [thickness, wavelength, n, k], solcore.Layer, solcore.Layer ]  This allows for maximum flexibility when creating the optical model, allowing to construct the stack with experimental data, modelled data and known material properties from the database.  Yet anther way of defining the layers mixes experimental data with a DielectricModel within the same layer but in spectrally distinct regions. The syntaxis for the layer is:  layer = [thickness, wavelength, n, k, DielectricModel, mixing]  where mixing is a list containing three elements: [the mixing point (nm), the mixing width (nm), zero or one] depending if the mixing function should be increasing with the wavelength or decreasing. If increasing (zero), the Dielectric model will be used at long wavelengths and the experimental data at short wavelengths. If decreasing (one) the oposite is done. The mixing point and mixing width control how smooth is the transition between one and the other type of data.  Extra layers such as he semi-infinite, air-like first and last medium, and a back highly absorbing layer are included at runtime to fulfill the requirements of the TMM solver or to solve some of its limitations.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Class constructor. It takes a Solcore structure and extract the thickness and optical data from the Layers and the materials. Option is given to indicate if the reflection from the back of the structure must be suppressed, useful for ellipsometry calculations. This is done by creating an artificial highly absorbing but not reflecting layer just at the back.  Alternatively, it can take simply a list of [thickness, DielectricModel] or [thickness, wavelength, n, k] for each layer accounting for the refractive index of the layers. The three options can be mixed for maximum flexibility.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "",
+                "description": "A list with one or more layers."
+              },
+              "no_back_reflection": {
+                "type": "",
+                "description": "If reflection from the back must be suppressed. Default=False."
+              },
+              "substrate": {
+                "type": "",
+                "description": "a semi-infinite transmission medium. Note that if no_back_reflection is set to True, adding a substrate won't make any difference."
+              },
+              "incidence": {
+                "type": "",
+                "description": "a semi-infinite incidence medium. Note that add things may happen if this material is absorbing"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure = (), no_back_reflection = False, substrate = None, incidence = None, **kwargs",
+            "ori_description": "Class constructor. It takes a Solcore structure and extract the thickness and optical data from the Layers and the materials. Option is given to indicate if the reflection from the back of the structure must be suppressed, useful for ellipsometry calculations. This is done by creating an artificial highly absorbing but not reflecting layer just at the back.  Alternatively, it can take simply a list of [thickness, DielectricModel] or [thickness, wavelength, n, k] for each layer accounting for the refractive index of the layers. The three options can be mixed for maximum flexibility.  :param structure: A list with one or more layers. :param no_back_reflection: If reflection from the back must be suppressed. Default=False. :param substrate: a semi-infinite transmission medium. Note that if no_back_reflection is set to True, adding a substrate won't make any difference. :param incidence: a semi-infinite incidence medium. Note that add things may happen if this material is absorbing"
+          },
+          {
+            "name": "get_indices",
+            "description": "Returns the complex refractive index of the stack.",
+            "input": {
+              "self": null,
+              "wl": {
+                "type": "",
+                "description": "Wavelength of the light in nm."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A list with the complex refractive index of each layer, including the semi-infinite front and back layers and, opionally, the back absorbing layer used to suppress back surface relfexion."
+              }
+            },
+            "ori_input": "self, wl",
+            "ori_description": "Returns the complex refractive index of the stack.  :param wl: Wavelength of the light in nm. :return: A list with the complex refractive index of each layer, including the semi-infinite front and back layers and, opionally, the back absorbing layer used to suppress back surface relfexion."
+          },
+          {
+            "name": "get_widths",
+            "description": "Returns the widths of the layers of the stack.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A list with the widths each layer, including the semi-infinite front and back layers and, opionally, the back absorbing layer used to suppress back surface relfection, defined as 1 mm thick."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns the widths of the layers of the stack.  :return: A list with the widths each layer, including the semi-infinite front and back layers and, opionally, the back absorbing layer used to suppress back surface relfection, defined as 1 mm thick."
+          },
+          {
+            "name": "add_layers",
+            "description": "Generic function to add layers to the OptiStack. Internally, it calls add_solcore_layer, add_modelled_layer or add_raw_nk_layer.",
+            "input": {
+              "self": null,
+              "layers": {
+                "type": "",
+                "description": "A list with the layers to add (even if it is just one layer) It can be one or more and it can be mixed, Solcore-based and modelled layers."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, layers",
+            "ori_description": "Generic function to add layers to the OptiStack. Internally, it calls add_solcore_layer, add_modelled_layer or add_raw_nk_layer.  :param layers: A list with the layers to add (even if it is just one layer) It can be one or more and it can be mixed, Solcore-based and modelled layers. :return: None"
+          },
+          {
+            "name": "remove_layer",
+            "description": "Removes layer with index idx from the OptiStack",
+            "input": {
+              "self": null,
+              "idx": {
+                "type": "",
+                "description": "Index of the layer to remove"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, idx",
+            "ori_description": "Removes layer with index idx from the OptiStack  :param idx: Index of the layer to remove :return: None"
+          },
+          {
+            "name": "swap_layers",
+            "description": "Swaps two layers in the OptiStack.",
+            "input": {
+              "self": null,
+              "idx1": {
+                "type": "",
+                "description": "The index of one of the layers."
+              },
+              "idx2": {
+                "type": "",
+                "description": "The index of the other."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, idx1, idx2",
+            "ori_description": "Swaps two layers in the OptiStack.  :param idx1: The index of one of the layers. :param idx2: The index of the other. :return: None"
+          },
+          {
+            "name": "set_widths",
+            "description": "Changes the widths of the layers in the stack.",
+            "input": {
+              "self": null,
+              "widths": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, widths",
+            "ori_description": "Changes the widths of the layers in the stack.  :param: widths: a list or array of widths, length equal to the number of layers :return: None"
+          }
+        ]
+      },
+      {
+        "name": "calculate_rat",
+        "type": "function",
+        "module": "solcore.absorption_calculator.transfer_matrix",
+        "description": "Calculates the reflected, absorbed and transmitted intensity of the structure for the wavelengths and angles defined.",
+        "input": {
+          "structure": {
+            "type": "",
+            "description": "A solcore Structure object with layers and materials or a OptiStack object."
+          },
+          "wavelength": {
+            "type": "",
+            "description": "Wavelengths (in nm) in which calculate the data. An array."
+          },
+          "angle": {
+            "type": "",
+            "description": "Angle (in degrees) of the incident light. Default: 0 (normal incidence)."
+          },
+          "pol": {
+            "type": "",
+            "description": "Polarisation of the light: 's', 'p' or 'u'. Default: 'u' (unpolarised)."
+          },
+          "coherent": {
+            "type": "",
+            "description": "If the light is coherent or not. If not, a coherency list must be added."
+          },
+          "coherency_list": {
+            "type": "",
+            "description": "A list indicating in which layers light should be treated as coherent ('c') and in which incoherent ('i'). It needs as many elements as layers in the structure."
+          },
+          "no_back_reflection": {
+            "type": "",
+            "description": "If reflection from the back must be supressed. Default=True."
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A dictionary with the R, A and T at the specified wavelengths and angle."
+          }
+        },
+        "ori_input": "structure, wavelength, angle = 0, pol = 'u', coherent = True, coherency_list = None, no_back_reflection = True, **kwargs",
+        "ori_description": "Calculates the reflected, absorbed and transmitted intensity of the structure for the wavelengths and angles defined.  :param structure: A solcore Structure object with layers and materials or a OptiStack object. :param wavelength: Wavelengths (in nm) in which calculate the data. An array. :param angle: Angle (in degrees) of the incident light. Default: 0 (normal incidence). :param pol: Polarisation of the light: 's', 'p' or 'u'. Default: 'u' (unpolarised). :param coherent: If the light is coherent or not. If not, a coherency list must be added. :param coherency_list: A list indicating in which layers light should be treated as coherent ('c') and in which incoherent ('i'). It needs as many elements as layers in the structure. :param no_back_reflection: If reflection from the back must be supressed. Default=True. :return: A dictionary with the R, A and T at the specified wavelengths and angle."
+      },
+      {
+        "name": "calculate_absorption_profile",
+        "type": "function",
+        "module": "solcore.absorption_calculator.transfer_matrix",
+        "description": "It calculates the absorbed energy density within the material. From the documentation:  'In principle this has units of [power]/[volume], but we can express it as a multiple of incoming light power density on the material, which has units [ power]/[area], so that absorbed energy density has units of 1/[length].'  Integrating this absorption profile in the whole stack gives the same result that the absorption obtained with calculate_rat as long as the spatial mesh (controlled by steps_thinest_layer) is fine enough. If the structure is very thick and the mesh not thin enough, the calculation might diverge at short wavelengths.",
+        "input": {
+          "structure": {
+            "type": "",
+            "description": "A solcore structure with layers and materials."
+          },
+          "wavelength": {
+            "type": "",
+            "description": "Wavelengths in which calculate the data (in nm). An array"
+          },
+          "z_limit": {
+            "type": "",
+            "description": "Maximum value in the z direction"
+          },
+          "steps_size": {
+            "type": "",
+            "description": "if the dist is not specified, the step size in nm to use in the depth-dependent calculation"
+          },
+          "dist": {
+            "type": "",
+            "description": "the positions (in nm) at which to calculate depth-dependent absorption"
+          },
+          "no_back_reflection": {
+            "type": "",
+            "description": "whether to suppress reflections from the back interface (True) or not (False)"
+          },
+          "angle": {
+            "type": "",
+            "description": "incidence of angle in degrees"
+          },
+          "pol": {
+            "type": "",
+            "description": "polarization of incident light: 's', 'p' or 'u' (unpolarized)"
+          },
+          "coherent": {
+            "type": "",
+            "description": "True if all the layers are to be treated coherently, False otherwise"
+          },
+          "coherency_list": {
+            "type": "",
+            "description": "if coherent is False, a list of 'c' (coherent) or 'i' (incoherent) for each layer"
+          },
+          "zero_threshold": {
+            "type": "",
+            "description": "when the fraction of incident light absorbed in a layer is less than this value, the absorption profile is completely set to zero for both coherent and incoherent calculations. This is applied on a wavelength-by-wavelength basis and is intended to prevent errors where integrating a weak absorption profile in a layer over many points leads to calculated EQE > total absorption in that layer."
+          },
+          "RAT_out": {
+            "type": "",
+            "description": "output from calculate_rat for the same stack & options"
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A dictionary containing the positions (in nm) and a 2D array with the absorption in the structure as a function of the position and the wavelength."
+          }
+        },
+        "ori_input": "structure, wavelength, z_limit = None, steps_size = 2, dist = None, no_back_reflection = True, angle = 0, pol = 'u', coherent = True, coherency_list = None, zero_threshold = 1e-06, RAT_out = None, **kwargs",
+        "ori_description": "It calculates the absorbed energy density within the material. From the documentation:  'In principle this has units of [power]/[volume], but we can express it as a multiple of incoming light power density on the material, which has units [ power]/[area], so that absorbed energy density has units of 1/[length].'  Integrating this absorption profile in the whole stack gives the same result that the absorption obtained with calculate_rat as long as the spatial mesh (controlled by steps_thinest_layer) is fine enough. If the structure is very thick and the mesh not thin enough, the calculation might diverge at short wavelengths.  :param structure: A solcore structure with layers and materials. :param wavelength: Wavelengths in which calculate the data (in nm). An array :param z_limit: Maximum value in the z direction :param steps_size: if the dist is not specified, the step size in nm to use in the depth-dependent calculation :param dist: the positions (in nm) at which to calculate depth-dependent absorption :param no_back_reflection: whether to suppress reflections from the back interface (True) or not (False) :param angle: incidence of angle in degrees :param pol: polarization of incident light: 's', 'p' or 'u' (unpolarized) :param coherent: True if all the layers are to be treated coherently, False otherwise :param coherency_list: if coherent is False, a list of 'c' (coherent) or 'i' (incoherent) for each layer :param zero_threshold: when the fraction of incident light absorbed in a layer is less than this value, the absorption profile is completely set to zero for both coherent and incoherent calculations. This is applied on a wavelength-by-wavelength basis and is intended to prevent errors where integrating a weak absorption profile in a layer over many points leads to calculated EQE > total absorption in that layer. :param RAT_out: output from calculate_rat for the same stack & options :return: A dictionary containing the positions (in nm) and a 2D array with the absorption in the structure as a function of the position and the wavelength."
+      },
+      {
+        "name": "calculate_ellipsometry",
+        "type": "function",
+        "module": "solcore.absorption_calculator.transfer_matrix",
+        "description": "Calculates the ellipsometric parameters psi and delta. It can only deal with coherent light and the whole stack (including back surface) is considered, so caution must be taken when comparing the simulated results with experiments where the back surface is rough or layers are thick and coherent light propagation makes no sense.  The optional argument no_back_reflection can be included to add an extra layer on the back absorbing all light that reaches that position without any reflection, to remove the reflection from the back surface.",
+        "input": {
+          "structure": {
+            "type": "",
+            "description": "A solcore structure with layers and materials."
+          },
+          "wavelength": {
+            "type": "",
+            "description": "Wavelengths (in nm) in which calculate the data. An array."
+          },
+          "angle": {
+            "type": "",
+            "description": "A tupple or list with the angles (in degrees) in which to calculate the data."
+          },
+          "no_back_reflection": {
+            "type": "",
+            "description": "If reflection from the back must be suppressed. Default=True."
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A dictionary with psi and delta at the specified wavelengths and angles (2D arrays)."
+          }
+        },
+        "ori_input": "structure, wavelength, angle, no_back_reflection = True, **kwargs",
+        "ori_description": "Calculates the ellipsometric parameters psi and delta. It can only deal with coherent light and the whole stack (including back surface) is considered, so caution must be taken when comparing the simulated results with experiments where the back surface is rough or layers are thick and coherent light propagation makes no sense.  The optional argument no_back_reflection can be included to add an extra layer on the back absorbing all light that reaches that position without any reflection, to remove the reflection from the back surface.  :param structure: A solcore structure with layers and materials. :param wavelength: Wavelengths (in nm) in which calculate the data. An array. :param angle: A tupple or list with the angles (in degrees) in which to calculate the data. :param no_back_reflection: If reflection from the back must be suppressed. Default=True. :return: A dictionary with psi and delta at the specified wavelengths and angles (2D arrays)."
+      },
+      {
+        "name": "solve_beer_lambert",
+        "type": "function",
+        "module": "solcore.optics.beer_lambert",
+        "description": "Calculates RAT of a solar cell object using the Beer-Lambert law.  Reflection is not really calculated and needs to be provided externally, otherwise it is assumed to be zero.",
+        "input": {
+          "solar_cell": {
+            "type": "SolarCell",
+            "description": ""
+          },
+          "wavelength": {
+            "type": "NDArray",
+            "description": ""
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "solar_cell: SolarCell, wavelength: NDArray, **kwargs",
+        "ori_description": "Calculates RAT of a solar cell object using the Beer-Lambert law.  Reflection is not really calculated and needs to be provided externally, otherwise it is assumed to be zero.  Args: - solar_cell: A solar_cell object - wavelength: Array of wavelegth at which the optics are calculated.  Return: None"
+      },
+      {
+        "name": "solve_tmm",
+        "type": "function",
+        "module": "solcore.optics.tmm",
+        "description": "Calculates the RAT of a solar cell object using the transfer matrix method.  Internally, it creates an OptiStack and then it calculates the optical properties of the whole structure. A substrate can be specified in the SolarCell object, which is treated as a semi-infinite transmission medium. Shading can also be specified (as a fraction).  A coherency_list option can be provided:",
+        "input": {
+          "solar_cell": {
+            "type": "SolarCell",
+            "description": "A solar_cell object"
+          },
+          "wavelength": {
+            "type": "NDArray",
+            "description": "Array of wavelegth at which the optics are calculated."
+          },
+          "position": {
+            "type": "NDArray",
+            "description": "Array of positions in the z direction to calculate the absorption vs depth."
+          },
+          "BL_correction": {
+            "type": "bool",
+            "description": "If is set to True, thick layers (thickness > 10*maximum wavelength) are treated incoherently using the Beer-Lambert law, to avoid the calculation of unphysical interference oscillations in the R/A/T spectra."
+          },
+          "theta": {
+            "type": "float",
+            "description": "the polar incidence angle, in degrees, with 0 degrees being normal incidence."
+          },
+          "pol": {
+            "type": "str",
+            "description": "the polarization of the light ('s', 'p' or 'u')"
+          },
+          "zero_threshold": {
+            "type": "float",
+            "description": "when the fraction of incident light absorbed in a layer is less than this value, the absorption profile is completely set to zero for both coherent and incoherent calculations. This is applied on a wavelength-by-wavelength basis and is intended to prevent errors where integrating a weak absorption profile in a layer over many points leads to calculated EQE > total absorption in that layer."
+          },
+          "no_back_reflection": {
+            "type": "bool",
+            "description": "Sets whether reflections from the back surface are suppressed (if set to True, the default), or taken into account (if set to False)."
+          },
+          "coherency_list": {
+            "type": "Optional[List[str]]",
+            "description": "If present, this should have the same number of elements than number of layers (if a Junction contains multiple Layers, each should have its own entry in the coherency list). Each element is either 'c' for coherent treatment of that layer or 'i' for incoherent treatment."
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "solar_cell: SolarCell, wavelength: NDArray, position: NDArray, BL_correction: bool = True, theta: float = 0.0, pol: str = 'u', zero_threshold: float = 1e-05, no_back_reflection: bool = True, coherency_list: Optional[List[str]] = None, **kwargs",
+        "ori_description": "Calculates the RAT of a solar cell object using the transfer matrix method.  Internally, it creates an OptiStack and then it calculates the optical properties of the whole structure. A substrate can be specified in the SolarCell object, which is treated as a semi-infinite transmission medium. Shading can also be specified (as a fraction).  A coherency_list option can be provided:  Args: solar_cell: A solar_cell object wavelength: Array of wavelegth at which the optics are calculated. position: Array of positions in the z direction to calculate the absorption vs depth. BL_correction: If is set to True, thick layers (thickness > 10*maximum wavelength) are treated incoherently using the Beer-Lambert law, to avoid the calculation of unphysical interference oscillations in the R/A/T spectra. theta: the polar incidence angle, in degrees, with 0 degrees being normal incidence. pol: the polarization of the light ('s', 'p' or 'u') zero_threshold: when the fraction of incident light absorbed in a layer is less than this value, the absorption profile is completely set to zero for both coherent and incoherent calculations. This is applied on a wavelength-by-wavelength basis and is intended to prevent errors where integrating a weak absorption profile in a layer over many points leads to calculated EQE > total absorption in that layer. no_back_reflection: Sets whether reflections from the back surface are suppressed (if set to True, the default), or taken into account (if set to False). coherency_list: If present, this should have the same number of elements than number of layers (if a Junction contains multiple Layers, each should have its own entry in the coherency list). Each element is either 'c' for coherent treatment of that layer or 'i' for incoherent treatment.  Return: None"
+      },
+      {
+        "name": "solve_external_optics",
+        "type": "function",
+        "module": "solcore.optics.external_optics",
+        "description": "Calculates RAT of a solar cell from external data  It also prepares the structure for further calculations. The external data that must be provided in the solar cell definition is:  - external_reflected: a function that provides the fraction of reflected light at the specified wavelengths (in m). - external_absorbed: a function that provides an array with the differential absorption at a depth Z (in m) at the specified wavelengths.  Note that both are functions of a single variable - wavelength in the first case and position in the second - and that the latter provides as output an array at the wavelengths indicated in the options.",
+        "input": {
+          "solar_cell": {
+            "type": "SolarCell",
+            "description": ""
+          },
+          "wavelength": {
+            "type": "NDArray",
+            "description": ""
+          },
+          "position": {
+            "type": "NDArray",
+            "description": ""
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "solar_cell: SolarCell, wavelength: NDArray, position: NDArray, **kwargs",
+        "ori_description": "Calculates RAT of a solar cell from external data  It also prepares the structure for further calculations. The external data that must be provided in the solar cell definition is:  - external_reflected: a function that provides the fraction of reflected light at the specified wavelengths (in m). - external_absorbed: a function that provides an array with the differential absorption at a depth Z (in m) at the specified wavelengths.  Note that both are functions of a single variable - wavelength in the first case and position in the second - and that the latter provides as output an array at the wavelengths indicated in the options.  Args: - solar_cell: A solar_cell object - wavelength: Array of wavelegth at which the optics are calculated. - position: Array of positions in the z direction to calculate the absorption vs depth.  Return: None"
+      },
+      {
+        "name": "solar_cell_solver",
+        "type": "function",
+        "module": "solcore.solar_cell_solver",
+        "description": "Solves the properties of a solar cell object  This can be done either calculating its optical properties (R, A and T), its quantum efficiency or its current voltage characteristics in the dark or under illumination. The general options for the solvers are passed as dictionaries or state objects.",
+        "input": {
+          "solar_cell": {
+            "type": "SolarCell",
+            "description": ""
+          },
+          "task": {
+            "type": "str",
+            "description": ""
+          },
+          "user_options": {
+            "type": "Union[Dict, State, None]",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "solar_cell: SolarCell, task: str, user_options: Union[Dict, State, None] = None",
+        "ori_description": "Solves the properties of a solar cell object  This can be done either calculating its optical properties (R, A and T), its quantum efficiency or its current voltage characteristics in the dark or under illumination. The general options for the solvers are passed as dictionaries or state objects.  Args: - solar_cell: A solar_cell object - taks: Task to perform. Some of the existing tasks might not be available for all types of junctions. - user_options: A dictionary containing the options for the solver, which will overwrite the default options.  Return: None"
+      },
+      {
+        "name": "iv_depletion",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.depletion_approximation",
+        "description": "Calculates the IV curve of a junction object using the depletion approximation as described in J. Nelson, “The Physics of Solar Cells”, Imperial College Press (2003). The junction is then updated with an \"iv\" function that calculates the IV curve at any voltage.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "A junction object."
+          },
+          "options": {
+            "type": "",
+            "description": "Solver options."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None."
+          }
+        },
+        "ori_input": "junction, options",
+        "ori_description": "Calculates the IV curve of a junction object using the depletion approximation as described in J. Nelson, “The Physics of Solar Cells”, Imperial College Press (2003). The junction is then updated with an \"iv\" function that calculates the IV curve at any voltage.  :param junction: A junction object. :param options: Solver options. :return: None."
+      },
+      {
+        "name": "qe_depletion",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.depletion_approximation",
+        "description": "Calculates the QE curve of a junction object using the depletion approximation as described in J. Nelson, “The Physics of Solar Cells”, Imperial College Press (2003). The junction is then updated with an \"iqe\" and several \"eqe\" functions that calculates the QE curve at any wavelength.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "A junction object."
+          },
+          "options": {
+            "type": "",
+            "description": "Solver options."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None."
+          }
+        },
+        "ori_input": "junction, options",
+        "ori_description": "Calculates the QE curve of a junction object using the depletion approximation as described in J. Nelson, “The Physics of Solar Cells”, Imperial College Press (2003). The junction is then updated with an \"iqe\" and several \"eqe\" functions that calculates the QE curve at any wavelength.  :param junction: A junction object. :param options: Solver options. :return: None."
+      },
+      {
+        "name": "iv_detailed_balance",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.detailed_balance",
+        "description": "Calculates the IV curve of a junction of kind \"DB\". This is a detailed balanced calculation of the IV curve of a PN junction characterized by a certain eqe, temperature and chemical potential (voltage). Normally, the eqe will be calculated based on a a given absorption edge and absorptance level resulting in a \"top hat\" type of eqe, but it can also be provided externally. By default, the solver uses the Boltzmann aproximation, although the full Planck equation might be used, also.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "A Junction object of kind \"DB\""
+          },
+          "options": {
+            "type": "",
+            "description": "Other arguments for the calculation of the IV."
+          }
+        },
+        "output": null,
+        "ori_input": "junction, options",
+        "ori_description": "Calculates the IV curve of a junction of kind \"DB\". This is a detailed balanced calculation of the IV curve of a PN junction characterized by a certain eqe, temperature and chemical potential (voltage). Normally, the eqe will be calculated based on a a given absorption edge and absorptance level resulting in a \"top hat\" type of eqe, but it can also be provided externally. By default, the solver uses the Boltzmann aproximation, although the full Planck equation might be used, also.  :param junction: A Junction object of kind \"DB\" :param options: Other arguments for the calculation of the IV. :return:"
+      },
+      {
+        "name": "qe_detailed_balance",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.detailed_balance",
+        "description": "Calculates the EQE and the IQE in the detailed balanced limit... which is equal to the absorptance and the absorbed fraction of the light since, by definition of detailed balanced, the carrier collection is perfect.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "Junction object of kind \"DB\""
+          },
+          "wl": {
+            "type": "",
+            "description": "wavelength in m"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None"
+          }
+        },
+        "ori_input": "junction, wl",
+        "ori_description": "Calculates the EQE and the IQE in the detailed balanced limit... which is equal to the absorptance and the absorbed fraction of the light since, by definition of detailed balanced, the carrier collection is perfect.  :param junction: Junction object of kind \"DB\" :param wl: wavelength in m :return: None"
+      },
+      {
+        "name": "absorptance_detailed_balance",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.detailed_balance",
+        "description": "Calculates the absorptance of the junction in the detailed balanced case. If it has not been calculated before, provided as input, it uses a \"top hat\" absorptance with the absorption edge at Eg and magnitude A.  Note that while the junction.absorptance represents the potential fraction of light that can be absorbed at a given energy, the junction.absorbed represents the actual fraction of input light that is absorbed. For detailed balanced calculations, these two are equivalent to the IQE and EQE respectively because carrier collection is perfect, but that will not be the case, in general.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "Junction object of kind \"DB\""
+          }
+        },
+        "output": null,
+        "ori_input": "junction",
+        "ori_description": "Calculates the absorptance of the junction in the detailed balanced case. If it has not been calculated before, provided as input, it uses a \"top hat\" absorptance with the absorption edge at Eg and magnitude A.  Note that while the junction.absorptance represents the potential fraction of light that can be absorbed at a given energy, the junction.absorbed represents the actual fraction of input light that is absorbed. For detailed balanced calculations, these two are equivalent to the IQE and EQE respectively because carrier collection is perfect, but that will not be the case, in general.  :param junction: Junction object of kind \"DB\""
+      },
+      {
+        "name": "iv_2diode",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.diode_equation",
+        "description": "Calculates the IV curve of a junction object using the 2-diode equation. All parameters needed for the calculation need to be included in the junction object. Series resistance is included at solar cell level, not at junction level. The junction is then updated with an \"iv\" function that calculates the IV curve at any voltage.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "A junction object."
+          },
+          "options": {
+            "type": "",
+            "description": "Solver options."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None."
+          }
+        },
+        "ori_input": "junction, options",
+        "ori_description": "Calculates the IV curve of a junction object using the 2-diode equation. All parameters needed for the calculation need to be included in the junction object. Series resistance is included at solar cell level, not at junction level. The junction is then updated with an \"iv\" function that calculates the IV curve at any voltage.  :param junction: A junction object. :param options: Solver options. :return: None."
+      },
+      {
+        "name": "calculate_J01",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.diode_equation",
+        "description": "Calculate the reverse saturation current J01, assumed radiative, considering an absorption equal to 1 above the bandgap. Light trapping is included by considering the refractive index of the material:  .. math:: J_{01} = \\frac {q n^2 k_b T} {2 \\pi ^2 c^2 \\hbar ^3} e^{\\frac{-E_g}{k_b T}} (E_g^2 + 2 k_b T E_g + 2 k_b^2 T^2)",
+        "input": {
+          "Eg_in_eV": {
+            "type": "",
+            "description": "Bandgap in eV"
+          },
+          "T": {
+            "type": "",
+            "description": "Cell temperature"
+          },
+          "n": {
+            "type": "",
+            "description": "Refractive index of the material"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The reverse saturation current J01"
+          }
+        },
+        "ori_input": "Eg_in_eV, T, n",
+        "ori_description": "Calculate the reverse saturation current J01, assumed radiative, considering an absorption equal to 1 above the bandgap. Light trapping is included by considering the refractive index of the material:  .. math:: J_{01} = \\frac {q n^2 k_b T} {2 \\pi ^2 c^2 \\hbar ^3} e^{\\frac{-E_g}{k_b T}} (E_g^2 + 2 k_b T E_g + 2 k_b^2 T^2)  :param Eg_in_eV: Bandgap in eV :param T: Cell temperature :param n: Refractive index of the material :return: The reverse saturation current J01"
+      },
+      {
+        "name": "calculate_J02_from_Voc",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.diode_equation",
+        "description": "Calculates J02 based on the J01, Jsc and the Voc. It is just the result of solving the 2-diode equation for J02. Ideality factors n1 and n2 are assumed to be equal to 1 and 2, respectively.",
+        "input": {
+          "J01": {
+            "type": "",
+            "description": "Reverse saturation current J01, typically the radiative component"
+          },
+          "Jsc": {
+            "type": "",
+            "description": "Short circuit current (=photocurrent)"
+          },
+          "Voc": {
+            "type": "",
+            "description": "Open circuit voltage"
+          },
+          "T": {
+            "type": "",
+            "description": "Temperature"
+          },
+          "R_shunt": {
+            "type": "",
+            "description": "Shunt resistance (default = 1e15)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The reverse saturation current J02"
+          }
+        },
+        "ori_input": "J01, Jsc, Voc, T, R_shunt = 1000000000000000.0",
+        "ori_description": "Calculates J02 based on the J01, Jsc and the Voc. It is just the result of solving the 2-diode equation for J02. Ideality factors n1 and n2 are assumed to be equal to 1 and 2, respectively.  :param J01: Reverse saturation current J01, typically the radiative component :param Jsc: Short circuit current (=photocurrent) :param Voc: Open circuit voltage :param T: Temperature :param R_shunt: Shunt resistance (default = 1e15) :return: The reverse saturation current J02"
+      },
+      {
+        "name": "calculate_J02_from_rad_eff",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.diode_equation",
+        "description": "Calculates J02 based on J01 and a radiative efficiency at a given voltage and temperature. Ideality factors n1 and n2 are assumed to be equal to 1 and 2, respectively.",
+        "input": {
+          "J01": {
+            "type": "",
+            "description": "Reverse saturation current J01, typically the radiative component"
+          },
+          "radiative_efficiency": {
+            "type": "",
+            "description": "Fraction of the dark current that is radiative"
+          },
+          "V": {
+            "type": "",
+            "description": "Operating voltage"
+          },
+          "T": {
+            "type": "",
+            "description": "Temperature"
+          },
+          "R_shunt": {
+            "type": "",
+            "description": "Shunt resistance (default = 1e15)"
+          }
+        },
+        "output": null,
+        "ori_input": "J01, radiative_efficiency, V, T, R_shunt = 1000000000000000.0",
+        "ori_description": "Calculates J02 based on J01 and a radiative efficiency at a given voltage and temperature. Ideality factors n1 and n2 are assumed to be equal to 1 and 2, respectively.  :param J01: Reverse saturation current J01, typically the radiative component :param radiative_efficiency: Fraction of the dark current that is radiative :param V: Operating voltage :param T: Temperature :param R_shunt: Shunt resistance (default = 1e15) :return:"
+      },
+      {
+        "name": "update_j0",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.diode_equation",
+        "description": "Updates the reverse saturation currents for the target temperature knowing their values at a reference temperature.",
+        "input": {
+          "junctions": {
+            "type": "",
+            "description": "List of junctions"
+          },
+          "T": {
+            "type": "",
+            "description": "Target temperature"
+          },
+          "Tref": {
+            "type": "",
+            "description": "Working temperature"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "List of junctions with their saturation currents updated for the new temperatures"
+          }
+        },
+        "ori_input": "junctions, T, Tref",
+        "ori_description": "Updates the reverse saturation currents for the target temperature knowing their values at a reference temperature.  :param junctions: List of junctions :param T: Target temperature :param Tref: Working temperature :return: List of junctions with their saturation currents updated for the new temperatures"
+      },
+      {
+        "name": "resistive_tunnel_junction",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.tunnel_junctions",
+        "description": "Calculates the IV curve of a tunnel junction when it is modelled as a simple resistor. The minimum resistance of the junction is always 1e-16.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "A junction object."
+          },
+          "options": {
+            "type": "",
+            "description": "Solver options."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None."
+          }
+        },
+        "ori_input": "junction, options",
+        "ori_description": "Calculates the IV curve of a tunnel junction when it is modelled as a simple resistor. The minimum resistance of the junction is always 1e-16.  :param junction: A junction object. :param options: Solver options. :return: None."
+      },
+      {
+        "name": "parametric_tunnel_junction",
+        "type": "function",
+        "module": "solcore.analytic_solar_cells.tunnel_junctions",
+        "description": "Calculates the IV curve of a tunnel junction when it is modelled using a set of empirical parameters, such as peak curent and voltage, valley current and voltage, etc. The total current of the tunnel junction is summ of 3 components: the tunnel current, the excess current and the difussion current.",
+        "input": {
+          "junction": {
+            "type": "",
+            "description": "A junction object."
+          },
+          "options": {
+            "type": "",
+            "description": "Solver options."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None."
+          }
+        },
+        "ori_input": "junction, options",
+        "ori_description": "Calculates the IV curve of a tunnel junction when it is modelled using a set of empirical parameters, such as peak curent and voltage, valley current and voltage, etc. The total current of the tunnel junction is summ of 3 components: the tunnel current, the excess current and the difussion current.  :param junction: A junction object. :param options: Solver options. :return: None."
+      },
+      {
+        "name": "schrodinger",
+        "type": "function",
+        "module": "solcore.quantum_mechanics.high_level_kp_QW",
+        "description": "Solves the Schrodinger equation of a 1 dimensional structure. Depending on the inputs, the method for solving the problem is more or less sophisticated. In all cases, the output includes the band structure and effective masses around k=0 as a function of the position, the energy levels of the QW (electrons and holes) and the wavefunctions, although for the kp4x4 and kp6x6 modes, this is provided as a function of the k value, and therefore there is much more information.",
+        "input": {
+          "structure": {
+            "type": "",
+            "description": "The strucutre to solve"
+          },
+          "plot_bands": {
+            "type": "",
+            "description": "(False) If the bands should be plotted"
+          },
+          "kpoints": {
+            "type": "",
+            "description": "(30) The number of points in the k space"
+          },
+          "krange": {
+            "type": "",
+            "description": "(1e-9) The range in the k space"
+          },
+          "num_eigenvalues": {
+            "type": "",
+            "description": "(10) Maximum number of eigenvalues to calculate"
+          },
+          "symmetric": {
+            "type": "",
+            "description": "(True) If the structure is symmetric, in which case the calculation can be speed up"
+          },
+          "quasiconfined": {
+            "type": "",
+            "description": "(0.0 eV) Energy above the band edges that an energy level can have before rejecting it"
+          },
+          "return_qw_boolean_for_layer": {
+            "type": "",
+            "description": "(False) Return an boolean array indicating which positions are inside the QW"
+          },
+          "Efield": {
+            "type": "",
+            "description": "(0) Electric field."
+          },
+          "blur": {
+            "type": "",
+            "description": "(False) If the potentials and effective masses have to be blurred"
+          },
+          "blurmode": {
+            "type": "",
+            "description": "('even') Other values are 'right' and 'left'"
+          },
+          "mode": {
+            "type": "",
+            "description": "('kp4x4') The mode of calculating the bands and effective masses. See 'structure_utilities.structure_to_potentials'"
+          },
+          "step_size": {
+            "type": "",
+            "description": "(None) The discretization step of the structure. If none, it is estimated based on the smallest feature."
+          },
+          "minimum_step_size": {
+            "type": "",
+            "description": "(0) The minimum step size."
+          },
+          "smallest_feature_steps": {
+            "type": "",
+            "description": "(20) The number of steps in the smallest feature"
+          },
+          "filter_strength": {
+            "type": "",
+            "description": "(0) If > 0, defines the fraction of the wavefunction that has to be inside the QW in order to consider it 'confined'"
+          },
+          "periodic": {
+            "type": "",
+            "description": "(False) If the structure is periodic. Affects the boundary conditions."
+          },
+          "offset": {
+            "type": "",
+            "description": "(0) Energy offset used in the calculation of the energy levels in the case of the 'bulk' solvers"
+          },
+          "graphtype": {
+            "type": "",
+            "description": "[] If 'potential', the band profile and wavefunctions are ploted"
+          },
+          "calculate_absorption": {
+            "type": "",
+            "description": ""
+          },
+          "alpha_params": {
+            "type": "",
+            "description": ""
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A dictionary containing the band structure and wavefunctions as a function of the position and k"
+          }
+        },
+        "ori_input": "structure, plot_bands = False, kpoints = 40, krange = 1000000000.0, num_eigenvalues = 10, symmetric = True, quasiconfined = 0.0, return_qw_boolean_for_layer = False, Efield = 0, blur = False, blurmode = 'even', mode = 'kp8x8_bulk', step_size = None, minimum_step_size = 0, smallest_feature_steps = 20, filter_strength = 0, periodic = False, offset = 0, graphtype = [], calculate_absorption = False, alpha_params = None, **kwargs",
+        "ori_description": "Solves the Schrodinger equation of a 1 dimensional structure. Depending on the inputs, the method for solving the problem is more or less sophisticated. In all cases, the output includes the band structure and effective masses around k=0 as a function of the position, the energy levels of the QW (electrons and holes) and the wavefunctions, although for the kp4x4 and kp6x6 modes, this is provided as a function of the k value, and therefore there is much more information.  :param structure: The strucutre to solve :param plot_bands: (False) If the bands should be plotted :param kpoints: (30) The number of points in the k space :param krange: (1e-9) The range in the k space :param num_eigenvalues: (10) Maximum number of eigenvalues to calculate :param symmetric: (True) If the structure is symmetric, in which case the calculation can be speed up :param quasiconfined: (0.0 eV) Energy above the band edges that an energy level can have before rejecting it :param return_qw_boolean_for_layer: (False) Return an boolean array indicating which positions are inside the QW :param Efield: (0) Electric field. :param blur: (False) If the potentials and effective masses have to be blurred :param blurmode: ('even') Other values are 'right' and 'left' :param mode: ('kp4x4') The mode of calculating the bands and effective masses. See 'structure_utilities.structure_to_potentials' :param step_size: (None) The discretization step of the structure. If none, it is estimated based on the smallest feature. :param minimum_step_size: (0) The minimum step size. :param smallest_feature_steps: (20) The number of steps in the smallest feature :param filter_strength: (0) If > 0, defines the fraction of the wavefunction that has to be inside the QW in order to consider it 'confined' :param periodic: (False) If the structure is periodic. Affects the boundary conditions. :param offset: (0) Energy offset used in the calculation of the energy levels in the case of the 'bulk' solvers :param graphtype: [] If 'potential', the band profile and wavefunctions are ploted :return: A dictionary containing the band structure and wavefunctions as a function of the position and k"
+      },
+      {
+        "name": "structure_to_potentials",
+        "type": "function",
+        "module": "solcore.quantum_mechanics.structure_utilities",
+        "description": "Discretizes the structure as a function of the position, providing the potential for the electrons, HH, LH and SO bands as well as the Luttinger parameters and the effective masses.  The result depend on the chosen mode: - kp4x4, calculates the bands and effective masses at k=0 coupling the HH and LH bands - kp6x6, calculates the bands and effective masses at k=0 coupling the HH, LH and SO bands - kp8x8_bulk, calculates the four bands and fit the effective masses with a parabola around k=0 - strain, just shifts the bands according to the strain - relaxed, do nothing and things are calculated as if we had the bulk, unstrained materials  Notice that although the kp8x8_bulk couples the 4 (8) bands, the effective mass is the result of a fitting around k=0. Therefore, it is not valid to solve 1D problems, but just a bulk-like problem under a parabolic aproximation  Additionlly, the band structure can be blured - to simulate the intermixing of materials - as well as being under an electric field.",
+        "input": {
+          "structure": {
+            "type": "",
+            "description": ""
+          },
+          "step_size": {
+            "type": "",
+            "description": ""
+          },
+          "minimum_step_size": {
+            "type": "",
+            "description": ""
+          },
+          "smallest_feature_steps": {
+            "type": "",
+            "description": ""
+          },
+          "blur": {
+            "type": "",
+            "description": ""
+          },
+          "blurmode": {
+            "type": "",
+            "description": ""
+          },
+          "return_qw_boolean_for_layer": {
+            "type": "",
+            "description": ""
+          },
+          "Efield": {
+            "type": "",
+            "description": ""
+          },
+          "mode": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "structure, step_size = None, minimum_step_size = 0, smallest_feature_steps = 20, blur = False, blurmode = 'even', return_qw_boolean_for_layer = False, Efield = 0, mode = 'kp4x4'",
+        "ori_description": "Discretizes the structure as a function of the position, providing the potential for the electrons, HH, LH and SO bands as well as the Luttinger parameters and the effective masses.  The result depend on the chosen mode: - kp4x4, calculates the bands and effective masses at k=0 coupling the HH and LH bands - kp6x6, calculates the bands and effective masses at k=0 coupling the HH, LH and SO bands - kp8x8_bulk, calculates the four bands and fit the effective masses with a parabola around k=0 - strain, just shifts the bands according to the strain - relaxed, do nothing and things are calculated as if we had the bulk, unstrained materials  Notice that although the kp8x8_bulk couples the 4 (8) bands, the effective mass is the result of a fitting around k=0. Therefore, it is not valid to solve 1D problems, but just a bulk-like problem under a parabolic aproximation  Additionlly, the band structure can be blured - to simulate the intermixing of materials - as well as being under an electric field."
+      },
+      {
+        "name": "VBO_align",
+        "type": "function",
+        "module": "solcore.quantum_mechanics.heterostructure_alignment",
+        "description": "Takes in the the structure layers and sets Ec and Ev energies in the state which aligns the heterostructure.",
+        "input": {
+          "structure": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "structure",
+        "ori_description": "Takes in the the structure layers and sets Ec and Ev energies in the state which aligns the heterostructure."
+      },
+      {
+        "name": "QWunit",
+        "type": "class",
+        "module": "solcore.poisson_drift_diffusion.QWunit",
+        "input": "Structure",
+        "description": "Assembles a group of layers as a quantum well, calculating its properties as a whole  - It needs a minimum of 3 layers - There must be exactly one layer with the role = \"well\". - Top and bottom layers are assumed to be the barriers. - Anything not a barrier not a well will be considered as \"interlayer\".  Since the Poisson - Drift-Diffusion solver can not work with superlattices, there is no point of considering the solution of more than one QW. All QWs entering into the solver are independent, regardless of the width of the barriers.  To account for the possible presence of nearby QWs, perdiodic boundary conditions can be used to solve the Schrodinger equation. If barriers + interlayers are thick enought, this make no difference but if they are thin, it affects the number of confined levels. It does not 'create' minibands, though, so the results with thin barriers must be used with caution.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialises the QWunit, checking that it has all the necessary layers",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": "Initialises the QWunit, checking that it has all the necessary layers"
+          },
+          {
+            "name": "solve",
+            "description": "Solves the structure, calculating the energy levels, the absorption, etc.",
+            "input": {
+              "self": null,
+              "Efield": {
+                "type": "",
+                "description": ""
+              },
+              "WLsteps": {
+                "type": "",
+                "description": ""
+              },
+              "wavelengths": {
+                "type": "",
+                "description": ""
+              },
+              "periodic": {
+                "type": "",
+                "description": ""
+              },
+              "filter_strength": {
+                "type": "",
+                "description": ""
+              },
+              "blur": {
+                "type": "",
+                "description": ""
+              },
+              "blurmode": {
+                "type": "",
+                "description": ""
+              },
+              "offset": {
+                "type": "",
+                "description": ""
+              },
+              "mode": {
+                "type": "",
+                "description": ""
+              },
+              "use_Adachi": {
+                "type": "",
+                "description": ""
+              },
+              "calculate_absorption": {
+                "type": "",
+                "description": ""
+              },
+              "alpha_params": {
+                "type": "",
+                "description": ""
+              },
+              "T": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, Efield = 0, WLsteps = (3e-07, 1.1e-06, 801), wavelengths = None, periodic = True, filter_strength = 0.0, blur = None, blurmode = 'left', offset = 0, mode = 'kp8x8_bulk', use_Adachi = False, calculate_absorption = True, alpha_params = None, T = 293",
+            "ori_description": "Solves the structure, calculating the energy levels, the absorption, etc."
+          },
+          {
+            "name": "GetEffectiveQW",
+            "description": "Considers the device as a QW and solves its properties, including the modification of the bandeges due to strain, the efective mases and the absorption coefficient. The output is a list of layers made with materials with the effective properties after considering all these effects in addition to the quantum confinement.",
+            "input": {
+              "self": null,
+              "calculate_absorption": {
+                "type": "",
+                "description": "If absorption must be calculated"
+              },
+              "wavelengths": {
+                "type": "",
+                "description": "An array with the waveengths"
+              },
+              "periodic": {
+                "type": "",
+                "description": "If it has to be assumed that the structure is perdiodic"
+              },
+              "filter_strength": {
+                "type": "",
+                "description": ""
+              },
+              "blur": {
+                "type": "",
+                "description": ""
+              },
+              "blurmode": {
+                "type": "",
+                "description": ""
+              },
+              "mode": {
+                "type": "",
+                "description": ""
+              },
+              "use_Adachi": {
+                "type": "",
+                "description": ""
+              },
+              "alpha_params": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A dictionary with the output of the Schrodinger solver."
+              }
+            },
+            "ori_input": "self, calculate_absorption = True, wavelengths = None, periodic = True, filter_strength = 0.0, blur = None, blurmode = 'left', mode = 'kp8x8_bulk', use_Adachi = False, alpha_params = None",
+            "ori_description": "Considers the device as a QW and solves its properties, including the modification of the bandeges due to strain, the efective mases and the absorption coefficient. The output is a list of layers made with materials with the effective properties after considering all these effects in addition to the quantum confinement.  :param device: The device structure :param calculate_absorption: If absorption must be calculated :param WLsteps: wavelengths in which to calculate the absorption (input for np.linspace function) :param wavelengths: An array with the waveengths :param periodic: If it has to be assumed that the structure is perdiodic :param filter_strength: :param blur: :param blurmode: :param mode: :param use_Adachi: :param alpha_params: :return: A dictionary with the output of the Schrodinger solver."
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/qpv-research-group/solcore5",
+        "documentation": "https://solcore5.readthedocs.io/en/latest/",
+        "pypi": "https://pypi.org/project/solcore/",
+        "pypi_version": "5.10.1",
+        "tag": "v5.10.1",
+        "commit": "2df20db12c0059d784aad445cd2f1872b8189708",
+        "release_published_at": "2025-07-03T08:24:15Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "采用 GitHub Release v5.10.1，与 PyPI 5.10.1 一致。官方 Read the Docs latest 页面显示 5.10.1；旧 docs.solcore.solar/en/master/ 页面仍显示 5.7.7，故使用前者。",
+          "索引范围为 solcore 包内 Python 源文件；外部依赖、Fortran 扩展内部符号和运行时动态创建的类型不在 AST 索引中。"
+        ],
+        "release_url": "https://github.com/qpv-research-group/solcore5/releases/tag/v5.10.1",
+        "release_api": "https://api.github.com/repos/qpv-research-group/solcore5/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/solcore",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "solcore"
+        ],
+        "source_files": [
+          "solcore/__init__.py",
+          "solcore/absorption_calculator/__init__.py",
+          "solcore/absorption_calculator/absorption_QW.py",
+          "solcore/absorption_calculator/adachi_alpha.py",
+          "solcore/absorption_calculator/cppm/__init__.py",
+          "solcore/absorption_calculator/cppm/Custom_CPPB.py",
+          "solcore/absorption_calculator/dielectric_constant_models.py",
+          "solcore/absorption_calculator/kramers_kronig.py",
+          "solcore/absorption_calculator/nk_db.py",
+          "solcore/absorption_calculator/rigorous_coupled_wave.py",
+          "solcore/absorption_calculator/sopra_db.py",
+          "solcore/absorption_calculator/tmm_core_vec.py",
+          "solcore/absorption_calculator/transfer_matrix.py",
+          "solcore/analytic_solar_cells/__init__.py",
+          "solcore/analytic_solar_cells/IV.py",
+          "solcore/analytic_solar_cells/QE.py",
+          "solcore/analytic_solar_cells/depletion_approximation.py",
+          "solcore/analytic_solar_cells/detailed_balance.py",
+          "solcore/analytic_solar_cells/diode_equation.py",
+          "solcore/analytic_solar_cells/tunnel_junctions.py",
+          "solcore/config_tools.py",
+          "solcore/constants.py",
+          "solcore/crystals.py",
+          "solcore/data_analysis_tools/__init__.py",
+          "solcore/data_analysis_tools/ellipsometry_analysis.py",
+          "solcore/graphing/__init__.py",
+          "solcore/graphing/Custom_Colours.py",
+          "solcore/graphing/graph.py",
+          "solcore/graphing/graph_lines.py",
+          "solcore/graphing/graph_support.py",
+          "solcore/interpolate.py",
+          "solcore/light_source/__init__.py",
+          "solcore/light_source/light_source.py",
+          "solcore/light_source/smarts.py",
+          "solcore/light_source/spectral2.py",
+          "solcore/material_data/__init__.py",
+          "solcore/material_data/AlGaAs-Material/__init__.py",
+          "solcore/material_data/AlInP-Material/__init__.py",
+          "solcore/material_data/GaAsP-Material/__init__.py",
+          "solcore/material_data/GaInP-Material/__init__.py",
+          "solcore/material_data/InGaAs-Material/__init__.py",
+          "solcore/material_data/InGaAs-Material/test.py",
+          "solcore/material_data/InGaSb-Material/__init__.py",
+          "solcore/material_data/mobility.py",
+          "solcore/material_data/refractiveindex_info_DB/__init__.py",
+          "solcore/material_data/refractiveindex_info_DB/dbmaterial.py",
+          "solcore/material_data/refractiveindex_info_DB/dboperations.py",
+          "solcore/material_system/__init__.py",
+          "solcore/material_system/create_new_material.py",
+          "solcore/material_system/critical_point_interpolate.py",
+          "solcore/material_system/critical_point_picker.py",
+          "solcore/material_system/material_system.py",
+          "solcore/optics/__init__.py",
+          "solcore/optics/beer_lambert.py",
+          "solcore/optics/external_optics.py",
+          "solcore/optics/rcwa.py",
+          "solcore/optics/tmm.py",
+          "solcore/optimization/__init__.py",
+          "solcore/optimization/differential_evolution.py",
+          "solcore/parameter_system/__init__.py",
+          "solcore/parameter_system/parameter_system.py",
+          "solcore/poisson_drift_diffusion/__init__.py",
+          "solcore/poisson_drift_diffusion/DeviceStructure.py",
+          "solcore/poisson_drift_diffusion/DriftDiffusionUtilities.py",
+          "solcore/poisson_drift_diffusion/QWunit.py",
+          "solcore/quantum_mechanics/__init__.py",
+          "solcore/quantum_mechanics/graphics.py",
+          "solcore/quantum_mechanics/heterostructure_alignment.py",
+          "solcore/quantum_mechanics/high_level_kp_QW.py",
+          "solcore/quantum_mechanics/kp_QW.py",
+          "solcore/quantum_mechanics/kp_bulk.py",
+          "solcore/quantum_mechanics/potential_utilities.py",
+          "solcore/quantum_mechanics/strain.py",
+          "solcore/quantum_mechanics/structure_utilities.py",
+          "solcore/registries.py",
+          "solcore/science_tracker.py",
+          "solcore/sesame_drift_diffusion/__init__.py",
+          "solcore/sesame_drift_diffusion/process_structure.py",
+          "solcore/sesame_drift_diffusion/solve_pdd.py",
+          "solcore/singleton.py",
+          "solcore/smooth.py",
+          "solcore/solar_cell.py",
+          "solcore/solar_cell_solver.py",
+          "solcore/source_managed_class.py",
+          "solcore/spice/__init__.py",
+          "solcore/spice/pv_module_solver.py",
+          "solcore/spice/quasi_3D_solver.py",
+          "solcore/spice/spice.py",
+          "solcore/state.py",
+          "solcore/strain_balancing.py",
+          "solcore/structure.py",
+          "solcore/units_system/__init__.py",
+          "solcore/units_system/units_system.py"
+        ],
+        "source_file_sha256": {
+          "solcore/__init__.py": "d1ea61a7c03b997bff5308539d081f917d6da92d95e448c18db5a98e3e1a342c",
+          "solcore/absorption_calculator/__init__.py": "7e0f41aa28b542857bff2ac86ec7e5c81036beff16d7b31aaaf8098614311df2",
+          "solcore/absorption_calculator/absorption_QW.py": "4dac690f3cfe8517c7fa42ff64e537cfbea666e8ba88c5c3d4fb444220c5795f",
+          "solcore/absorption_calculator/adachi_alpha.py": "4deabc439b3b82d669cab593ae94899acb206d7c2d33c9deb7e0232639808531",
+          "solcore/absorption_calculator/cppm/__init__.py": "7d88e17e10155135265363d113eb98c7aaea27f1901fa1c4ab7b3bd6c3bcf1ed",
+          "solcore/absorption_calculator/cppm/Custom_CPPB.py": "cf3b1b0cc16317a9945e8ee91ad104bd8f06a2c2fc4a5b33948f1dee65f1527a",
+          "solcore/absorption_calculator/dielectric_constant_models.py": "10a8dc0d0ec5ba9093e0bb6b98ef74d91c18d76ab1ebd5182be8aa50e8b034cf",
+          "solcore/absorption_calculator/kramers_kronig.py": "f91c7d604657b279650cd1b121ed05a8031b6c8a6ca14f523f7484bd1eec3a13",
+          "solcore/absorption_calculator/nk_db.py": "9df87ae299b83daad7ad607465f715646702e1ed269c0bbdb394e636439651b2",
+          "solcore/absorption_calculator/rigorous_coupled_wave.py": "1c1ea260e4b9a2b217602dc6de3b89b99074a86c64b69e9564edd9b3c0bf6a7e",
+          "solcore/absorption_calculator/sopra_db.py": "1c8c17b8fd44368e5296fdf64f280868461bfc7ef9c4dce706c41d6db32d4ae1",
+          "solcore/absorption_calculator/tmm_core_vec.py": "d48e782b3e2c45a76a6446fae28e94f454a4435b384fa085edc618793ec72e74",
+          "solcore/absorption_calculator/transfer_matrix.py": "407b9232ac2751796b8e2042921947d79669b1772fe0a576d75ee33a80c3277a",
+          "solcore/analytic_solar_cells/__init__.py": "8b2b58d7bdb7085d02dba98eadec047f637356a9702924ec9f09ea0c23494450",
+          "solcore/analytic_solar_cells/IV.py": "4764fe4c337b87dbf3791cf99e129abf99f8417d83fc9250c8655cce60fbff63",
+          "solcore/analytic_solar_cells/QE.py": "51180f5abaafa2c5051f14f58060312a55a2819add69b32c37db12d810a2e5a3",
+          "solcore/analytic_solar_cells/depletion_approximation.py": "86b460c5b5299d81cf40b5540a7892279ee797827a9a3ffb368b29cbb4d82f17",
+          "solcore/analytic_solar_cells/detailed_balance.py": "37760e4d39cea26c265e5f4fc81eabe8831678e8e33f27c03e9bb1201455a8c5",
+          "solcore/analytic_solar_cells/diode_equation.py": "ac41a86378d1f0daf1e10e2cac42ce55b727c72cff734b088f996a6949734b52",
+          "solcore/analytic_solar_cells/tunnel_junctions.py": "34e28f47fb7a2a46630d0bb258d234fea9304292affa5ec250a75de8d8a4e147",
+          "solcore/config_tools.py": "b4c05c1e2b89428aa20745905f9749285c3b3a7e98c253738cb3dd475b5e5b82",
+          "solcore/constants.py": "4f1f37918c530b64d8a161051e946925f9d85c20045511c6046b5707ee98e0c0",
+          "solcore/crystals.py": "1eb7c7593c4dc05a500547b4e5256be52ebd96bed5a0c28bcdf40cbf4ab558ef",
+          "solcore/data_analysis_tools/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "solcore/data_analysis_tools/ellipsometry_analysis.py": "b5f6d3b36798ed25e2d9bf4e56ce88d875dd201141426739d20c815e362dffa7",
+          "solcore/graphing/__init__.py": "e40ed165e454d0ec881968ac6642d91d2f910b3b5b3a41a1a5de0a86a7be4498",
+          "solcore/graphing/Custom_Colours.py": "d96542f9b41d7af4d70777c7eda77df569d4150750c95f9a07857b1585b9bc14",
+          "solcore/graphing/graph.py": "6f752101e6f8164c6fd5073498ae3c7df1bb0508f79e88cbc5012cf078c682ee",
+          "solcore/graphing/graph_lines.py": "645957660c9a95558f179feaa6389b866c9903fcba30eaa1760faed06440e1be",
+          "solcore/graphing/graph_support.py": "ed5baa86e65f83ce95ffb8eb6f61690b578fce6ef4be031cf2297a51e1e04a6b",
+          "solcore/interpolate.py": "2b88ded9ee1fce5c8fb17e07ee04ffe57aade6db49bdd8af49f2241633785afc",
+          "solcore/light_source/__init__.py": "f493729008e3d7cd8cb16eba73b59809965c3762d643b3d21c3967b670e292b9",
+          "solcore/light_source/light_source.py": "b14a79f12ea1c8abf44649b7bcc7f5d942be58e9e58b09058c4a18edea330116",
+          "solcore/light_source/smarts.py": "99ef7412156fd6f6744773c193e07b08e4bdd9fa458b4dd655cbb5a23f964bd1",
+          "solcore/light_source/spectral2.py": "07298c782898f069b8d80bb68ae3480bed1cf70c6e82d45ee6339b9a2ba6cd6a",
+          "solcore/material_data/__init__.py": "185c7de48dda77e5220c18d61bdd6a490cee42509b61156b9d63bd4c120a1219",
+          "solcore/material_data/AlGaAs-Material/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "solcore/material_data/AlInP-Material/__init__.py": "e8f58737381050d627d4bb7e644998a2794d96dd0dedb9000c9e02a9fd8af10f",
+          "solcore/material_data/GaAsP-Material/__init__.py": "e2121b04fc60fc2b74b4486cfa57887dcf2760533dffc6f6bf354ca31849d3ae",
+          "solcore/material_data/GaInP-Material/__init__.py": "7488e98c1e4d2846a4006566662c5826f6b7d746a236c25600256be358388be4",
+          "solcore/material_data/InGaAs-Material/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "solcore/material_data/InGaAs-Material/test.py": "9035598f0e795bfdf4f5838398e09405afbed641eb115d36b9b13f3ed951efa3",
+          "solcore/material_data/InGaSb-Material/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "solcore/material_data/mobility.py": "2273bdd9ef29cf48676be34f18b96125a9ffaffb4b77f4e82ae896f1f735cf53",
+          "solcore/material_data/refractiveindex_info_DB/__init__.py": "06b230e939e4c1e7a95655c107aed5ce69cd66555a7e6caab38c4e53d2a39f7b",
+          "solcore/material_data/refractiveindex_info_DB/dbmaterial.py": "1d61c216cf01d59b42e5f59071786db5205a905aa0279665bf1ba0d28f8906e0",
+          "solcore/material_data/refractiveindex_info_DB/dboperations.py": "c9f5aa258347241deaa26ff4595dce21f86bd182e3b1860dae5aa1d306a72f05",
+          "solcore/material_system/__init__.py": "860dd13293841a425eae895fa9432fbcf784f7f3fa54b38edb6d40067408302e",
+          "solcore/material_system/create_new_material.py": "ae50c2686bcb392cb1554739ee117d80b22d69e9e76a5fa3b7bffa40bb46dbbb",
+          "solcore/material_system/critical_point_interpolate.py": "3bce09c02b1d0fe60b318644cda45647b6b7b0062c4860e8094e1eb662da8e7a",
+          "solcore/material_system/critical_point_picker.py": "81bfb1c178c858f42a1f1599da2bd5f6525d9f017ebf6a5e829893fff82b28e6",
+          "solcore/material_system/material_system.py": "b64e99d52618533135410ff10bb5be12ebc0bd26fae2f120cc1a274a4a65c9fe",
+          "solcore/optics/__init__.py": "2c112ed6b17cf5c67c5076da27c2390fcf3d2e05f82a4a54418fb44f7ff294fa",
+          "solcore/optics/beer_lambert.py": "a18b46f3311bd7a7f1da4d4de459392564293213d8befd15a90a7d96ccc5b539",
+          "solcore/optics/external_optics.py": "20a66e43c4db839fcc5d6e820b45202af43d6725c34d4dd8690a9baca683be48",
+          "solcore/optics/rcwa.py": "3572063ad15d595cc7b123c7ce999efeafd742aa5ec9b93894acec4a90d0669b",
+          "solcore/optics/tmm.py": "7827a4028bb65dd5942e2ee34a7e2098d789e80201e56c83d9121b7ab60237d0",
+          "solcore/optimization/__init__.py": "15a29dcff9afff3d89752f91d68101fe1386404292a19b6630d73accb631ea72",
+          "solcore/optimization/differential_evolution.py": "196a8167d28299f1233498285197527832cc6f409089fb2d503c6e727cb68ad0",
+          "solcore/parameter_system/__init__.py": "6f83a1d0db99de985a8cf75ece726ff83d6fc0fd04935814b3cc0636dfdd2ad4",
+          "solcore/parameter_system/parameter_system.py": "9adc646bc6959d5caaa9e51f261bb46fdadf8e687b86c867aad08804db1a5efd",
+          "solcore/poisson_drift_diffusion/__init__.py": "93f8916b2f4aab98c30758da0e7f3295f0bf132e5e4b53a3a00b9af3376bdb73",
+          "solcore/poisson_drift_diffusion/DeviceStructure.py": "1ff4b2e85de336c9080669f44cc519910132dc208015bfa1baa4b1062e804939",
+          "solcore/poisson_drift_diffusion/DriftDiffusionUtilities.py": "da5f89341ab6f52ef178590b0a84e3aec0597a47ca283985da3d1d325fc8f298",
+          "solcore/poisson_drift_diffusion/QWunit.py": "6afe2ae465e2fcc653117b3f29a10ce4ef2fa7a64b90abb69a4b5d03b06f729c",
+          "solcore/quantum_mechanics/__init__.py": "ea007af36cf93303cdc0fd892170fc761de27fc47ff9a703ca02ba5403d0a685",
+          "solcore/quantum_mechanics/graphics.py": "18feeca2bf437899f2b6463016d2926ff7b34412cecca195fc1f2935c2f21b48",
+          "solcore/quantum_mechanics/heterostructure_alignment.py": "32c47decc1e8552913114adf567931a0ab1afbaf66642b9322dcea3ddc131f93",
+          "solcore/quantum_mechanics/high_level_kp_QW.py": "5b43a94c0a29898a3970a31975d21632641e453b3afe48f09104de06084738f8",
+          "solcore/quantum_mechanics/kp_QW.py": "1981c28fb3b51c701ca709970d1c6fe604cffc4b8bc2c7ad41bb89268b1dbfbb",
+          "solcore/quantum_mechanics/kp_bulk.py": "d13d882e0dbede2da70ec8276d9bf4ae8c944a9cbda7a2df32032f22f6a31ec3",
+          "solcore/quantum_mechanics/potential_utilities.py": "ee34ba70247cc8a177cf62c49a50150ff8c28bce8e6439b56652d6bddc6bf5b6",
+          "solcore/quantum_mechanics/strain.py": "d0c7e88d1884aaaa9f3440b0908254f7a8b2e017b5aeb7ef56805cdaa9836cf1",
+          "solcore/quantum_mechanics/structure_utilities.py": "985162b5d128cc872789f8ee9b46799283eea8a04ceed5626d9bb74578b9d563",
+          "solcore/registries.py": "99ef7fa40ed5ab226a6f9fad7bf5e1b27fce88d16dfefb37beddffdddd59c2e4",
+          "solcore/science_tracker.py": "1b7f1439266eee7cfa7609ae4f51a8b85ea3b488a249a20fbc3ea21db192d582",
+          "solcore/sesame_drift_diffusion/__init__.py": "40901a93fcdb0424eb0932c0cb8276dd6bc30dd7edc58a547320556f25523e53",
+          "solcore/sesame_drift_diffusion/process_structure.py": "63288da83c17c4a8e12b1cb39f2b96b5eaa4a2d9b58792630ae42538cfb41b30",
+          "solcore/sesame_drift_diffusion/solve_pdd.py": "2671e6f65502761d3454ec73c4c33f2e3ca5bc5fffbb71cba921d15d55d8b461",
+          "solcore/singleton.py": "a4e1bedd73c68b385666bf32495a1422a972b5becd74746dfa97a41992b3f93c",
+          "solcore/smooth.py": "e1646a046e0366fde705f73113cf7fc03f895f4243a87789eeae2abf00cf769c",
+          "solcore/solar_cell.py": "470ace4a76d087064620b6eaf311ee81067a21d34e622e4606a3ba437ef41a18",
+          "solcore/solar_cell_solver.py": "fee5eb3d5babedd7cc56211a3acf603c703a767ca4131c7db9194f3da5b2b8ba",
+          "solcore/source_managed_class.py": "611999397a3f4cc389e0c38126d6680f9089602a47df98df6b5261528aa731a0",
+          "solcore/spice/__init__.py": "3b4a5512f0c0b5368704a49a59620f07a2488272b028ee85d8645cb74b86e990",
+          "solcore/spice/pv_module_solver.py": "4f246aafd9a16d74c9b0324eba6f7a6234d3734529fd9e5a9314b310a89cafe1",
+          "solcore/spice/quasi_3D_solver.py": "0ea2990defd9194c6d66664f093df267909f11b339bba8c5c2bfc02e8a856a2a",
+          "solcore/spice/spice.py": "0543f42c840f3bbb5f36aa09f1d00d6510a859cf030046ddc418c620b23e1146",
+          "solcore/state.py": "f7a80ee4622f8606abf991d6dea1b6f2a0326e516148b43325db15cfa6742e89",
+          "solcore/strain_balancing.py": "db57581d7df87ca02bc3ba7a1b44eb3d2d67ee93960c48140363747b99268770",
+          "solcore/structure.py": "0f3ce752321ee148a9cded687b273ca56ba7fd559deede8da4b3d5cfc09ccb44",
+          "solcore/units_system/__init__.py": "19fd999e2cc391befc2afa7bad6301bebbd138554fced9246026f63d70257c79",
+          "solcore/units_system/units_system.py": "72bdc0c2f9bff105d90b052db21c2117cae7ab89f5990390d896884263eb44b0"
+        },
+        "source_version": "v5.10.1",
+        "source_commit": "2df20db12c0059d784aad445cd2f1872b8189708",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "solcore_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/solcore_v5.10.1.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/solcore_v5.10.1.json",
+        "source_sha256": "b8208e231ba9a02b57592ee9e8ff236e9fdafcfb40d3eb1ad1c4f608d6f12936",
+        "profile_sha256": "e8fd4d100f6d99d778e2ba47c247d3aacf80e2fba3f666fe4a00cb25dc22f952",
+        "boundary": "材料/单位、光源、层结结构、介电模型、传输矩阵光学、太阳能电池高层求解及代表量子阱操作。限定本地数据库和小型计算；solar_cell_solver 的 task/kind 需限制为已验收模型。排除下载/数据库写入、SPICE、SMARTS、RCWA/S4 外部程序及底层矩阵装配，PDD/量子后端须后续独立验证。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 373,
+        "selected_tool_count": 44,
+        "selected_class_count": 17,
+        "selected_function_count": 27,
+        "selected_method_count": 56,
+        "selected_all_func": 83,
+        "missing_description_count": 15,
+        "excluded_tool_count": 329,
+        "capability_count": 7
+      }
+    }
+  }
+]
