@@ -1,0 +1,1856 @@
+[
+  {
+    "global_id": "pypi_shakenbreak_14",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/SMTG-Bham/ShakeNBreak",
+          "https://pypi.org/project/shakenbreak/",
+          "https://shakenbreak.readthedocs.io/en/latest/"
+        ],
+        "name": "shakenbreak",
+        "version": "v3.4.4",
+        "index": 14
+      },
+      "description": "ShakeNBreak 通过缺陷周围的键长畸变与随机扰动生成候选结构，并整理和分析结构弛豫结果，以搜索固体缺陷的低能、基态及亚稳态构型。它支持多种电子结构程序的输入输出及能量和结构比较，实际结构弛豫由外部计算程序完成。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 1,
+        "function": 33,
+        "class_func": 9,
+        "all_func": 42
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "identify_defect",
+        "type": "function",
+        "module": "shakenbreak.input",
+        "description": "By comparing the defect and bulk structures, identify the defect present and its site in the supercell, and generate a ``doped`` ``Defect`` object from this.",
+        "input": {
+          "defect_structure": {
+            "type": ":obj:`Structure`",
+            "description": "Defect structure"
+          },
+          "bulk_structure": {
+            "type": ":obj:`Structure`",
+            "description": "Bulk structure"
+          },
+          "defect_coords": {
+            "type": ":obj:`list`",
+            "description": "Fractional coordinates of the defect site in the supercell."
+          },
+          "defect_index": {
+            "type": ":obj:`int`",
+            "description": "Index of the defect site in the supercell. For vacancies, this should be the site index in the bulk structure, while for substitutions and interstitials it should be the site index in the defect structure."
+          },
+          "oxi_state": {
+            "type": ":obj:`int`, :obj:`float`, :obj:`str`",
+            "description": "Oxidation state of the defect site. If not provided, will be automatically determined from the defect structure."
+          }
+        },
+        "output": null,
+        "ori_input": "defect_structure, bulk_structure, defect_coords = None, defect_index = None, oxi_state = None",
+        "ori_description": "By comparing the defect and bulk structures, identify the defect present and its site in the supercell, and generate a ``doped`` ``Defect`` object from this.  Args: defect_structure (:obj:`Structure`): Defect structure bulk_structure (:obj:`Structure`): Bulk structure defect_coords (:obj:`list`): Fractional coordinates of the defect site in the supercell. defect_index (:obj:`int`): Index of the defect site in the supercell. For vacancies, this should be the site index in the bulk structure, while for substitutions and interstitials it should be the site index in the defect structure. oxi_state (:obj:`int`, :obj:`float`, :obj:`str`): Oxidation state of the defect site. If not provided, will be automatically determined from the defect structure.  Returns: :obj:`Defect`"
+      },
+      {
+        "name": "generate_defect_object",
+        "type": "function",
+        "module": "shakenbreak.input",
+        "description": "Create ``Defect`` object from a ``doped``/``PyCDT`` ``single_defect_dict``.",
+        "input": {
+          "single_defect_dict": {
+            "type": "dict",
+            "description": "``doped``/``PyCDT`` defect dictionary."
+          },
+          "bulk_dict": {
+            "type": "dict",
+            "description": "``doped``/``PyCDT`` entry for bulk in the ``defect_entries`` dictionary, (e.g. ``{\"vacancies\": {}, \"interstitials\": {}, \"bulk\": {},}``)"
+          },
+          "charges": {
+            "type": "list | None",
+            "description": "List of charge states for the defect."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information about the defect object being parsed. (Default is False)."
+          }
+        },
+        "output": null,
+        "ori_input": "single_defect_dict: dict, bulk_dict: dict, charges: list | None = None, verbose: bool = False",
+        "ori_description": "Create ``Defect`` object from a ``doped``/``PyCDT`` ``single_defect_dict``.  Args: single_defect_dict (:obj:`dict`): ``doped``/``PyCDT`` defect dictionary. bulk_dict (:obj:`dict`): ``doped``/``PyCDT`` entry for bulk in the ``defect_entries`` dictionary, (e.g. ``{\"vacancies\": {}, \"interstitials\": {}, \"bulk\": {},}``) charges (:obj:`list`): List of charge states for the defect. verbose (:obj:`bool`): Whether to print information about the defect object being parsed. (Default is False).  Returns: :obj:`Defect`"
+      },
+      {
+        "name": "distort_and_rattle_defect_entry",
+        "type": "function",
+        "module": "shakenbreak.input",
+        "description": "Applies bond distortions and rattling to ``num_nearest_neighbours`` of the unperturbed defect supercell structure of ``defect_entry`` using the ``distort_and_rattle()`` function from ``shakenbreak.distortions``.  The defect site is specified by either:  - fractional coordinates (for vacancies), or - defect site index (for substitutions/interstitials).  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg. Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info. Note that dimer distortions can be generated by setting ``distortion_factor`` to \"Dimer\"; see ``distortions.apply_dimer_distortion()`` for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.",
+        "input": {
+          "defect_entry": {
+            "type": "DefectEntry",
+            "description": "The defect to distort, as a ``doped``/``pymatgen`` ``DefectEntry``."
+          },
+          "num_nearest_neighbours": {
+            "type": "int",
+            "description": "Number of defect nearest neighbours to apply bond distortions to."
+          },
+          "distortion_factor": {
+            "type": "float | str",
+            "description": "The distortion factor or distortion name (\"Dimer\") to apply to the bond distance between the defect and nearest neighbours. Typical choice is between 0.4 (-60%) and 1.6 (+60%)."
+          },
+          "local_rattle": {
+            "type": "bool",
+            "description": "Whether to apply random displacements that tail off as we move away from the defect site. If False, all supercell sites are rattled with the same amplitude. (Default: False)"
+          },
+          "stdev": {
+            "type": "float | None",
+            "description": "Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``."
+          },
+          "d_min": {
+            "type": "float | None",
+            "description": "Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell (ignoring interstitials)."
+          },
+          "active_atoms": {
+            "type": "list | None",
+            "description": "List (or array) of which atomic indices should undergo Monte Carlo rattling. Default is to apply rattle to all atoms except the defect and the bond-distorted neighbours."
+          },
+          "distorted_element": {
+            "type": "str | None",
+            "description": "Neighbouring element to distort. If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "distorted_atoms": {
+            "type": "list | None",
+            "description": "List of atomic indices which should undergo bond distortions, using 0-indexing (i.e. python / ``pymatgen`` indexing). If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "oxidation_states": {
+            "type": "dict | None",
+            "description": "Dictionary with oxidation states of the atoms in the material (e.g. {\"Cd\": +2, \"Te\": -2})."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print distortion information. (Default: False)"
+          },
+          "dimer_bond_length": {
+            "type": "float | None",
+            "description": "The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length."
+          },
+          "mc_rattle_kwargs": {
+            "type": "**mc_rattle_kwargs",
+            "description": "Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed for setting up NumPy random state from which rattle random displacements are generated."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+          }
+        },
+        "ori_input": "defect_entry: DefectEntry, num_nearest_neighbours: int, distortion_factor: float | str, local_rattle: bool = False, stdev: float | None = None, d_min: float | None = None, active_atoms: list | None = None, distorted_element: str | None = None, distorted_atoms: list | None = None, oxidation_states: dict | None = None, verbose: bool = False, dimer_bond_length: float | None = None, **mc_rattle_kwargs",
+        "ori_description": "Applies bond distortions and rattling to ``num_nearest_neighbours`` of the unperturbed defect supercell structure of ``defect_entry`` using the ``distort_and_rattle()`` function from ``shakenbreak.distortions``.  The defect site is specified by either:  - fractional coordinates (for vacancies), or - defect site index (for substitutions/interstitials).  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg. Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info. Note that dimer distortions can be generated by setting ``distortion_factor`` to \"Dimer\"; see ``distortions.apply_dimer_distortion()`` for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  Args: defect_entry (:obj:`DefectEntry`): The defect to distort, as a ``doped``/``pymatgen`` ``DefectEntry``. num_nearest_neighbours (:obj:`int`): Number of defect nearest neighbours to apply bond distortions to. distortion_factor (:obj:`float`): The distortion factor or distortion name (\"Dimer\") to apply to the bond distance between the defect and nearest neighbours. Typical choice is between 0.4 (-60%) and 1.6 (+60%). local_rattle (:obj:`bool`): Whether to apply random displacements that tail off as we move away from the defect site. If False, all supercell sites are rattled with the same amplitude. (Default: False) stdev (:obj:`float`): Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. d_min (:obj:`float`): Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell (ignoring interstitials). active_atoms (:obj:`list`, optional): List (or array) of which atomic indices should undergo Monte Carlo rattling. Default is to apply rattle to all atoms except the defect and the bond-distorted neighbours. distorted_element (:obj:`str`, optional): Neighbouring element to distort. If None, the closest neighbours to the defect will be chosen. (Default: None) distorted_atoms (:obj:`list`, optional): List of atomic indices which should undergo bond distortions, using 0-indexing (i.e. python / ``pymatgen`` indexing). If None, the closest neighbours to the defect will be chosen. (Default: None) oxidation_states (:obj:`dict`): Dictionary with oxidation states of the atoms in the material (e.g. {\"Cd\": +2, \"Te\": -2}). verbose (:obj:`bool`): Whether to print distortion information. (Default: False) dimer_bond_length (:obj:`float`): The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length. **mc_rattle_kwargs (:obj:`dict`): Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed for setting up NumPy random state from which rattle random displacements are generated.  Returns: :obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+      },
+      {
+        "name": "apply_snb_distortions",
+        "type": "function",
+        "module": "shakenbreak.input",
+        "description": "Applies a range of bond distortions (given by ``bond_distortions``) and rattling to ``num_nearest_neighbours`` of the unperturbed defect supercell structure of ``defect_entry``, generating a range of distorted structures, using ``distort_and_rattle_defect_entry()``.  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg. Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info. Note that dimer distortions can be generated by including ``\"Dimer\"`` in the ``bond_distortions`` list; see ``distortions.apply_dimer_distortion()`` for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.",
+        "input": {
+          "defect_entry": {
+            "type": "DefectEntry",
+            "description": "The defect to distort, as a ``doped``/``pymatgen`` ``DefectEntry``."
+          },
+          "num_nearest_neighbours": {
+            "type": "int",
+            "description": "Number of defect nearest neighbours to apply bond distortions to."
+          },
+          "bond_distortions": {
+            "type": "list",
+            "description": "List of specific distortions to apply to defect nearest neighbours (e.g. [-0.5, 0.5]). If \"Dimer\" is included, then a dimer distortion is also generated."
+          },
+          "local_rattle": {
+            "type": "bool",
+            "description": "Whether to apply random displacements that tail off as we move away from the defect site. If False, all supercell sites are rattled with the same amplitude. (Default: False)"
+          },
+          "stdev": {
+            "type": "float | None",
+            "description": "Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``."
+          },
+          "d_min": {
+            "type": "float | None",
+            "description": "Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the bulk supercell."
+          },
+          "distorted_element": {
+            "type": "str | None",
+            "description": "Neighbouring element to distort. If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "distorted_atoms": {
+            "type": "list | None",
+            "description": "List of atomic indices which should undergo bond distortions, using 0-indexing (i.e. python / ``pymatgen`` indexing). If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "oxidation_states": {
+            "type": "dict | None",
+            "description": "Dictionary with oxidation states of the atoms in the material (e.g. {\"Cd\": +2, \"Te\": -2})."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print distortion information. (Default: False)"
+          },
+          "dimer_bond_length": {
+            "type": "float | None",
+            "description": "The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length in each case."
+          },
+          "mc_rattle_kwargs": {
+            "type": "**mc_rattle_kwargs",
+            "description": "Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed from which rattle random displacements are generated. Default is to set ``seed = int(distortion_factor*100)`` (i.e. +40% distortion -> distortion_factor = 1.4 -> seed = 140, Rattled -> distortion_factor = 1 (no bond distortion) -> seed = 100)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+          }
+        },
+        "ori_input": "defect_entry: DefectEntry, num_nearest_neighbours: int, bond_distortions: list, local_rattle: bool = False, stdev: float | None = None, d_min: float | None = None, distorted_element: str | None = None, distorted_atoms: list | None = None, oxidation_states: dict | None = None, verbose: bool = False, dimer_bond_length: float | None = None, **mc_rattle_kwargs",
+        "ori_description": "Applies a range of bond distortions (given by ``bond_distortions``) and rattling to ``num_nearest_neighbours`` of the unperturbed defect supercell structure of ``defect_entry``, generating a range of distorted structures, using ``distort_and_rattle_defect_entry()``.  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg. Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info. Note that dimer distortions can be generated by including ``\"Dimer\"`` in the ``bond_distortions`` list; see ``distortions.apply_dimer_distortion()`` for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  Args: defect_entry (:obj:`DefectEntry`): The defect to distort, as a ``doped``/``pymatgen`` ``DefectEntry``. num_nearest_neighbours (:obj:`int`): Number of defect nearest neighbours to apply bond distortions to. bond_distortions (:obj:`list`): List of specific distortions to apply to defect nearest neighbours (e.g. [-0.5, 0.5]). If \"Dimer\" is included, then a dimer distortion is also generated. local_rattle (:obj:`bool`): Whether to apply random displacements that tail off as we move away from the defect site. If False, all supercell sites are rattled with the same amplitude. (Default: False) stdev (:obj:`float`): Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. d_min (:obj:`float`, optional): Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the bulk supercell. distorted_element (:obj:`str`, optional): Neighbouring element to distort. If None, the closest neighbours to the defect will be chosen. (Default: None) distorted_atoms (:obj:`list`, optional): List of atomic indices which should undergo bond distortions, using 0-indexing (i.e. python / ``pymatgen`` indexing). If None, the closest neighbours to the defect will be chosen. (Default: None) oxidation_states (:obj:`dict`): Dictionary with oxidation states of the atoms in the material (e.g. {\"Cd\": +2, \"Te\": -2}). verbose (:obj:`bool`): Whether to print distortion information. (Default: False) dimer_bond_length (:obj:`float`): The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length in each case. **mc_rattle_kwargs (:obj:`dict`): Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed from which rattle random displacements are generated. Default is to set ``seed = int(distortion_factor*100)`` (i.e. +40% distortion -> distortion_factor = 1.4 -> seed = 140, Rattled -> distortion_factor = 1 (no bond distortion) -> seed = 100)  Returns: :obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+      },
+      {
+        "name": "distort",
+        "type": "function",
+        "module": "shakenbreak.distortions",
+        "description": "Applies bond distortions to ``num_nearest_neighbours`` of the defect (specified by ``site_index`` (for substitutions or interstitials, counting from 1) or ``frac_coords`` (for vacancies)).  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "Defect structure as a ``pymatgen`` ``Structure`` object."
+          },
+          "num_nearest_neighbours": {
+            "type": "int",
+            "description": "Number of defect nearest neighbours to apply bond distortions to"
+          },
+          "distortion_factor": {
+            "type": "float",
+            "description": "The distortion factor to apply to the bond distance between the defect and nearest neighbours. Typical choice is between 0.4 (-60%) and 1.6 (+60%)."
+          },
+          "site_index": {
+            "type": "int | None",
+            "description": "Index of defect site in structure (for substitutions or interstitials), using ``python`` / ``pymatgen`` 0-indexing."
+          },
+          "frac_coords": {
+            "type": "np.ndarray | None",
+            "description": "Fractional coordinates of the defect site in the structure (for vacancies)."
+          },
+          "distorted_element": {
+            "type": "str | list | None",
+            "description": "Neighbouring element(s) to distort, as a string or list of strings. If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "distorted_atoms": {
+            "type": "list | None",
+            "description": "List of atom indices to distort, using 0-indexing (i.e. python / pymatgen indexing). If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "verbose": {
+            "type": "bool | None",
+            "description": "Whether to print distortion information. (Default: False)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+          }
+        },
+        "ori_input": "structure: Structure, num_nearest_neighbours: int, distortion_factor: float, site_index: int | None = None, frac_coords: np.ndarray | None = None, distorted_element: str | list | None = None, distorted_atoms: list | None = None, verbose: bool | None = False",
+        "ori_description": "Applies bond distortions to ``num_nearest_neighbours`` of the defect (specified by ``site_index`` (for substitutions or interstitials, counting from 1) or ``frac_coords`` (for vacancies)).  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  Args: structure (:obj:`~pymatgen.core.structure.Structure`): Defect structure as a ``pymatgen`` ``Structure`` object. num_nearest_neighbours (:obj:`int`): Number of defect nearest neighbours to apply bond distortions to distortion_factor (:obj:`float`): The distortion factor to apply to the bond distance between the defect and nearest neighbours. Typical choice is between 0.4 (-60%) and 1.6 (+60%). site_index (:obj:`int`, optional): Index of defect site in structure (for substitutions or interstitials), using ``python`` / ``pymatgen`` 0-indexing. frac_coords (:obj:`numpy.ndarray`, optional): Fractional coordinates of the defect site in the structure (for vacancies). distorted_element (:obj:`str`, optional): Neighbouring element(s) to distort, as a string or list of strings. If None, the closest neighbours to the defect will be chosen. (Default: None) distorted_atoms (:obj:`list`, optional): List of atom indices to distort, using 0-indexing (i.e. python / pymatgen indexing). If None, the closest neighbours to the defect will be chosen. (Default: None) verbose (:obj:`bool`, optional): Whether to print distortion information. (Default: False)  Returns: :obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+      },
+      {
+        "name": "get_dimer_bond_length",
+        "type": "function",
+        "module": "shakenbreak.distortions",
+        "description": "Get the estimated dimer bond length between two species, using the ``get_bond_length()`` function from ``pymatgen`` (which uses a database of known covalent bond lengths), or if this fails, using the sum of the covalent radii of the two species.",
+        "input": {
+          "species_1": {
+            "type": "SpeciesLike",
+            "description": "First species."
+          },
+          "species_2": {
+            "type": "SpeciesLike",
+            "description": "Second species."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "float",
+            "description": "The estimated dimer bond length between the two species."
+          }
+        },
+        "ori_input": "species_1: SpeciesLike, species_2: SpeciesLike",
+        "ori_description": "Get the estimated dimer bond length between two species, using the ``get_bond_length()`` function from ``pymatgen`` (which uses a database of known covalent bond lengths), or if this fails, using the sum of the covalent radii of the two species.  Args: species_1 (SpeciesLike): First species. species_2 (SpeciesLike): Second species.  Returns: float: The estimated dimer bond length between the two species."
+      },
+      {
+        "name": "apply_dimer_distortion",
+        "type": "function",
+        "module": "shakenbreak.distortions",
+        "description": "Apply a dimer distortion to a defect structure.  The defect nearest neighbours are determined (using ``CrystalNN`` with default settings), from them the two closest in distance are selected, which are pushed towards each other so that their inter-atomic distance is ``dimer_bond_length`` Å.  If ``dimer_bond_length`` is ``None`` (default), then the dimer bond length is estimated using ``get_dimer_bond_length``, which uses a database of known covalent bond lengths, or if this fails, using the sum of the covalent radii of the two species.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "Defect structure."
+          },
+          "site_index": {
+            "type": "int | None",
+            "description": "Index of defect site (for non vacancy defects), using ``python`` / ``pymatgen`` 0-indexing. Defaults to None."
+          },
+          "frac_coords": {
+            "type": "np.ndarray | None",
+            "description": "Fractional coordinates of the defect site in the structure (for vacancies). Defaults to None."
+          },
+          "dimer_bond_length": {
+            "type": "float | None",
+            "description": "The bond length to set the dimer to, in Å. If ``None`` (default), uses ``get_dimer_bond_length`` to estimate the dimer bond length."
+          },
+          "verbose": {
+            "type": "bool | None",
+            "description": "Print information about the dimer distortion. Defaults to False."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "obj",
+            "description": "`Structure`: Distorted dimer structure"
+          }
+        },
+        "ori_input": "structure: Structure, site_index: int | None = None, frac_coords: np.ndarray | None = None, dimer_bond_length: float | None = None, verbose: bool | None = False",
+        "ori_description": "Apply a dimer distortion to a defect structure.  The defect nearest neighbours are determined (using ``CrystalNN`` with default settings), from them the two closest in distance are selected, which are pushed towards each other so that their inter-atomic distance is ``dimer_bond_length`` Å.  If ``dimer_bond_length`` is ``None`` (default), then the dimer bond length is estimated using ``get_dimer_bond_length``, which uses a database of known covalent bond lengths, or if this fails, using the sum of the covalent radii of the two species.  Args: structure (Structure): Defect structure. site_index (Optional[int]): Index of defect site (for non vacancy defects), using ``python`` / ``pymatgen`` 0-indexing. Defaults to None. frac_coords (Optional[np.array]): Fractional coordinates of the defect site in the structure (for vacancies). Defaults to None. dimer_bond_length (float): The bond length to set the dimer to, in Å. If ``None`` (default), uses ``get_dimer_bond_length`` to estimate the dimer bond length. verbose (Optional[bool]): Print information about the dimer distortion. Defaults to False.  Returns: obj:`Structure`: Distorted dimer structure"
+      },
+      {
+        "name": "rattle",
+        "type": "function",
+        "module": "shakenbreak.distortions",
+        "description": "Given a ``pymatgen`` ``Structure`` object, apply random displacements to all atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "Structure as a pymatgen object"
+          },
+          "stdev": {
+            "type": "float | None",
+            "description": "Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``."
+          },
+          "d_min": {
+            "type": "float | None",
+            "description": "Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information about the rattling process, if rattling initially fails with initial ``d_min``."
+          },
+          "n_iter": {
+            "type": "int",
+            "description": "Number of Monte Carlo cycles to perform. (Default: 1)"
+          },
+          "active_atoms": {
+            "type": "list | None",
+            "description": "List of which atomic indices should undergo Monte Carlo rattling. If not set, rattles all atoms in the structure. (Default: None)"
+          },
+          "nbr_cutoff": {
+            "type": "float",
+            "description": "The radial cutoff distance (in Angstroms) used to construct the list of atomic neighbours for checking interatomic distances. (Default: 5)"
+          },
+          "width": {
+            "type": "float",
+            "description": "Width of the Monte Carlo rattling error function, in Angstroms. (Default: 0.1)"
+          },
+          "max_attempts": {
+            "type": "int",
+            "description": "Maximum Monte Carlo rattle move attempts allowed for a single atom; if this limit is reached an ``Exception`` is raised. (Default: 5000)"
+          },
+          "max_disp": {
+            "type": "float",
+            "description": "Maximum atomic displacement (in Angstroms) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0)"
+          },
+          "seed": {
+            "type": "int",
+            "description": "Seed for NumPy random state from which random rattle displacements are generated. (Default: 42)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`Structure`: Rattled ``pymatgen`` ``Structure`` object"
+          }
+        },
+        "ori_input": "structure: Structure, stdev: float | None = None, d_min: float | None = None, verbose: bool = False, n_iter: int = 1, active_atoms: list | None = None, nbr_cutoff: float = 5, width: float = 0.1, max_attempts: int = 5000, max_disp: float = 2.0, seed: int = 42",
+        "ori_description": "Given a ``pymatgen`` ``Structure`` object, apply random displacements to all atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``.  Args: structure (:obj:`~pymatgen.core.structure.Structure`): Structure as a pymatgen object stdev (:obj:`float`): Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. d_min (:obj:`float`): Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell. verbose (:obj:`bool`): Whether to print information about the rattling process, if rattling initially fails with initial ``d_min``. n_iter (:obj:`int`): Number of Monte Carlo cycles to perform. (Default: 1) active_atoms (:obj:`list`, optional): List of which atomic indices should undergo Monte Carlo rattling. If not set, rattles all atoms in the structure. (Default: None) nbr_cutoff (:obj:`float`): The radial cutoff distance (in Angstroms) used to construct the list of atomic neighbours for checking interatomic distances. (Default: 5) width (:obj:`float`): Width of the Monte Carlo rattling error function, in Angstroms. (Default: 0.1) max_disp (:obj:`float`): Maximum atomic displacement (in Angstroms) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) max_attempts (:obj:`int`): Maximum Monte Carlo rattle move attempts allowed for a single atom; if this limit is reached an ``Exception`` is raised. (Default: 5000) seed (:obj:`int`): Seed for NumPy random state from which random rattle displacements are generated. (Default: 42)  Returns: :obj:`Structure`: Rattled ``pymatgen`` ``Structure`` object"
+      },
+      {
+        "name": "distort_and_rattle",
+        "type": "function",
+        "module": "shakenbreak.distortions",
+        "description": "Applies bond distortions and rattling to ``num_nearest_neighbours`` of the defect (specified by ``site_index`` (for substitutions or interstitials, counting from 1) or ``frac_coords`` (for vacancies)).  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg. Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``rattle()`` docstring for more info. Note that dimer distortions can be generated by setting ``distortion_factor`` to \"Dimer\"; see ``apply_dimer_distortion()`` for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "Defect structure as a ``pymatgen`` ``Structure`` object."
+          },
+          "distortion_factor": {
+            "type": "float | str",
+            "description": "The distortion factor or distortion name (\"Dimer\") to apply to the bond distance between the defect and nearest neighbours. Typical choice is between 0.4 (-60%) and 1.6 (+60%)."
+          },
+          "num_nearest_neighbours": {
+            "type": "int",
+            "description": "Number of defect nearest neighbours to apply bond distortions to. Default is 0."
+          },
+          "site_index": {
+            "type": "int | None",
+            "description": "Index of defect site in structure (for substitutions or interstitials), using ``python`` / ``pymatgen`` 0-indexing."
+          },
+          "frac_coords": {
+            "type": "np.ndarray | None",
+            "description": "Fractional coordinates of the defect site in the structure (for vacancies)."
+          },
+          "local_rattle": {
+            "type": "bool",
+            "description": "Whether to apply random displacements that tail off as we move away from the defect site. If False, all supercell sites are rattled with the same amplitude. (Default: False)"
+          },
+          "stdev": {
+            "type": "float | None",
+            "description": "Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``."
+          },
+          "d_min": {
+            "type": "float | None",
+            "description": "Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell (ignoring interstitials)."
+          },
+          "active_atoms": {
+            "type": "list | None",
+            "description": "List (or array) of which atomic indices should undergo Monte Carlo rattling. Default is to apply rattle to all atoms except the defect and the bond-distorted neighbours."
+          },
+          "distorted_element": {
+            "type": "str | None",
+            "description": "Neighbouring element to distort. If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "distorted_atoms": {
+            "type": "list | None",
+            "description": "List of atom indices which can undergo bond distortions, using 0-indexing (i.e. python / pymatgen indexing). If None, the closest neighbours to the defect will be chosen. (Default: None)"
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print distortion information. (Default: False)"
+          },
+          "dimer_bond_length": {
+            "type": "float | None",
+            "description": "The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length."
+          },
+          "mc_rattle_kwargs": {
+            "type": "**mc_rattle_kwargs",
+            "description": "Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed for setting up NumPy random state from which rattle random displacements are generated."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+          }
+        },
+        "ori_input": "structure: Structure, distortion_factor: float | str, num_nearest_neighbours: int = 0, site_index: int | None = None, frac_coords: np.ndarray | None = None, local_rattle: bool = False, stdev: float | None = None, d_min: float | None = None, active_atoms: list | None = None, distorted_element: str | None = None, distorted_atoms: list | None = None, verbose: bool = False, dimer_bond_length: float | None = None, **mc_rattle_kwargs",
+        "ori_description": "Applies bond distortions and rattling to ``num_nearest_neighbours`` of the defect (specified by ``site_index`` (for substitutions or interstitials, counting from 1) or ``frac_coords`` (for vacancies)).  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg. Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``rattle()`` docstring for more info. Note that dimer distortions can be generated by setting ``distortion_factor`` to \"Dimer\"; see ``apply_dimer_distortion()`` for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  Args: structure (:obj:`~pymatgen.core.structure.Structure`): Defect structure as a ``pymatgen`` ``Structure`` object. distortion_factor (:obj:`float`): The distortion factor or distortion name (\"Dimer\") to apply to the bond distance between the defect and nearest neighbours. Typical choice is between 0.4 (-60%) and 1.6 (+60%). num_nearest_neighbours (:obj:`int`): Number of defect nearest neighbours to apply bond distortions to. Default is 0. site_index (:obj:`int`, optional): Index of defect site in structure (for substitutions or interstitials), using ``python`` / ``pymatgen`` 0-indexing. frac_coords (:obj:`numpy.ndarray`, optional): Fractional coordinates of the defect site in the structure (for vacancies). local_rattle (:obj:`bool`): Whether to apply random displacements that tail off as we move away from the defect site. If False, all supercell sites are rattled with the same amplitude. (Default: False) stdev (:obj:`float`): Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. d_min (:obj:`float`): Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell (ignoring interstitials). active_atoms (:obj:`list`, optional): List (or array) of which atomic indices should undergo Monte Carlo rattling. Default is to apply rattle to all atoms except the defect and the bond-distorted neighbours. distorted_element (:obj:`str`, optional): Neighbouring element to distort. If None, the closest neighbours to the defect will be chosen. (Default: None) distorted_atoms (:obj:`list`, optional): List of atom indices which can undergo bond distortions, using 0-indexing (i.e. python / pymatgen indexing). If None, the closest neighbours to the defect will be chosen. (Default: None) verbose (:obj:`bool`): Whether to print distortion information. (Default: False) dimer_bond_length (:obj:`float`): The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length. **mc_rattle_kwargs (:obj:`dict`): Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed for setting up NumPy random state from which rattle random displacements are generated.  Returns: :obj:`dict`: Dictionary with distorted defect structure and the distortion parameters."
+      },
+      {
+        "name": "local_mc_rattle",
+        "type": "function",
+        "module": "shakenbreak.distortions",
+        "description": "Given a ``pymatgen`` ``Structure`` object, apply random displacements to all atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``. The random displacements tail off as we move away from the defect site.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "Structure as a pymatgen object"
+          },
+          "site_index": {
+            "type": "int | None",
+            "description": "Index of defect site in structure (for substitutions or interstitials), using ``python`` / ``pymatgen`` 0-indexing."
+          },
+          "frac_coords": {
+            "type": "np.ndarray | None",
+            "description": "Fractional coordinates of the defect site in the structure (for vacancies)."
+          },
+          "stdev": {
+            "type": "float | None",
+            "description": "Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``."
+          },
+          "d_min": {
+            "type": "float | None",
+            "description": "Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell (ignoring interstitials)."
+          },
+          "verbose": {
+            "type": "bool | None",
+            "description": "Whether to print information about the rattling process, if rattling initially fails with initial ``d_min``."
+          },
+          "n_iter": {
+            "type": "int",
+            "description": "Number of Monte Carlo cycles to perform. (Default: 1)"
+          },
+          "active_atoms": {
+            "type": "list | None",
+            "description": "List of which atomic indices should undergo Monte Carlo rattling. (Default: None)"
+          },
+          "nbr_cutoff": {
+            "type": "float",
+            "description": "The radial cutoff distance (in Angstroms) used to construct the list of atomic neighbours for checking interatomic distances. (Default: 5)"
+          },
+          "width": {
+            "type": "float",
+            "description": "Width of the Monte Carlo rattling error function, in Angstroms. (Default: 0.1)"
+          },
+          "max_attempts": {
+            "type": "int",
+            "description": "Maximum Monte Carlo rattle move attempts allowed for a single atom; if this limit is reached an ``Exception`` is raised. (Default: 5000)"
+          },
+          "max_disp": {
+            "type": "float",
+            "description": "Maximum atomic displacement (in Angstroms) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0)"
+          },
+          "seed": {
+            "type": "int",
+            "description": "Seed for NumPy random state from which random rattle displacements are generated. (Default: 42)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`Structure`: Rattled ``pymatgen`` ``Structure`` object"
+          }
+        },
+        "ori_input": "structure: Structure, site_index: int | None = None, frac_coords: np.ndarray | None = None, stdev: float | None = None, d_min: float | None = None, verbose: bool | None = False, n_iter: int = 1, active_atoms: list | None = None, nbr_cutoff: float = 5, width: float = 0.1, max_attempts: int = 5000, max_disp: float = 2.0, seed: int = 42",
+        "ori_description": "Given a ``pymatgen`` ``Structure`` object, apply random displacements to all atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``. The random displacements tail off as we move away from the defect site.  Args: structure (:obj:`~pymatgen.core.structure.Structure`): Structure as a pymatgen object site_index (:obj:`int`, optional): Index of defect site in structure (for substitutions or interstitials), using ``python`` / ``pymatgen`` 0-indexing. frac_coords (:obj:`numpy.ndarray`, optional): Fractional coordinates of the defect site in the structure (for vacancies). stdev (:obj:`float`): Standard deviation (in Angstroms) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the bulk nearest neighbour distance. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. d_min (:obj:`float`): Minimum interatomic distance (in Angstroms) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the defect supercell (ignoring interstitials). verbose (:obj:`bool`): Whether to print information about the rattling process, if rattling initially fails with initial ``d_min``. n_iter (:obj:`int`): Number of Monte Carlo cycles to perform. (Default: 1) active_atoms (:obj:`list`, optional): List of which atomic indices should undergo Monte Carlo rattling. (Default: None) nbr_cutoff (:obj:`float`): The radial cutoff distance (in Angstroms) used to construct the list of atomic neighbours for checking interatomic distances. (Default: 5) width (:obj:`float`): Width of the Monte Carlo rattling error function, in Angstroms. (Default: 0.1) max_disp (:obj:`float`): Maximum atomic displacement (in Angstroms) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) max_attempts (:obj:`int`): Maximum Monte Carlo rattle move attempts allowed for a single atom; if this limit is reached an ``Exception`` is raised. (Default: 5000) seed (:obj:`int`): Seed for NumPy random state from which random rattle displacements are generated. (Default: 42)  Returns: :obj:`Structure`: Rattled ``pymatgen`` ``Structure`` object"
+      },
+      {
+        "name": "Distortions",
+        "type": "class",
+        "module": "shakenbreak.input",
+        "input": "",
+        "description": "Class to apply rattle and bond distortion to all defects in ``defect_entries`` (each defect as a ``doped`` or ``pymatgen`` ``DefectEntry`` object).",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialises the relevant information for generating ``ShakeNBreak`` distorted structures for defect entries in ``defect_entries``.  The `default` distortions generated have the bond lengths of ``X`` nearest neighbours distorted by -60% to +60% (``bond_distortions``) in increments of 10% (``distortion_increment``), where ``X`` is equal to the excess charge for that defect species (e.g. ``2`` for ``v_Cd_0``; see SnB tutorial: https://shakenbreak.readthedocs.io/en/latest/ShakeNBreak_Example_Workflow.html or npj theory paper: https://doi.org/10.1038/s41524-023-00973-1 for more info). Additionally, a dimer distortion will be included by default for each vacancy defect (see ``distortions.apply_dimer_distortion`` for more info), and distortions which result in inter-atomic distances less than 1 Å are excluded (unless Hydrogen is present).  Rattling is then performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info. Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg (in ``mc_rattle_kwargs``).  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  The bond distortion and rattling approaches are highly customisable via ``kwargs`` to this class and its methods, so see the argument descriptions for more info.",
+            "input": {
+              "self": null,
+              "defect_entries": {
+                "type": "DefectsGenerator | list | dict | DefectEntry",
+                "description": "Either a ``DefectsGenerator`` object from ``doped``, or a list/dictionary of, or single, ``DefectEntry`` object(s). E.g.: ``[DefectEntry(), DefectEntry(), ...]``, or single ``DefectEntry``. If a ``DefectsGenerator`` object or a dictionary (-> ``{defect_species: DefectEntry}``), the defect folder names will be set equal to ``defect_species`` (with charge states included). If a list or single ``DefectEntry`` object is provided, the defect folder names will be set equal to ``DefectEntry.name`` if the ``name`` attribute is set for all input ``DefectEntry``\\s, otherwise generated according to the ``doped`` convention (see: https://doped.readthedocs.io/en/latest/generation_tutorial.html).  Defect charge states (from which bond distortions are determined) are taken from the ``DefectEntry.charge_state`` property.  Alternatively, a defects dict generated by ``ChargedDefectStructures`` from ``PyCDT``/``doped<2.0`` can also be used as input, and the defect names and charge states generated by these codes will be used E.g.: ``{\"bulk\": {..}, \"vacancies\": [{...}, {...},], ...}``"
+              },
+              "oxidation_states": {
+                "type": "dict | None",
+                "description": "Dictionary of oxidation states for species in your material, used to determine the number of defect neighbours to distort (e.g {\"Cd\": +2, \"Te\": -2}). If none is provided, the oxidation states will be guessed based on the bulk composition and most common oxidation states of any extrinsic species."
+              },
+              "dict_number_electrons_user": {
+                "type": "dict | None",
+                "description": "Optional argument to set the number of extra/missing charge (negative of electron count change) for the input defects in their neutral state, as a dictionary with format {'defect_name': charge_change} where charge_change is the negative of the number of extra/missing electrons. (Default: None)"
+              },
+              "distortion_increment": {
+                "type": "float",
+                "description": "Bond distortion increment. Distortion factors will range from 0 to +/-0.6, in increments of ``distortion_increment``. Recommended values: 0.1-0.3 (Default: 0.1)"
+              },
+              "bond_distortions": {
+                "type": "list | None",
+                "description": "List of bond distortions to apply to nearest neighbours, instead of the default set described above (e.g. [-0.5, 0.5]). (Default: None)"
+              },
+              "local_rattle": {
+                "type": "bool",
+                "description": "Whether to apply random displacements that tail off as we move away from the defect site. Not recommended as typically worsens performance. If False (default), all supercell sites are rattled with the same amplitude (full rattle). (Default: False)"
+              },
+              "distorted_elements": {
+                "type": "dict | None",
+                "description": "Optional argument to specify the neighbouring elements to distort for each defect, in the form of a dictionary with format {'defect_name': ['element1', 'element2', ...]} (e.g {'vac_1_Cd': ['Te']}). If None, the closest neighbours to the defect are chosen. (Default: None)"
+              },
+              "distorted_atoms": {
+                "type": "list | None",
+                "description": "Optional argument to specify the indices of the neighbouring atoms to distort for each defect (with indices starting from 0, matching python / ``pymatgen`` 0-indexing) for each defect, in the form of a dictionary with format: ``{'defect_name': [index_1, index_2, ...]}`` (e.g ``{'vac_1_Cd': [0, 2]}``). If None (default), the closest neighbours to the defect are chosen."
+              },
+              "dimer_bond_length": {
+                "type": "float | None",
+                "description": "The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length in each case."
+              },
+              "mc_rattle_kwargs": {
+                "type": "**mc_rattle_kwargs",
+                "description": "Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - stdev (:obj:`float`): Standard deviation (in Å) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the nearest neighbour distance in the bulk supercell. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. - d_min (:obj:`float`): Minimum interatomic distance (in Å) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the bulk supercell. - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed from which rattle random displacements are generated. Default is to set ``seed = int(distortion_factor*100``) (i.e. +40% distortion -> distortion_factor = 1.4 -> seed = 140, Rattled -> distortion_factor = 1 (no bond distortion) -> seed = 100)"
+              }
+            },
+            "output": null,
+            "ori_input": "self, defect_entries: DefectsGenerator | list | dict | DefectEntry, oxidation_states: dict | None = None, dict_number_electrons_user: dict | None = None, distortion_increment: float = 0.1, bond_distortions: list | None = None, local_rattle: bool = False, distorted_elements: dict | None = None, distorted_atoms: list | None = None, dimer_bond_length: float | None = None, **mc_rattle_kwargs",
+            "ori_description": "Initialises the relevant information for generating ``ShakeNBreak`` distorted structures for defect entries in ``defect_entries``.  The `default` distortions generated have the bond lengths of ``X`` nearest neighbours distorted by -60% to +60% (``bond_distortions``) in increments of 10% (``distortion_increment``), where ``X`` is equal to the excess charge for that defect species (e.g. ``2`` for ``v_Cd_0``; see SnB tutorial: https://shakenbreak.readthedocs.io/en/latest/ShakeNBreak_Example_Workflow.html or npj theory paper: https://doi.org/10.1038/s41524-023-00973-1 for more info). Additionally, a dimer distortion will be included by default for each vacancy defect (see ``distortions.apply_dimer_distortion`` for more info), and distortions which result in inter-atomic distances less than 1 Å are excluded (unless Hydrogen is present).  Rattling is then performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info. Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg (in ``mc_rattle_kwargs``).  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  The bond distortion and rattling approaches are highly customisable via ``kwargs`` to this class and its methods, so see the argument descriptions for more info.  Args: defect_entries (Union[DefectsGenerator, list, dict, DefectEntry]): Either a ``DefectsGenerator`` object from ``doped``, or a list/dictionary of, or single, ``DefectEntry`` object(s). E.g.: ``[DefectEntry(), DefectEntry(), ...]``, or single ``DefectEntry``. If a ``DefectsGenerator`` object or a dictionary (-> ``{defect_species: DefectEntry}``), the defect folder names will be set equal to ``defect_species`` (with charge states included). If a list or single ``DefectEntry`` object is provided, the defect folder names will be set equal to ``DefectEntry.name`` if the ``name`` attribute is set for all input ``DefectEntry``\\s, otherwise generated according to the ``doped`` convention (see: https://doped.readthedocs.io/en/latest/generation_tutorial.html).  Defect charge states (from which bond distortions are determined) are taken from the ``DefectEntry.charge_state`` property.  Alternatively, a defects dict generated by ``ChargedDefectStructures`` from ``PyCDT``/``doped<2.0`` can also be used as input, and the defect names and charge states generated by these codes will be used E.g.: ``{\"bulk\": {..}, \"vacancies\": [{...}, {...},], ...}`` oxidation_states (:obj:`dict`): Dictionary of oxidation states for species in your material, used to determine the number of defect neighbours to distort (e.g {\"Cd\": +2, \"Te\": -2}). If none is provided, the oxidation states will be guessed based on the bulk composition and most common oxidation states of any extrinsic species. dict_number_electrons_user (:obj:`dict`): Optional argument to set the number of extra/missing charge (negative of electron count change) for the input defects in their neutral state, as a dictionary with format {'defect_name': charge_change} where charge_change is the negative of the number of extra/missing electrons. (Default: None) distortion_increment (:obj:`float`): Bond distortion increment. Distortion factors will range from 0 to +/-0.6, in increments of ``distortion_increment``. Recommended values: 0.1-0.3 (Default: 0.1) bond_distortions (:obj:`list`): List of bond distortions to apply to nearest neighbours, instead of the default set described above (e.g. [-0.5, 0.5]). (Default: None) local_rattle (:obj:`bool`): Whether to apply random displacements that tail off as we move away from the defect site. Not recommended as typically worsens performance. If False (default), all supercell sites are rattled with the same amplitude (full rattle). (Default: False) distorted_elements (:obj:`dict`): Optional argument to specify the neighbouring elements to distort for each defect, in the form of a dictionary with format {'defect_name': ['element1', 'element2', ...]} (e.g {'vac_1_Cd': ['Te']}). If None, the closest neighbours to the defect are chosen. (Default: None) distorted_atoms (:obj:`list`): Optional argument to specify the indices of the neighbouring atoms to distort for each defect (with indices starting from 0, matching python / ``pymatgen`` 0-indexing) for each defect, in the form of a dictionary with format: ``{'defect_name': [index_1, index_2, ...]}`` (e.g ``{'vac_1_Cd': [0, 2]}``). If None (default), the closest neighbours to the defect are chosen. dimer_bond_length (:obj:`float`): The bond length to set generated dimers in dimer distortions to, in Å. If ``None`` (default), uses ``distortions.get_dimer_bond_length`` to estimate the dimer bond length in each case. **mc_rattle_kwargs (:obj:`dict`): Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - stdev (:obj:`float`): Standard deviation (in Å) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the nearest neighbour distance in the bulk supercell. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. - d_min (:obj:`float`): Minimum interatomic distance (in Å) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the bulk supercell. - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed from which rattle random displacements are generated. Default is to set ``seed = int(distortion_factor*100``) (i.e. +40% distortion -> distortion_factor = 1.4 -> seed = 140, Rattled -> distortion_factor = 1 (no bond distortion) -> seed = 100)"
+          },
+          {
+            "name": "from_structures",
+            "description": "Initialise ``Distortions`` from defect and bulk structures.  See the ``Distortions`` docstring for information on behaviour and arguments.",
+            "input": {
+              "cls": null,
+              "defects": {
+                "type": "list",
+                "description": "List of defect structures, or a single defect structure for which to generate distorted structures. If auto site-matching fails, the fractional coordinates or index of the defect site (in defect_structure for interstitials/substitutions, in bulk_structure for vacancies) can be provided in the format: ``[(defect Structure, frac_coords/index), ...]`` to aid site-matching.  Defect charge states (from which bond distortions are determined) are set to the range: 0 - {Defect oxidation state}, with a ``padding`` (default = 1) on either side of this range."
+              },
+              "bulk": {
+                "type": "Structure",
+                "description": "Bulk supercell structure, matching defect supercells."
+              },
+              "oxidation_states": {
+                "type": "dict | None",
+                "description": "Dictionary of oxidation states for species in your material, used to determine the number of defect neighbours to distort (e.g {\"Cd\": +2, \"Te\": -2}). If none is provided, the oxidation states will be guessed based on the bulk composition and most common oxidation states of any extrinsic species."
+              },
+              "padding": {
+                "type": "int",
+                "description": "Defect charge states are set to the range: 0 - {Defect oxidation state}, with a ``padding`` (default = 1) on either side of this range."
+              },
+              "dict_number_electrons_user": {
+                "type": "dict | None",
+                "description": "Optional argument to set the number of extra/missing charge (negative of electron count change) for the input defects in their neutral state, as a dictionary with format {'defect_name': charge_change} where charge_change is the negative of the number of extra/missing electrons. (Default: None)"
+              },
+              "distortion_increment": {
+                "type": "float",
+                "description": "Bond distortion increment. Distortion factors will range from 0 to +/-0.6, in increments of ``distortion_increment``. Recommended values: 0.1-0.3 (Default: 0.1)"
+              },
+              "bond_distortions": {
+                "type": "list | None",
+                "description": "List of bond distortions to apply to nearest neighbours, instead of the default set (e.g. [-0.5, 0.5]). (Default: None)"
+              },
+              "local_rattle": {
+                "type": "bool",
+                "description": "Whether to apply random displacements that tail off as we move away from the defect site. Not recommended as typically worsens performance. If False (default), all supercell sites are rattled with the same amplitude (full rattle). (Default: False)"
+              },
+              "distorted_elements": {
+                "type": "dict | None",
+                "description": "Optional argument to specify the neighbouring elements to distort for each defect, in the form of a dictionary with format {'defect_name': ['element1', 'element2', ...]} (e.g {'vac_1_Cd': ['Te']}). If None, the closest neighbours to the defect are chosen. (Default: None)"
+              },
+              "distorted_atoms": {
+                "type": "list | None",
+                "description": "Optional argument to specify the indices of the neighbouring atoms to distort for each defect (with indices starting from 0, matching python / ``pymatgen`` 0-indexing), in the form of a dictionary with"
+              },
+              "mc_rattle_kwargs": {
+                "type": "**mc_rattle_kwargs",
+                "description": "Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - stdev (:obj:`float`): Standard deviation (in Å) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the nearest neighbour distance in the bulk supercell. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. - d_min (:obj:`float`): Minimum interatomic distance (in Å) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the bulk supercell. - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed from which rattle random displacements are generated. Default is to set seed = int(distortion_factor*100) (i.e. +40% distortion -> distortion_factor = 1.4 -> seed = 140, Rattled -> distortion_factor = 1 (no bond distortion) -> seed = 100)"
+              }
+            },
+            "output": null,
+            "ori_input": "cls, defects: list, bulk: Structure, oxidation_states: dict | None = None, padding: int = 1, dict_number_electrons_user: dict | None = None, distortion_increment: float = 0.1, bond_distortions: list | None = None, local_rattle: bool = False, distorted_elements: dict | None = None, distorted_atoms: list | None = None, **mc_rattle_kwargs",
+            "ori_description": "Initialise ``Distortions`` from defect and bulk structures.  See the ``Distortions`` docstring for information on behaviour and arguments.  Args: defects (:obj:`list_or_Structure`): List of defect structures, or a single defect structure for which to generate distorted structures. If auto site-matching fails, the fractional coordinates or index of the defect site (in defect_structure for interstitials/substitutions, in bulk_structure for vacancies) can be provided in the format: ``[(defect Structure, frac_coords/index), ...]`` to aid site-matching.  Defect charge states (from which bond distortions are determined) are set to the range: 0 - {Defect oxidation state}, with a ``padding`` (default = 1) on either side of this range. bulk (:obj:`pymatgen.core.structure.Structure`): Bulk supercell structure, matching defect supercells. oxidation_states (:obj:`dict`): Dictionary of oxidation states for species in your material, used to determine the number of defect neighbours to distort (e.g {\"Cd\": +2, \"Te\": -2}). If none is provided, the oxidation states will be guessed based on the bulk composition and most common oxidation states of any extrinsic species. padding (:obj:`int`): Defect charge states are set to the range: 0 - {Defect oxidation state}, with a ``padding`` (default = 1) on either side of this range. dict_number_electrons_user (:obj:`dict`): Optional argument to set the number of extra/missing charge (negative of electron count change) for the input defects in their neutral state, as a dictionary with format {'defect_name': charge_change} where charge_change is the negative of the number of extra/missing electrons. (Default: None) distortion_increment (:obj:`float`): Bond distortion increment. Distortion factors will range from 0 to +/-0.6, in increments of ``distortion_increment``. Recommended values: 0.1-0.3 (Default: 0.1) bond_distortions (:obj:`list`): List of bond distortions to apply to nearest neighbours, instead of the default set (e.g. [-0.5, 0.5]). (Default: None) local_rattle (:obj:`bool`): Whether to apply random displacements that tail off as we move away from the defect site. Not recommended as typically worsens performance. If False (default), all supercell sites are rattled with the same amplitude (full rattle). (Default: False) distorted_elements (:obj:`dict`): Optional argument to specify the neighbouring elements to distort for each defect, in the form of a dictionary with format {'defect_name': ['element1', 'element2', ...]} (e.g {'vac_1_Cd': ['Te']}). If None, the closest neighbours to the defect are chosen. (Default: None) distorted_atoms (:obj:`list`): Optional argument to specify the indices of the neighbouring atoms to distort for each defect (with indices starting from 0, matching python / ``pymatgen`` 0-indexing), in the form of a dictionary with format: ``{'defect_name': [atom1, atom2, ...]}`` (e.g ``{'vac_1_Cd': [0, 1]}``). If None, the closest neighbours to the defect are chosen. (Default: None) **mc_rattle_kwargs (:obj:`dict`): Additional keyword arguments to pass to ``hiphive``'s ``mc_rattle`` function. These include:  - stdev (:obj:`float`): Standard deviation (in Å) of the Gaussian distribution from which random atomic displacement distances are drawn during rattling. Default is set to 10% of the nearest neighbour distance in the bulk supercell. Note that the average displacement distance will be roughly equal to ``stdev * 1.6``. - d_min (:obj:`float`): Minimum interatomic distance (in Å) in the rattled structure. Monte Carlo rattle moves that put atoms at distances less than this will be heavily penalised. Default is to set this to 80% of the nearest neighbour distance in the bulk supercell. - max_disp (:obj:`float`): Maximum atomic displacement (in Å) during Monte Carlo rattling. Rarely occurs and is used primarily as a safety net. (Default: 2.0) - max_attempts (:obj:`int`): Limit for how many attempted rattle moves are allowed a single atom. - active_atoms (:obj:`list`): List of the atomic indices which should undergo Monte Carlo rattling. By default, all atoms are rattled. (Default: None) - seed (:obj:`int`): Seed from which rattle random displacements are generated. Default is to set seed = int(distortion_factor*100) (i.e. +40% distortion -> distortion_factor = 1.4 -> seed = 140, Rattled -> distortion_factor = 1 (no bond distortion) -> seed = 100)"
+          },
+          {
+            "name": "apply_distortions",
+            "description": "Applies a range of bond distortions (given by ``self.bond_distortions``) and rattling to the unperturbed defect supercell structures of all defects in ``self.defect_entries``, using ``apply_snb_distortions()``.  Returns a dictionary with the distorted (and undistorted) structures for each charge state of each defect. If file generation is desired, instead use the methods ``write_<code>_files()``.  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg (in ``mc_rattle_kwargs``). Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  The bond distortion and rattling approaches are highly customisable via ``kwargs`` to this class and its methods, so see the argument descriptions for more info.",
+            "input": {
+              "self": null,
+              "verbose": {
+                "type": "bool | None",
+                "description": "Whether to print distortion information (bond atoms and distances) for each charged defect. (Default: None -- medium level verbosity)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "obj:`tuple`: Tuple of a dictionary with the distorted and undistorted structures for each charge state of each defect, in the format: .. code-block:: python {'defect_name': { 'charges': { {charge_state}: { 'structures': {...}, }, }, }} and dictionary with distortion parameters for each defect."
+              }
+            },
+            "ori_input": "self, verbose: bool | None = None",
+            "ori_description": "Applies a range of bond distortions (given by ``self.bond_distortions``) and rattling to the unperturbed defect supercell structures of all defects in ``self.defect_entries``, using ``apply_snb_distortions()``.  Returns a dictionary with the distorted (and undistorted) structures for each charge state of each defect. If file generation is desired, instead use the methods ``write_<code>_files()``.  Note that by default, rattling is not applied to the defect site or distorted neighbours, but to all other atoms in the supercell, however this can be controlled with the ``active_atoms`` kwarg (in ``mc_rattle_kwargs``). Rattling is performed by applying random displacements to atomic positions, with the displacement distances randomly drawn from a Gaussian distribution of standard deviation ``stdev``, using a Monte Carlo algorithm which disfavours moves that bring atoms closer than ``d_min``. Rattling behaviour can be controlled with ``mc_rattle_kwargs``, see the ``distortions.rattle()`` docstring for more info.  The nearest neighbours to distort are chosen by taking all sites (or those matching ``distorted_element`` / ``distorted_atoms``, if provided), then sorting by distance to the defect site (rounded to 2 decimal places) and site index, and then taking the first ``num_nearest_neighbours`` of these. If there are multiple non-degenerate combinations of (nearly) equidistant NNs to distort (e.g. cis vs trans when distorting 2 NNs in a 4 NN square coordination), then the combination with distorted NNs closest to each other is chosen.  The bond distortion and rattling approaches are highly customisable via ``kwargs`` to this class and its methods, so see the argument descriptions for more info.  Args: verbose (:obj:`bool`): Whether to print distortion information (bond atoms and distances) for each charged defect. (Default: None -- medium level verbosity)  Returns: :obj:`tuple`: Tuple of a dictionary with the distorted and undistorted structures for each charge state of each defect, in the format:  .. code-block:: python  {'defect_name': { 'charges': { {charge_state}: { 'structures': {...}, }, }, }}  and dictionary with distortion parameters for each defect."
+          },
+          {
+            "name": "write_distortion_metadata",
+            "description": "Write distortion metadata to file.  If the file already exists then the previous metadata will be renamed to ``distortion_metadata_<datetime>.json`` (if it differs from the current metadata), and also combined with the current metadata if compatible (i.e. if they are using similar distortion parameters and only differ in the set of defects / charge states / distortions used), before writing this combined metadata to file.  If defect and/or charge are specified, then only distortion metadata for that defect and/or charge state will be written.",
+            "input": {
+              "self": null,
+              "output_path": {
+                "type": "str",
+                "description": "Path to directory where the metadata file will be written."
+              },
+              "defect": {
+                "type": "str | None",
+                "description": "Name of the defect for which to write the metadata. If None, the metadata for all defects will be written. (Default: None)"
+              },
+              "charge": {
+                "type": "int | None",
+                "description": "Charge state of the defect for which to write the metadata. If None, the metadata for all charge states of the defect will be written. (Default: None)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "None"
+              }
+            },
+            "ori_input": "self, output_path: str = '.', defect: str | None = None, charge: int | None = None",
+            "ori_description": "Write distortion metadata to file.  If the file already exists then the previous metadata will be renamed to ``distortion_metadata_<datetime>.json`` (if it differs from the current metadata), and also combined with the current metadata if compatible (i.e. if they are using similar distortion parameters and only differ in the set of defects / charge states / distortions used), before writing this combined metadata to file.  If defect and/or charge are specified, then only distortion metadata for that defect and/or charge state will be written.  Args: output_path (:obj:`str`): Path to directory where the metadata file will be written. defect (:obj:`str`): Name of the defect for which to write the metadata. If None, the metadata for all defects will be written. (Default: None) charge (:obj:`int`): Charge state of the defect for which to write the metadata. If None, the metadata for all charge states of the defect will be written. (Default: None)  Returns: None"
+          },
+          {
+            "name": "write_vasp_files",
+            "description": "Generates the input files for ``vasp_gam`` relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.",
+            "input": {
+              "self": null,
+              "user_incar_settings": {
+                "type": "dict | None",
+                "description": "Dictionary of user VASP INCAR settings (e.g. {\"ENCUT\": 300, ...}), to overwrite the ``ShakenBreak`` defaults for those tags. Highly recommended to look at output ``INCAR``\\s, or ``shakenbreak/SnB_input_files/incar.yaml`` to see what the default ``INCAR`` settings are. Note that any flags that aren't numbers or True/False need to be input as strings with quotation marks (e.g. ``{\"ALGO\": \"All\"}``). (Default: None)"
+              },
+              "user_potcar_functional": {
+                "type": "str | None",
+                "description": "POTCAR functional to use. Default is \"PBE\" and if this fails, tries \"PBE_52\", then \"PBE_54\"."
+              },
+              "user_potcar_settings": {
+                "type": "dict | None",
+                "description": "Dictionary of user VASP POTCAR settings, to overwrite/update the ``doped`` defaults (e.g. {'Fe': 'Fe_pv', 'O': 'O'}}). Highly recommended to look at output ``POTCAR``\\s, or ``shakenbreak/SnB_input_files/default_POTCARs.yaml``, to see what the default ``POTCAR`` settings are. (Default: None)"
+              },
+              "output_path": {
+                "type": "str",
+                "description": "Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory = \".\")"
+              },
+              "verbose": {
+                "type": "bool | None",
+                "description": "Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments to pass to ``_create_vasp_input()`` (Mainly for testing purposes)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "obj:`tuple`: tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+              }
+            },
+            "ori_input": "self, user_incar_settings: dict | None = None, user_potcar_functional: str | None = 'PBE', user_potcar_settings: dict | None = None, output_path: str = '.', verbose: bool | None = None, **kwargs",
+            "ori_description": "Generates the input files for ``vasp_gam`` relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.  Args: user_incar_settings (:obj:`dict`): Dictionary of user VASP INCAR settings (e.g. {\"ENCUT\": 300, ...}), to overwrite the ``ShakenBreak`` defaults for those tags. Highly recommended to look at output ``INCAR``\\s, or ``shakenbreak/SnB_input_files/incar.yaml`` to see what the default ``INCAR`` settings are. Note that any flags that aren't numbers or True/False need to be input as strings with quotation marks (e.g. ``{\"ALGO\": \"All\"}``). (Default: None) user_potcar_functional (str): POTCAR functional to use. Default is \"PBE\" and if this fails, tries \"PBE_52\", then \"PBE_54\". user_potcar_settings (:obj:`dict`): Dictionary of user VASP POTCAR settings, to overwrite/update the ``doped`` defaults (e.g. {'Fe': 'Fe_pv', 'O': 'O'}}). Highly recommended to look at output ``POTCAR``\\s, or ``shakenbreak/SnB_input_files/default_POTCARs.yaml``, to see what the default ``POTCAR`` settings are. (Default: None) write_files (:obj:`bool`): Whether to write output files (Default: True) output_path (:obj:`str`): Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory = \".\") verbose (:obj:`bool`): Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity) kwargs: Additional keyword arguments to pass to ``_create_vasp_input()`` (Mainly for testing purposes).  Returns: :obj:`tuple`: tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+          },
+          {
+            "name": "write_espresso_files",
+            "description": "Generates input files for Quantum Espresso relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.",
+            "input": {
+              "self": null,
+              "pseudopotentials": {
+                "type": "dict | None",
+                "description": "Dictionary matching element to pseudopotential name. (Defaults: None)"
+              },
+              "input_parameters": {
+                "type": "str | None",
+                "description": "Dictionary of user Quantum Espresso input parameters, to overwrite/update ShakeNBreak defaults (see ``shakenbreak/SnB_input_files/qe_input.yaml``). (Default: None)"
+              },
+              "input_file": {
+                "type": "str | None",
+                "description": "Path to Quantum Espresso input file, to overwrite/update ShakeNBreak defaults (see ``shakenbreak/SnB_input_files/qe_input.yaml``). If both ``input_parameters`` and ``input_file`` are provided, the input_parameters will be used. (Default: None)"
+              },
+              "write_structures_only": {
+                "type": "bool | None",
+                "description": "Whether to only write the structure files (in CIF format) (without calculation inputs). (Default: False)"
+              },
+              "output_path": {
+                "type": "str",
+                "description": "Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\")"
+              },
+              "verbose": {
+                "type": "bool | None",
+                "description": "Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)"
+              },
+              "profile": {
+                "type": ":obj:`BaseProfile`, optional",
+                "description": "ASE profile object to use for the ``Espresso()`` calculator class, if using ase>=3.23. If ``None`` (default), set to ``EspressoProfile(command=\"pw.x\", pseudo_dir=\".\")``."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+              }
+            },
+            "ori_input": "self, pseudopotentials: dict | None = None, input_parameters: str | None = None, input_file: str | None = None, write_structures_only: bool | None = False, output_path: str = '.', verbose: bool | None = None, profile = None",
+            "ori_description": "Generates input files for Quantum Espresso relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.  Args: pseudopotentials (:obj:`dict`, optional): Dictionary matching element to pseudopotential name. (Defaults: None) input_parameters (:obj:`dict`, optional): Dictionary of user Quantum Espresso input parameters, to overwrite/update ShakeNBreak defaults (see ``shakenbreak/SnB_input_files/qe_input.yaml``). (Default: None) input_file (:obj:`str`, optional): Path to Quantum Espresso input file, to overwrite/update ShakeNBreak defaults (see ``shakenbreak/SnB_input_files/qe_input.yaml``). If both ``input_parameters`` and ``input_file`` are provided, the input_parameters will be used. (Default: None) write_structures_only (:obj:`bool`, optional): Whether to only write the structure files (in CIF format) (without calculation inputs). (Default: False) output_path (:obj:`str`, optional): Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\") verbose (:obj:`bool`): Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity) profile (:obj:`BaseProfile`, optional): ASE profile object to use for the ``Espresso()`` calculator class, if using ase>=3.23. If ``None`` (default), set to ``EspressoProfile(command=\"pw.x\", pseudo_dir=\".\")``.  Returns: :obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+          },
+          {
+            "name": "write_cp2k_files",
+            "description": "Generates input files for CP2K relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.",
+            "input": {
+              "self": null,
+              "input_file": {
+                "type": "str | None",
+                "description": "Path to CP2K input file. If not set, default input file will be used (see ``shakenbreak/SnB_input_files/cp2k_input.inp``)."
+              },
+              "write_structures_only": {
+                "type": "bool | None",
+                "description": "Whether to only write the structure files (in CIF format) (without calculation inputs). (Default: False)"
+              },
+              "output_path": {
+                "type": "str",
+                "description": "Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\")"
+              },
+              "verbose": {
+                "type": "bool | None",
+                "description": "Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+              }
+            },
+            "ori_input": "self, input_file: str | None = None, write_structures_only: bool | None = False, output_path: str = '.', verbose: bool | None = None",
+            "ori_description": "Generates input files for CP2K relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.  Args: input_file (:obj:`str`, optional): Path to CP2K input file. If not set, default input file will be used (see ``shakenbreak/SnB_input_files/cp2k_input.inp``). write_structures_only (:obj:`bool`, optional): Whether to only write the structure files (in CIF format) (without calculation inputs). (Default: False) output_path (:obj:`str`, optional): Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\") verbose (:obj:`bool`, optional): Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)  Returns: :obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+          },
+          {
+            "name": "write_castep_files",
+            "description": "Generates input ``.cell`` and ``.param`` files for CASTEP relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.",
+            "input": {
+              "self": null,
+              "input_file": {
+                "type": "str | None",
+                "description": "Path to CASTEP input (``.param``) file. If not set, default input file will be used (see ``shakenbreak/SnB_input_files/castep.param``)."
+              },
+              "write_structures_only": {
+                "type": "bool | None",
+                "description": "Whether to only write the structure files (in CIF format) (without calculation inputs). (Default: False)"
+              },
+              "output_path": {
+                "type": "str",
+                "description": "Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\")"
+              },
+              "verbose": {
+                "type": "bool | None",
+                "description": "Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+              }
+            },
+            "ori_input": "self, input_file: str | None = f'{MODULE_DIR}/SnB_input_files/castep.param', write_structures_only: bool | None = False, output_path: str = '.', verbose: bool | None = None",
+            "ori_description": "Generates input ``.cell`` and ``.param`` files for CASTEP relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.  Args: input_file (:obj:`str`, optional): Path to CASTEP input (``.param``) file. If not set, default input file will be used (see ``shakenbreak/SnB_input_files/castep.param``). write_structures_only (:obj:`bool`, optional): Whether to only write the structure files (in CIF format) (without calculation inputs). (Default: False) output_path (:obj:`str`, optional): Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\") verbose (:obj:`bool`, optional): Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)  Returns: :obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+          },
+          {
+            "name": "write_fhi_aims_files",
+            "description": "Generates input geometry and control files for FHI-aims relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.  Note that if using ASE >= 3.23 and not ``write_structures_only``, the ``$AIMS_SPECIES_DIR`` environment variable must be set.",
+            "input": {
+              "self": null,
+              "input_file": {
+                "type": "str | None",
+                "description": "Path to FHI-aims input file, to overwrite/update ``shakenbreak`` default ones. If both ``input_file`` and ``ase_calculator`` are provided, the ase_calculator will be used."
+              },
+              "ase_calculator": {
+                "type": ":obj:`Aims`, :obj:`AimsTemplate`, optional",
+                "description": "Either an ``Aims`` (ASE calculator) or ``AimsTemplate`` object to obtain parameters from, for FHI-aims calculations. If not set, ``ShakeNBreak`` default values will be used. Recommended to check these! (Default: None)"
+              },
+              "write_structures_only": {
+                "type": "bool | None",
+                "description": "Whether to only write the structure files (in ``geometry.in`` format), without the ``control.in`` file."
+              },
+              "output_path": {
+                "type": "str",
+                "description": "Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\")"
+              },
+              "verbose": {
+                "type": "bool | None",
+                "description": "Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity)"
+              },
+              "profile": {
+                "type": ":obj:`BaseProfile`, optional",
+                "description": "ASE profile object to use for the ``Aims()`` calculator class, if using ase>=3.23. If ``None`` (default), set to ``AimsProfile(command=\"fhiaims.x\")``."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+              }
+            },
+            "ori_input": "self, input_file: str | None = None, ase_calculator = None, write_structures_only: bool | None = False, output_path: str = '.', verbose: bool | None = None, profile = None",
+            "ori_description": "Generates input geometry and control files for FHI-aims relaxations of all output structures from ``Distortions.apply_distortions()``.  See the ``Distortions.apply_distortions()`` docstring for info on the distortion generation approach.  Note that if using ASE >= 3.23 and not ``write_structures_only``, the ``$AIMS_SPECIES_DIR`` environment variable must be set.  Args: input_file (:obj:`str`, optional): Path to FHI-aims input file, to overwrite/update ``shakenbreak`` default ones. If both ``input_file`` and ``ase_calculator`` are provided, the ase_calculator will be used. ase_calculator (:obj:`Aims`, :obj:`AimsTemplate`, optional): Either an ``Aims`` (ASE calculator) or ``AimsTemplate`` object to obtain parameters from, for FHI-aims calculations. If not set, ``ShakeNBreak`` default values will be used. Recommended to check these! (Default: None) write_structures_only (:obj:`bool`, optional): Whether to only write the structure files (in ``geometry.in`` format), without the ``control.in`` file. output_path (:obj:`str`, optional): Path to directory in which to write distorted defect structures and calculation inputs. (Default is current directory: \".\") verbose (:obj:`bool`, optional): Whether to print distortion information (bond atoms and distances). (Default: None -- medium level verbosity) profile (:obj:`BaseProfile`, optional): ASE profile object to use for the ``Aims()`` calculator class, if using ase>=3.23. If ``None`` (default), set to ``AimsProfile(command=\"fhiaims.x\")``.  Returns: :obj:`tuple`: Tuple of dictionaries with new defects_dict (containing the distorted structures) and defect distortion parameters."
+          }
+        ]
+      },
+      {
+        "name": "parse_energies",
+        "type": "function",
+        "module": "shakenbreak.io",
+        "description": "Parse final energy for all distortions present in the given defect directory and write them to a ``yaml`` file in the defect directory. Returns the ``energies_file`` path.",
+        "input": {
+          "defect": {
+            "type": "str",
+            "description": "Name of defect to parse, including charge state. Should match the name of the defect folder."
+          },
+          "path": {
+            "type": "str | None",
+            "description": "Path to the top-level directory containing the defect folder. Defaults to current directory (\".\")."
+          },
+          "code": {
+            "type": "str | None",
+            "description": "Name of ab-initio code used to run the geometry optimisations, case insensitive. Options include: \"vasp\", \"cp2k\", \"espresso\", \"castep\" and \"fhi-aims\". Defaults to \"vasp\"."
+          },
+          "filename": {
+            "type": "str | None",
+            "description": "Filename of the output file, if different from the ShakeNBreak defaults that are defined in the default input files: (i.e. vasp: \"OUTCAR\", cp2k: \"relax.out\", espresso: \"espresso.out\","
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "If True, print information about renamed/saved-over files. Defaults to False."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`str`: Path to the ``energies_file``."
+          }
+        },
+        "ori_input": "defect: str, path: str | None = '.', code: str | None = 'vasp', filename: str | None = 'OUTCAR', verbose: bool = False",
+        "ori_description": "Parse final energy for all distortions present in the given defect directory and write them to a ``yaml`` file in the defect directory. Returns the ``energies_file`` path.  Args: defect (:obj:`str`): Name of defect to parse, including charge state. Should match the name of the defect folder. path (:obj:`str`): Path to the top-level directory containing the defect folder. Defaults to current directory (\".\"). code (:obj:`str`): Name of ab-initio code used to run the geometry optimisations, case insensitive. Options include: \"vasp\", \"cp2k\", \"espresso\", \"castep\" and \"fhi-aims\". Defaults to \"vasp\". filename (:obj:`str`): Filename of the output file, if different from the ShakeNBreak defaults that are defined in the default input files: (i.e. vasp: \"OUTCAR\", cp2k: \"relax.out\", espresso: \"espresso.out\", castep: \"\\*.castep\", fhi-aims: \"aims.out\") Defaults to the ``ShakeNBreak`` default filenames. verbose (:obj:`bool`): If True, print information about renamed/saved-over files. Defaults to False.  Returns: :obj:`str`: Path to the ``energies_file``."
+      },
+      {
+        "name": "read_vasp_structure",
+        "type": "function",
+        "module": "shakenbreak.io",
+        "description": "Read VASP structure from ``file_path`` and convert to ``pymatgen`` Structure object.",
+        "input": {
+          "file_path": {
+            "type": "str",
+            "description": "Path to VASP ``CONTCAR`` file"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`Structure`: ``pymatgen`` ``Structure`` object"
+          }
+        },
+        "ori_input": "file_path: str",
+        "ori_description": "Read VASP structure from ``file_path`` and convert to ``pymatgen`` Structure object.  Args: file_path (:obj:`str`): Path to VASP ``CONTCAR`` file  Returns: :obj:`Structure`: ``pymatgen`` ``Structure`` object"
+      },
+      {
+        "name": "read_structure_w_ase",
+        "type": "function",
+        "module": "shakenbreak.io",
+        "description": "Reads a structure from ``QE``/``FHI-aims``/``CP2K``/``CASTEP`` output file, using ``ASE``, and return it as a ``pymatgen`` ``Structure``.",
+        "input": {
+          "filename": {
+            "type": "str",
+            "description": "Path to the output file."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`Structure`: ``pymatgen`` ``Structure`` object"
+          }
+        },
+        "ori_input": "filename: str",
+        "ori_description": "Reads a structure from ``QE``/``FHI-aims``/``CP2K``/``CASTEP`` output file, using ``ASE``, and return it as a ``pymatgen`` ``Structure``.  Args: filename (:obj:`str`): Path to the output file.  Returns: :obj:`Structure`: ``pymatgen`` ``Structure`` object"
+      },
+      {
+        "name": "parse_structure",
+        "type": "function",
+        "module": "shakenbreak.io",
+        "description": "Parses the output structure from different codes (VASP, CP2K, Quantum Espresso, CATSEP, FHI-aims) and converts it to a ``pymatgen`` ``Structure`` object.",
+        "input": {
+          "code": {
+            "type": "str",
+            "description": "Code used for geometry optimizations. Valid code names are: \"vasp\", \"espresso\", \"cp2k\", \"castep\" and \"fhi-aims\" (case insensitive)."
+          },
+          "structure_path": {
+            "type": "str",
+            "description": "Path to directory containing the structure file."
+          },
+          "structure_filename": {
+            "type": "str",
+            "description": "Name of the structure file or the output file containing the optimized structure. If not set, the following values will be used for each code:  - ``VASP``: \"CONTCAR\", - ``cp2k``: \"cp2k.restart\" (The restart file is used), - ``Quantum Espresso``: \"espresso.out\", - ``CASTEP``: \"castep.castep\" (castep output file is used) - ``Fhi-AIMS``: \"geometry.in.next_step\""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`Structure`: ``pymatgen`` ``Structure`` object"
+          }
+        },
+        "ori_input": "code: str, structure_path: str, structure_filename: str",
+        "ori_description": "Parses the output structure from different codes (VASP, CP2K, Quantum Espresso, CATSEP, FHI-aims) and converts it to a ``pymatgen`` ``Structure`` object.  Args: code (:obj:`str`): Code used for geometry optimizations. Valid code names are: \"vasp\", \"espresso\", \"cp2k\", \"castep\" and \"fhi-aims\" (case insensitive). structure_path (:obj:`str`): Path to directory containing the structure file. structure_filename (:obj:`str`): Name of the structure file or the output file containing the optimized structure. If not set, the following values will be used for each code:  - ``VASP``: \"CONTCAR\", - ``cp2k``: \"cp2k.restart\" (The restart file is used), - ``Quantum Espresso``: \"espresso.out\", - ``CASTEP``: \"castep.castep\" (castep output file is used) - ``Fhi-AIMS``: \"geometry.in.next_step\"  Returns: :obj:`Structure`: ``pymatgen`` ``Structure`` object"
+      },
+      {
+        "name": "parse_qe_input",
+        "type": "function",
+        "module": "shakenbreak.io",
+        "description": "Parse the input file of Quantum Espresso and return it as a dictionary of the parameters.",
+        "input": {
+          "path": {
+            "type": "str",
+            "description": "Path to the Quantum Espresso input file."
+          }
+        },
+        "output": null,
+        "ori_input": "path: str",
+        "ori_description": "Parse the input file of Quantum Espresso and return it as a dictionary of the parameters.  Args: path (:obj:`str`): Path to the Quantum Espresso input file.  Returns: :obj:`dict`"
+      },
+      {
+        "name": "parse_fhi_aims_input",
+        "type": "function",
+        "module": "shakenbreak.io",
+        "description": "Parse the input file of FHI-aims and return it as a dictionary of the parameters.",
+        "input": {
+          "path": {
+            "type": "str",
+            "description": "Path to the Quantum Espresso input file."
+          }
+        },
+        "output": null,
+        "ori_input": "path: str",
+        "ori_description": "Parse the input file of FHI-aims and return it as a dictionary of the parameters.  Args: path (:obj:`str`): Path to the Quantum Espresso input file.  Returns: :obj:`dict`"
+      },
+      {
+        "name": "get_gs_distortion",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Calculate energy difference between ``Unperturbed`` structure and lowest energy distortion. Returns the energy (in eV) and bond distortion of the ground-state relative to ``Unperturbed``. If ``Unperturbed`` not present, returns (None, ground-state bond distortion).",
+        "input": {
+          "defect_energies_dict": {
+            "type": "dict",
+            "description": "Dictionary matching distortion to final energy, as produced by ``get_energies()`` or ``_sort_data``."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`tuple`: (Energy difference, ground state bond distortion)"
+          }
+        },
+        "ori_input": "defect_energies_dict: dict",
+        "ori_description": "Calculate energy difference between ``Unperturbed`` structure and lowest energy distortion. Returns the energy (in eV) and bond distortion of the ground-state relative to ``Unperturbed``. If ``Unperturbed`` not present, returns (None, ground-state bond distortion).  Args: defect_energies_dict (:obj:`dict`): Dictionary matching distortion to final energy, as produced by ``get_energies()`` or ``_sort_data``.  Returns: :obj:`tuple`: (Energy difference, ground state bond distortion)"
+      },
+      {
+        "name": "analyse_defect_site",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Analyse coordination environment and bond distances to nearest neighbours of defect site.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "``pymatgen`` Structure object to analyse"
+          },
+          "name": {
+            "type": "str | None",
+            "description": "Defect name for printing. (Default: None)"
+          },
+          "site_index": {
+            "type": "int | None",
+            "description": "Defect site index in the structure, using ``python`` / ``pymatgen`` 0-indexing. (Default: None)"
+          },
+          "vac_site": {
+            "type": "list | None",
+            "description": "For vacancies, the fractional coordinates of the vacant lattice site. (Default: None)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`tuple`: Tuple of coordination analysis and bond length ``DataFrame``\\s, respectively."
+          }
+        },
+        "ori_input": "structure: Structure, name: str | None = None, site_index: int | None = None, vac_site: list | None = None",
+        "ori_description": "Analyse coordination environment and bond distances to nearest neighbours of defect site.  Args: structure (:obj:`Structure`): ``pymatgen`` Structure object to analyse name (:obj:`str`): Defect name for printing. (Default: None) site_index (:obj:`int`): Defect site index in the structure, using ``python`` / ``pymatgen`` 0-indexing. (Default: None) vac_site (:obj:`list`): For vacancies, the fractional coordinates of the vacant lattice site. (Default: None)  Returns: :obj:`tuple`: Tuple of coordination analysis and bond length ``DataFrame``\\s, respectively."
+      },
+      {
+        "name": "analyse_structure",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Analyse the local distortion of the input defect structure. Requires access to the ``distortion_metadata.json`` file generated with ShakeNBreak to read info about defect site. If lacking this, can alternatively use ``analyse_defect_site()``.",
+        "input": {
+          "defect_species": {
+            "type": "str",
+            "description": "Defect name including charge (e.g. 'vac_1_Cd_0')"
+          },
+          "structure": {
+            "type": "Structure",
+            "description": "Defect structure to analyse"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to directory containing ``distortion_metadata.json`` (Default: '.', current directory)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`tuple`: Tuple of coordination analysis and bond length ``DataFrame``\\s, respectively."
+          }
+        },
+        "ori_input": "defect_species: str, structure: Structure, output_path: str = '.'",
+        "ori_description": "Analyse the local distortion of the input defect structure. Requires access to the ``distortion_metadata.json`` file generated with ShakeNBreak to read info about defect site. If lacking this, can alternatively use ``analyse_defect_site()``.  Args: defect_species (:obj:`str`): Defect name including charge (e.g. 'vac_1_Cd_0') structure (:obj:`~pymatgen.core.structure.Structure`): Defect structure to analyse output_path (:obj:`str`): Path to directory containing ``distortion_metadata.json`` (Default: '.', current directory)  Returns: :obj:`tuple`: Tuple of coordination analysis and bond length ``DataFrame``\\s, respectively."
+      },
+      {
+        "name": "get_structures",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Import all structures found with rattling & bond distortions, and store them in a dictionary matching the bond distortion to the final structure. By default, will read the structures from the distortion subdirectories present in each defect folder. If only certain distortions should be parsed, use the argument ``bond_distortions`` to specify them.",
+        "input": {
+          "defect_species": {
+            "type": "str",
+            "description": "Defect name including charge (e.g. 'vac_1_Cd_0')"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to top-level directory containing ``defect_species`` subdirectories. (Default: current directory."
+          },
+          "bond_distortions": {
+            "type": "list | None",
+            "description": "List of bond distortions whose structures will be analysed (i.e. [-0.2, 0.0, 0.5]). By default, all distortions present in subdirectories are considered. (Default: None)"
+          },
+          "code": {
+            "type": "str | None",
+            "description": "Code used for the geometry relaxations. (Default: vasp)"
+          },
+          "structure_filename": {
+            "type": "str | None",
+            "description": "Name of the file containing the structure. (Default: CONTCAR)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary of bond distortions and corresponding final structures."
+          }
+        },
+        "ori_input": "defect_species: str, output_path: str = '.', bond_distortions: list | None = None, code: str | None = 'vasp', structure_filename: str | None = 'CONTCAR'",
+        "ori_description": "Import all structures found with rattling & bond distortions, and store them in a dictionary matching the bond distortion to the final structure. By default, will read the structures from the distortion subdirectories present in each defect folder. If only certain distortions should be parsed, use the argument ``bond_distortions`` to specify them.  Args: defect_species (:obj:`str`): Defect name including charge (e.g. 'vac_1_Cd_0') output_path (:obj:`str`): Path to top-level directory containing ``defect_species`` subdirectories. (Default: current directory. bond_distortions (:obj:`list`, optional): List of bond distortions whose structures will be analysed (i.e. [-0.2, 0.0, 0.5]). By default, all distortions present in subdirectories are considered. (Default: None) code (:obj:`str`, optional): Code used for the geometry relaxations. (Default: vasp) structure_filename (:obj:`str`, optional): Name of the file containing the structure. (Default: CONTCAR)  Returns: :obj:`dict`: Dictionary of bond distortions and corresponding final structures."
+      },
+      {
+        "name": "get_energies",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Parse final energies for each bond distortion and store them in a dictionary matching the bond distortion to the final energy in eV.",
+        "input": {
+          "defect_species": {
+            "type": "str",
+            "description": "Defect name including charge (e.g. 'vac_1_Cd_0')"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to top-level directory containing ``defect_species`` subdirectories. (Default: current directory)"
+          },
+          "units": {
+            "type": "str",
+            "description": "Energy units for outputs (either 'eV' or 'meV'). (Default: \"eV\")"
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information about energy lowering distortions, if found. (Default: True)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary matching bond distortions to final energies in eV."
+          }
+        },
+        "ori_input": "defect_species: str, output_path: str = '.', units: str = 'eV', verbose: bool = True",
+        "ori_description": "Parse final energies for each bond distortion and store them in a dictionary matching the bond distortion to the final energy in eV.  Args: defect_species (:obj:`str`): Defect name including charge (e.g. 'vac_1_Cd_0') output_path (:obj:`str`): Path to top-level directory containing ``defect_species`` subdirectories. (Default: current directory) distortion_increment (:obj:`float`): Bond distortion increment. Recommended values: 0.1-0.3 (Default: 0.1) units (:obj:`str`): Energy units for outputs (either 'eV' or 'meV'). (Default: \"eV\") verbose (:obj:`bool`): Whether to print information about energy lowering distortions, if found. (Default: True)  Returns: :obj:`dict`: Dictionary matching bond distortions to final energies in eV."
+      },
+      {
+        "name": "calculate_struct_comparison",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Calculate either the summed atomic displacement, with metric = \"disp\", or the maximum distance between matched atoms, with metric = \"max_dist\", (default) between each distorted structure in ``defect_struct_dict``, and either 'Unperturbed' or a specified structure (``ref_structure``). For metric = \"disp\", atomic displacements below ``min_dist`` (in Å, default 0.1 Å) are considered noise and omitted from the sum, to reduce supercell size dependence.",
+        "input": {
+          "defect_structures_dict": {
+            "type": "dict",
+            "description": "Dictionary of bond distortions and corresponding (final) structures (as pymatgen Structure objects)."
+          },
+          "metric": {
+            "type": "str",
+            "description": "Structure comparison metric to use. Either summed atomic displacement normalised to the average free length per atom ('disp') or the maximum distance between matched atoms ('max_dist', default). (Default: \"max_dist\")"
+          },
+          "ref_structure": {
+            "type": "str | float | Structure",
+            "description": "Structure to use as a reference for comparison (to compute atomic displacements). Either as a key from ``defect_structures_dict`` (e.g. '-0.4' for ``\"Bond_Distortion_-40.0%\"``) or a ``pymatgen`` ``Structure`` object (to compare with a specific external structure). (Default: \"Unperturbed\")"
+          },
+          "min_dist": {
+            "type": "float",
+            "description": "Minimum atomic displacement threshold to include in atomic displacements sum (in Å, default 0.1 Å)."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information message about structures being compared."
+          },
+          "sm_kwargs": {
+            "type": "**sm_kwargs",
+            "description": "Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary matching bond distortions to structure comparison metric (``\"disp\"`` or ``\"max_dist\"``)."
+          }
+        },
+        "ori_input": "defect_structures_dict: dict, metric: str = 'max_dist', ref_structure: str | float | Structure = 'Unperturbed', min_dist: float = 0.1, verbose: bool = False, **sm_kwargs",
+        "ori_description": "Calculate either the summed atomic displacement, with metric = \"disp\", or the maximum distance between matched atoms, with metric = \"max_dist\", (default) between each distorted structure in ``defect_struct_dict``, and either 'Unperturbed' or a specified structure (``ref_structure``). For metric = \"disp\", atomic displacements below ``min_dist`` (in Å, default 0.1 Å) are considered noise and omitted from the sum, to reduce supercell size dependence.  Args: defect_structures_dict (:obj:`dict`): Dictionary of bond distortions and corresponding (final) structures (as pymatgen Structure objects). metric (:obj:`str`): Structure comparison metric to use. Either summed atomic displacement normalised to the average free length per atom ('disp') or the maximum distance between matched atoms ('max_dist', default). (Default: \"max_dist\") ref_structure (:obj:`str`` or :obj:`float`` or :obj:`Structure`): Structure to use as a reference for comparison (to compute atomic displacements). Either as a key from ``defect_structures_dict`` (e.g. '-0.4' for ``\"Bond_Distortion_-40.0%\"``) or a ``pymatgen`` ``Structure`` object (to compare with a specific external structure). (Default: \"Unperturbed\") min_dist (:obj:`float`): Minimum atomic displacement threshold to include in atomic displacements sum (in Å, default 0.1 Å). verbose (:obj:`bool`): Whether to print information message about structures being compared. **sm_kwargs: Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc.  Returns: :obj:`dict`: Dictionary matching bond distortions to structure comparison metric (``\"disp\"`` or ``\"max_dist\"``)."
+      },
+      {
+        "name": "compare_structures",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Compare final bond-distorted structures with either 'Unperturbed' or a specified structure (``ref_structure``), and calculate the summed atomic displacement (in Å), and maximum distance between matched atomic sites (in Å).",
+        "input": {
+          "defect_structures_dict": {
+            "type": "dict",
+            "description": "Dictionary mapping bond distortion to (relaxed) structure"
+          },
+          "defect_energies_dict": {
+            "type": "dict",
+            "description": "Dictionary matching distortion to final energy (eV), as produced by ``_organize_data()``."
+          },
+          "ref_structure": {
+            "type": "str | float | Structure",
+            "description": "Structure to use as a reference for comparison (to compute atomic displacements). Either as a key from ``defect_structures_dict`` (e.g. '-0.4' for ``\"Bond_Distortion_-40.0%\"``) or a ``pymatgen`` ``Structure`` object (to compare with a specific external structure). (Default: \"Unperturbed\")"
+          },
+          "units": {
+            "type": "str",
+            "description": "Energy units label for outputs (either 'eV' or 'meV'). Should be the same as the units in ``defect_energies_dict``, as this does not modify the supplied values. (Default: \"eV\")"
+          },
+          "min_dist": {
+            "type": "float",
+            "description": "Minimum atomic displacement threshold to include in atomic displacements sum (in Å, default 0.1 Å)."
+          },
+          "display_df": {
+            "type": "bool",
+            "description": "Whether to display the structure comparison ``DataFrame`` interactively in Jupyter/Ipython (Default: True)."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information message about structures being compared."
+          },
+          "sm_kwargs": {
+            "type": "**sm_kwargs",
+            "description": "Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`pd.DataFrame`: ``DataFrame`` containing structural comparison results (summed normalised atomic displacement and maximum distance between matched atomic sites), and relative energies."
+          }
+        },
+        "ori_input": "defect_structures_dict: dict, defect_energies_dict: dict, ref_structure: str | float | Structure = 'Unperturbed', units: str = 'eV', min_dist: float = 0.1, display_df: bool = True, verbose: bool = True, **sm_kwargs",
+        "ori_description": "Compare final bond-distorted structures with either 'Unperturbed' or a specified structure (``ref_structure``), and calculate the summed atomic displacement (in Å), and maximum distance between matched atomic sites (in Å).  Args: defect_structures_dict (:obj:`dict`): Dictionary mapping bond distortion to (relaxed) structure defect_energies_dict (:obj:`dict`): Dictionary matching distortion to final energy (eV), as produced by ``_organize_data()``. ref_structure (:obj:`str`` or :obj:`float`` or :obj:`Structure`): Structure to use as a reference for comparison (to compute atomic displacements). Either as a key from ``defect_structures_dict`` (e.g. '-0.4' for ``\"Bond_Distortion_-40.0%\"``) or a ``pymatgen`` ``Structure`` object (to compare with a specific external structure). (Default: \"Unperturbed\") units (:obj:`str`): Energy units label for outputs (either 'eV' or 'meV'). Should be the same as the units in ``defect_energies_dict``, as this does not modify the supplied values. (Default: \"eV\") min_dist (:obj:`float`): Minimum atomic displacement threshold to include in atomic displacements sum (in Å, default 0.1 Å). display_df (:obj:`bool`): Whether to display the structure comparison ``DataFrame`` interactively in Jupyter/Ipython (Default: True). verbose (:obj:`bool`): Whether to print information message about structures being compared. **sm_kwargs: Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc.  Returns: :obj:`pd.DataFrame`: ``DataFrame`` containing structural comparison results (summed normalised atomic displacement and maximum distance between matched atomic sites), and relative energies."
+      },
+      {
+        "name": "get_homoionic_bonds",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "Returns a list of homo-ionic bonds for the given element. These bonds are often formed by the defect neighbours to accommodate charge deficiency.",
+        "input": {
+          "structure": {
+            "type": "Structure",
+            "description": "``pymatgen`` Structure object to analyse"
+          },
+          "elements": {
+            "type": "list[str] | str",
+            "description": "List or single string of element symbols (wihout oxidation state) for which to find the homoionic bonds (e.g. [\"Te\", \"Se\"])."
+          },
+          "radius": {
+            "type": "float | None",
+            "description": "Distance cutoff to look for homoionic bonds. Defaults to 3.3 A."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print the list of homoionic bonds."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: dictionary with homoionic bonds, matching site to the homoionic neighbours and distances (A) (e.g. {'O(1)': {'O(2)': '2.0 A', 'O(3)': '2.0 A'}})"
+          }
+        },
+        "ori_input": "structure: Structure, elements: list[str] | str, radius: float | None = 3.3, verbose: bool = True",
+        "ori_description": "Returns a list of homo-ionic bonds for the given element. These bonds are often formed by the defect neighbours to accommodate charge deficiency.  Args: structure (:obj:`~pymatgen.core.structure.Structure`): ``pymatgen`` Structure object to analyse elements (:obj:`list`): List or single string of element symbols (wihout oxidation state) for which to find the homoionic bonds (e.g. [\"Te\", \"Se\"]). radius (:obj:`float`, optional): Distance cutoff to look for homoionic bonds. Defaults to 3.3 A. verbose (:obj:`bool`, optional): Whether to print the list of homoionic bonds.  Returns: :obj:`dict`: dictionary with homoionic bonds, matching site to the homoionic neighbours and distances (A) (e.g. {'O(1)': {'O(2)': '2.0 A', 'O(3)': '2.0 A'}})"
+      },
+      {
+        "name": "get_site_magnetizations",
+        "type": "function",
+        "module": "shakenbreak.analysis",
+        "description": "For given distortions, find sites with significant magnetization and return as dictionary. Only implemented for VASP calculations.",
+        "input": {
+          "defect_species": {
+            "type": "str",
+            "description": "Name of defect including charge state (e.g. 'vac_1_Cd_0')"
+          },
+          "distortions": {
+            "type": "list",
+            "description": "List of distortions to analyse (e.g. ['Unperturbed', 0.1, -0.2])"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to top-level directory containing ``defect_species`` subdirectories. (Default: current directory)"
+          },
+          "threshold": {
+            "type": "float",
+            "description": "Magnetization threshold to consider site. (Default: 0.1)"
+          },
+          "defect_site": {
+            "type": "(int or list) | None",
+            "description": "Site index or fractional coordinates of the defect. If not specified, will try to read from distortion_metadata.json. If this file is not present, will not include the distance between the defect and the sites with significant magnetization in the dataframe."
+          },
+          "orbital_projections": {
+            "type": "bool | None",
+            "description": "Whether to print orbital projections. If not necessary, set to False (faster). (Default: False)"
+          },
+          "verbose": {
+            "type": "bool | None",
+            "description": "Whether to print verbose output."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary matching distortion to ``DataFrame`` containing magnetization info."
+          }
+        },
+        "ori_input": "defect_species: str, distortions: list, output_path: str = '.', threshold: float = 0.1, defect_site: (int or list) | None = None, orbital_projections: bool | None = False, verbose: bool | None = True",
+        "ori_description": "For given distortions, find sites with significant magnetization and return as dictionary. Only implemented for VASP calculations.  Args: defect_species (:obj:`str`): Name of defect including charge state (e.g. 'vac_1_Cd_0') distortions (:obj:`list`): List of distortions to analyse (e.g. ['Unperturbed', 0.1, -0.2]) output_path (:obj:`str`): Path to top-level directory containing ``defect_species`` subdirectories. (Default: current directory) threshold (:obj:`float`, optional): Magnetization threshold to consider site. (Default: 0.1) defect_site (:obj:`int`` or :obj:`list`, optional): Site index or fractional coordinates of the defect. If not specified, will try to read from distortion_metadata.json. If this file is not present, will not include the distance between the defect and the sites with significant magnetization in the dataframe. orbital_projections (bool, optional): Whether to print orbital projections. If not necessary, set to False (faster). (Default: False) verbose (bool, optional): Whether to print verbose output.  Returns: :obj:`dict`: Dictionary matching distortion to ``DataFrame`` containing magnetization info."
+      },
+      {
+        "name": "read_defects_directories",
+        "type": "function",
+        "module": "shakenbreak.energy_lowering_distortions",
+        "description": "Reads all defect folders in the ``output_path`` directory and stores defect names and charge states in a dictionary.",
+        "input": {
+          "output_path": {
+            "type": "str",
+            "description": "Path to directory with your distorted defect calculations. (Default is current directory = \"./\")"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary mapping defect names to a list of its charge states."
+          }
+        },
+        "ori_input": "output_path: str = './'",
+        "ori_description": "Reads all defect folders in the ``output_path`` directory and stores defect names and charge states in a dictionary.  Args: output_path (:obj:`str`): Path to directory with your distorted defect calculations. (Default is current directory = \"./\")  Returns: :obj:`dict`: Dictionary mapping defect names to a list of its charge states."
+      },
+      {
+        "name": "get_energy_lowering_distortions",
+        "type": "function",
+        "module": "shakenbreak.energy_lowering_distortions",
+        "description": "Convenience function to identify defect species undergoing energy-lowering distortions. Useful for then testing these distorted structures for the other charge states of that defect. Considers all identified energy-lowering distortions for each defect in each charge state, and screens out duplicate distorted structures found for multiple charge states.",
+        "input": {
+          "defect_charges_dict": {
+            "type": "dict | None",
+            "description": "Dictionary matching defect name(s) to list(s) of their charge states. (e.g {\"Int_Sb_1\":[0,+1,+2]} etc). If not specified, all defects present in ``output_path`` will be parsed. (Default: None)"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to directory with your distorted defect calculations (need code output/structure files for structure matching) and distortion_metadata.json. (Default is current directory = \"./\")"
+          },
+          "code": {
+            "type": "str",
+            "description": "Code used for the geometry relaxations. Supported code names are: \"vasp\", \"espresso\", \"cp2k\" and \"fhi-aims\" (case insensitive). (Default: \"vasp\")"
+          },
+          "structure_filename": {
+            "type": "str",
+            "description": "Name of the file containing the structure. (Default: CONTCAR)"
+          },
+          "min_e_diff": {
+            "type": "float",
+            "description": "Minimum energy difference (in eV) between the ground-state defect structure, relative to the ``Unperturbed`` structure, to consider it as having found a new energy-lowering distortion. Default is 0.05 eV."
+          },
+          "min_dist": {
+            "type": "float",
+            "description": "Minimum atomic displacement threshold between structures, in order to consider them not matching (in Å, default = 0.2 Å)."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print verbose information about parsed defect structures for energy-lowering distortions, if found. (Default: False)"
+          },
+          "write_input_files": {
+            "type": "bool",
+            "description": "Whether to write input files for the identified distortions (Default: False)"
+          },
+          "metastable": {
+            "type": "bool",
+            "description": "Whether to also store non-spontaneous _metastable_ energy-lowering distortions, as these can become ground-state distortions for other charge states. (Default: False)"
+          },
+          "sm_kwargs": {
+            "type": "**sm_kwargs",
+            "description": "Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary of defects for which bond distortion found an energy-lowering distortion (which is missed with normal unperturbed relaxation), of the form {defect: [list of distortion dictionaries (with corresponding charge states, energy lowering, distortion factors, structures and charge states for which these structures weren't found)]}."
+          }
+        },
+        "ori_input": "defect_charges_dict: dict | None = None, output_path: str = '.', code: str = 'vasp', structure_filename: str = 'CONTCAR', min_e_diff: float = 0.05, min_dist: float = 0.2, verbose: bool = False, write_input_files: bool = False, metastable: bool = False, **sm_kwargs",
+        "ori_description": "Convenience function to identify defect species undergoing energy-lowering distortions. Useful for then testing these distorted structures for the other charge states of that defect. Considers all identified energy-lowering distortions for each defect in each charge state, and screens out duplicate distorted structures found for multiple charge states.  Args: defect_charges_dict (:obj:`dict`, optional): Dictionary matching defect name(s) to list(s) of their charge states. (e.g {\"Int_Sb_1\":[0,+1,+2]} etc). If not specified, all defects present in ``output_path`` will be parsed. (Default: None) output_path (:obj:`str`): Path to directory with your distorted defect calculations (need code output/structure files for structure matching) and distortion_metadata.json. (Default is current directory = \"./\") code (:obj:`str`, optional): Code used for the geometry relaxations. Supported code names are: \"vasp\", \"espresso\", \"cp2k\" and \"fhi-aims\" (case insensitive). (Default: \"vasp\") structure_filename (:obj:`str`, optional): Name of the file containing the structure. (Default: CONTCAR) min_e_diff (:obj:`float`): Minimum energy difference (in eV) between the ground-state defect structure, relative to the ``Unperturbed`` structure, to consider it as having found a new energy-lowering distortion. Default is 0.05 eV. min_dist (:obj:`float`): Minimum atomic displacement threshold between structures, in order to consider them not matching (in Å, default = 0.2 Å). verbose (:obj:`bool`): Whether to print verbose information about parsed defect structures for energy-lowering distortions, if found. (Default: False) write_input_files (:obj:`bool`): Whether to write input files for the identified distortions (Default: False) metastable (:obj:`bool`): Whether to also store non-spontaneous _metastable_ energy-lowering distortions, as these can become ground-state distortions for other charge states. (Default: False) **sm_kwargs: Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc.  Returns: :obj:`dict`: Dictionary of defects for which bond distortion found an energy-lowering distortion (which is missed with normal unperturbed relaxation), of the form {defect: [list of distortion dictionaries (with corresponding charge states, energy lowering, distortion factors, structures and charge states for which these structures weren't found)]}."
+      },
+      {
+        "name": "compare_struct_to_distortions",
+        "type": "function",
+        "module": "shakenbreak.energy_lowering_distortions",
+        "description": "Compares the ground-state structure found for a certain defect charge state with all relaxed bond-distorted structures for ``defect_species``, to avoid redundant work (testing this distorted structure for other charge states when it has already been found for them).",
+        "input": {
+          "distorted_struct": {
+            "type": "Structure",
+            "description": "Structure of ground-state distorted defect"
+          },
+          "defect_species": {
+            "type": "str",
+            "description": "Defect name including charge (e.g. 'vac_1_Cd_0')"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to directory with your distorted defect calculations (to calculate structure comparisons -- needs code output/structure files to parse the structures). (Default is current directory = \"./\")"
+          },
+          "code": {
+            "type": "str",
+            "description": "Code used for the geometry relaxations. Options include: \"vasp\", \"cp2k\", \"espresso\", \"castep\", \"fhi-aims\" (case insensitive). (Default: \"vasp\")"
+          },
+          "structure_filename": {
+            "type": "str",
+            "description": "Name of the file containing the structure. (Default: CONTCAR)"
+          },
+          "min_dist": {
+            "type": "float",
+            "description": "Minimum atomic displacement threshold between structures, in orderto consider them not matching (in Å, default = 0.2 Å)."
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information message about structures being compared. (Default: False)"
+          },
+          "sm_kwargs": {
+            "type": "**sm_kwargs",
+            "description": "Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`tuple`: (``True``/``False``/``None``, matching structure, energy difference of the matching structure compared to its unperturbed reference, bond distortion of the matching structure). ``True`` if a match is found between the input structure and the relaxed bond-distorted structures for ``defect_species``, ``False`` if no match, ``None`` if no converged structures found for defect_species."
+          }
+        },
+        "ori_input": "distorted_struct: Structure, defect_species: str, output_path: str = '.', code: str = 'vasp', structure_filename: str = 'CONTCAR', min_dist: float = 0.2, verbose: bool = False, **sm_kwargs",
+        "ori_description": "Compares the ground-state structure found for a certain defect charge state with all relaxed bond-distorted structures for ``defect_species``, to avoid redundant work (testing this distorted structure for other charge states when it has already been found for them).  Args: distorted_struct (:obj:`~pymatgen.core.structure.Structure`): Structure of ground-state distorted defect defect_species (:obj:`str`): Defect name including charge (e.g. 'vac_1_Cd_0') output_path (:obj:`str`): Path to directory with your distorted defect calculations (to calculate structure comparisons -- needs code output/structure files to parse the structures). (Default is current directory = \"./\") code (:obj:`str`, optional): Code used for the geometry relaxations. Options include: \"vasp\", \"cp2k\", \"espresso\", \"castep\", \"fhi-aims\" (case insensitive). (Default: \"vasp\") structure_filename (:obj:`str`, optional): Name of the file containing the structure. (Default: CONTCAR) min_dist (:obj:`float`): Minimum atomic displacement threshold between structures, in orderto consider them not matching (in Å, default = 0.2 Å). verbose (:obj:`bool`): Whether to print information message about structures being compared. (Default: False) **sm_kwargs: Additional keyword arguments to pass to ``StructureMatcher_scan_stol`` in ``doped`` (used for ultra-fast structure matching), such as ``min_stol``, ``max_stol``, ``stol_factor`` etc.  Returns: :obj:`tuple`: (``True``/``False``/``None``, matching structure, energy difference of the matching structure compared to its unperturbed reference, bond distortion of the matching structure). ``True`` if a match is found between the input structure and the relaxed bond-distorted structures for ``defect_species``, ``False`` if no match, ``None`` if no converged structures found for defect_species."
+      },
+      {
+        "name": "write_retest_inputs",
+        "type": "function",
+        "module": "shakenbreak.energy_lowering_distortions",
+        "description": "Create folders with relaxation input files for testing the low-energy distorted defect structures found for other charge states of that defect, as identified with ``get_energy_lowering_distortions()``.",
+        "input": {
+          "low_energy_defects": {
+            "type": "dict",
+            "description": "Dictionary of defects for which bond distortion found an energy-lowering distortion which is missed with normal unperturbed relaxation), generated by ``get_energy_lowering_distortions()``. Has the form {defect: [list of distortion dictionaries (with corresponding charge states, energy lowering, distortion factors, structures and charge states for which these structures weren't found)]}."
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to directory with your distorted defect calculations (to write input files for distorted defect structures to test). (Default is current directory = \"./\")"
+          },
+          "code": {
+            "type": "str",
+            "description": "Code used for the geometry relaxations. The supported codes include \"vasp\", \"cp2k\", \"espresso\", \"castep\" and \"fhi-aims\" (case-insensitive). (Default: \"vasp\")"
+          },
+          "input_filename": {
+            "type": "str | None",
+            "description": "Name of the code input file if different from ``ShakeNBreak`` default. Only applies to CP2K, Quantum Espresso, CASTEP and FHI-aims. If not specified, ``ShakeNBreak`` default name is assumed, that is: for Quantum Espresso: \"espresso.pwi\","
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None"
+          }
+        },
+        "ori_input": "low_energy_defects: dict, output_path: str = '.', code: str = 'vasp', input_filename: str | None = None",
+        "ori_description": "Create folders with relaxation input files for testing the low-energy distorted defect structures found for other charge states of that defect, as identified with ``get_energy_lowering_distortions()``.  Args: low_energy_defects (:obj:`dict`): Dictionary of defects for which bond distortion found an energy-lowering distortion which is missed with normal unperturbed relaxation), generated by ``get_energy_lowering_distortions()``. Has the form {defect: [list of distortion dictionaries (with corresponding charge states, energy lowering, distortion factors, structures and charge states for which these structures weren't found)]}. output_path (:obj:`str`): Path to directory with your distorted defect calculations (to write input files for distorted defect structures to test). (Default is current directory = \"./\") code (:obj:`str`): Code used for the geometry relaxations. The supported codes include \"vasp\", \"cp2k\", \"espresso\", \"castep\" and \"fhi-aims\" (case-insensitive). (Default: \"vasp\") input_filename (:obj:`str`): Name of the code input file if different from ``ShakeNBreak`` default. Only applies to CP2K, Quantum Espresso, CASTEP and FHI-aims. If not specified, ``ShakeNBreak`` default name is assumed, that is: for Quantum Espresso: \"espresso.pwi\", CP2K: \"cp2k_input.inp\", CASTEP: \"castep.param\", FHI-aims: \"control.in\" (Default: None)  Returns: None"
+      },
+      {
+        "name": "write_groundstate_structure",
+        "type": "function",
+        "module": "shakenbreak.energy_lowering_distortions",
+        "description": "Writes the groundstate structure of each defect (if ``all=True``, default) to the corresponding defect folder, with an optional name (default \"groundstate_POSCAR\"), to then run continuation calculations.",
+        "input": {
+          "all": {
+            "type": "bool",
+            "description": "Write groundstate structures for all defect folders in the (top-level) directory, specified by ``output_path``. If False, ``output_path`` should be a single defect folder, for which the groundstate structure will be written."
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to top-level directory with your distorted defect calculation folders (if ``all=True``, else path to single defect folder)(need CONTCAR files for structure matching) and distortion_metadata.json. (Default: current directory = \"./\")"
+          },
+          "groundstate_folder": {
+            "type": "str | None",
+            "description": "Name of the directory to write the groundstate structure to. (Default: None (ground state structure is written to the root defect directory))"
+          },
+          "groundstate_filename": {
+            "type": "str",
+            "description": "Name of the file to write the groundstate structure to. (Default: \"groundstate_POSCAR\")"
+          },
+          "structure_filename": {
+            "type": "str",
+            "description": "Name of the file to read the structure from. (Default: \"CONTCAR\")"
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print additional information about the generated folders. (Default: False)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "None"
+          }
+        },
+        "ori_input": "all: bool = True, output_path: str = '.', groundstate_folder: str | None = None, groundstate_filename: str = 'groundstate_POSCAR', structure_filename: str = 'CONTCAR', verbose: bool = False",
+        "ori_description": "Writes the groundstate structure of each defect (if ``all=True``, default) to the corresponding defect folder, with an optional name (default \"groundstate_POSCAR\"), to then run continuation calculations.  Args: all (:obj:`bool`): Write groundstate structures for all defect folders in the (top-level) directory, specified by ``output_path``. If False, ``output_path`` should be a single defect folder, for which the groundstate structure will be written. output_path (:obj:`str`): Path to top-level directory with your distorted defect calculation folders (if ``all=True``, else path to single defect folder)(need CONTCAR files for structure matching) and distortion_metadata.json. (Default: current directory = \"./\") groundstate_folder (:obj:`str`): Name of the directory to write the groundstate structure to. (Default: None (ground state structure is written to the root defect directory)) groundstate_filename (:obj:`str`): Name of the file to write the groundstate structure to. (Default: \"groundstate_POSCAR\") structure_filename (:obj:`str`): Name of the file to read the structure from. (Default: \"CONTCAR\") verbose (:obj:`bool`): Whether to print additional information about the generated folders. (Default: False)  Returns: None"
+      },
+      {
+        "name": "plot_all_defects",
+        "type": "function",
+        "module": "shakenbreak.plotting",
+        "description": "Convenience function to quickly analyse a range of defects and identify those which undergo energy-lowering distortions.",
+        "input": {
+          "defect_charges_dict": {
+            "type": "dict",
+            "description": "Dictionary matching defect names to lists of their charge states. (e.g {\"Int_Sb_1\": [0,+1,+2]} etc)"
+          },
+          "output_path": {
+            "type": "str",
+            "description": "Path to top-level directory with your distorted defect calculations and distortion_metadata.json file. (Default: current directory)"
+          },
+          "add_colorbar": {
+            "type": "bool",
+            "description": "Whether to add a colorbar indicating structural similarity between each structure and the unperturbed one. (Default: False)"
+          },
+          "metric": {
+            "type": "str",
+            "description": "If add_colorbar is set to True, metric defines the criteria for structural comparison. Can choose between root-mean-squared displacement for all sites ('disp') or the maximum distance between matched sites ('max_dist', default). (Default: \"max_dist\")"
+          },
+          "max_energy_above_unperturbed": {
+            "type": "float",
+            "description": "Maximum energy (in chosen ``units``), relative to the unperturbed structure, to show on the plot. (Default: 0.5 eV)"
+          },
+          "units": {
+            "type": "str",
+            "description": "Units for energy, either \"eV\" or \"meV\". (Default: \"eV\")"
+          },
+          "min_e_diff": {
+            "type": "float",
+            "description": "Minimum energy difference (in eV) between the ground-state defect structure and the ``Unperturbed`` structure to generate the distortion plot. (Default: 0.05 eV)"
+          },
+          "style_file": {
+            "type": "PathLike | None",
+            "description": "Path to a mplstyle file to use for the plot. If None (default), uses the default ShakeNBreak style (``shakenbreak.mplstyle``)."
+          },
+          "line_color": {
+            "type": "str | None",
+            "description": "Color of the line connecting points. (Default: ShakeNBreak base style)"
+          },
+          "add_title": {
+            "type": "bool | None",
+            "description": "Whether to add a title to the plot. By default, the title is the formatted defect name (i.e. V$_{Cd}^{0}$). (Default: True)"
+          },
+          "save_plot": {
+            "type": "bool",
+            "description": "Whether to save the plot(s) to disk. (Default: True)"
+          },
+          "save_format": {
+            "type": "str",
+            "description": "Format to save the plot as. (Default: 'png')"
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information about the plots (warnings and where they're saved)."
+          },
+          "close_figures": {
+            "type": "bool",
+            "description": "Whether to close matplotlib figures after saving them, to reduce memory usage. Recommended to use if plotting many defects at once, in which case figures will be saved to disk and not displayed. (Default: False)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`dict`: Dictionary of {Defect Species (Name & Charge): Energy vs Distortion Plot}"
+          }
+        },
+        "ori_input": "defect_charges_dict: dict, output_path: str = '.', add_colorbar: bool = False, metric: str = 'max_dist', max_energy_above_unperturbed: float = 0.5, units: str = 'eV', min_e_diff: float = 0.05, style_file: PathLike | None = None, line_color: str | None = None, add_title: bool | None = True, save_plot: bool = True, save_format: str = 'png', verbose: bool = False, close_figures: bool = False",
+        "ori_description": "Convenience function to quickly analyse a range of defects and identify those which undergo energy-lowering distortions.  Args: defect_charges_dict (:obj:`dict`): Dictionary matching defect names to lists of their charge states. (e.g {\"Int_Sb_1\": [0,+1,+2]} etc) output_path (:obj:`str`): Path to top-level directory with your distorted defect calculations and distortion_metadata.json file. (Default: current directory) add_colorbar (:obj:`bool`): Whether to add a colorbar indicating structural similarity between each structure and the unperturbed one. (Default: False) metric (:obj:`str`): If add_colorbar is set to True, metric defines the criteria for structural comparison. Can choose between root-mean-squared displacement for all sites ('disp') or the maximum distance between matched sites ('max_dist', default). (Default: \"max_dist\") max_energy_above_unperturbed (:obj:`float`): Maximum energy (in chosen ``units``), relative to the unperturbed structure, to show on the plot. (Default: 0.5 eV) units (:obj:`str`): Units for energy, either \"eV\" or \"meV\". (Default: \"eV\") min_e_diff (:obj:`float`): Minimum energy difference (in eV) between the ground-state defect structure and the ``Unperturbed`` structure to generate the distortion plot. (Default: 0.05 eV) style_file (PathLike): Path to a mplstyle file to use for the plot. If None (default), uses the default ShakeNBreak style (``shakenbreak.mplstyle``). line_color (:obj:`str`): Color of the line connecting points. (Default: ShakeNBreak base style) add_title (:obj:`bool`): Whether to add a title to the plot. By default, the title is the formatted defect name (i.e. V$_{Cd}^{0}$). (Default: True) save_plot (:obj:`bool`): Whether to save the plot(s) to disk. (Default: True) save_format (:obj:`str`): Format to save the plot as. (Default: 'png') verbose (:obj:`bool`): Whether to print information about the plots (warnings and where they're saved). close_figures (:obj:`bool`): Whether to close matplotlib figures after saving them, to reduce memory usage. Recommended to use if plotting many defects at once, in which case figures will be saved to disk and not displayed. (Default: False)  Returns: :obj:`dict`: Dictionary of {Defect Species (Name & Charge): Energy vs Distortion Plot}"
+      },
+      {
+        "name": "plot_defect",
+        "type": "function",
+        "module": "shakenbreak.plotting",
+        "description": "Convenience function to plot energy vs distortion for a defect, to identify any energy-lowering distortions.",
+        "input": {
+          "defect_species": {
+            "type": "str",
+            "description": "Defect name including charge (e.g. 'vac_1_Cd_0')"
+          },
+          "energies_dict": {
+            "type": "dict",
+            "description": "Dictionary matching distortion to final energy (eV), as produced by ``_organize_data()`` or ``analysis.get_energies()``)"
+          },
+          "output_path": {
+            "type": "str | None",
+            "description": "Path to top-level directory with your distorted defect calculations (to calculate structure comparisons and save plots) (Default: current directory)"
+          },
+          "neighbour_atom": {
+            "type": "str | None",
+            "description": "Name(s) of distorted neighbour atoms (e.g. 'Cd'). If not specified, will be parsed from distortion_metadata.json file. (Default: None)"
+          },
+          "num_nearest_neighbours": {
+            "type": "int | None",
+            "description": "Number of distorted neighbour atoms (e.g. 2). If not specified, will be parsed from distortion_metadata.json file. (Default: None)"
+          },
+          "add_colorbar": {
+            "type": "bool | None",
+            "description": "Whether to add a colorbar indicating structural similarity between each structure and the unperturbed one. (Default: False)"
+          },
+          "metric": {
+            "type": "str | None",
+            "description": "If add_colorbar is True, determines the criteria used for the structural comparison. Can choose between the summed of atomic displacements ('disp') or the maximum distance between matched sites ('max_dist', default). (Default: \"max_dist\")"
+          },
+          "max_energy_above_unperturbed": {
+            "type": "float | None",
+            "description": "Maximum energy (in chosen ``units``), relative to the unperturbed structure, to show on the plot. (Default: 0.5 eV)"
+          },
+          "include_site_info_in_name": {
+            "type": "bool | None",
+            "description": "Whether to include the site info (i.e. point group symbol and possibly nearest neighbour info, as generated by doped) in the defect name. Useful for materials with many symmetry-inequivalent sites. (Default: False)"
+          },
+          "style_file": {
+            "type": "PathLike | None",
+            "description": "Path to a mplstyle file to use for the plot. If None (default), uses the default ShakeNBreak style (``shakenbreak.mplstyle``)."
+          },
+          "y_label": {
+            "type": "str | None",
+            "description": "Y axis label (Default: \"Energy (eV)\")"
+          },
+          "add_title": {
+            "type": "bool | None",
+            "description": "Whether to add a title to the plot. By default, the title is the formatted defect name (i.e. V$_{Cd}^{0}$). (Default: True)"
+          },
+          "line_color": {
+            "type": "str | None",
+            "description": "Color of the line connecting points. (Default: ShakeNBreak base style)"
+          },
+          "units": {
+            "type": "str | None",
+            "description": "Units for energy, either \"eV\" or \"meV\". (Default: \"eV\")"
+          },
+          "save_plot": {
+            "type": "bool | None",
+            "description": "Whether to save the plot to disk. (Default: True)"
+          },
+          "save_format": {
+            "type": "str | None",
+            "description": "Format to save the plot as. (Default: \"png\")"
+          },
+          "verbose": {
+            "type": "bool",
+            "description": "Whether to print information about the plot (warnings and where it's saved)."
+          },
+          "close_figure": {
+            "type": "bool",
+            "description": "Whether to close matplotlib figure after saving, to reduce memory usage. Recommended to use if plotting many defects at once, in which case figure will be saved to disk and not displayed. (Default: False)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`mpl.figure.Figure`: Energy vs distortion plot, as a ``Figure`` object."
+          }
+        },
+        "ori_input": "defect_species: str, energies_dict: dict, output_path: str | None = '.', neighbour_atom: str | None = None, num_nearest_neighbours: int | None = None, add_colorbar: bool | None = False, metric: str | None = 'max_dist', max_energy_above_unperturbed: float | None = 0.5, include_site_info_in_name: bool | None = False, style_file: PathLike | None = None, y_label: str | None = 'Energy (eV)', add_title: bool | None = True, line_color: str | None = None, units: str | None = 'eV', save_plot: bool | None = True, save_format: str | None = 'png', verbose: bool = False, close_figure: bool = False",
+        "ori_description": "Convenience function to plot energy vs distortion for a defect, to identify any energy-lowering distortions.  Args: defect_species (:obj:`str`): Defect name including charge (e.g. 'vac_1_Cd_0') energies_dict (:obj:`dict`): Dictionary matching distortion to final energy (eV), as produced by ``_organize_data()`` or ``analysis.get_energies()``) output_path (:obj:`str`): Path to top-level directory with your distorted defect calculations (to calculate structure comparisons and save plots) (Default: current directory) neighbour_atom (:obj:`str`): Name(s) of distorted neighbour atoms (e.g. 'Cd'). If not specified, will be parsed from distortion_metadata.json file. (Default: None) num_nearest_neighbours (:obj:`int`): Number of distorted neighbour atoms (e.g. 2). If not specified, will be parsed from distortion_metadata.json file. (Default: None) add_colorbar (:obj:`bool`): Whether to add a colorbar indicating structural similarity between each structure and the unperturbed one. (Default: False) metric (:obj:`str`): If add_colorbar is True, determines the criteria used for the structural comparison. Can choose between the summed of atomic displacements ('disp') or the maximum distance between matched sites ('max_dist', default). (Default: \"max_dist\") max_energy_above_unperturbed (:obj:`float`): Maximum energy (in chosen ``units``), relative to the unperturbed structure, to show on the plot. (Default: 0.5 eV) units (:obj:`str`): Units for energy, either \"eV\" or \"meV\". (Default: \"eV\") include_site_info_in_name (:obj:`bool`): Whether to include the site info (i.e. point group symbol and possibly nearest neighbour info, as generated by doped) in the defect name. Useful for materials with many symmetry-inequivalent sites. (Default: False) style_file (PathLike): Path to a mplstyle file to use for the plot. If None (default), uses the default ShakeNBreak style (``shakenbreak.mplstyle``). y_label (:obj:`str`): Y axis label (Default: \"Energy (eV)\") add_title (:obj:`bool`): Whether to add a title to the plot. By default, the title is the formatted defect name (i.e. V$_{Cd}^{0}$). (Default: True) line_color (:obj:`str`): Color of the line connecting points. (Default: ShakeNBreak base style) save_plot (:obj:`bool`): Whether to save the plot to disk. (Default: True) save_format (:obj:`str`): Format to save the plot as. (Default: \"png\") verbose (:obj:`bool`): Whether to print information about the plot (warnings and where it's saved). close_figure (:obj:`bool`): Whether to close matplotlib figure after saving, to reduce memory usage. Recommended to use if plotting many defects at once, in which case figure will be saved to disk and not displayed. (Default: False)  Returns: :obj:`mpl.figure.Figure`: Energy vs distortion plot, as a ``Figure`` object."
+      },
+      {
+        "name": "plot_datasets",
+        "type": "function",
+        "module": "shakenbreak.plotting",
+        "description": "Generate energy versus bond distortion plots for multiple datasets.",
+        "input": {
+          "datasets": {
+            "type": "list",
+            "description": "List of {distortion: energy} dictionaries to plot (each dictionary matching distortion to final energy (eV), as produced by ``analysis._organize_data()`` or ``analysis.get_energies()``)"
+          },
+          "dataset_labels": {
+            "type": "list | None",
+            "description": "Labels for each dataset plot legend. If None, defaults to [\"Distortions\"]*len(datasets)."
+          },
+          "defect_species": {
+            "type": "str",
+            "description": "Specific defect name that will appear in plot labels (in LaTeX form) and file names (e.g 'vac_1_Cd_0'). Defaults to 'defect'."
+          },
+          "include_site_info_in_name": {
+            "type": "bool | None",
+            "description": "Whether to include the site info (i.e. point group symbol and possibly nearest neighbour info, as generated by doped) in the defect name. Useful for materials with many symmetry-inequivalent sites. (Default: False)"
+          },
+          "title": {
+            "type": "str | None",
+            "description": "Plot title (Default: None)"
+          },
+          "neighbour_atom": {
+            "type": "str | None",
+            "description": "Name(s) of distorted neighbour atoms (e.g. 'Cd')"
+          },
+          "num_nearest_neighbours": {
+            "type": "int | None",
+            "description": "Number of distorted neighbour atoms (e.g. 2)"
+          },
+          "max_energy_above_unperturbed": {
+            "type": "float | None",
+            "description": "Maximum energy (in chosen ``units``), relative to the unperturbed structure, to show on the plot. (Default: 0.5 eV)"
+          },
+          "style_file": {
+            "type": "PathLike | None",
+            "description": "Path to a mplstyle file to use for the plot. If None (default), uses the default ShakeNBreak style (``shakenbreak.mplstyle``)."
+          },
+          "y_label": {
+            "type": "str",
+            "description": "Y axis label (Default: 'Energy (eV)')"
+          },
+          "markers": {
+            "type": "list | None",
+            "description": "List of markers to use for each dataset (e.g [\"o\", \"d\"]) (Default: None)"
+          },
+          "linestyles": {
+            "type": "list | None",
+            "description": "List of line styles to use for each dataset (e.g [\"-\", \"-.\"]) (Default: None)"
+          },
+          "colors": {
+            "type": "list | None",
+            "description": "List of color codes to use for each dataset (e.g [\"C1\", \"C2\"]) (Default: None)"
+          },
+          "markersize": {
+            "type": "float | None",
+            "description": "Marker size to use for plots (single value, or list of values for each dataset) (Default: None)"
+          },
+          "linewidth": {
+            "type": "float | None",
+            "description": "Linewidth to use for plots (single value, or list of values for each dataset) (Default: None)"
+          },
+          "save_plot": {
+            "type": "bool | None",
+            "description": "Whether to save the plots. (Default: True)"
+          },
+          "output_path": {
+            "type": "str | None",
+            "description": "Path to top-level directory containing the defect directory (in which to save the plot). (Default: \".\")"
+          },
+          "save_format": {
+            "type": "str | None",
+            "description": "Format to save the plot as. (Default: 'png')"
+          },
+          "verbose": {
+            "type": "bool | None",
+            "description": "Whether to print information about the plot (warnings and where it's saved)."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "obj:`mpl.figure.Figure`: Energy vs distortion plot for multiple datasets, as a ``Figure`` object"
+          }
+        },
+        "ori_input": "datasets: list, dataset_labels: list | None = None, defect_species: str = 'defect', include_site_info_in_name: bool | None = False, title: str | None = None, neighbour_atom: str | None = None, num_nearest_neighbours: int | None = None, max_energy_above_unperturbed: float | None = 0.5, style_file: PathLike | None = None, y_label: str = 'Energy (eV)', markers: list | None = None, linestyles: list | None = None, colors: list | None = None, markersize: float | None = None, linewidth: float | None = None, save_plot: bool | None = False, output_path: str | None = '.', save_format: str | None = 'png', verbose: bool | None = True",
+        "ori_description": "Generate energy versus bond distortion plots for multiple datasets.  Args: datasets (:obj:`list`): List of {distortion: energy} dictionaries to plot (each dictionary matching distortion to final energy (eV), as produced by ``analysis._organize_data()`` or ``analysis.get_energies()``) dataset_labels (:obj:`list`): Labels for each dataset plot legend. If None, defaults to [\"Distortions\"]*len(datasets). defect_species (:obj:`str`): Specific defect name that will appear in plot labels (in LaTeX form) and file names (e.g 'vac_1_Cd_0'). Defaults to 'defect'. include_site_info_in_name (:obj:`bool`): Whether to include the site info (i.e. point group symbol and possibly nearest neighbour info, as generated by doped) in the defect name. Useful for materials with many symmetry-inequivalent sites. (Default: False) neighbour_atom (:obj:`str`): Name(s) of distorted neighbour atoms (e.g. 'Cd') title (:obj:`str`, optional): Plot title (Default: None) num_nearest_neighbours (:obj:`int`): Number of distorted neighbour atoms (e.g. 2) max_energy_above_unperturbed (:obj:`float`): Maximum energy (in chosen ``units``), relative to the unperturbed structure, to show on the plot. (Default: 0.5 eV) style_file (PathLike): Path to a mplstyle file to use for the plot. If None (default), uses the default ShakeNBreak style (``shakenbreak.mplstyle``). y_label (:obj:`str`): Y axis label (Default: 'Energy (eV)') colors (:obj:`list`): List of color codes to use for each dataset (e.g [\"C1\", \"C2\"]) (Default: None) markers (:obj:`list`): List of markers to use for each dataset (e.g [\"o\", \"d\"]) (Default: None) linestyles (:obj:`list`): List of line styles to use for each dataset (e.g [\"-\", \"-.\"]) (Default: None) markersize (:obj:`float`): Marker size to use for plots (single value, or list of values for each dataset) (Default: None) linewidth (:obj:`float`): Linewidth to use for plots (single value, or list of values for each dataset) (Default: None) save_plot (:obj:`bool`): Whether to save the plots. (Default: True) output_path (:obj:`str`): Path to top-level directory containing the defect directory (in which to save the plot). (Default: \".\") save_format (:obj:`str`): Format to save the plot as. (Default: 'png') verbose (:obj:`bool`): Whether to print information about the plot (warnings and where it's saved).  Returns: :obj:`mpl.figure.Figure`: Energy vs distortion plot for multiple datasets, as a ``Figure`` object"
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/SMTG-Bham/ShakeNBreak",
+        "documentation": "https://shakenbreak.readthedocs.io/en/latest/",
+        "pypi": "https://pypi.org/project/shakenbreak/",
+        "pypi_version": "3.4.4",
+        "tag": "v3.4.4",
+        "commit": "832979e22aa15edc869427b77c3730c2a634b7ca",
+        "release_published_at": "2026-02-10T19:20:40Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "项目展示名为 ShakeNBreak，PyPI 规范名称与 Python 导入名均为 shakenbreak；发布版本与 PyPI 一致。",
+          "随机扰动需固定种子；外部弛豫与第一性原理计算未执行。"
+        ],
+        "release_url": "https://github.com/SMTG-Bham/ShakeNBreak/releases/tag/v3.4.4",
+        "release_api": "https://api.github.com/repos/SMTG-Bham/ShakeNBreak/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/shakenbreak",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "shakenbreak"
+        ],
+        "source_files": [
+          "shakenbreak/__init__.py",
+          "shakenbreak/analysis.py",
+          "shakenbreak/cli.py",
+          "shakenbreak/distortions.py",
+          "shakenbreak/energy_lowering_distortions.py",
+          "shakenbreak/input.py",
+          "shakenbreak/io.py",
+          "shakenbreak/plotting.py"
+        ],
+        "source_file_sha256": {
+          "shakenbreak/__init__.py": "05ae793006daddf799924f02354bc3a9ffe5525208698fcd015c067a48b86582",
+          "shakenbreak/analysis.py": "0f98dad9dd403f788d4663d33c0b91b1349b2e177da4fd58b77abd1f330e00e9",
+          "shakenbreak/cli.py": "0c4d4727f6e0081ae7213fccf7f11a577fe27340549f70d8611097ac10774211",
+          "shakenbreak/distortions.py": "60209e2826fa9b45f9aa68642eae6ffd1062ee16cc1f2c7577c695f1ca3177c4",
+          "shakenbreak/energy_lowering_distortions.py": "1836ea6ac398395f11d85205e7d772af825507baed642023893ab61fa294efaf",
+          "shakenbreak/input.py": "9095fbf1ffa18019316ae2e560c1389e1740b4f06f6a0488a5e98e4ff9ddac5e",
+          "shakenbreak/io.py": "9eabfcb3f0d3bc3f88f0e0d2dd6c892c5a498564768d824129b4e1554783d6cb",
+          "shakenbreak/plotting.py": "bbe59f699fc108a1b65d27f6c6dc1598f9a68aa6b0314f6600ddc6043fe613df"
+        },
+        "source_version": "v3.4.4",
+        "source_commit": "832979e22aa15edc869427b77c3730c2a634b7ca",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "shakenbreak_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/shakenbreak_v3.4.4.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/shakenbreak_v3.4.4.json",
+        "source_sha256": "29714961473b1124da3216be2e314017c407ed3ae6996c50ad09dfee6745c694",
+        "profile_sha256": "0c288503957982b5bc937533c15cf22f6720153ff94c3a104893a04b7d84fd3c",
+        "boundary": "缺陷识别、可控畸变/随机扰动、各支持后端的输入文件、弛豫结果解析与基态比较。排除重复 Click CLI、作业运行和纯格式打印；随机过程需固定种子，外部弛豫结果使用固定样例。",
+        "target_all_func": {
+          "min": 40,
+          "max": 100
+        },
+        "raw_tool_count": 47,
+        "selected_tool_count": 34,
+        "selected_class_count": 1,
+        "selected_function_count": 33,
+        "selected_method_count": 9,
+        "selected_all_func": 42,
+        "missing_description_count": 0,
+        "excluded_tool_count": 13,
+        "capability_count": 3,
+        "desired_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "target_exception_reason": "全量仅 55 个调用；去除 11 个 Click CLI 入口、bold_print 和 plot_colorbar 后为 42。保留实际 Python 工作流，不以 CLI 别名或显示辅助凑数。"
+      }
+    }
+  }
+]

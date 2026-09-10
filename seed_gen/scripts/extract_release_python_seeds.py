@@ -71,7 +71,14 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
         raise ValueError(f"Release commit mismatch: {root}")
     if git(root, "status", "--porcelain", "--untracked-files=no"):
         raise ValueError(f"Tracked source modifications in {root}")
-    tools, files = extract_modules(root, spec["modules"])
+    source_root = root / spec.get("source_root", ".")
+    tools, files = extract_modules(source_root, spec["modules"])
+    files = [(source_root / file).relative_to(root).as_posix() for file in files]
+    adapter_metadata = {}
+    if spec.get("adapter"):
+        from seed_gen.scripts.extract_native_python_refs import adapt_native
+        tools, native_files, adapter_metadata = adapt_native(spec["adapter"], root, tools)
+        files = sorted(set(files + native_files))
     native_count = 0
     if spec["name"] == "devsim":
         for tool in tools:
@@ -88,7 +95,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
         urls.append(spec["pypi"])
     urls.append(spec["documentation"])
     return [{
-        "global_id": f"pypi_{spec['name']}_{spec['index']}",
+        "global_id": f"pypi_{re.sub(r'[^a-z0-9]+', '_', spec['name'].lower()).strip('_')}_{spec['index']}",
         "schema_version": "1.1",
         "environment": {
             "basic_info": {"source": "pypi", "url": urls, "name": spec["name"],
@@ -105,9 +112,9 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
                 **{key: spec[key] for key in ("repository", "documentation", "pypi", "pypi_version",
                                              "tag", "commit", "release_published_at", "checked_on",
                                              "github_prerelease", "notes")},
-                "release_url": f"{spec['repository']}/releases/tag/{spec['tag']}",
-                "release_api": f"https://api.github.com/repos/{spec['repository'].removeprefix('https://github.com/')}/releases/latest",
-                "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+                "release_url": spec.get("release_url", f"{spec['repository']}/releases/tag/{spec['tag']}"),
+                "release_api": spec.get("release_api", f"https://api.github.com/repos/{spec['repository'].removeprefix('https://github.com/')}/releases/latest"),
+                "selection_rule": spec.get("selection_rule", "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch"),
                 "source_directory": root.as_posix(),
                 "submodule_status": git(root, "submodule", "status").splitlines(),
             },
@@ -128,6 +135,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
                 },
                 "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
                 "runtime_verified": False,
+                **adapter_metadata,
             },
         },
     }]
@@ -141,7 +149,7 @@ def main() -> None:
     parser.add_argument("--check", action="store_true", help="Compare existing JSON to fresh source extraction without writing")
     args = parser.parse_args()
     specs = json.loads(args.manifest.read_text(encoding="utf-8"))
-    # Build all four before writing so an extraction failure cannot leave half a batch.
+    # Build the entire manifest before writing to avoid partial batches.
     payloads = [(spec, build_seed(spec, args.raw_root)) for spec in specs]
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for spec, payload in payloads:

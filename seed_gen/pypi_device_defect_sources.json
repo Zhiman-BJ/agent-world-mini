@@ -1,0 +1,103 @@
+[
+  {
+    "name": "gdsfactory", "index": 7,
+    "repository": "https://github.com/gdsfactory/gdsfactory",
+    "documentation": "https://gdsfactory.github.io/gdsfactory/",
+    "pypi": "https://pypi.org/project/gdsfactory/", "pypi_version": "9.50.0",
+    "tag": "v9.50.0", "commit": "957d171fe4597b4d37caa10be6e069af7ea83445",
+    "release_published_at": "2026-09-10T04:43:12Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "gdsfactory", "modules": ["gdsfactory"],
+    "description": "gdsfactory 是用于光子集成电路及芯片版图设计的 Python 库，基于 KLayout 与 kfactory 提供参数化器件、端口、波导截面、自动布线、层次化组件、工艺层定义以及 GDS 文件读写。它可连接外部仿真插件；版图到三维网格和器件仿真仍需要工艺堆栈、材料及边界条件映射。",
+    "notes": ["PyPI、GitHub Release 与文档首页均为 9.50.0；源码 config.py 记录版本。", "仅索引本包直接定义的接口；kfactory 导入的 Port、Instance 及继承方法不重复展开。仿真和 Gmsh/DEVSIM 集成位于可选 gplugins，不假定本包具备直接仿真能力。"]
+  },
+  {
+    "name": "klayout", "index": 8,
+    "repository": "https://github.com/KLayout/klayout",
+    "documentation": "https://www.klayout.de/doc-qt5/programming/python.html",
+    "pypi": "https://pypi.org/project/klayout/", "pypi_version": "0.30.12",
+    "tag": "v0.30.12", "commit": "e71272c3b178105bd2a2f25af54673a7af7ed60d",
+    "release_published_at": "2026-08-26T17:09:27Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "klayout", "source_root": "src/pymod/distutils_src", "modules": ["klayout"], "adapter": "klayout",
+    "description": "KLayout 的独立 Python 包提供芯片版图数据库、层次化单元、图层、几何图形和区域运算接口，支持 GDSII、OASIS 等文件读写、坐标变换、版图查询与几何检查。其主要计算由原生 C++ 库实现，可用于无图形界面的版图构建、转换和验证；完整桌面应用的 Qt 界面不属于本次精选范围。",
+    "notes": ["PyPI 与 GitHub Release 均为 0.30.12，version.sh 同时记录应用与 PyPI 版本。", "采用发布版自带 *core.pyi 及 Python 包源码，按 __init__.py 重导出映射公开模块。重载按方法名计一次，全部签名和说明另存 others；未编译核对绑定。"]
+  },
+  {
+    "name": "gmsh", "index": 9,
+    "repository": "https://gitlab.onelab.info/gmsh/gmsh",
+    "documentation": "https://gmsh.info/doc/texinfo/",
+    "pypi": "https://pypi.org/project/gmsh/", "pypi_version": "4.15.2",
+    "tag": "gmsh_4_15_2", "commit": "657c8e915f60405e6cad0c8ec7faf812bfff1a60",
+    "release_published_at": "2026-03-24", "checked_on": "2026-09-10", "github_prerelease": null,
+    "release_url": "https://gmsh.info/", "release_api": "",
+    "selection_rule": "Official gmsh.info stable release announcement, CHANGELOG.txt, PyPI version and exact GitLab release tag agree; not a GitHub project.",
+    "directory": "gmsh", "source_root": "api", "modules": ["gmsh"], "adapter": "gmsh",
+    "description": "Gmsh 是具有几何建模、二维及三维有限元网格生成和前后处理功能的开源工具，其 Python API 可构建几何实体、定义物理分组、设置网格尺寸、生成并查询节点和单元，以及读写网格文件。本次作为网格生成后端整理；用于 DEVSIM 时需匹配 MSH 格式及器件区域、接触和界面标签。",
+    "notes": ["官网明确标注 Current stable release 4.15.2, 24 March 2026，与 CHANGELOG.txt 和 PyPI 一致；源码由官方 GitLab 精确标签克隆。", "api/gmsh.py 是官方生成绑定。model/mesh/occ 等嵌套静态类按命名空间展开为函数，避免遗漏核心网格 API；不把容器计作用户建模类。"]
+  },
+  {
+    "name": "meshio", "index": 10,
+    "repository": "https://github.com/nschloe/meshio",
+    "documentation": "https://github.com/nschloe/meshio#readme",
+    "pypi": "https://pypi.org/project/meshio/", "pypi_version": "5.3.5",
+    "tag": "v5.3.5", "commit": "b2ee99842e119901349fdeee06b5bf61e01f450a",
+    "release_published_at": "2024-01-31T15:09:04Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "meshio", "source_root": "src", "modules": ["meshio"],
+    "description": "meshio 是面向多种网格格式的 Python 读写和转换库，使用统一的节点、单元块、点数据、单元数据及集合表示，支持 Gmsh、VTK、VTU、XDMF 等文件及时间序列数据交换。它可连接网格生成和数值分析流程，本身不生成网格，也不求解半导体物理方程。",
+    "notes": ["PyPI 与 GitHub Release 均为 5.3.5；src/meshio/__about__.py 从已安装分发元数据读取版本，不包含固定版本值。官方 README 提供用法和格式说明，未找到独立官方 API 文档站，使用 README 链接。", "顶层 Mesh/read/write 由私有实现模块公开重导出，索引保留源码定义模块；精选避免重复保留各格式的同类 read/write 入口。"]
+  },
+  {
+    "name": "pymatgen", "index": 11,
+    "repository": "https://github.com/materialsproject/pymatgen",
+    "documentation": "https://pymatgen.org",
+    "pypi": "https://pypi.org/project/pymatgen/", "pypi_version": "2026.5.4",
+    "tag": "v2026.5.4", "commit": "8495e941504cd5123701635b6572942c78d9589c",
+    "release_published_at": "2026-05-04T21:53:30Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "pymatgen", "source_root": "src", "modules": ["pymatgen"],
+    "description": "pymatgen 是材料计算与分析的 Python 工具库。本发布版在 pymatgen-core 提供的组成、晶体结构、相图和计算文件接口之上，提供配位环境、衍射、能量兼容性修正、光学响应、表面能、过渡态与其他专门分析功能，可将结构和计算结果转化为可比较的材料性质。",
+    "notes": ["PyPI、GitHub Release、pyproject.toml 均为 2026.5.4；要求 pymatgen-core>=2026.4.16。已有 pymatgen-core v2026.8.30 保留，不在本包重复展开。", "源码采用 src/pymatgen 命名空间布局；与缺陷扩展同属 pymatgen 命名空间，但按发行包和源码所有权独立编号。"]
+  },
+  {
+    "name": "pymatgen-analysis-defects", "index": 12,
+    "repository": "https://github.com/materialsproject/pymatgen-analysis-defects",
+    "documentation": "https://materialsproject.github.io/pymatgen-analysis-defects/",
+    "pypi": "https://pypi.org/project/pymatgen-analysis-defects/", "pypi_version": "2026.3.20",
+    "tag": "v2026.3.20", "commit": "12c1f80562e69e285073eafdce58281fe0c67618",
+    "release_published_at": "2026-03-20T16:38:32Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "pymatgen-analysis-defects", "modules": ["pymatgen.analysis.defects"],
+    "description": "pymatgen-analysis-defects 是 pymatgen 的点缺陷分析扩展，提供空位、替位、间隙与缺陷复合体表示和生成、缺陷超胞构建、有限尺寸电荷修正、缺陷形成能、化学势与电荷转变分析，以及构型坐标和复合过程相关工具。它基于已有结构与第一性原理结果组织缺陷研究流程。",
+    "notes": ["GitHub 与 PyPI 发布版本一致；安装命名空间为 pymatgen.analysis.defects，不是 pymatgen_analysis_defects。", "部分高级功能需要体电荷密度、介电常数、能带和 VASP 输出；静态索引不代表外部计算或数值收敛已验证。"]
+  },
+  {
+    "name": "doped", "index": 13,
+    "repository": "https://github.com/SMTG-Bham/doped",
+    "documentation": "https://doped.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/doped/", "pypi_version": "3.2.1",
+    "tag": "3.2.1", "commit": "93c8b99b70b7a4e59b46da4870f23b885d0a6991",
+    "release_published_at": "2026-02-10T17:21:50Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "doped", "modules": ["doped"],
+    "description": "doped 是面向固体点缺陷研究的 Python 包，可生成缺陷与电荷态、准备 VASP 计算输入、解析计算结果并执行有限尺寸修正、化学势和缺陷热力学分析。它支持形成能、电荷转变能级、平衡及冻结缺陷浓度和费米能级计算，并可连接 ShakeNBreak 与 py-sc-fermi 等工具。",
+    "notes": ["GitHub 发布标签为 3.2.1（没有 v 前缀），与 PyPI 一致。首次浅克隆出现 schannel 提前断连与 early EOF，使用 HTTP/1.1 重试。", "生成 VASP 输入不等于执行 DFT；赝势、软件许可、输入数据与后端兼容性需后续验证。"]
+  },
+  {
+    "name": "shakenbreak", "index": 14,
+    "repository": "https://github.com/SMTG-Bham/ShakeNBreak",
+    "documentation": "https://shakenbreak.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/shakenbreak/", "pypi_version": "3.4.4",
+    "tag": "v3.4.4", "commit": "832979e22aa15edc869427b77c3730c2a634b7ca",
+    "release_published_at": "2026-02-10T19:20:40Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "shakenbreak", "modules": ["shakenbreak"],
+    "description": "ShakeNBreak 通过缺陷周围的键长畸变与随机扰动生成候选结构，并整理和分析结构弛豫结果，以搜索固体缺陷的低能、基态及亚稳态构型。它支持多种电子结构程序的输入输出及能量和结构比较，实际结构弛豫由外部计算程序完成。",
+    "notes": ["项目展示名为 ShakeNBreak，PyPI 规范名称与 Python 导入名均为 shakenbreak；发布版本与 PyPI 一致。", "随机扰动需固定种子；外部弛豫与第一性原理计算未执行。"]
+  },
+  {
+    "name": "py-sc-fermi", "index": 15,
+    "repository": "https://github.com/bjmorgan/py-sc-fermi",
+    "documentation": "https://py-sc-fermi.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/py-sc-fermi/", "pypi_version": "2.2.2",
+    "tag": "2.2.2", "commit": "4b508c15ed6c3a881fe5fab0e91caba2deb68cab",
+    "release_published_at": "2026-06-09T19:47:43Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "directory": "py-sc-fermi", "modules": ["py_sc_fermi"],
+    "description": "py-sc-fermi 根据预先计算的缺陷形成能、电子态密度和晶胞体积，通过电中性条件自洽求解稀释极限下的费米能级、缺陷及电子和空穴浓度。它提供缺陷电荷态、缺陷种类、态密度和缺陷系统对象，支持平衡及指定冻结浓度的准平衡分析与数据读写。",
+    "notes": ["GitHub 发布标签为 2.2.2（没有 v 前缀），与 PyPI 一致；Python 模块名为 py_sc_fermi。PyPI 元数据 Download 链接含未替换的 {version}，未采用该链接。", "输入需要统一能量参考、单位、简并度和晶胞体积；数值求解与最新依赖组合尚未运行验证。"]
+  }
+]

@@ -1,4 +1,4 @@
-"""Apply the four reviewed release profiles; keep full indexes in ori_all."""
+"""Apply reviewed release profiles; keep full indexes in ori_all."""
 
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ from seed_gen.scripts.select_python_ref_tools import select_seed
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", type=Path, default=Path("seed_gen/pypi_release_sources.json"))
     parser.add_argument("--check", action="store_true", help="Compare existing outputs and reports without writing")
     args = parser.parse_args()
-    specs = json.loads(Path("seed_gen/pypi_release_sources.json").read_text(encoding="utf-8"))
+    specs = json.loads(args.manifest.read_text(encoding="utf-8"))
     artifacts = []
     for spec in specs:
         filename = f"{spec['name']}_{spec['tag']}.json"

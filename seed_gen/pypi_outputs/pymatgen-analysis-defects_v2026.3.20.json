@@ -1,0 +1,1561 @@
+[
+  {
+    "global_id": "pypi_pymatgen_analysis_defects_12",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/materialsproject/pymatgen-analysis-defects",
+          "https://pypi.org/project/pymatgen-analysis-defects/",
+          "https://materialsproject.github.io/pymatgen-analysis-defects/"
+        ],
+        "name": "pymatgen-analysis-defects",
+        "version": "v2026.3.20",
+        "index": 12
+      },
+      "description": "pymatgen-analysis-defects 是 pymatgen 的点缺陷分析扩展，提供空位、替位、间隙与缺陷复合体表示和生成、缺陷超胞构建、有限尺寸电荷修正、缺陷形成能、化学势与电荷转变分析，以及构型坐标和复合过程相关工具。它基于已有结构与第一性原理结果组织缺陷研究流程。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 14,
+        "function": 11,
+        "class_func": 46,
+        "all_func": 57
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Defect",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.core",
+        "input": "MSONable",
+        "description": "Abstract class for a single point defect.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a defect object.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The structure of the defect."
+              },
+              "site": {
+                "type": "PeriodicSite",
+                "description": "The site"
+              },
+              "multiplicity": {
+                "type": "int | None",
+                "description": "The multiplicity of the defect."
+              },
+              "oxi_state": {
+                "type": "float | None",
+                "description": "The oxidation state of the defect, if not specified, this will be determined automatically."
+              },
+              "equivalent_sites": {
+                "type": "list[PeriodicSite] | None",
+                "description": "A list of equivalent sites for the defect in the structure."
+              },
+              "symprec": {
+                "type": "float",
+                "description": "Tolerance for symmetry finding."
+              },
+              "angle_tolerance": {
+                "type": "float",
+                "description": "Angle tolerance for symmetry finding."
+              },
+              "user_charges": {
+                "type": "list[int] | None",
+                "description": "User specified charge states. If specified, ``get_charge_states`` will return this list. If ``None`` or empty list the charge states will be determined automatically."
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure: Structure, site: PeriodicSite, multiplicity: int | None = None, oxi_state: float | None = None, equivalent_sites: list[PeriodicSite] | None = None, symprec: float = 0.01, angle_tolerance: float = 5, user_charges: list[int] | None = None",
+            "ori_description": "Initialize a defect object.  Args: structure: The structure of the defect. site: The site multiplicity: The multiplicity of the defect. oxi_state: The oxidation state of the defect, if not specified, this will be determined automatically. equivalent_sites: A list of equivalent sites for the defect in the structure. symprec: Tolerance for symmetry finding. angle_tolerance: Angle tolerance for symmetry finding. user_charges: User specified charge states. If specified, ``get_charge_states`` will return this list. If ``None`` or empty list the charge states will be determined automatically."
+          },
+          {
+            "name": "get_charge_states",
+            "description": "Potential charge states for a given oxidation state.  If user charges are specified, these will be returned. Otherwise, the charge states will be determined automatically based on the oxidation state with a padding on either sites of 0 and the oxidation state value.",
+            "input": {
+              "self": null,
+              "padding": {
+                "type": "int",
+                "description": "The number of charge states on the on either side of 0 and the oxidation state."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "list of possible charge states"
+              }
+            },
+            "ori_input": "self, padding: int = 1",
+            "ori_description": "Potential charge states for a given oxidation state.  If user charges are specified, these will be returned. Otherwise, the charge states will be determined automatically based on the oxidation state with a padding on either sites of 0 and the oxidation state value.  Args: padding: The number of charge states on the on either side of 0 and the oxidation state.  Returns: list of possible charge states"
+          },
+          {
+            "name": "get_supercell_structure",
+            "description": "Generate the supercell for a defect.  If the bulk structure (provided by `Defect.structure`) and defect structures have oxidation state information, then the supercell will be decorated with oxidation states. Otherwise, the supercell structure will not have any oxidation state information. This also allows for oxidation state decoration of different defect charge states.  .. code-block:: python defect_struct = defect.defect_structure.copy() defect_struct.add_oxidation_state_by_guess(target_charge=2)  .. note:: Since any algorithm for decorating the oxidation states will be combinatorial, They can be very slow for large supercells. If you want to decorate the structure with oxidation states, you have to first decorate the smaller unit cell defect structure then implant it in the supercell.",
+            "input": {
+              "self": null,
+              "sc_mat": {
+                "type": "np.ndarray | None",
+                "description": "supercell matrix if None, the supercell will be determined by `CubicSupercellAnalyzer`."
+              },
+              "defect_structure": {
+                "type": "Structure | None",
+                "description": "Alternative defect structure to use for generating the supercell. You might want to use this if you want to decorate the oxidation states of the defect structure using a custom method."
+              },
+              "dummy_species": {
+                "type": "str | None",
+                "description": "Dummy species to highlight the defect position (for visualizing vacancies)."
+              },
+              "min_atoms": {
+                "type": "int",
+                "description": "Minimum number of atoms allowed in the supercell."
+              },
+              "max_atoms": {
+                "type": "int",
+                "description": "Maximum number of atoms allowed in the supercell."
+              },
+              "min_length": {
+                "type": "float",
+                "description": "Minimum length of the smallest supercell lattice vector."
+              },
+              "force_diagonal": {
+                "type": "bool",
+                "description": "If True, return a transformation with a diagonal transformation matrix."
+              },
+              "relax_radius": {
+                "type": "float | str | None",
+                "description": "Relax the supercell atoms to a sphere of this radius around the defect site."
+              },
+              "perturb": {
+                "type": "float | None",
+                "description": "The amount to perturb the sites in the supercell. Only perturb the sites with selective dynamics set to True. So this setting only works with `relax_radius`."
+              },
+              "target_frac_coords": {
+                "type": "np.ndarray | None",
+                "description": "If set, defect will be placed at the closest equivalent site to these fractional coordinates."
+              },
+              "return_site": {
+                "type": "bool",
+                "description": "If True, returns a tuple of the (defect supercell, defect site position)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "The supercell structure. PeriodicSite (optional): The position of the defect site in the supercell."
+              }
+            },
+            "ori_input": "self, sc_mat: np.ndarray | None = None, defect_structure: Structure | None = None, dummy_species: str | None = None, min_atoms: int = 80, max_atoms: int = 240, min_length: float = 10.0, force_diagonal: bool = False, relax_radius: float | str | None = None, perturb: float | None = None, target_frac_coords: np.ndarray | None = None, return_site: bool = False",
+            "ori_description": "Generate the supercell for a defect.  If the bulk structure (provided by `Defect.structure`) and defect structures have oxidation state information, then the supercell will be decorated with oxidation states. Otherwise, the supercell structure will not have any oxidation state information. This also allows for oxidation state decoration of different defect charge states.  .. code-block:: python defect_struct = defect.defect_structure.copy() defect_struct.add_oxidation_state_by_guess(target_charge=2)  .. note:: Since any algorithm for decorating the oxidation states will be combinatorial, They can be very slow for large supercells. If you want to decorate the structure with oxidation states, you have to first decorate the smaller unit cell defect structure then implant it in the supercell.  Args: sc_mat: supercell matrix if None, the supercell will be determined by `CubicSupercellAnalyzer`. defect_structure: Alternative defect structure to use for generating the supercell. You might want to use this if you want to decorate the oxidation states of the defect structure using a custom method. dummy_species: Dummy species to highlight the defect position (for visualizing vacancies). max_atoms: Maximum number of atoms allowed in the supercell. min_atoms: Minimum number of atoms allowed in the supercell. min_length: Minimum length of the smallest supercell lattice vector. force_diagonal: If True, return a transformation with a diagonal transformation matrix. relax_radius: Relax the supercell atoms to a sphere of this radius around the defect site. perturb: The amount to perturb the sites in the supercell. Only perturb the sites with selective dynamics set to True. So this setting only works with `relax_radius`. target_frac_coords: If set, defect will be placed at the closest equivalent site to these fractional coordinates. return_site: If True, returns a tuple of the (defect supercell, defect site position).  Returns: Structure: The supercell structure. PeriodicSite (optional): The position of the defect site in the supercell."
+          },
+          {
+            "name": "centered_defect_structure",
+            "description": "Get a defect structure that is centered around the site.  Move all the sites in the structure so that they are in the periodic image closest to the defect site.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Get a defect structure that is centered around the site.  Move all the sites in the structure so that they are in the periodic image closest to the defect site."
+          }
+        ]
+      },
+      {
+        "name": "Vacancy",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.core",
+        "input": "Defect",
+        "description": "Class representing a vacancy defect.",
+        "function": [
+          {
+            "name": "name",
+            "description": "Name of the defect.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Name of the defect."
+          },
+          {
+            "name": "defect_structure",
+            "description": "Returns the defect structure with the proper oxidation state.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Returns the defect structure with the proper oxidation state."
+          },
+          {
+            "name": "defect_site_index",
+            "description": "Get the index of the defect in the structure.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Get the index of the defect in the structure."
+          },
+          {
+            "name": "element_changes",
+            "description": "Get the species changes of the vacancy defect.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "Dict[Element, int]",
+                "description": "The species changes of the defect."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Get the species changes of the vacancy defect.  Returns: Dict[Element, int]: The species changes of the defect."
+          }
+        ]
+      },
+      {
+        "name": "Substitution",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.core",
+        "input": "Defect",
+        "description": "Single-site substitutional defects.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a substitutional defect object.  The position of `site` determines the atom to be removed and the species of `site` determines the replacing species.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The structure of the defect."
+              },
+              "site": {
+                "type": "PeriodicSite",
+                "description": "Replace the nearest site with this one."
+              },
+              "multiplicity": {
+                "type": "int | None",
+                "description": "The multiplicity of the defect."
+              },
+              "oxi_state": {
+                "type": "float | None",
+                "description": "The oxidation state of the defect, if not specified, this will be determined automatically."
+              },
+              "equivalent_sites": {
+                "type": "list[PeriodicSite] | None",
+                "description": "A list of equivalent sites for the defect in the structure."
+              },
+              "symprec": {
+                "type": "float",
+                "description": "Tolerance for symmetry finding."
+              },
+              "angle_tolerance": {
+                "type": "float",
+                "description": "Angle tolerance for symmetry finding."
+              },
+              "user_charges": {
+                "type": "list[int] | None",
+                "description": "User specified charge states. If specified, ``get_charge_states`` will return this list. If ``None`` or empty list the charge states will be determined automatically."
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure: Structure, site: PeriodicSite, multiplicity: int | None = None, oxi_state: float | None = None, equivalent_sites: list[PeriodicSite] | None = None, symprec: float = 0.01, angle_tolerance: float = 5, user_charges: list[int] | None = None",
+            "ori_description": "Initialize a substitutional defect object.  The position of `site` determines the atom to be removed and the species of `site` determines the replacing species.  Args: structure: The structure of the defect. site: Replace the nearest site with this one. multiplicity: The multiplicity of the defect. oxi_state: The oxidation state of the defect, if not specified, this will be determined automatically. equivalent_sites: A list of equivalent sites for the defect in the structure. symprec: Tolerance for symmetry finding. angle_tolerance: Angle tolerance for symmetry finding. user_charges: User specified charge states. If specified, ``get_charge_states`` will return this list. If ``None`` or empty list the charge states will be determined automatically."
+          },
+          {
+            "name": "name",
+            "description": "Name of the defect.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Name of the defect."
+          },
+          {
+            "name": "defect_structure",
+            "description": "Returns the defect structure.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Returns the defect structure."
+          },
+          {
+            "name": "element_changes",
+            "description": "Get the species changes of the substitution defect.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "Dict[Element, int]",
+                "description": "The species changes of the defect."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Get the species changes of the substitution defect.  Returns: Dict[Element, int]: The species changes of the defect."
+          }
+        ]
+      },
+      {
+        "name": "Interstitial",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.core",
+        "input": "Defect",
+        "description": "Interstitial Defect.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize an interstitial defect object.  The interstitial defect effectively inserts the `site` object into the structure.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The structure of the defect."
+              },
+              "site": {
+                "type": "PeriodicSite",
+                "description": "Inserted site, also determines the species."
+              },
+              "multiplicity": {
+                "type": "int",
+                "description": "The multiplicity of the defect."
+              },
+              "oxi_state": {
+                "type": "float | None",
+                "description": "The oxidation state of the defect, if not specified, this will be determined automatically."
+              },
+              "equivalent_sites": {
+                "type": "list[PeriodicSite] | None",
+                "description": "A list of equivalent sites for the defect in the structure."
+              },
+              "symprec": {
+                "type": "float",
+                "description": "Tolerance for symmetry finding."
+              },
+              "angle_tolerance": {
+                "type": "float",
+                "description": "Angle tolerance for symmetry finding."
+              },
+              "user_charges": {
+                "type": "list[int] | None",
+                "description": "User specified charge states. If specified,"
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure: Structure, site: PeriodicSite, multiplicity: int = 1, oxi_state: float | None = None, equivalent_sites: list[PeriodicSite] | None = None, symprec: float = 0.01, angle_tolerance: float = 5, user_charges: list[int] | None = None",
+            "ori_description": "Initialize an interstitial defect object.  The interstitial defect effectively inserts the `site` object into the structure.  Args: structure: The structure of the defect. site: Inserted site, also determines the species. multiplicity: The multiplicity of the defect. oxi_state: The oxidation state of the defect, if not specified, this will be determined automatically. equivalent_sites: A list of equivalent sites for the defect in the structure. symprec: Tolerance for symmetry finding. angle_tolerance: Angle tolerance for symmetry finding. user_charges: User specified charge states. If specified,"
+          },
+          {
+            "name": "name",
+            "description": "Name of the defect.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Name of the defect."
+          },
+          {
+            "name": "defect_structure",
+            "description": "Returns the defect structure.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Returns the defect structure."
+          },
+          {
+            "name": "element_changes",
+            "description": "Get the species changes of the intersitial defect.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "Dict[Element, int]",
+                "description": "The species changes of the defect."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Get the species changes of the intersitial defect.  Returns: Dict[Element, int]: The species changes of the defect."
+          }
+        ]
+      },
+      {
+        "name": "DefectComplex",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.core",
+        "input": "Defect",
+        "description": "A complex of defects.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a complex defect object.",
+            "input": {
+              "self": null,
+              "defects": {
+                "type": "list[Defect]",
+                "description": "List of defects."
+              },
+              "oxi_state": {
+                "type": "float | None",
+                "description": "The oxidation state of the defect, if not specified, this will be determined automatically."
+              }
+            },
+            "output": null,
+            "ori_input": "self, defects: list[Defect], oxi_state: float | None = None",
+            "ori_description": "Initialize a complex defect object.  Args: defects: List of defects. oxi_state: The oxidation state of the defect, if not specified, this will be determined automatically."
+          },
+          {
+            "name": "defect_structure",
+            "description": "Returns the defect structure.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Returns the defect structure."
+          },
+          {
+            "name": "element_changes",
+            "description": "Determine the species changes of the complex defect.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Determine the species changes of the complex defect."
+          },
+          {
+            "name": "name",
+            "description": "Name of the defect.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Name of the defect."
+          }
+        ]
+      },
+      {
+        "name": "get_sc_fromstruct",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.supercells",
+        "description": "Generate the best supercell from a unitcell.  The CubicSupercellTransformation from PMG is much faster but don't iterate over as many supercell configurations so it's less able to find the best configuration in a given cell size. We try the PMG's cubic supercell transformation first and if it fails we will use the `find_optimal_cell_shape` function from ASE which is much slower but exhaustive.",
+        "input": {
+          "base_struct": {
+            "type": "Structure",
+            "description": "structure of the unit cell"
+          },
+          "min_atoms": {
+            "type": "int",
+            "description": "Minimum number of atoms allowed in the supercell."
+          },
+          "max_atoms": {
+            "type": "int",
+            "description": "Maximum number of atoms allowed in the supercell."
+          },
+          "min_length": {
+            "type": "float",
+            "description": "Minimum length of the smallest supercell lattice vector."
+          },
+          "force_diagonal": {
+            "type": "bool",
+            "description": "If True, return a transformation with a diagonal transformation matrix."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "struc_sc",
+            "description": "Supercell that is as close to cubic as possible"
+          }
+        },
+        "ori_input": "base_struct: Structure, min_atoms: int = 80, max_atoms: int = 240, min_length: float = 10.0, force_diagonal: bool = False",
+        "ori_description": "Generate the best supercell from a unitcell.  The CubicSupercellTransformation from PMG is much faster but don't iterate over as many supercell configurations so it's less able to find the best configuration in a given cell size. We try the PMG's cubic supercell transformation first and if it fails we will use the `find_optimal_cell_shape` function from ASE which is much slower but exhaustive.  Args: base_struct: structure of the unit cell max_atoms: Maximum number of atoms allowed in the supercell. min_atoms: Minimum number of atoms allowed in the supercell. min_length: Minimum length of the smallest supercell lattice vector. force_diagonal: If True, return a transformation with a diagonal transformation matrix.  Returns: struc_sc: Supercell that is as close to cubic as possible"
+      },
+      {
+        "name": "get_matched_structure_mapping",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.supercells",
+        "description": "Get the mapping of the supercell to the unit cell.  Get the mapping from the supercell structure onto the base structure, Note: this only works for structures that are exactly matched.",
+        "input": {
+          "uc_struct": {
+            "type": "Structure",
+            "description": "host structure, smaller cell"
+          },
+          "sc_struct": {
+            "type": "Structure",
+            "description": "bigger cell"
+          },
+          "sm": {
+            "type": "StructureMatcher | None",
+            "description": "StructureMatcher instance"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "sc_m",
+            "description": "supercell matrix to apply to s1 to get s2 total_t : translation to apply on s1 * sc_m to get s2"
+          }
+        },
+        "ori_input": "uc_struct: Structure, sc_struct: Structure, sm: StructureMatcher | None = None",
+        "ori_description": "Get the mapping of the supercell to the unit cell.  Get the mapping from the supercell structure onto the base structure, Note: this only works for structures that are exactly matched.  Args: uc_struct: host structure, smaller cell sc_struct: bigger cell sm: StructureMatcher instance Returns: sc_m : supercell matrix to apply to s1 to get s2 total_t : translation to apply on s1 * sc_m to get s2"
+      },
+      {
+        "name": "get_closest_sc_mat",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.supercells",
+        "description": "Get the best guess for the supercell matrix that created this defect cell.",
+        "input": {
+          "uc_struct": {
+            "type": "Structure",
+            "description": "unit cell structure, should be the host structure"
+          },
+          "sc_struct": {
+            "type": "Structure",
+            "description": "supercell structure, should be the defect structure"
+          },
+          "sm": {
+            "type": "StructureMatcher | None",
+            "description": "StructureMatcher instance, if None, one will be created with default settings"
+          },
+          "debug": {
+            "type": "bool",
+            "description": "bool, if True, return the full list of (distances, lattice, sc_mat) will be returned"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "sc_mat",
+            "description": "supercell matrix to apply to s1 to get s2 dist: mean distance between the two structures"
+          }
+        },
+        "ori_input": "uc_struct: Structure, sc_struct: Structure, sm: StructureMatcher | None = None, debug: bool = False",
+        "ori_description": "Get the best guess for the supercell matrix that created this defect cell.  Args: uc_struct: unit cell structure, should be the host structure sc_struct: supercell structure, should be the defect structure sm: StructureMatcher instance, if None, one will be created with default settings debug: bool, if True, return the full list of (distances, lattice, sc_mat) will be returned  Returns: sc_mat: supercell matrix to apply to s1 to get s2 dist: mean distance between the two structures"
+      },
+      {
+        "name": "VacancyGenerator",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.generators",
+        "input": "DefectGenerator",
+        "description": "Generator for vacancy defects.  Attributes: symprec: Tolerance for symmetry finding (parameter for ``SpacegroupAnalyzer``). angle_tolerance: Angle tolerance for symmetry finding (parameter for ``SpacegroupAnalyzer``).",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the vacancy generator.",
+            "input": {
+              "self": null,
+              "symprec": {
+                "type": "float",
+                "description": ""
+              },
+              "angle_tolerance": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, symprec: float = 0.01, angle_tolerance: float = 5",
+            "ori_description": "Initialize the vacancy generator."
+          },
+          {
+            "name": "generate",
+            "description": "Generate a vacancy defects.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The bulk structure the vacancies are generated from."
+              },
+              "rm_species": {
+                "type": "set[str | Species] | list[str | Species] | None",
+                "description": "List of species to be removed. If None considered all species."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the ``Vacancy`` constructor."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Generator[Vacancy, None, None]",
+                "description": "Generator that yields a list of ``Vacancy`` objects."
+              }
+            },
+            "ori_input": "self, structure: Structure, rm_species: set[str | Species] | list[str | Species] | None = None, **kwargs",
+            "ori_description": "Generate a vacancy defects.  Args: structure: The bulk structure the vacancies are generated from. rm_species: List of species to be removed. If None considered all species. **kwargs: Additional keyword arguments for the ``Vacancy`` constructor.  Returns: Generator[Vacancy, None, None]: Generator that yields a list of ``Vacancy`` objects."
+          }
+        ]
+      },
+      {
+        "name": "SubstitutionGenerator",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.generators",
+        "input": "DefectGenerator",
+        "description": "Generator of substitutions for symmetry distinct sites in a structure.  Attributes: symprec: Tolerance for symmetry finding (parameter for ``SpacegroupAnalyzer``). angle_tolerance: Angle tolerance for symmetry finding (parameter for ``SpacegroupAnalyzer``).",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the substitution generator.",
+            "input": {
+              "self": null,
+              "symprec": {
+                "type": "float",
+                "description": ""
+              },
+              "angle_tolerance": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, symprec: float = 0.01, angle_tolerance: float = 5",
+            "ori_description": "Initialize the substitution generator."
+          },
+          {
+            "name": "generate",
+            "description": "Generate subsitutional defects.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The bulk structure the vacancies are generated from."
+              },
+              "substitution": {
+                "type": "dict[str, str | list]",
+                "description": "The substitutions to be made given as a dictionary. e.g. {\"Ga\": \"Ca\"} means that Ga is substituted with Ca. You can also specify a list of elements to substitute with."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the ``Substitution`` constructor."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Generator[Substitution, None, None]",
+                "description": "Generator that yields a list of ``Substitution`` objects"
+              }
+            },
+            "ori_input": "self, structure: Structure, substitution: dict[str, str | list], **kwargs",
+            "ori_description": "Generate subsitutional defects.  Args: structure: The bulk structure the vacancies are generated from. substitution: The substitutions to be made given as a dictionary. e.g. {\"Ga\": \"Ca\"} means that Ga is substituted with Ca. You can also specify a list of elements to substitute with. **kwargs: Additional keyword arguments for the ``Substitution`` constructor.  Returns: Generator[Substitution, None, None]: Generator that yields a list of ``Substitution`` objects"
+          }
+        ]
+      },
+      {
+        "name": "AntiSiteGenerator",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.generators",
+        "input": "DefectGenerator",
+        "description": "Generator of all anti-site defects.  Attributes: symprec: Tolerance for symmetry finding (parameter for ``SpacegroupAnalyzer``). angle_tolerance: Angle tolerance for symmetry finding (parameter for ``SpacegroupAnalyzer``).",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the anti-site generator.",
+            "input": {
+              "self": null,
+              "symprec": {
+                "type": "float",
+                "description": ""
+              },
+              "angle_tolerance": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, symprec: float = 0.01, angle_tolerance: float = 5",
+            "ori_description": "Initialize the anti-site generator."
+          },
+          {
+            "name": "generate",
+            "description": "Generate anti-site defects.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The bulk structure the anti-site defects are generated from."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the ``Substitution.generate`` function."
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure: Structure, **kwargs",
+            "ori_description": "Generate anti-site defects.  Args: structure: The bulk structure the anti-site defects are generated from. **kwargs: Additional keyword arguments for the ``Substitution.generate`` function."
+          }
+        ]
+      },
+      {
+        "name": "InterstitialGenerator",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.generators",
+        "input": "DefectGenerator",
+        "description": "Generator of interstitiald defects.  Attributes: min_dist: Minimum distance between an interstitial and the nearest atom.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the interstitial generator.",
+            "input": {
+              "self": null,
+              "min_dist": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, min_dist: float = 0.5",
+            "ori_description": "Initialize the interstitial generator."
+          },
+          {
+            "name": "generate",
+            "description": "Generate interstitials.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": "The bulk structure the interstitials are generated from."
+              },
+              "insertions": {
+                "type": "dict[str, Sequence[Sequence[float]]]",
+                "description": "The insertions to be made given as a dictionary {\"Mg\": [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]}."
+              },
+              "multiplicities": {
+                "type": "dict[str, Sequence[int]] | None",
+                "description": "The multiplicities of the insertions to be made given as a dictionary {\"Mg\": [1, 2]}."
+              },
+              "equivalent_positions": {
+                "type": "dict[str, Sequence[Sequence[Sequence[float]]]] | None",
+                "description": "The equivalent positions of the each inserted species given as a dictionary. Note that they should typically be the same but we allow for more flexibility here."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the ``Interstitial`` constructor."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Generator[Interstitial, None, None]",
+                "description": "Generator that yields a list of ``Interstitial`` objects"
+              }
+            },
+            "ori_input": "self, structure: Structure, insertions: dict[str, Sequence[Sequence[float]]], multiplicities: dict[str, Sequence[int]] | None = None, equivalent_positions: dict[str, Sequence[Sequence[Sequence[float]]]] | None = None, **kwargs",
+            "ori_description": "Generate interstitials.  Args: structure: The bulk structure the interstitials are generated from. insertions: The insertions to be made given as a dictionary {\"Mg\": [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]}. multiplicities: The multiplicities of the insertions to be made given as a dictionary {\"Mg\": [1, 2]}. equivalent_positions: The equivalent positions of the each inserted species given as a dictionary. Note that they should typically be the same but we allow for more flexibility here. **kwargs: Additional keyword arguments for the ``Interstitial`` constructor.  Returns: Generator[Interstitial, None, None]: Generator that yields a list of ``Interstitial`` objects"
+          }
+        ]
+      },
+      {
+        "name": "VoronoiInterstitialGenerator",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.generators",
+        "input": "InterstitialGenerator",
+        "description": "Generator for interstitials based on a simple Voronoi.  Attributes: clustering_tol: Tolerance for clustering the Voronoi nodes. min_dist: Minimum distance between an interstitial and the nearest atom. ltol: Tolerance for lattice matching. stol: Tolerance for structure matching. angle_tol: Angle tolerance for structure matching. kwargs: Additional keyword arguments for the ``TopographyAnalyzer`` constructor.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the Voronoi interstitial generator.",
+            "input": {
+              "self": null,
+              "clustering_tol": {
+                "type": "float",
+                "description": ""
+              },
+              "min_dist": {
+                "type": "float",
+                "description": ""
+              },
+              "ltol": {
+                "type": "float",
+                "description": ""
+              },
+              "stol": {
+                "type": "float",
+                "description": ""
+              },
+              "angle_tol": {
+                "type": "float",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, clustering_tol: float = 0.5, min_dist: float = 0.9, ltol: float = 0.2, stol: float = 0.3, angle_tol: float = 5, **kwargs",
+            "ori_description": "Initialize the Voronoi interstitial generator."
+          },
+          {
+            "name": "generate",
+            "description": "Generate interstitials.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure | VolumetricData",
+                "description": "The bulk structure the interstitials inserted in."
+              },
+              "insert_species": {
+                "type": "set[str] | list[str]",
+                "description": "The species to be inserted."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the ``Interstitial`` constructor."
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure: Structure | VolumetricData, insert_species: set[str] | list[str], **kwargs",
+            "ori_description": "Generate interstitials.  Args: structure: The bulk structure the interstitials inserted in. insert_species: The species to be inserted. **kwargs: Additional keyword arguments for the ``Interstitial`` constructor."
+          }
+        ]
+      },
+      {
+        "name": "ChargeInterstitialGenerator",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.generators",
+        "input": "InterstitialGenerator",
+        "description": "Generator of interstitiald defects.  Attributes: clustering_tol: Tolerance for clustering see :meth:`pymatgen.analysis.defects.utils.cluster_nodes`. ltol: Tolerance for lattice parameter matching stol: Tolerance for site matching angle_tol: Tolerance for angles in degrees min_dist: Minimum to atoms in the host structure avg_radius: The radius around each local minima used to evaluate the average charge. max_avg_charge: The maximum average charge to accept. max_insertions: The maximum number of insertion sites to consider. Will choose the sites with the lowest average charge.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the charge interstitial generator.",
+            "input": {
+              "self": null,
+              "clustering_tol": {
+                "type": "float",
+                "description": ""
+              },
+              "ltol": {
+                "type": "float",
+                "description": ""
+              },
+              "stol": {
+                "type": "float",
+                "description": ""
+              },
+              "angle_tol": {
+                "type": "float",
+                "description": ""
+              },
+              "min_dist": {
+                "type": "float",
+                "description": ""
+              },
+              "avg_radius": {
+                "type": "float",
+                "description": ""
+              },
+              "max_avg_charge": {
+                "type": "float",
+                "description": ""
+              },
+              "max_insertions": {
+                "type": "int | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, clustering_tol: float = 0.6, ltol: float = 0.2, stol: float = 0.3, angle_tol: float = 5, min_dist: float = 1.0, avg_radius: float = 0.4, max_avg_charge: float = 0.9, max_insertions: int | None = None",
+            "ori_description": "Initialize the charge interstitial generator."
+          },
+          {
+            "name": "generate",
+            "description": "Generate interstitials.",
+            "input": {
+              "self": null,
+              "chgcar": {
+                "type": "VolumetricData",
+                "description": "The chgcar object to be used for the charge density."
+              },
+              "insert_species": {
+                "type": "set[str] | list[str]",
+                "description": "The species to be inserted."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the ``Interstitial`` constructor."
+              }
+            },
+            "output": null,
+            "ori_input": "self, chgcar: VolumetricData, insert_species: set[str] | list[str], **kwargs",
+            "ori_description": "Generate interstitials.  Args: chgcar: The chgcar object to be used for the charge density. insert_species: The species to be inserted. **kwargs: Additional keyword arguments for the ``Interstitial`` constructor."
+          }
+        ]
+      },
+      {
+        "name": "generate_all_native_defects",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.generators",
+        "description": "Generate all native defects.  Convenience function to generate all native defects for a host structure or chgcar object.",
+        "input": {
+          "host": {
+            "type": "Structure | Chgcar",
+            "description": "The host structure or chgcar object."
+          },
+          "sub_generator": {
+            "type": "SubstitutionGenerator | None",
+            "description": "The substitution generator, if None, a default generator is used."
+          },
+          "vac_generator": {
+            "type": "VacancyGenerator | None",
+            "description": "The vacancy generator, if None, a default generator is used."
+          },
+          "int_generator": {
+            "type": "ChargeInterstitialGenerator | None",
+            "description": "The interstitial generator, if None, a default ChargeInterstitialGenerator is used."
+          },
+          "max_insertions": {
+            "type": "int | None",
+            "description": "The maximum number of interstitials to attempt to insert."
+          }
+        },
+        "output": null,
+        "ori_input": "host: Structure | Chgcar, sub_generator: SubstitutionGenerator | None = None, vac_generator: VacancyGenerator | None = None, int_generator: ChargeInterstitialGenerator | None = None, max_insertions: int | None = None",
+        "ori_description": "Generate all native defects.  Convenience function to generate all native defects for a host structure or chgcar object.  Args: host: The host structure or chgcar object. sub_generator: The substitution generator, if None, a default generator is used. vac_generator: The vacancy generator, if None, a default generator is used. int_generator: The interstitial generator, if None, a default ChargeInterstitialGenerator is used. max_insertions: The maximum number of interstitials to attempt to insert."
+      },
+      {
+        "name": "get_freysoldt_correction",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.corrections.freysoldt",
+        "description": "Gets the Freysoldt correction for a defect entry.",
+        "input": {
+          "q": {
+            "type": "int",
+            "description": "Charge state of defect"
+          },
+          "dielectric": {
+            "type": "float",
+            "description": "Dielectric constant of bulk"
+          },
+          "defect_locpot": {
+            "type": "Locpot",
+            "description": "Locpot of defect"
+          },
+          "bulk_locpot": {
+            "type": "Locpot",
+            "description": "Locpot of bulk"
+          },
+          "defect_frac_coords": {
+            "type": "ArrayLike | None",
+            "description": "Fractional coordinates of the defect."
+          },
+          "lattice": {
+            "type": "Lattice | None",
+            "description": "Lattice of the defect supercell. If None, then uses the lattice of the defect_locpot."
+          },
+          "energy_cutoff": {
+            "type": "float",
+            "description": "Maximum energy in eV in reciprocal space to perform integration"
+          },
+          "mad_tol": {
+            "type": "float",
+            "description": "Convergence criteria for the Madelung energy for potential correction"
+          },
+          "q_model": {
+            "type": "QModel | None",
+            "description": "QModel object to use for Freysoldt correction. If None, then uses default"
+          },
+          "step": {
+            "type": "float",
+            "description": "Step size for numerical integration."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "CorrectionResult",
+            "description": "Correction summary object. The metadata contains plotting data for the planar average electrostatic potential. ``` plot_plnr_avg(result.metadata[0], title=\"Lattice Direction 1\") ```"
+          }
+        },
+        "ori_input": "q: int, dielectric: float, defect_locpot: Locpot, bulk_locpot: Locpot, defect_frac_coords: ArrayLike | None = None, lattice: Lattice | None = None, energy_cutoff: float = 520, mad_tol: float = 0.0001, q_model: QModel | None = None, step: float = 0.0001",
+        "ori_description": "Gets the Freysoldt correction for a defect entry.  Args: q: Charge state of defect dielectric: Dielectric constant of bulk defect_locpot: Locpot of defect bulk_locpot: Locpot of bulk defect_frac_coords: Fractional coordinates of the defect. lattice: Lattice of the defect supercell. If None, then uses the lattice of the defect_locpot. energy_cutoff: Maximum energy in eV in reciprocal space to perform integration mad_tol: Convergence criteria for the Madelung energy for potential correction q_model: QModel object to use for Freysoldt correction. If None, then uses default step: Step size for numerical integration.  Returns: CorrectionResult: Correction summary object. The metadata contains plotting data for the planar average electrostatic potential. ``` plot_plnr_avg(result.metadata[0], title=\"Lattice Direction 1\") ```"
+      },
+      {
+        "name": "get_structure_with_pot",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.corrections.kumagai",
+        "description": "Reads vasprun.xml and OUTCAR files in a directory.",
+        "input": {
+          "directory": {
+            "type": "Path",
+            "description": "Directory containing vasprun.xml and OUTCAR files."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "Structure with \"potential\" site property."
+          }
+        },
+        "ori_input": "directory: Path",
+        "ori_description": "Reads vasprun.xml and OUTCAR files in a directory.  Args: directory: Directory containing vasprun.xml and OUTCAR files.  Returns: Structure with \"potential\" site property."
+      },
+      {
+        "name": "get_efnv_correction",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.corrections.kumagai",
+        "description": "Returns the Kumagai/Oba EFNV correction for a given defect.",
+        "input": {
+          "charge": {
+            "type": "int",
+            "description": "Charge of the defect."
+          },
+          "defect_structure": {
+            "type": "Structure",
+            "description": "Defect structure."
+          },
+          "bulk_structure": {
+            "type": "Structure",
+            "description": "Bulk structure."
+          },
+          "dielectric_tensor": {
+            "type": "list[list[float]]",
+            "description": "Dielectric tensor."
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": "Keyword arguments to pass to `make_efnv_correction`."
+          }
+        },
+        "output": null,
+        "ori_input": "charge: int, defect_structure: Structure, bulk_structure: Structure, dielectric_tensor: list[list[float]], **kwargs",
+        "ori_description": "Returns the Kumagai/Oba EFNV correction for a given defect.  Args: charge: Charge of the defect. defect_structure: Defect structure. bulk_structure: Bulk structure. dielectric_tensor: Dielectric tensor. **kwargs: Keyword arguments to pass to `make_efnv_correction`."
+      },
+      {
+        "name": "DefectEntry",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.thermo",
+        "input": "MSONable",
+        "description": "Data for completed defect supercell calculation.  Attributes: defect: The defect object used to generate the supercell. charge_state: The charge state of the defect. sc_entry: The ComputedStructureEntry for the supercell. sc_defect_frac_coords: The fractional coordinates of the defect in the supercell. If None, structures attributes of the locpot file will be used to automatically determine the defect location. bulk_entry: The ComputedEntry for the bulk material. If this is provided, the energy difference can be calculated from this automatically. The `bulk_entry` can also be provided as an attribute of the `DefectEntry` object. If both are provided, the one for `FormationEnergyDiagram` has precedence. corrections: A dictionary of corrections to the energy. corrections_metadata: A dictionary that acts as a generic container for storing information about how the corrections were calculated. These should are only used for debugging and plotting purposes. PLEASE DO NOT USE THIS AS A CONTAINER FOR IMPORTANT DATA. entry_id: The entry_id for the defect entry. Usually the same as the entry_id of the defect supercell entry.",
+        "function": [
+          {
+            "name": "get_freysoldt_correction",
+            "description": "Calculate the Freysoldt correction.  Updates the corrections dictionary with the Freysoldt correction and returns the planar averaged potential data for plotting.",
+            "input": {
+              "self": null,
+              "defect_locpot": {
+                "type": "Locpot | dict",
+                "description": "The Locpot object for the defect supercell. Or a dictionary of the planar averaged locpot"
+              },
+              "bulk_locpot": {
+                "type": "Locpot | dict",
+                "description": "The Locpot object for the bulk supercell. Or a dictionary of the planar averaged locpot"
+              },
+              "dielectric": {
+                "type": "float | NDArray",
+                "description": "The dielectric tensor or constant for the bulk material."
+              },
+              "defect_struct": {
+                "type": "Structure | None",
+                "description": "The defect structure. If None, the structure of the defect_locpot will be used."
+              },
+              "bulk_struct": {
+                "type": "Structure | None",
+                "description": "The bulk structure. If None, the structure of the bulk_locpot will be used."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the get_correction method."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dict",
+                "description": "The plotting data to analyze the planar averaged electrostatic potential in the three periodic lattice directions."
+              }
+            },
+            "ori_input": "self, defect_locpot: Locpot | dict, bulk_locpot: Locpot | dict, dielectric: float | NDArray, defect_struct: Structure | None = None, bulk_struct: Structure | None = None, **kwargs",
+            "ori_description": "Calculate the Freysoldt correction.  Updates the corrections dictionary with the Freysoldt correction and returns the planar averaged potential data for plotting.  Args: defect_locpot: The Locpot object for the defect supercell. Or a dictionary of the planar averaged locpot bulk_locpot: The Locpot object for the bulk supercell. Or a dictionary of the planar averaged locpot dielectric: The dielectric tensor or constant for the bulk material. defect_struct: The defect structure. If None, the structure of the defect_locpot will be used. bulk_struct: The bulk structure. If None, the structure of the bulk_locpot will be used. **kwargs: Additional keyword arguments for the get_correction method.  Returns: dict: The plotting data to analyze the planar averaged electrostatic potential in the three periodic lattice directions."
+          },
+          {
+            "name": "corrected_energy",
+            "description": "The energy of the defect entry with all corrections applied.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "The energy of the defect entry with all corrections applied."
+          },
+          {
+            "name": "get_ediff",
+            "description": "Get the energy difference between the defect and the bulk (including finite-size correction).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Get the energy difference between the defect and the bulk (including finite-size correction)."
+          },
+          {
+            "name": "get_summary_dict",
+            "description": "Get a summary dictionary for the defect entry.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Get a summary dictionary for the defect entry."
+          }
+        ]
+      },
+      {
+        "name": "FormationEnergyDiagram",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.thermo",
+        "input": "MSONable",
+        "description": "Formation energy.  Attributes: defect_entries: The list of defect entries for the different charge states. The finite-size correction should already be applied to these. pd_entries: The list of entries used to construct the phase diagram and chemical potential diagram. They will be used to determine the stability region of the bulk crystal. The entries are used instead of the ``PhaseDiagram`` object to make serializing the object easier. vbm: The VBM of the bulk crystal. band_gap: The band gap of the bulk crystal. bulk_entry: The bulk computed entry to get the total energy of the bulk supercell. This is only used in case where the bulk entry data is not provided by the individual defect entries themselves. Default is None. The data from the `bulk_entry` attached to each `defect_entry` will be preferentially used if it is available. inc_inf_values: If False these boundary points at infinity are ignored when we look at the chemical potential limits. The stability region is sometimes unbounded, example: Mn_Ga in GaN, the chemical potential of Mn is does not affect the stability of GaN so it can go to ``-inf``. A artificial value is needed to help the half-space intersection algorithm. This can be justified since these tend to be the substitutional elements which should not have very negative chemical potential. bulk_stability: If the bulk energy is above the convex hull, lower it to this value below the convex hull.",
+        "function": [
+          {
+            "name": "with_atomic_entries",
+            "description": "Create a FormationEnergyDiagram object using an existing phase diagram.  Since the Formation energy usually looks like:  E[Defect] - (E[Bulk] + ∑ E[Atom_i] + ∑ Chempot[Atom_i])  The most convenient, and likely most accurate way to obtain the chemical potentials is to calculate the defect supercells and the atomic phases with the same level of theory. As long as the atomic phase energies are computed using the same settings as the defect supercell calculations, the method used to determine the enthalpy of formation of the different competing phases is not important. Then use the an experimentally corrected ``PhaseDiagram`` object (like the ones you can obtain from the Materials Project) to calculate the enthalpy of formation.",
+            "input": {
+              "cls": null,
+              "defect_entries": {
+                "type": "list[DefectEntry]",
+                "description": "The list of defect entries for the different charge states. The finite-size correction should already be applied to these."
+              },
+              "atomic_entries": {
+                "type": "list[ComputedEntry]",
+                "description": "The list of entries used to construct the phase diagram and chemical potential diagram. They will be used to determine the stability region of the bulk crystal."
+              },
+              "phase_diagram": {
+                "type": "PhaseDiagram",
+                "description": "A separately computed phase diagram."
+              },
+              "vbm": {
+                "type": "float",
+                "description": "The VBM of the bulk crystal."
+              },
+              "bulk_entry": {
+                "type": "ComputedEntry | None",
+                "description": "The bulk computed entry to get the total energy of the bulk supercell."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments for the FormationEnergyDiagram class."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "FormationEnergyDiagram",
+                "description": "The FormationEnergyDiagram object."
+              }
+            },
+            "ori_input": "cls, defect_entries: list[DefectEntry], atomic_entries: list[ComputedEntry], phase_diagram: PhaseDiagram, vbm: float, bulk_entry: ComputedEntry | None = None, **kwargs",
+            "ori_description": "Create a FormationEnergyDiagram object using an existing phase diagram.  Since the Formation energy usually looks like:  E[Defect] - (E[Bulk] + ∑ E[Atom_i] + ∑ Chempot[Atom_i])  The most convenient, and likely most accurate way to obtain the chemical potentials is to calculate the defect supercells and the atomic phases with the same level of theory. As long as the atomic phase energies are computed using the same settings as the defect supercell calculations, the method used to determine the enthalpy of formation of the different competing phases is not important. Then use the an experimentally corrected ``PhaseDiagram`` object (like the ones you can obtain from the Materials Project) to calculate the enthalpy of formation.  Args: defect_entries: The list of defect entries for the different charge states. The finite-size correction should already be applied to these. atomic_entries: The list of entries used to construct the phase diagram and chemical potential diagram. They will be used to determine the stability region of the bulk crystal. phase_diagram: A separately computed phase diagram. vbm: The VBM of the bulk crystal. bulk_entry: The bulk computed entry to get the total energy of the bulk supercell. band_gap: The band gap of the bulk crystal. Passed directly to the FormationEnergyDiagram constructor. inc_inf_values: If False these boundary points at infinity are ignored when we look at the chemical potential limits. **kwargs: Additional keyword arguments for the FormationEnergyDiagram class.  Returns: FormationEnergyDiagram: The FormationEnergyDiagram object."
+          },
+          {
+            "name": "chempot_limits",
+            "description": "Return the chemical potential limits in dictionary format.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the chemical potential limits in dictionary format."
+          },
+          {
+            "name": "competing_phases",
+            "description": "Return the competing phases.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the competing phases."
+          },
+          {
+            "name": "get_transitions",
+            "description": "Get the transition levels for the formation energy diagram.  Get all of the kinks in the formation energy diagram. The points at the VBM and CBM are given by the first and last point respectively.",
+            "input": {
+              "self": null,
+              "chempots": {
+                "type": "dict",
+                "description": "A dictionary of the chemical potentials (referenced to the elements) representations a vertex of the stability region of the chemical potential diagram."
+              },
+              "x_min": {
+                "type": "float",
+                "description": "The minimum x value (Energy) for the transition levels."
+              },
+              "x_max": {
+                "type": "float | None",
+                "description": "The maximum x value (Energy) for the transition levels. If None, the band gap is used."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Transition levels and the formation energy at each transition level. The first and last points are the intercepts with the VBM and CBM respectively."
+              }
+            },
+            "ori_input": "self, chempots: dict, x_min: float = 0, x_max: float | None = None",
+            "ori_description": "Get the transition levels for the formation energy diagram.  Get all of the kinks in the formation energy diagram. The points at the VBM and CBM are given by the first and last point respectively.  Args: chempots: A dictionary of the chemical potentials (referenced to the elements) representations a vertex of the stability region of the chemical potential diagram. x_min: The minimum x value (Energy) for the transition levels. x_max: The maximum x value (Energy) for the transition levels. If None, the band gap is used.  Returns: Transition levels and the formation energy at each transition level. The first and last points are the intercepts with the VBM and CBM respectively."
+          },
+          {
+            "name": "get_formation_energy",
+            "description": "Get the formation energy at a given Fermi level.  Linearly interpolate between the transition levels.",
+            "input": {
+              "self": null,
+              "fermi_level": {
+                "type": "float",
+                "description": "The Fermi level at which the formation energy is computed."
+              },
+              "chempot_dict": {
+                "type": "dict",
+                "description": "A dictionary of the chemical potentials (referenced to the elemental energies)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The formation energy at the given Fermi level."
+              }
+            },
+            "ori_input": "self, fermi_level: float, chempot_dict: dict",
+            "ori_description": "Get the formation energy at a given Fermi level.  Linearly interpolate between the transition levels.  Args: fermi_level: The Fermi level at which the formation energy is computed. chempot_dict: A dictionary of the chemical potentials (referenced to the elemental energies).  Returns: The formation energy at the given Fermi level."
+          },
+          {
+            "name": "get_concentration",
+            "description": "Get equilibrium defect concentration assuming the dilute limit.",
+            "input": {
+              "self": null,
+              "fermi_level": {
+                "type": "float",
+                "description": "fermi level with respect to the VBM"
+              },
+              "chempots": {
+                "type": "dict",
+                "description": "Chemical potentials"
+              },
+              "temperature": {
+                "type": "float",
+                "description": "in Kelvin"
+              }
+            },
+            "output": null,
+            "ori_input": "self, fermi_level: float, chempots: dict, temperature: float",
+            "ori_description": "Get equilibrium defect concentration assuming the dilute limit.  Args: fermi_level: fermi level with respect to the VBM chempots: Chemical potentials temperature: in Kelvin"
+          },
+          {
+            "name": "as_dataframe",
+            "description": "Return the formation energy diagram as a pandas dataframe.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the formation energy diagram as a pandas dataframe."
+          },
+          {
+            "name": "get_chempots",
+            "description": "Get the chemical potential for a desired growth condition.  Choose an element to be rich in, require the chemical potential of that element to be near the MAX energy among the points (MAX_EN - en_tol, MAX_EN), then sort the remaining elements by: 1. Are they in the bulk structure: elements in the bulk structure are prioritized. 2. how similar they in electron affinity to the rich element: dis-similar elements are prioritized.  .. note:: Priority 2 is pretty arbitrary, but it is a good starting point.  Based on that priority list, take the minimum chemical potential extrema.",
+            "input": {
+              "self": null,
+              "rich_element": {
+                "type": "Element | str",
+                "description": "The element that are rich in the growth condition."
+              },
+              "en_tol": {
+                "type": "float",
+                "description": "Energy tolerance for the chemical potential of the rich element."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A dictionary of the chemical potentials for the growth condition."
+              }
+            },
+            "ori_input": "self, rich_element: Element | str, en_tol: float = 0.01",
+            "ori_description": "Get the chemical potential for a desired growth condition.  Choose an element to be rich in, require the chemical potential of that element to be near the MAX energy among the points (MAX_EN - en_tol, MAX_EN), then sort the remaining elements by: 1. Are they in the bulk structure: elements in the bulk structure are prioritized. 2. how similar they in electron affinity to the rich element: dis-similar elements are prioritized.  .. note:: Priority 2 is pretty arbitrary, but it is a good starting point.  Based on that priority list, take the minimum chemical potential extrema.  Args: rich_element: The element that are rich in the growth condition. en_tol: Energy tolerance for the chemical potential of the rich element.  Returns: A dictionary of the chemical potentials for the growth condition."
+          }
+        ]
+      },
+      {
+        "name": "MultiFormationEnergyDiagram",
+        "type": "class",
+        "module": "pymatgen.analysis.defects.thermo",
+        "input": "MSONable",
+        "description": "Container for multiple formation energy diagrams.",
+        "function": [
+          {
+            "name": "with_atomic_entries",
+            "description": "Initialize using atomic entries.  Initializes by grouping defect types, and creating a list of single FormationEnergyDiagram using the with_atomic_entries method (see above)",
+            "input": {
+              "cls": null,
+              "bulk_entry": {
+                "type": "ComputedEntry",
+                "description": "bulk entry"
+              },
+              "defect_entries": {
+                "type": "list[DefectEntry]",
+                "description": "list of defect entries"
+              },
+              "atomic_entries": {
+                "type": "list[ComputedEntry]",
+                "description": "list of atomic entries"
+              },
+              "phase_diagram": {
+                "type": "PhaseDiagram",
+                "description": "phase diagram"
+              },
+              "vbm": {
+                "type": "float",
+                "description": "valence band maximum for the bulk phase"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "additional kwargs for FormationEnergyDiagram"
+              }
+            },
+            "output": null,
+            "ori_input": "cls, bulk_entry: ComputedEntry, defect_entries: list[DefectEntry], atomic_entries: list[ComputedEntry], phase_diagram: PhaseDiagram, vbm: float, **kwargs",
+            "ori_description": "Initialize using atomic entries.  Initializes by grouping defect types, and creating a list of single FormationEnergyDiagram using the with_atomic_entries method (see above)  Args: bulk_entry: bulk entry defect_entries: list of defect entries atomic_entries: list of atomic entries phase_diagram: phase diagram vbm: valence band maximum for the bulk phase **kwargs: additional kwargs for FormationEnergyDiagram"
+          },
+          {
+            "name": "solve_for_fermi_level",
+            "description": "Solves for the equilibrium fermi level at a given chempot, temperature, density of states.",
+            "input": {
+              "self": null,
+              "chempots": {
+                "type": "dict",
+                "description": "dictionary of chemical potentials to use"
+              },
+              "temperature": {
+                "type": "float",
+                "description": "temperature at which to evaluate."
+              },
+              "dos": {
+                "type": "Dos",
+                "description": "Density of states object. Must contain a structure attribute. If band_gap attribute is set, then dos band edges be shifted to match it."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Equilibrium fermi level with respect to the valence band edge."
+              }
+            },
+            "ori_input": "self, chempots: dict, temperature: float, dos: Dos",
+            "ori_description": "Solves for the equilibrium fermi level at a given chempot, temperature, density of states.  Args: chempots: dictionary of chemical potentials to use temperature: temperature at which to evaluate. dos: Density of states object. Must contain a structure attribute. If band_gap attribute is set, then dos band edges be shifted to match it.  Returns: Equilibrium fermi level with respect to the valence band edge."
+          }
+        ]
+      },
+      {
+        "name": "group_defect_entries",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.thermo",
+        "description": "Group defect entries by their representation.  First by name then by structure.",
+        "input": {
+          "defect_entries": {
+            "type": "list[DefectEntry]",
+            "description": "list of defect entries"
+          },
+          "sm": {
+            "type": "StructureMatcher",
+            "description": "StructureMatcher to use for grouping"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "Generator of (name, list of defect entries) tuples"
+          }
+        },
+        "ori_input": "defect_entries: list[DefectEntry], sm: StructureMatcher = None",
+        "ori_description": "Group defect entries by their representation.  First by name then by structure.  Args: defect_entries: list of defect entries sm: StructureMatcher to use for grouping  Returns: Generator of (name, list of defect entries) tuples"
+      },
+      {
+        "name": "group_formation_energy_diagrams",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.thermo",
+        "description": "Group formation energy diagrams by their representation.  First by name then by structure. Note, this function assumes that the defects are for the same host structure.",
+        "input": {
+          "feds": {
+            "type": "Sequence[FormationEnergyDiagram]",
+            "description": "list of formation energy diagrams"
+          },
+          "sm": {
+            "type": "StructureMatcher",
+            "description": "StructureMatcher to use for grouping"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "Generator of (name, combined formation energy diagram) tuples."
+          }
+        },
+        "ori_input": "feds: Sequence[FormationEnergyDiagram], sm: StructureMatcher = None",
+        "ori_description": "Group formation energy diagrams by their representation.  First by name then by structure. Note, this function assumes that the defects are for the same host structure.  Args: feds: list of formation energy diagrams sm: StructureMatcher to use for grouping  Returns: Generator of (name, combined formation energy diagram) tuples."
+      },
+      {
+        "name": "plot_formation_energy_diagrams",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.plotting.thermo",
+        "description": "Plot formation energy diagrams for a sequence of formation energy diagrams.",
+        "input": {
+          "feds": {
+            "type": "Sequence[FormationEnergyDiagram]",
+            "description": "A sequence of formation energy diagrams."
+          },
+          "chempot": {
+            "type": "dict | None",
+            "description": "A dictionary of chemical potentials."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A plotly figure object."
+          }
+        },
+        "ori_input": "feds: Sequence[FormationEnergyDiagram], chempot: dict | None = None",
+        "ori_description": "Plot formation energy diagrams for a sequence of formation energy diagrams.  Args: feds: A sequence of formation energy diagrams. chempot: A dictionary of chemical potentials.  Returns: A plotly figure object."
+      },
+      {
+        "name": "get_plot_data",
+        "type": "function",
+        "module": "pymatgen.analysis.defects.plotting.thermo",
+        "description": "Get the plot data for a sequence of formation energy diagrams.",
+        "input": {
+          "feds": {
+            "type": "Sequence[FormationEnergyDiagram]",
+            "description": "A sequence of formation energy diagrams."
+          },
+          "chempot": {
+            "type": "dict | None",
+            "description": "A dictionary of chemical potentials."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "A dictionary of plot data. - key: The unique identifier (just the unique name from group_formation_energy_diagrams). - value: A dictionary with the following keys: - fed: The formation energy diagram. - style: The style of the line. - color: The color of the line. - x_anno: The x-coordinate of the annotation. - chempot: The chemical potentials used to generate the transitions."
+          }
+        },
+        "ori_input": "feds: Sequence[FormationEnergyDiagram], chempot: dict | None = None",
+        "ori_description": "Get the plot data for a sequence of formation energy diagrams.  Args: feds: A sequence of formation energy diagrams. chempot: A dictionary of chemical potentials.  Returns: A dictionary of plot data. - key: The unique identifier (just the unique name from group_formation_energy_diagrams). - value: A dictionary with the following keys: - fed: The formation energy diagram. - style: The style of the line. - color: The color of the line. - x_anno: The x-coordinate of the annotation. - chempot: The chemical potentials used to generate the transitions."
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/materialsproject/pymatgen-analysis-defects",
+        "documentation": "https://materialsproject.github.io/pymatgen-analysis-defects/",
+        "pypi": "https://pypi.org/project/pymatgen-analysis-defects/",
+        "pypi_version": "2026.3.20",
+        "tag": "v2026.3.20",
+        "commit": "12c1f80562e69e285073eafdce58281fe0c67618",
+        "release_published_at": "2026-03-20T16:38:32Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "GitHub 与 PyPI 发布版本一致；安装命名空间为 pymatgen.analysis.defects，不是 pymatgen_analysis_defects。",
+          "部分高级功能需要体电荷密度、介电常数、能带和 VASP 输出；静态索引不代表外部计算或数值收敛已验证。"
+        ],
+        "release_url": "https://github.com/materialsproject/pymatgen-analysis-defects/releases/tag/v2026.3.20",
+        "release_api": "https://api.github.com/repos/materialsproject/pymatgen-analysis-defects/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/pymatgen-analysis-defects",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "pymatgen.analysis.defects"
+        ],
+        "source_files": [
+          "pymatgen/analysis/defects/__init__.py",
+          "pymatgen/analysis/defects/_version.py",
+          "pymatgen/analysis/defects/ccd.py",
+          "pymatgen/analysis/defects/constants.py",
+          "pymatgen/analysis/defects/core.py",
+          "pymatgen/analysis/defects/corrections/__init__.py",
+          "pymatgen/analysis/defects/corrections/freysoldt.py",
+          "pymatgen/analysis/defects/corrections/kumagai.py",
+          "pymatgen/analysis/defects/finder.py",
+          "pymatgen/analysis/defects/generators.py",
+          "pymatgen/analysis/defects/plotting/__init__.py",
+          "pymatgen/analysis/defects/plotting/optics.py",
+          "pymatgen/analysis/defects/plotting/phases.py",
+          "pymatgen/analysis/defects/plotting/thermo.py",
+          "pymatgen/analysis/defects/plotting/utils.py",
+          "pymatgen/analysis/defects/recombination.py",
+          "pymatgen/analysis/defects/supercells.py",
+          "pymatgen/analysis/defects/thermo.py",
+          "pymatgen/analysis/defects/utils.py"
+        ],
+        "source_file_sha256": {
+          "pymatgen/analysis/defects/__init__.py": "b254170339223ae8267a4ee89f65e2999bcd3215c4ec8c46495136d5c0af0ae6",
+          "pymatgen/analysis/defects/_version.py": "63ddf3e9d741ad54aa0a282f49411f68c2ceb9748e799a7e6154cacd56ee9648",
+          "pymatgen/analysis/defects/ccd.py": "2155791413a5073b06d2f2b0cb6f79d64de02f42b874e029f312a5006404ea60",
+          "pymatgen/analysis/defects/constants.py": "72dc50d649decb5cc5c5b16b02ebf05b8e1c8789562ec75d2b1a9f7866750462",
+          "pymatgen/analysis/defects/core.py": "8d0f77a991132344039f385bf1e4c114737fb5441ae16ca9dfb91fcb32cf0bf7",
+          "pymatgen/analysis/defects/corrections/__init__.py": "ab619d2ecf354f35584846be971ff79b6c7ae278aebf952146cbaeb1be998938",
+          "pymatgen/analysis/defects/corrections/freysoldt.py": "2bf7f9859b3b44759e39353061f8dd09461a2301b53065a0fb26845c3ad74dd6",
+          "pymatgen/analysis/defects/corrections/kumagai.py": "33ca33013e467aa88cd5ece4beea22f4100bc7715df619f1f9704bbaebd467f4",
+          "pymatgen/analysis/defects/finder.py": "96ec443588c867182484abf310062e47fbbcc66773d541335d021a6b95d06756",
+          "pymatgen/analysis/defects/generators.py": "7554b9b38501f183b5a8df86f82fe7140b5bfd4d38373929c5bf3680d7f83efb",
+          "pymatgen/analysis/defects/plotting/__init__.py": "8efc09137bd0de00e50c2b8999e0a853cf44465f119faf5fe0167a09447317c4",
+          "pymatgen/analysis/defects/plotting/optics.py": "e4527d584cde2644923c67f8f707ce756a6fc2101603f380b20736e1375501cb",
+          "pymatgen/analysis/defects/plotting/phases.py": "6d20b52dcaf855e0b8f82077c732af39d1949481fd392a45dec1d052b38a4e98",
+          "pymatgen/analysis/defects/plotting/thermo.py": "de756fe569536b486e128cbfca8a01543e9fbaf29adf245711aa54269837e5f1",
+          "pymatgen/analysis/defects/plotting/utils.py": "4869c94bff4903b47abde2d93be83e6401ef1daa43e95de1fc641a610c5cbf57",
+          "pymatgen/analysis/defects/recombination.py": "e68921df1f6b44a68fd187700931521ccbef2fd51f52af94e3be6089ab96ea84",
+          "pymatgen/analysis/defects/supercells.py": "1f58d1427a9429a5c3af0187ec4d693f55a4504f15c69321b2ec91f3422434c2",
+          "pymatgen/analysis/defects/thermo.py": "9fd3dd16d2cbf2a67617aeacce0a05cea962932c297d8ef5c9a87fe2c5f87b53",
+          "pymatgen/analysis/defects/utils.py": "d89f01dbf750cabe70ec3b68f27723a908181296b5b0239a2c7d5d1d25a855ed"
+        },
+        "source_version": "v2026.3.20",
+        "source_commit": "12c1f80562e69e285073eafdce58281fe0c67618",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "pymatgen_analysis_defects_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/pymatgen-analysis-defects_v2026.3.20.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/pymatgen-analysis-defects_v2026.3.20.json",
+        "source_sha256": "13f662a33a307ccc0571c10d1cee254370d7c90bd86a899558715ee67d5015a5",
+        "profile_sha256": "4e76095d25a024b5a4a84acbc1363ce0bd8aed2eb77a711b159cb3abf0532ce6",
+        "boundary": "缺陷表示和生成、超胞、FNV/eFNV 修正及形成能/费米能级分析。保留来源定义与必要基类，dataclass 自动构造不伪造为显式 __init__；排除可选 SOAP 搜索、底层积分和复合系数细节。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 94,
+        "selected_tool_count": 25,
+        "selected_class_count": 14,
+        "selected_function_count": 11,
+        "selected_method_count": 46,
+        "selected_all_func": 57,
+        "missing_description_count": 0,
+        "excluded_tool_count": 69,
+        "capability_count": 3
+      }
+    }
+  }
+]

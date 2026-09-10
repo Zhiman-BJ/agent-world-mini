@@ -1,0 +1,1346 @@
+[
+  {
+    "global_id": "pypi_py_sc_fermi_15",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/bjmorgan/py-sc-fermi",
+          "https://pypi.org/project/py-sc-fermi/",
+          "https://py-sc-fermi.readthedocs.io/en/latest/"
+        ],
+        "name": "py-sc-fermi",
+        "version": "2.2.2",
+        "index": 15
+      },
+      "description": "py-sc-fermi 根据预先计算的缺陷形成能、电子态密度和晶胞体积，通过电中性条件自洽求解稀释极限下的费米能级、缺陷及电子和空穴浓度。它提供缺陷电荷态、缺陷种类、态密度和缺陷系统对象，支持平衡及指定冻结浓度的准平衡分析与数据读写。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 5,
+        "function": 5,
+        "class_func": 57,
+        "all_func": 62
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "DOS",
+        "type": "class",
+        "module": "py_sc_fermi.dos",
+        "input": "",
+        "description": "Class for handling density-of-states data and its integration.  Args: dos (np.ndarray): density-of-states data. edos (np.ndarray): energies associated with density-of-states data. bandgap (float): band gap nelect (int): number of electrons in density-of-states calculation spin_polarised (bool): is the calculated density-of-states spin polarised?",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "dos": {
+                "type": "np.ndarray",
+                "description": ""
+              },
+              "edos": {
+                "type": "np.ndarray",
+                "description": ""
+              },
+              "bandgap": {
+                "type": "float",
+                "description": ""
+              },
+              "nelect": {
+                "type": "int",
+                "description": ""
+              },
+              "spin_polarised": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dos: np.ndarray, edos: np.ndarray, bandgap: float, nelect: int, spin_polarised: bool = False",
+            "ori_description": ""
+          },
+          {
+            "name": "dos",
+            "description": "density-of-states array",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "np.ndarray",
+                "description": "density-of-states data"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "density-of-states array  Returns: np.ndarray: density-of-states data"
+          },
+          {
+            "name": "edos",
+            "description": "energy associated with density-of-states data",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "np.ndarray",
+                "description": "energy associated with the density-of-states data"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "energy associated with density-of-states data  Returns: np.ndarray: energy associated with the density-of-states data"
+          },
+          {
+            "name": "bandgap",
+            "description": "bandgap of the density of states data",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "bandgap"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "bandgap of the density of states data  Returns: float: bandgap"
+          },
+          {
+            "name": "spin_polarised",
+            "description": "bool describing whether the density-of-states data is spin-polarised or not",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "bool",
+                "description": "True if the ``DOS`` is spin-polarised, else False"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "bool describing whether the density-of-states data is spin-polarised or not  Returns: bool: True if the ``DOS`` is spin-polarised, else False"
+          },
+          {
+            "name": "nelect",
+            "description": "number of electrons in density of states calculation with which to normalise the ``DOS`` with respect to.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "number of electrons"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "number of electrons in density of states calculation with which to normalise the ``DOS`` with respect to.  Returns: int: number of electrons"
+          },
+          {
+            "name": "from_vasprun",
+            "description": "Generate DOS object from a VASP vasprun.xml file. As this is parsed using pymatgen, the number of electrons is not contained in the vasprun data and must be passed in. On the other hand, If the bandgap is not passed in, it can be read from the vasprun file.",
+            "input": {
+              "cls": null,
+              "path_to_vasprun": {
+                "type": "str",
+                "description": "path to vasprun file"
+              },
+              "nelect": {
+                "type": "int | None",
+                "description": "number of electrons in vasp calculation associated with the vasprun"
+              },
+              "bandgap": {
+                "type": "float | None",
+                "description": "bandgap. Defaults to None."
+              }
+            },
+            "output": null,
+            "ori_input": "cls, path_to_vasprun: str, nelect: int | None = None, bandgap: float | None = None",
+            "ori_description": "Generate DOS object from a VASP vasprun.xml file. As this is parsed using pymatgen, the number of electrons is not contained in the vasprun data and must be passed in. On the other hand, If the bandgap is not passed in, it can be read from the vasprun file.  Args: path_to_vasprun (str): path to vasprun file nelect (int): number of electrons in vasp calculation associated with the vasprun bandgap (float | None, optional): bandgap. Defaults to None."
+          },
+          {
+            "name": "from_dict",
+            "description": "return a ``DOS`` object from a dictionary containing the density-of-states data. If the density-of-states data is spin polarised, it should be stored as a list of two arrays, one for each spin. The order is not important.",
+            "input": {
+              "cls": null,
+              "dos_dict": {
+                "type": "dict",
+                "description": "dictionary defining the density of states data"
+              }
+            },
+            "output": null,
+            "ori_input": "cls, dos_dict: dict",
+            "ori_description": "return a ``DOS`` object from a dictionary containing the density-of-states data. If the density-of-states data is spin polarised, it should be stored as a list of two arrays, one for each spin. The order is not important.  Args: dos_dict (dict): dictionary defining the density of states data"
+          },
+          {
+            "name": "as_dict",
+            "description": "Return a dictionary representation of the DOS object",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict",
+                "description": "DOS as dictionary"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return a dictionary representation of the DOS object  Returns: dict: DOS as dictionary  Note: The defect dictionary will always report the DOS data is not spin polarised, even if the input data was. This is an artefact related to maintaining the ability of `py-sc-fermi` to read files formatted for the FORTRAN SC-Fermi code. Future versions will consider how the code parses these files such that this is no longer an issue."
+          },
+          {
+            "name": "sum_dos",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "np.ndarray",
+                "description": "integrated density-of-states up to mid-gap, or up to the grid point closest to the VBM if that sits above mid-gap (narrow-gap case)."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns: np.ndarray: integrated density-of-states up to mid-gap, or up to the grid point closest to the VBM if that sits above mid-gap (narrow-gap case)."
+          },
+          {
+            "name": "normalise_dos",
+            "description": "normalises the density of states w.r.t. number of electrons in the density-of-states unit cell (``self.nelect``)",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "normalises the density of states w.r.t. number of electrons in the density-of-states unit cell (``self.nelect``)"
+          },
+          {
+            "name": "emin",
+            "description": "minimum energy in ``self.edos``",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "minimum energy in ``self.edos``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "minimum energy in ``self.edos``  Returns: float: minimum energy in ``self.edos``"
+          },
+          {
+            "name": "emax",
+            "description": "maximum energy in ``self.edos``",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "maximum energy in ``self.edos``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "maximum energy in ``self.edos``  Returns: float: maximum energy in ``self.edos``"
+          },
+          {
+            "name": "carrier_concentrations",
+            "description": "return electron and hole carrier concentrations from the Fermi-Dirac distribution multiplied by the density-of-states at a given Fermi energy and temperature.",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "fermi energy"
+              },
+              "temperature": {
+                "type": "float",
+                "description": "temperature"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "tuple[float, float]",
+                "description": "concentration of holes, concentration of electrons"
+              }
+            },
+            "ori_input": "self, e_fermi: float, temperature: float",
+            "ori_description": "return electron and hole carrier concentrations from the Fermi-Dirac distribution multiplied by the density-of-states at a given Fermi energy and temperature.  Args: e_fermi (float): fermi energy temperature (float): temperature  Returns: tuple[float, float]: concentration of holes, concentration of electrons"
+          }
+        ]
+      },
+      {
+        "name": "DefectChargeState",
+        "type": "class",
+        "module": "py_sc_fermi.defect_charge_state",
+        "input": "",
+        "description": "Class describing a single charge state (of a ``DefectSpecies``).  Args: charge (int): charge of this ``DefectChargeState`` degeneracy (int): degeneracy of this charge state energy (float): formation energy at E[Fermi] = 0 fixed_concentration (float): fixed concentration per unit cell",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "charge": {
+                "type": "int",
+                "description": ""
+              },
+              "degeneracy": {
+                "type": "int",
+                "description": ""
+              },
+              "energy": {
+                "type": "float | None",
+                "description": ""
+              },
+              "fixed_concentration": {
+                "type": "float | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, charge: int, degeneracy: int = 1, energy: float | None = None, fixed_concentration: float | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "energy",
+            "description": "formation energy of the ``DefectChargeState`` at E[vbm] (E[Fermi] = 0)",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float | None",
+                "description": "formation energy"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "formation energy of the ``DefectChargeState`` at E[vbm] (E[Fermi] = 0)  Returns: float | None: formation energy"
+          },
+          {
+            "name": "charge",
+            "description": "charge of the ``DefectChargeState``",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "charge"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "charge of the ``DefectChargeState``  Returns: int: charge"
+          },
+          {
+            "name": "degeneracy",
+            "description": "The degeneracy of the ``DefectChargeState`` (e.g. spin degeneracy)",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "degeneracy of this charge state"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "The degeneracy of the ``DefectChargeState`` (e.g. spin degeneracy)  Returns: int: degeneracy of this charge state"
+          },
+          {
+            "name": "fixed_concentration",
+            "description": "fixed concentration of this ``DefectChargeState`` or ``None`` if the concentration is free to vary.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float | None",
+                "description": "fixed concentration per unit cell"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "fixed concentration of this ``DefectChargeState`` or ``None`` if the concentration is free to vary.  Returns: float | None: fixed concentration per unit cell"
+          },
+          {
+            "name": "from_dict",
+            "description": "generate a ``DefectChargeState`` object from a dictionary",
+            "input": {
+              "cls": null,
+              "dictionary": {
+                "type": "dict",
+                "description": "dictionary defining ``DefectChargeState``. Any fixed concentration given should be provided per-unit cell"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectChargeState",
+                "description": "object described by `dictionary`"
+              }
+            },
+            "ori_input": "cls, dictionary: dict",
+            "ori_description": "generate a ``DefectChargeState`` object from a dictionary  Args: dictionary (dict): dictionary defining ``DefectChargeState``. Any fixed concentration given should be provided per-unit cell  Returns: DefectChargeState: object described by `dictionary`"
+          },
+          {
+            "name": "as_dict",
+            "description": "generate a dictionary representation of the ``DefectChargeState``",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict",
+                "description": "dictionary representation of the ``DefectChargeState``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "generate a dictionary representation of the ``DefectChargeState``  Returns: dict: dictionary representation of the ``DefectChargeState``"
+          },
+          {
+            "name": "fix_concentration",
+            "description": "Fixes the concentration (per unit cell) of this ``DefectChargeState``",
+            "input": {
+              "self": null,
+              "concentration": {
+                "type": "float",
+                "description": "``DefectChargeState`` concentration per unit cell"
+              }
+            },
+            "output": null,
+            "ori_input": "self, concentration: float",
+            "ori_description": "Fixes the concentration (per unit cell) of this ``DefectChargeState``  Args: concentration (float): ``DefectChargeState`` concentration per unit cell"
+          },
+          {
+            "name": "get_formation_energy",
+            "description": "get the formation energy of this ``DefectChargeState`` at a given Fermi energy",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi energy at which to calculate the formation energy"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "formation energy of ``DefectChargeState`` at ``e_fermi``"
+              }
+            },
+            "ori_input": "self, e_fermi: float",
+            "ori_description": "get the formation energy of this ``DefectChargeState`` at a given Fermi energy  Args: e_fermi (float): Fermi energy at which to calculate the formation energy  Raises: ValueError: if ``DefectChargeState.energy == None``  Returns: float: formation energy of ``DefectChargeState`` at ``e_fermi``"
+          },
+          {
+            "name": "get_concentration",
+            "description": "Calculate the concentration of this ``DefectChargeState`` at a specified Fermi energy and temperature, per site in the unit cell.",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi energy."
+              },
+              "temperature": {
+                "type": "float",
+                "description": "Temperature."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "Concentration at the specified Fermi energy and temperature."
+              }
+            },
+            "ori_input": "self, e_fermi: float, temperature: float",
+            "ori_description": "Calculate the concentration of this ``DefectChargeState`` at a specified Fermi energy and temperature, per site in the unit cell.  Args: e_fermi (float): Fermi energy. temperature (float): Temperature.  Returns: float: Concentration at the specified Fermi energy and temperature."
+          }
+        ]
+      },
+      {
+        "name": "DefectSpecies",
+        "type": "class",
+        "module": "py_sc_fermi.defect_species",
+        "input": "",
+        "description": "Class for individual defect species.  Args: name (str): A unique identifying string for this defect species, e.g. ``\"V_O\"`` might be used for an oxygen vacancy. nsites (int): Number of sites energetically degenerate sites where this defect can form in the unit cell (the site degeneracy). charge_states (dict[int, DefectChargeState]): A dictionary of ``DefectChargeState`` with their charge as the key, i.e. {charge : ``DefectChargeState``}",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Instantiate a DefectSpecies object.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              },
+              "nsites": {
+                "type": "int",
+                "description": ""
+              },
+              "charge_states": {
+                "type": "dict[int, DefectChargeState]",
+                "description": ""
+              },
+              "fixed_concentration": {
+                "type": "float | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str, nsites: int, charge_states: dict[int, DefectChargeState], fixed_concentration: float | None = None",
+            "ori_description": "Instantiate a DefectSpecies object."
+          },
+          {
+            "name": "fix_concentration",
+            "description": "fix the concentration of this ``DefectSpecies``",
+            "input": {
+              "self": null,
+              "concentration": {
+                "type": "float",
+                "description": "concentration per unit cell"
+              }
+            },
+            "output": null,
+            "ori_input": "self, concentration: float",
+            "ori_description": "fix the concentration of this ``DefectSpecies``  Args: concentration (float): concentration per unit cell"
+          },
+          {
+            "name": "name",
+            "description": "identifying string for this ``DefectSpecies``",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "str",
+                "description": "label for ``DefectSpecies``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "identifying string for this ``DefectSpecies``  Returns: str: label for ``DefectSpecies``"
+          },
+          {
+            "name": "nsites",
+            "description": "site degeneracy of this ``DefectSpecies`` in the unit cell.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "site degeneracy fot ``DefectSpecies``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "site degeneracy of this ``DefectSpecies`` in the unit cell.  Returns: int: site degeneracy fot ``DefectSpecies``"
+          },
+          {
+            "name": "charge_states",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict[int, DefectChargeState]",
+                "description": "The charge states of this defect species as a dictionary of ``{charge (int): DefectChargeState}`` key-value pairs"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns: dict[int, DefectChargeState]: The charge states of this defect species as a dictionary of ``{charge (int): DefectChargeState}`` key-value pairs"
+          },
+          {
+            "name": "charges",
+            "description": "list of all the charges of the ``DefectChargeState`` objects that comprise this ``DefectSpecies``",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "list[int]",
+                "description": "list of charge states of this ``DefectSpecies``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "list of all the charges of the ``DefectChargeState`` objects that comprise this ``DefectSpecies``  Returns: list[int]: list of charge states of this ``DefectSpecies``"
+          },
+          {
+            "name": "fixed_concentration",
+            "description": "fixed concentration of the ``DefectSpecies``. ``None`` if the concentration of this defect is variable.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float | None",
+                "description": "fixed concentration per unit cell of the ``DefectSpecies``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "fixed concentration of the ``DefectSpecies``. ``None`` if the concentration of this defect is variable.  Returns: float | None: fixed concentration per unit cell of the ``DefectSpecies``"
+          },
+          {
+            "name": "from_dict",
+            "description": "return a ``DefectSpecies`` object from a dictionary containing the defect species data. Primarily for use defining a full ``DefectSystem`` from a .yaml file.",
+            "input": {
+              "cls": null,
+              "defect_species_dict": {
+                "type": "dict",
+                "description": "dictionary containing the defect species data."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectSpecies",
+                "description": "as specified by the provided dictionary"
+              }
+            },
+            "ori_input": "cls, defect_species_dict: dict",
+            "ori_description": "return a ``DefectSpecies`` object from a dictionary containing the defect species data. Primarily for use defining a full ``DefectSystem`` from a .yaml file.  Args: defect_species_dict (dict): dictionary containing the defect species data.  Raises: ValueError: if the dictionary specifies no charge states, or if any of the specified ``DefectChargeState`` objects have no fixed concentration and no formation energy  Returns: DefectSpecies: as specified by the provided dictionary"
+          },
+          {
+            "name": "as_dict",
+            "description": "get representation of ``DefectSpecies`` as a dictionary",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict",
+                "description": "dictionary representation of ``DefectSpecies``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "get representation of ``DefectSpecies`` as a dictionary  Returns: dict: dictionary representation of ``DefectSpecies``"
+          },
+          {
+            "name": "min_energy_charge_state",
+            "description": "Returns the defect charge state with the minimum energy at a given Fermi energy.",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi Energy"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectChargeState",
+                "description": "the ``DefectChargeState`` of this ``DefectSpecies`` with the lowest energy at ``e_fermi``."
+              }
+            },
+            "ori_input": "self, e_fermi: float",
+            "ori_description": "Returns the defect charge state with the minimum energy at a given Fermi energy.  Args: e_fermi (float): Fermi Energy  Returns: DefectChargeState: the ``DefectChargeState`` of this ``DefectSpecies`` with the lowest energy at ``e_fermi``.  Raises: ValueError: if this ``DefectSpecies`` has no variable-concentration charge states, as the minimum-energy charge state is then undefined."
+          },
+          {
+            "name": "get_formation_energies",
+            "description": "Returns a dictionary of formation energies for all ``DefectChargeState`` objects in this ``DefectSpecies``. Formation energies are calculated at E[Fermi] relative to E[VBM].",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "fermi energy"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dict[int, float]",
+                "description": "key-value pairs of charge on ``DefectChargeState`` objects that comprise this ``DefectSpecies`` and their formation energy, i.e ``{DefectChargeState.charge : formation_energy}``"
+              }
+            },
+            "ori_input": "self, e_fermi: float",
+            "ori_description": "Returns a dictionary of formation energies for all ``DefectChargeState`` objects in this ``DefectSpecies``. Formation energies are calculated at E[Fermi] relative to E[VBM].  Args: e_fermi (float): fermi energy  Returns: dict[int, float]: key-value pairs of charge on ``DefectChargeState`` objects that comprise this ``DefectSpecies`` and their formation energy, i.e ``{DefectChargeState.charge : formation_energy}``  Note: Fixed-concentration ``DefectChargeState`` objects are not included in the returned list, even if their formation energy is specified."
+          },
+          {
+            "name": "tl_profile",
+            "description": "get transition level profile for this ``DefectSpecies`` between a minimum and maximum Fermi energy.",
+            "input": {
+              "self": null,
+              "efermi_min": {
+                "type": "float",
+                "description": "minimum Fermi energy"
+              },
+              "efermi_max": {
+                "type": "float",
+                "description": "maximum Fermi energy"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "np.ndarray",
+                "description": "transition level profile between efermi_min and efermi_max."
+              }
+            },
+            "ori_input": "self, efermi_min: float, efermi_max: float",
+            "ori_description": "get transition level profile for this ``DefectSpecies`` between a minimum and maximum Fermi energy.  Args: efermi_min (float): minimum Fermi energy efermi_max (float): maximum Fermi energy  Returns: np.ndarray: transition level profile between efermi_min and efermi_max."
+          },
+          {
+            "name": "get_transition_level_and_energy",
+            "description": "Calculates the Fermi energy and formation energy for the transition level between charge states q1 and q2.",
+            "input": {
+              "self": null,
+              "q1": {
+                "type": "int",
+                "description": "charge on first ``DefectChargeState`` of interest"
+              },
+              "q2": {
+                "type": "int",
+                "description": "charge on second ``DefectChargeState`` of interest"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "tuple[float, float]",
+                "description": "Fermi energy and formation energy of the transition level between ``DefectChargeState`` objects with charges q1 and q2."
+              }
+            },
+            "ori_input": "self, q1: int, q2: int",
+            "ori_description": "Calculates the Fermi energy and formation energy for the transition level between charge states q1 and q2.  Args: q1 (int): charge on first ``DefectChargeState`` of interest q2 (int): charge on second ``DefectChargeState`` of interest  Returns: tuple[float, float]: Fermi energy and formation energy of the transition level between ``DefectChargeState`` objects with charges q1 and q2."
+          },
+          {
+            "name": "get_concentration",
+            "description": "Determine the net concentration for this ``DefectSpecies`` at a specific Fermi energy and temperature.",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "fermi energy"
+              },
+              "temperature": {
+                "type": "float",
+                "description": "temperature"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "concentration per calculation cell of this ``DefectSpecies``"
+              }
+            },
+            "ori_input": "self, e_fermi: float, temperature: float",
+            "ori_description": "Determine the net concentration for this ``DefectSpecies`` at a specific Fermi energy and temperature.  Args: e_fermi (float): fermi energy temperature (float): temperature  Returns: float: concentration per calculation cell of this ``DefectSpecies``  Note: If this ``DefectSpecies`` has a set fixed concentration, then this will be returned."
+          },
+          {
+            "name": "fixed_conc_charge_states",
+            "description": "get ``DefectChargeState`` objects of this ``DefectSpecies`` with fixed concentration (i.e those for which ``DefectChargeState.fixed_concentration != None``)",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict[int, DefectChargeState]",
+                "description": "key-value pairs of charge on fixed concentration ``DefectChargeState`` objects, and the charge state which is variable, i.e. ``{DefectChargeState.charge : DefectChargeState}``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "get ``DefectChargeState`` objects of this ``DefectSpecies`` with fixed concentration (i.e those for which ``DefectChargeState.fixed_concentration != None``)  Returns: dict[int, DefectChargeState]: key-value pairs of charge on fixed concentration ``DefectChargeState`` objects, and the charge state which is variable, i.e. ``{DefectChargeState.charge : DefectChargeState}``"
+          },
+          {
+            "name": "variable_conc_charge_states",
+            "description": "get ``DefectChargeState`` objects in this ``DefectSpecies`` with variable concentration (i.e those with ``DefectChargeState.fixed_concentration == None``)",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict[int, DefectChargeState]",
+                "description": "key-value pairs of charge on variable concentration ``DefectChargeState`` objects within this ``DefectSpecies``, and the charge state which is variable, i.e. ``{DefectChargeState.charge : DefectChargeState}``"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "get ``DefectChargeState`` objects in this ``DefectSpecies`` with variable concentration (i.e those with ``DefectChargeState.fixed_concentration == None``)  Returns: dict[int, DefectChargeState]: key-value pairs of charge on variable concentration ``DefectChargeState`` objects within this ``DefectSpecies``, and the charge state which is variable, i.e. ``{DefectChargeState.charge : DefectChargeState}``"
+          },
+          {
+            "name": "charge_state_concentrations",
+            "description": "Calculate the concentrations of the different charge states.  At a given Fermi energy and temperature, calculate the concentrations of the different ``DefectChargeStates`` of this ``DefectSpecies``.  If the species has a fixed total concentration, the variable charge state concentrations are distributed according to their Boltzmann weights using a numerically stable logsumexp calculation.",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi energy"
+              },
+              "temperature": {
+                "type": "float",
+                "description": "temperature"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dict[int, float]",
+                "description": "key-value pairs of charge of each ``DefectChargeState`` and the concentration of the ``DefectChargeState`` with that charge, i.e. {``DefectChargeState.charge``: concentration}"
+              }
+            },
+            "ori_input": "self, e_fermi: float, temperature: float",
+            "ori_description": "Calculate the concentrations of the different charge states.  At a given Fermi energy and temperature, calculate the concentrations of the different ``DefectChargeStates`` of this ``DefectSpecies``.  If the species has a fixed total concentration, the variable charge state concentrations are distributed according to their Boltzmann weights using a numerically stable logsumexp calculation.  Args: e_fermi (float): Fermi energy temperature (float): temperature  Returns: dict[int, float]: key-value pairs of charge of each ``DefectChargeState`` and the concentration of the ``DefectChargeState`` with that charge, i.e. {``DefectChargeState.charge``: concentration}  Raises: ValueError: If fixed charge state concentrations exceed the total species concentration."
+          },
+          {
+            "name": "defect_charge_contributions",
+            "description": "Calculate the defect charge contributions to the total charge of this ``DefectSpecies`` at a given Fermi energy and temperature.",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi energy."
+              },
+              "temperature": {
+                "type": "float",
+                "description": "temperature"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "tuple[float, float]",
+                "description": "charge contributions of the ``DefectChargeState`` objects that comprise this ``DefectSpecies`` at the given Fermi energy and temperature."
+              }
+            },
+            "ori_input": "self, e_fermi: float, temperature: float",
+            "ori_description": "Calculate the defect charge contributions to the total charge of this ``DefectSpecies`` at a given Fermi energy and temperature.  Args: e_fermi (float): Fermi energy. temperature (float): temperature  Returns: tuple[float, float]: charge contributions of the ``DefectChargeState`` objects that comprise this ``DefectSpecies`` at the given Fermi energy and temperature."
+          }
+        ]
+      },
+      {
+        "name": "DefectSystem",
+        "type": "class",
+        "module": "py_sc_fermi.defect_system",
+        "input": "",
+        "description": "This class is used to calculate the self consistent Fermi energy for a defective material, observing the condition of charge neutrality and therefore, point defect and carrier concentrations under equilibrium conditions.  Args: defect_species (list[DefectSpecies]): List of ``DefectSpecies`` objects which are present in the ``DefectSystem``. volume (float): volume of the unit cell in Angstroms cubed dos (DOS): the ``DOS`` object associated with the unit cell temperature (float): temperature at which self-consistent Fermi energy will be solved for. convergence_tolerance (float, optional): Tolerance for the Fermi energy convergence in eV. If not specified, uses scipy's default. n_trial_steps (int, optional): Deprecated. Previously set the maximum number of solver iterations. The solver now uses Brent's method which converges reliably without this parameter.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "defect_species": {
+                "type": "list[DefectSpecies]",
+                "description": ""
+              },
+              "dos": {
+                "type": "DOS",
+                "description": ""
+              },
+              "volume": {
+                "type": "float",
+                "description": ""
+              },
+              "temperature": {
+                "type": "float",
+                "description": ""
+              },
+              "convergence_tolerance": {
+                "type": "float | None",
+                "description": ""
+              },
+              "n_trial_steps": {
+                "type": "int | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, defect_species: list[DefectSpecies], dos: DOS, volume: float, temperature: float, convergence_tolerance: float | None = None, n_trial_steps: int | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "defect_species_names",
+            "description": "list of the names of all ``DefectSpecies`` considered in the ``DefectSystem``.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "list[str]",
+                "description": "list of names of ``DefectSpecies`` objects"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "list of the names of all ``DefectSpecies`` considered in the ``DefectSystem``.  Returns: list[str]: list of names of ``DefectSpecies`` objects"
+          },
+          {
+            "name": "from_input_set",
+            "description": "generate ``DefectSystem`` from ``InputSet``",
+            "input": {
+              "cls": null,
+              "input_set": {
+                "type": "InputSet",
+                "description": "``InputSet`` defining input parameters"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectSystem",
+                "description": "``DefectSystem`` corresponding to provided ``InputSet``"
+              }
+            },
+            "ori_input": "cls, input_set: InputSet",
+            "ori_description": "generate ``DefectSystem`` from ``InputSet``  Args: input_set (InputSet): ``InputSet`` defining input parameters  Returns: DefectSystem: ``DefectSystem`` corresponding to provided ``InputSet``"
+          },
+          {
+            "name": "from_yaml",
+            "description": "generate ``DefectSystem`` via a yaml file.",
+            "input": {
+              "cls": null,
+              "filename": {
+                "type": "str",
+                "description": "path to yaml file containing the ``DefectSystem`` data"
+              },
+              "structure_file": {
+                "type": "str",
+                "description": "path to file containing volume information. Defaults to an empty string."
+              },
+              "dos_file": {
+                "type": "str",
+                "description": "path to file containing dos information. Defaults to an empty string."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectSystem",
+                "description": "``DefectSystem`` corresponding to provided yaml file"
+              }
+            },
+            "ori_input": "cls, filename: str, structure_file: str = '', dos_file: str = ''",
+            "ori_description": "generate ``DefectSystem`` via a yaml file.  Args: filename (str): path to yaml file containing the ``DefectSystem`` data structure_file (str): path to file containing volume information. Defaults to an empty string. dos_file (str): path to file containing dos information. Defaults to an empty string.  Returns: DefectSystem: ``DefectSystem`` corresponding to provided yaml file"
+          },
+          {
+            "name": "from_dict",
+            "description": "Generate a DefectSystem from a dictionary.",
+            "input": {
+              "cls": null,
+              "dictionary": {
+                "type": "dict",
+                "description": "Dictionary containing the DefectSystem data."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectSystem",
+                "description": "DefectSystem corresponding to the provided dictionary."
+              }
+            },
+            "ori_input": "cls, dictionary: dict",
+            "ori_description": "Generate a DefectSystem from a dictionary.  Args: dictionary (dict): Dictionary containing the DefectSystem data.  Returns: DefectSystem: DefectSystem corresponding to the provided dictionary."
+          },
+          {
+            "name": "defect_species_by_name",
+            "description": "return a ``DefectSpecies`` contained within the ``DefectSystem`` via its name.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": "name of the ``DefectSpecies`` to return"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "DefectSpecies",
+                "description": "``DefectSpecies`` where ``DefectSpecies.name == name``"
+              }
+            },
+            "ori_input": "self, name: str",
+            "ori_description": "return a ``DefectSpecies`` contained within the ``DefectSystem`` via its name.  Args: name (str): name of the ``DefectSpecies`` to return  Returns: DefectSpecies: ``DefectSpecies`` where ``DefectSpecies.name == name``"
+          },
+          {
+            "name": "get_sc_fermi",
+            "description": "Calculate the self-consistent Fermi energy.  Finds the Fermi energy at which charge neutrality is achieved, using Brent's method for root finding.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "tuple[float, float]",
+                "description": "The self-consistent Fermi energy and the absolute residual charge density at that energy."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Calculate the self-consistent Fermi energy.  Finds the Fermi energy at which charge neutrality is achieved, using Brent's method for root finding.  Returns: tuple[float, float]: The self-consistent Fermi energy and the absolute residual charge density at that energy.  Raises: RuntimeError: If no solution is found within the DOS energy range."
+          },
+          {
+            "name": "total_defect_charge_contributions",
+            "description": "Calculate the charge contributions from each ``DefectSpecies`` in all charge states to the total charge density",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi energy"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "tuple[float, float]",
+                "description": "charge contributions of positive (lhs) and negative (rhs) charge states of all defects"
+              }
+            },
+            "ori_input": "self, e_fermi: float",
+            "ori_description": "Calculate the charge contributions from each ``DefectSpecies`` in all charge states to the total charge density  Args: e_fermi (float): Fermi energy  Returns: tuple[float, float]: charge contributions of positive (lhs) and negative (rhs) charge states of all defects"
+          },
+          {
+            "name": "q_tot",
+            "description": "for a given Fermi energy, calculate the net charge density of the ``DefectSystem`` as the difference between charge contributions from all positive species (including holes) and all negative species (including electrons).",
+            "input": {
+              "self": null,
+              "e_fermi": {
+                "type": "float",
+                "description": "Fermi energy"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "net charge density of the ``DefectSystem`` at ``e_fermi``"
+              }
+            },
+            "ori_input": "self, e_fermi: float",
+            "ori_description": "for a given Fermi energy, calculate the net charge density of the ``DefectSystem`` as the difference between charge contributions from all positive species (including holes) and all negative species (including electrons).  Args: e_fermi (float): Fermi energy  Returns: float: net charge density of the ``DefectSystem`` at ``e_fermi``"
+          },
+          {
+            "name": "get_transition_levels",
+            "description": "Return transition_levels transition levels profiles of all ``DefectSpecies`` all defects as dictionary of ``{DefectSpecies.name : [e_fermi, e_formation]}`` over the whole density of states energy range.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict[str, list[list]]",
+                "description": "Dictionary giving per-defect transition-level profiles."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return transition_levels transition levels profiles of all ``DefectSpecies`` all defects as dictionary of ``{DefectSpecies.name : [e_fermi, e_formation]}`` over the whole density of states energy range.  Returns: dict[str, list[list]]: Dictionary giving per-defect transition-level profiles."
+          },
+          {
+            "name": "concentration_dict",
+            "description": "Returns a dictionary of the properties of the ``DefectSystem`` object after solving for the self-consistent Fermi energy.",
+            "input": {
+              "self": null,
+              "decomposed": {
+                "type": "bool",
+                "description": "if True, return a dictionary in which the concentration of each ``DefectChargeState`` is given explicitly, rather than as a sum over all ``DefectChargeState`` objects in the each ``DefectSpecies``. Defaults to False."
+              },
+              "per_volume": {
+                "type": "bool",
+                "description": "if True, return concentrations in units of cm^-3, else returns concentration per unit cell. Defaults to True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dict[str, Any]",
+                "description": "dictionary specifying the Fermi Energy, hole concentration (``\"p0\"``), electron concentration (``\"n0\"``), temperature, and the defect concentrations."
+              }
+            },
+            "ori_input": "self, decomposed: bool = False, per_volume: bool = True",
+            "ori_description": "Returns a dictionary of the properties of the ``DefectSystem`` object after solving for the self-consistent Fermi energy.  Args: decomposed (bool, optional): if True, return a dictionary in which the concentration of each ``DefectChargeState`` is given explicitly, rather than as a sum over all ``DefectChargeState`` objects in the each ``DefectSpecies``. Defaults to False. per_volume (bool, optional): if True, return concentrations in units of cm^-3, else returns concentration per unit cell. Defaults to True.  Returns: dict[str, Any]: dictionary specifying the Fermi Energy, hole concentration (``\"p0\"``), electron concentration (``\"n0\"``), temperature, and the defect concentrations."
+          },
+          {
+            "name": "site_percentages",
+            "description": "Returns a dictionary of the DefectSpecies in the DefectSystem which giving the percentage of the sites in the structure that will host that defect.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict[str, Any]",
+                "description": "dictionary specifying the per-DefectSpecies site concentrations."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns a dictionary of the DefectSpecies in the DefectSystem which giving the percentage of the sites in the structure that will host that defect.  Returns: dict[str, Any]: dictionary specifying the per-DefectSpecies site concentrations."
+          },
+          {
+            "name": "as_dict",
+            "description": "Return a dictionary representation of the ``DefectSystem``.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict",
+                "description": "dictionary representation of the ``DefectSystem``, suitable for round-tripping through ``DefectSystem.from_dict``."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return a dictionary representation of the ``DefectSystem``.  Returns: dict: dictionary representation of the ``DefectSystem``, suitable for round-tripping through ``DefectSystem.from_dict``."
+          }
+        ]
+      },
+      {
+        "name": "InputSet",
+        "type": "class",
+        "module": "py_sc_fermi.inputs",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "from_yaml",
+            "description": "Generate an InputSet object from a given yaml file",
+            "input": {
+              "cls": null,
+              "input_file": {
+                "type": "str",
+                "description": "path to yaml file to read"
+              },
+              "structure_file": {
+                "type": "str",
+                "description": "path to structure file to read"
+              },
+              "dos_file": {
+                "type": "str",
+                "description": "path to dos file to read"
+              },
+              "fixed_conc_units": {
+                "type": "str",
+                "description": "units of any fixed concentrations given in the input. ``\"cm^-3\"`` (the default) converts them from cm^-3 to per-unit-cell using the cell volume; ``\"per_unit_cell\"`` treats them as already per-unit-cell. Any other value raises ``ValueError``."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "InputSet",
+                "description": "full set of inputs for ``py-sc-fermi.DefectSystem``."
+              }
+            },
+            "ori_input": "cls, input_file: str, structure_file: str = '', dos_file: str = '', fixed_conc_units: str = 'cm^-3'",
+            "ori_description": "Generate an InputSet object from a given yaml file  Args: input_file (str): path to yaml file to read structure_file (str): path to structure file to read dos_file (str): path to dos file to read fixed_conc_units (str): units of any fixed concentrations given in the input. ``\"cm^-3\"`` (the default) converts them from cm^-3 to per-unit-cell using the cell volume; ``\"per_unit_cell\"`` treats them as already per-unit-cell. Any other value raises ``ValueError``.  Returns: InputSet: full set of inputs for ``py-sc-fermi.DefectSystem``.  Note: Only the ``.yaml`` file is required. If the structure_file and dos_file are not specified, the ``.yaml`` file must contain the volume and the density-of-states data."
+          },
+          {
+            "name": "from_sc_fermi_inputs",
+            "description": "Generate an InputSet object from a `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_ -formatted input file.",
+            "input": {
+              "cls": null,
+              "input_file": {
+                "type": "str",
+                "description": "path to file to read"
+              },
+              "structure_file": {
+                "type": "str",
+                "description": "path to structure file to read"
+              },
+              "dos_file": {
+                "type": "str",
+                "description": "path to dos file to read"
+              },
+              "n_trial_steps": {
+                "type": "int | None",
+                "description": "Deprecated. Maximum solver iterations. If not specified, uses scipy's default."
+              },
+              "convergence_tolerance": {
+                "type": "float | None",
+                "description": "Tolerance for Fermi energy convergence in eV. If not specified, uses scipy's default."
+              },
+              "frozen": {
+                "type": "bool",
+                "description": "True if any defects or defect charge states in in the input file have fixed concentrations. Defaults to False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "InputSet",
+                "description": "full set of inputs for ``py-sc-fermi.DefectSystem``."
+              }
+            },
+            "ori_input": "cls, input_file: str, structure_file: str, dos_file: str, n_trial_steps: int | None = None, convergence_tolerance: float | None = None, frozen: bool = False",
+            "ori_description": "Generate an InputSet object from a `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_ -formatted input file.  Args: input_file (str): path to file to read structure_file (str): path to structure file to read dos_file (str): path to dos file to read n_trial_steps (int, optional): Deprecated. Maximum solver iterations. If not specified, uses scipy's default. convergence_tolerance (float, optional): Tolerance for Fermi energy convergence in eV. If not specified, uses scipy's default. frozen (bool, optional): True if any defects or defect charge states in in the input file have fixed concentrations. Defaults to False.  Returns: InputSet: full set of inputs for ``py-sc-fermi.DefectSystem``."
+          }
+        ]
+      },
+      {
+        "name": "volume_from_unitcell",
+        "type": "function",
+        "module": "py_sc_fermi.inputs",
+        "description": "Get volume in A^3 from ``unitcell.dat`` file-type used in `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_",
+        "input": {
+          "filename": {
+            "type": "str",
+            "description": "path to ``unitcell.dat`` file"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "float",
+            "description": "volume in A^3"
+          }
+        },
+        "ori_input": "filename: str",
+        "ori_description": "Get volume in A^3 from ``unitcell.dat`` file-type used in `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_  Args: filename (str): path to ``unitcell.dat`` file  Returns: float: volume in A^3"
+      },
+      {
+        "name": "read_input_fermi",
+        "type": "function",
+        "module": "py_sc_fermi.inputs",
+        "description": "Return all information from a input file correctly formatted to work for `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_.",
+        "input": {
+          "filename": {
+            "type": "str",
+            "description": "path to ``SC-Fermi`` -formatted input file."
+          },
+          "volume": {
+            "type": "float | None",
+            "description": "unit cell volume. Only required if there are fixed-concentration defects in input file. Defaults to None."
+          },
+          "frozen": {
+            "type": "bool",
+            "description": "whether there are fixed-concentration defects in the input file. Defaults to False."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "InputFermiData",
+            "description": "input for generating a ``DefectSystem``."
+          }
+        },
+        "ori_input": "filename: str, volume: float | None = None, frozen: bool = False",
+        "ori_description": "Return all information from a input file correctly formatted to work for `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_.  Args: filename (str): path to ``SC-Fermi`` -formatted input file. volume (float, optional): unit cell volume. Only required if there are fixed-concentration defects in input file. Defaults to None. frozen (bool, optional): whether there are fixed-concentration defects in the input file. Defaults to False.  Raises: ValueError: if the ``volume`` is not specified, but ``frozen == True`` ValueError: if fixed-concentration defect does not have any charge-states defined.  Returns: InputFermiData: input for generating a ``DefectSystem``."
+      },
+      {
+        "name": "read_dos_data",
+        "type": "function",
+        "module": "py_sc_fermi.inputs",
+        "description": "read density of states data from an `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_ formatted ``totdos.dat`` file.",
+        "input": {
+          "bandgap": {
+            "type": "float",
+            "description": "bandgap of density-of-states data."
+          },
+          "nelect": {
+            "type": "int",
+            "description": "number of electrons in the density-of-states data"
+          },
+          "filename": {
+            "type": "str",
+            "description": "path to ``todos.dat`` file. Defaults to \"totdos.dat\"."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "DOS",
+            "description": "py-sc-Fermi ``DOS`` object"
+          }
+        },
+        "ori_input": "bandgap: float, nelect: int, filename: str = 'totdos.dat'",
+        "ori_description": "read density of states data from an `SC-Fermi <https://github.com/jbuckeridge/sc-fermi>`_ formatted ``totdos.dat`` file.  Args: bandgap (float): bandgap of density-of-states data. nelect (int): number of electrons in the density-of-states data filename (str, optional): path to ``todos.dat`` file. Defaults to \"totdos.dat\".  Returns: DOS: py-sc-Fermi ``DOS`` object"
+      },
+      {
+        "name": "volume_from_structure",
+        "type": "function",
+        "module": "py_sc_fermi.inputs",
+        "description": "get volume of any structure file readable by ``pymatgen``",
+        "input": {
+          "structure_file": {
+            "type": "str",
+            "description": "path to file defining structure"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "float",
+            "description": "volume of structure"
+          }
+        },
+        "ori_input": "structure_file: str",
+        "ori_description": "get volume of any structure file readable by ``pymatgen``  Args: structure_file (str): path to file defining structure  Returns: float: volume of structure"
+      },
+      {
+        "name": "read_volume_from_structure_file",
+        "type": "function",
+        "module": "py_sc_fermi.inputs",
+        "description": "read the volume of a structure defined in a given file.",
+        "input": {
+          "structure_file": {
+            "type": "str",
+            "description": "path to the structure file."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "float",
+            "description": "volume of structure"
+          }
+        },
+        "ori_input": "structure_file: str",
+        "ori_description": "read the volume of a structure defined in a given file.  Args: structure_file (str): path to the structure file.  Raises: ValueError: if the structure file is not readable by ``py-sc-fermi``  Returns: float: volume of structure"
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/bjmorgan/py-sc-fermi",
+        "documentation": "https://py-sc-fermi.readthedocs.io/en/latest/",
+        "pypi": "https://pypi.org/project/py-sc-fermi/",
+        "pypi_version": "2.2.2",
+        "tag": "2.2.2",
+        "commit": "4b508c15ed6c3a881fe5fab0e91caba2deb68cab",
+        "release_published_at": "2026-06-09T19:47:43Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "GitHub 发布标签为 2.2.2（没有 v 前缀），与 PyPI 一致；Python 模块名为 py_sc_fermi。PyPI 元数据 Download 链接含未替换的 {version}，未采用该链接。",
+          "输入需要统一能量参考、单位、简并度和晶胞体积；数值求解与最新依赖组合尚未运行验证。"
+        ],
+        "release_url": "https://github.com/bjmorgan/py-sc-fermi/releases/tag/2.2.2",
+        "release_api": "https://api.github.com/repos/bjmorgan/py-sc-fermi/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/py-sc-fermi",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "py_sc_fermi"
+        ],
+        "source_files": [
+          "py_sc_fermi/__init__.py",
+          "py_sc_fermi/cli/__init__.py",
+          "py_sc_fermi/cli/sc_fermi_solve.py",
+          "py_sc_fermi/defect_charge_state.py",
+          "py_sc_fermi/defect_species.py",
+          "py_sc_fermi/defect_system.py",
+          "py_sc_fermi/dos.py",
+          "py_sc_fermi/inputs.py",
+          "py_sc_fermi/warnings.py"
+        ],
+        "source_file_sha256": {
+          "py_sc_fermi/__init__.py": "b68018cc4fe89354a2044d00a8055d5b43bc6025c2c1cc74c382404d842e24e8",
+          "py_sc_fermi/cli/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "py_sc_fermi/cli/sc_fermi_solve.py": "cf7fd9860deb78211eea7ed1ee8cb85e61666052bbe2c6e70c80f067aa28d46d",
+          "py_sc_fermi/defect_charge_state.py": "ac4c4f32de644955f87fae829d1fe2ae7d08d4e0998c56f9dc96e5fe54ce4c00",
+          "py_sc_fermi/defect_species.py": "699e70e71396daf2a470acb77690590e7a0f7e565a158d12392c83bd6d962384",
+          "py_sc_fermi/defect_system.py": "07974333c07c3f5a7dd7d1a57538657bf60c15756bf4e269ebe781e9b4598dc3",
+          "py_sc_fermi/dos.py": "5b23dd58f5f88f93474ffe6e68c0fba397ccd93e9a8781f9137ba37a36043da7",
+          "py_sc_fermi/inputs.py": "7284d01a16711c166ca3fa6c4ed4769b5fed8021b5ab0df277f8d6f4ee891115",
+          "py_sc_fermi/warnings.py": "b7cfa6d0803f94240a3c04f91ee8f00e81382394037b44bae5c2f2428ab6387d"
+        },
+        "source_version": "2.2.2",
+        "source_commit": "4b508c15ed6c3a881fe5fab0e91caba2deb68cab",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "py_sc_fermi_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/py-sc-fermi_2.2.2.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/py-sc-fermi_2.2.2.json",
+        "source_sha256": "f733c700a27db510eb09faf2bfe435c727c1dd2dae3e95e7cf3347c4c4dfc22f",
+        "profile_sha256": "515ddf220855a7e01e2c90ba9ed3eaa7887c05fd3ca5da58cff71979b3963509",
+        "boundary": "输入、DOS、缺陷电荷态/种类、平衡与指定固定浓度下的自洽费米能级及结果字典。保留模型必要属性，排除 CLI、打印报告和溢出警告装饰器；输入单位和电荷中性条件需显式验证。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 14,
+        "selected_tool_count": 10,
+        "selected_class_count": 5,
+        "selected_function_count": 5,
+        "selected_method_count": 57,
+        "selected_all_func": 62,
+        "missing_description_count": 6,
+        "excluded_tool_count": 4,
+        "capability_count": 3
+      }
+    }
+  }
+]

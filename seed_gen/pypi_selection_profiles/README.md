@@ -31,5 +31,11 @@ DEVSIM、nextnanopy、Sesame、Solcore 四份清单声明 `target_all_func: {"mi
 筛选器会重算并强制检查。完整依据、能力范围及复现命令见
 [semiconductor_selection.md](semiconductor_selection.md)。证据分数为静态选择辅助，不代表实验效果。
 
+器件与缺陷组的 9 个新增发布包见 [整理报告](../pypi_outputs/器件与缺陷包整理.md)，
+批量运行 `python -m seed_gen.scripts.select_release_python_seeds --manifest seed_gen/pypi_device_defect_sources.json`。
+meshio 和 ShakeNBreak 按核心能力范围分别保留 21、42 个调用，profile 中的
+`desired_all_func` 保存一般目标，`target_all_func` 保存本次检查范围，`target_exception_reason` 说明差异。
+新增清单的验证等级均表示计划或必要依赖，未执行目标 API 数值验证。
+
 `atomate2` 的 `construction_only` 表示只验证 Job/Flow 构建、序列化和依赖图，不代表已经执行 VASP。
 真正运行 VASP 需要额外的二进制、赝势、运行配置和独立验收环境。

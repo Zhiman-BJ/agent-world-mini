@@ -315,6 +315,11 @@ def select_seed(
         "selected_symbols": selected_report,
         "excluded_symbols": excluded_report,
     }
+    # Preserve explicit departures from the preferred size in both deliverables.
+    for field in ("desired_all_func", "target_exception_reason"):
+        if field in profile:
+            others["python_api_selection"][field] = copy.deepcopy(profile[field])
+            report[field] = copy.deepcopy(profile[field])
     return [selected_seed], report
 
 

@@ -1,6 +1,9 @@
 pymatgen-core v2026.8.30
 atomate2 v0.1.5
 
+2026-09-10 新增：gdsfactory、KLayout、Gmsh、meshio、pymatgen、pymatgen-analysis-defects、doped、ShakeNBreak、py-sc-fermi。
+发布版、官方链接、精选数量及验证结果见 [器件与缺陷包整理](器件与缺陷包整理.md)。DEVSIM 与 pymatgen-core 复用已有产物。
+
 | 包 | 发布标签 | 官方来源 | JSON |
 |---|---|---|---|
 | DEVSIM | `v2.11.0.rc5` | [代码](https://github.com/devsim/devsim) · [文档](https://devsim.net/) | [查看](D:/Desktop/agent-world-mini/seed_gen/pypi_outputs/devsim_v2.11.0.rc5.json) |
