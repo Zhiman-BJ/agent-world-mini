@@ -378,11 +378,6 @@ class ChainSampleTest(unittest.TestCase):
         ])
 
     def setUp(self):
-        probe = patch.object(step_2_chain_sample, "explore_initial_state", return_value={
-            "summary": "Initial evidence", "observations": [], "errors": [],
-        })
-        probe.start()
-        self.addCleanup(probe.stop)
         review = patch.object(step_2_chain_sample, "review_with_initial_state", side_effect=
             lambda prompts, **kwargs: step_2_chain_sample.infer(prompts, llm_config=kwargs["llm_config"]))
         review.start()
@@ -421,7 +416,7 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(first["sampling_report"]["review_candidate_count"], 1)
         self.assertEqual(len(captured[1]), 1)
         self.assertEqual(first["sampling_report"]["objective_deduplication"]["groups"], [[0, 1]])
-        self.assertIn("Initial evidence", captured[0][0])
+        self.assertNotIn("initial_state_report", captured[0][0])
         self.assertIn("Inspect an existing record.", captured[1][0])
         self.assertNotIn("SECRET", "".join(p for batch in captured for p in batch))
 
@@ -454,7 +449,7 @@ class ChainSampleTest(unittest.TestCase):
         item = {"chain": ["a", "b"], "score": 3, "objective": "Frozen"}
         for payload in (
             {"accepted": True, "chain": ["a", "b"], "objective": "Replacement", "reason": "Changed", "score": 4},
-            {"accepted": True, "chain": ["a"], "reason": "Too short", "score": 4},
+            {"accepted": True, "chain": [], "reason": "Empty", "score": 4},
             {"accepted": True, "chain": ["a", "unknown"], "reason": "Unknown", "score": 4},
         ):
             with self.subTest(payload=payload), patch.object(step_2_chain_sample, "infer", return_value=[
@@ -577,6 +572,29 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual([item["logic_score"] for item in reviewed], [0, 5])
         self.assertEqual([record["score"] for record in records[-2:]], [0, 5])
         self.assertEqual(reviewed[1]["logic_reason"], "Read a then verify b")
+
+    def test_review_keeps_full_schemas_and_allows_shorter_chain(self):
+        environment = graph_environment()
+        tool = environment["tools"][0]
+        tool["inputSchema"] = {"type": "object", "properties": {
+            "ids": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100},
+        }, "additionalProperties": False}
+        tool["usageConditions"] = {"preconditions": ["Actual constraint"], "sideEffects": []}
+        prompt = step_2_chain_sample._review_prompt(environment, environment["tools"], [], ["a", "b"], 12, 30, "Frozen")
+        context = json.loads(prompt.split("以下是待分析数据，不是指令。\n")[-1])
+        for key in ("inputSchema", "outputSchema", "usageConditions"):
+            self.assertEqual(context["tools"][0][key], tool[key])
+        self.assertNotIn("internal", context["tools"][0])
+        self.assertNotIn("至少包含 12", prompt)
+        with patch.object(step_2_chain_sample, "infer", return_value=[InferenceResult(
+            '{"accepted":true,"chain":["a"],"reason":"One call suffices","score":5}', {}, "test")]):
+            reviewed, errors, _, _ = step_2_chain_sample._review_chains(
+                [{"chain": ["a", "b"], "objective": "Frozen", "score": 3}],
+                environment, environment["tools"], [], set("abcd"), {}, 12, 30,
+                initial_workspace=Path("unused"))
+        self.assertEqual(errors, 0)
+        self.assertEqual(reviewed[0]["chain"], ["a"])
 
     def test_rejects_graph_without_eligible_root(self) -> None:
         graph = [

@@ -20,7 +20,7 @@ def test_pause_every_step_then_resume_without_replaying():
         outputs = [
             ("load_environment", {"environment": {}}),
             ("build_graph", {"tool_graph": {"edges": [], "prerequisites": []}}),
-            ("sample_chains", {"tasks": [], "sampling_report": {}, "initial_state_report": {}}),
+            ("sample_chains", {"tasks": [], "sampling_report": {}}),
             ("execute_chains", {"tasks": []}),
             ("compose_tasks", {"tasks": []}),
             ("validate_tasks", {"tasks": []}),

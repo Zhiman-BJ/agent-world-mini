@@ -135,7 +135,6 @@ def to_execute_chains_input(
         "run_dir": run_dir,
         "environment": bundle["environment"],
         "tasks": bundle["tasks"],
-        "initial_state_report": bundle.get("initial_state_report"),
     }
 
 
@@ -159,7 +158,6 @@ def to_validate_tasks_input(
         "run_dir": run_dir,
         "environment": bundle["environment"],
         "tasks": bundle["tasks"],
-        "initial_state_report": bundle.get("initial_state_report"),
     }
 
 

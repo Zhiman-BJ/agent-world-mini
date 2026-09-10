@@ -166,7 +166,7 @@ def run(arguments, context):
         prompt = json.loads(captured[0])
         self.assertEqual(prompt["objective"], "Write the requested value.")
         self.assertEqual(prompt["completed_calls"], [])
-        self.assertEqual(prompt["initial_state_report"]["observations"], [])
+        self.assertNotIn("initial_state_report", prompt)
         self.assertEqual(prompt["current_tool"]["inputSchema"]["required"], ["value"])
 
     def test_review_guidance_reaches_each_call_and_parameter_retry(self) -> None:
