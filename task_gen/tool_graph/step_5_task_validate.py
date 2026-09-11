@@ -3,7 +3,7 @@
 Execution or composition failures retain their root cause without derivative
 missing-field errors. Otherwise, verify required fields and chain/call order,
 then review task completion, answer coverage, and usability from public contracts,
-review guidance, bounded initial observations, and actual calls. Final task text
+review guidance with initial-state evidence, and actual calls. Final task text
 is the sole requirements baseline. Unknown state is not evidence of absence.
 
 Semantic review and exported tasks see all available public tools. No workspace
@@ -21,7 +21,6 @@ from typing import Any
 
 from .contracts import ValidateTasksInput, ValidateTasksOutput
 from .llm import BatchInferenceError, infer, parse_json_object
-from .initial_state_probe import report_context
 from .prompt_principles import REVIEW_GUIDANCE, TASK_STATE_CHAIN
 
 from jsonschema import validators
@@ -49,7 +48,7 @@ def validate_tasks(stage_input: ValidateTasksInput) -> ValidateTasksOutput:
         output.append(candidate)
         if not errors:
             review_items.append((len(output) - 1, _build_review_prompt(
-                environment, public_tools, candidate, stage_input.get("initial_state_report"),
+                environment, public_tools, candidate,
             )))
 
     if review_items:
@@ -144,12 +143,11 @@ def _basic_errors(candidate: dict[str, Any], task: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[str, Any]], candidate: dict[str, Any], initial_report: dict[str, Any] | None = None) -> str:
+def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[str, Any]], candidate: dict[str, Any]) -> str:
     execution = candidate["execution"]
     context = {
         "environment": {key: environment.get(key) for key in (("name", "summary", "description", "record_sets", "relationships", "filesystem_scopes") if environment.get("schema_version") == "2.0" else ("name", "description", "resources", "rules"))},
         "tools": public_tools,
-        "initial_state_report": report_context(initial_report),
         "review_guidance": (candidate.get("llm_review") or {}).get("reason"),
         "task_text": candidate.get("task_text"),
         "reference_answer": candidate.get("reference_answer"),
@@ -157,7 +155,7 @@ def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[st
         "tool_calls": execution.get("tool_calls"),
     }
     instruction = """对最终任务产物作独立质量判断，不修改任务、答案或执行记录。
-task_text 是唯一需求基准；review 和初态报告用于理解证据与路径，不能增加任务未要求的义务。
+task_text 是唯一需求基准；review 中的初态观察和规划用于理解证据与路径，不能增加任务未要求的义务。
 execution_matches_task：在给定初态下，真实执行及已有状态是否满足任务的全部适用要求。
 answer_matches_task：参考答案是否准确、完整地回答这些要求，结论范围与业务含义是否有证据支持，是否遗漏重要结果。
 task_is_usable：任务是否自然、逻辑清楚、结果导向且信息充分，能否仅凭用户可辨认的业务信息和公开环境独立理解。

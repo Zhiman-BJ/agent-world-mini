@@ -51,7 +51,7 @@ def main():
     if args.from_step2:
         if graph.get("_step") != PipelineStep.CHAIN_SAMPLE.value:
             raise ValueError("--from-step2 必须是 Step 2 检查点")
-        run_io.merge_output(bundle, {key: graph[key] for key in ("tasks", "sampling_report", "initial_state_report")}, PipelineStep.CHAIN_SAMPLE)
+        run_io.merge_output(bundle, {key: graph[key] for key in ("tasks", "sampling_report")}, PipelineStep.CHAIN_SAMPLE)
         run_io.update_run_meta(run_dir, {"resumed_from_step_2": str(source_path.resolve()), "diagnostic": graph["sampling_report"].get("diagnostic", False)})
     run_io.save_bundle(run_dir, bundle)
     timings = {}

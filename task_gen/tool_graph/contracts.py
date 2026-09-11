@@ -148,34 +148,38 @@ class SampleChainsInput(TypedDict):
 
 
 class SampleChainsOutput(TypedDict):
-    """Step 2 returns candidates, sampling_report and one initial_state_report.
+    """Step 2 returns candidates and sampling_report.
 
-    Objectives prioritize task quality, using original chains as inspiration and
-    the initial report as a reference, without chain acceptance decisions.
-    An objective may combine independent subtasks. Review adapts the chain to the
-    frozen objective and may exceed sampling length/visit caps; it retains the
-    planning length floor. Each task contains task_id, chain,
+    Objectives extract a core outcome from the chain rather than enumerate calls;
+    initial-state exploration belongs to Codex review, not objective generation.
+    One batch inference groups equivalent objectives before Codex review, selects
+    representatives without rewriting them, and does not refill removed candidates.
+    An objective fixes the chain's distinctive core result, not an operation list
+    or a collection of unrelated demands. Review adapts the chain to the
+    frozen objective without sampling length/visit limits. Review receives full
+    public input/output schemas and usageConditions. Each task contains task_id, chain,
     objective, score, llm_review, logic_score and logic_reason. score sums known
     edges in the reviewed chain; graph-external adjacencies contribute zero.
     Codex review supplies logic_score (0-5) for the final plan's value and expected
     objective completion; its reason supplies logic_reason and task-state-chain
     guidance to execution, composition, reflection, answer and validation.
     There is no separate scoring inference. Invalid scores are review errors.
-    sampling_report records objective generation, review decisions, failures and coverage.
-    initial_state_report contains summary, observations and errors. It is limited
-    evidence, not a complete state snapshot or proof of absence."""
+    sampling_report records objective generation, objective_deduplication (groups
+    of zero-based generated-candidate indices, representative first, and reason),
+    review decisions, failures and coverage. Generated and reviewed counts differ.
+    Review reason records observed facts and evidence coverage; unobserved state
+    remains unknown rather than proof of absence."""
 
     tasks: list[dict[str, Any]]
     sampling_report: dict[str, Any]
-    initial_state_report: dict[str, Any]
 
 
 class ExecuteChainsInput(TypedDict):
-    """Step 3 receives frozen objectives, chains and optional initial observations.
+    """Step 3 receives frozen objectives, chains and review guidance.
 
     config.environment_dir/workspace is the source of isolated initial/final
     copies under run_dir/tasks/<task_id>. Parameter generation sees public
-    contracts, bounded initial evidence, review guidance, completed calls and previous failures.
+    contracts, review guidance, completed calls and previous failures.
     Review guidance is a planning reference, not a new objective or proven facts;
     legacy candidates without it remain executable.
     Only the sandbox executor consumes internal.code."""
@@ -184,7 +188,6 @@ class ExecuteChainsInput(TypedDict):
     run_dir: Path
     environment: dict[str, Any]
     tasks: list[dict[str, Any]]
-    initial_state_report: dict[str, Any] | None
 
 
 class ExecuteChainsOutput(TypedDict):
@@ -266,15 +269,14 @@ class ComposeTasksOutput(TypedDict):
 
 
 class ValidateTasksInput(TypedDict):
-    """Step 5 receives all candidates, the public environment, optional initial
-    observations, config and run_dir. It reviews execution and reference_answer
+    """Step 5 receives all candidates, the public environment,
+    config and run_dir. It reviews execution and reference_answer
     against final task_text, using review guidance and all public tools."""
 
     config: Config
     run_dir: Path
     environment: dict[str, Any]
     tasks: list[dict[str, Any]]
-    initial_state_report: dict[str, Any] | None
 
 
 class ValidateTasksOutput(TypedDict):

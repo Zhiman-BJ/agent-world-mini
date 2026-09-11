@@ -72,6 +72,7 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace, environ
                     server_config=server_config,
                     model=llm_config.get("model"),
                     codex_home=llm_config.get("codex_home"),
+                    reasoning_effort=llm_config.get("reasoning_effort"),
                     timeout_seconds=int(llm_config.get("timeout_seconds", 1800)),
                     sandbox="read-only",
                     log_directory=root / "logs",

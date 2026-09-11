@@ -176,8 +176,8 @@ def infer(
 
     config = llm_config or {}
     trace = _TRACE_CONTEXT.get()
-    # codex 后端走本机已登录的 Codex CLI，用于 API 账户配额不足时；
-    # 阶段 prompt 和返回契约完全不变。它没有 max_tokens 概念，该配置只影响 api 后端。
+    # 普通阶段按配置走 API 或 Codex。Step 2 的 review 不经过这里，
+    # 由 review_agent 直接创建 CodexAgentClient，以保留只读 MCP 初态探索能力。
     if str(config.get("backend") or "api") == "codex":
         return _infer_codex(
             prompt,
@@ -196,6 +196,8 @@ def infer(
         parameters["max_tokens"] = int(config["max_tokens"])
     if config.get("response_format") is not None:
         parameters["response_format"] = config["response_format"]
+    if config.get("reasoning_effort"):
+        parameters["reasoning_effort"] = str(config["reasoning_effort"])
 
     def run(index: int, item: str) -> InferenceResult:
         started_at = datetime.now().astimezone().isoformat()
@@ -261,6 +263,7 @@ def _infer_codex(
     client = CodexAgentClient(
         model=str(config["model"]) if config.get("model") else None,
         codex_home=str(config["codex_home"]) if config.get("codex_home") else None,
+        reasoning_effort=config.get("reasoning_effort"),
         timeout_seconds=int(config.get("timeout_seconds", 1800)),
         sandbox="read-only",
     )

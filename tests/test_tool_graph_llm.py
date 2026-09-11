@@ -43,6 +43,15 @@ class ToolGraphLLMTest(unittest.TestCase):
         self.assertEqual(parameters[0].get('response_format'), {'type': 'json_object'})
         self.assertNotIn('response_format', parameters[1])
 
+    def test_api_forwards_reasoning_effort(self) -> None:
+        client = FakeLLMClient()
+        with (
+            patch.object(llm, "_client", return_value=client),
+            patch.object(client, "complete_messages", return_value=("ok", {})) as complete,
+        ):
+            llm.infer("test", llm_config={"reasoning_effort": "low"})
+        self.assertEqual(complete.call_args.kwargs["reasoning_effort"], "low")
+
     def test_infer_records_each_batch_call_with_current_step(self) -> None:
         records: list[dict[str, object]] = []
 
