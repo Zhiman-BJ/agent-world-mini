@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 import time
+import secrets
 
 from .llm import CodexAgentClient, InferenceResult, _TRACE_CONTEXT, _record_call, _run_batch
 from .step_3_chain_execute import _workspace_signature, _workspace_usage
@@ -19,6 +20,7 @@ class _ReviewClient(CodexAgentClient):
 
     def _llm_arguments(self, environment):
         arguments = super()._llm_arguments(environment)
+        arguments.append('--json')
         server = Path(__file__).resolve().parents[1] / 'task_eval_mcp.py'
         arguments.extend(['--config', 'features.shell_tool=false', '--config',
                           'features.unified_exec=false', '--config',
@@ -45,6 +47,8 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace, environ
     trace = _TRACE_CONTEXT.get()
 
     def run(index, prompt):
+        skill = (Path(__file__).parent / 'skills/review-plan-selection/SKILL.md').read_text(encoding='utf-8')
+        prompt = skill + '\n\n' + prompt
         started_at = datetime.now().astimezone().isoformat()
         started = time.perf_counter()
         result, error, agent_log = None, None, {}
@@ -67,7 +71,9 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace, environ
                     'workspace': str(workspace), 'trace': str(root / 'tool_calls.jsonl'),
                     'max_tool_calls': 100, 'timeout': 300, 'memory_limit': 2 * 1024**3,
                     'write_limit': 256 * 1024**2,
+                    'review_choice_seed': llm_config.get('review_choice_seed', secrets.randbits(64)) + index,
                 }, ensure_ascii=False), encoding='utf-8')
+                agent_log['server_config'] = json.loads(server_config.read_text(encoding='utf-8'))
                 client = _ReviewClient(
                     server_config=server_config,
                     model=llm_config.get("model"),
@@ -89,9 +95,25 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace, environ
                         path = root / "logs" / "run_01" / f"{name}.log"
                         if path.is_file():
                             agent_log[name] = path.read_text(encoding="utf-8", errors="replace")
+                    agent_log['events'] = []
+                    for line in agent_log.get('stdout', '').splitlines():
+                        if not line.strip():
+                            continue
+                        try:
+                            agent_log['events'].append(json.loads(line))
+                        except json.JSONDecodeError:
+                            agent_log.setdefault('unparsed_event_lines', []).append(line)
                     tool_trace = root / 'tool_calls.jsonl'
                     if tool_trace.is_file():
-                        agent_log['tool_calls'] = [json.loads(line) for line in tool_trace.read_text(encoding='utf-8').splitlines()]
+                        agent_log['tool_calls_raw'] = tool_trace.read_text(encoding='utf-8')
+                        agent_log['tool_calls'] = []
+                        for line in agent_log['tool_calls_raw'].splitlines():
+                            if not line.strip():
+                                continue
+                            try:
+                                agent_log['tool_calls'].append(json.loads(line))
+                            except json.JSONDecodeError:
+                                agent_log.setdefault('unparsed_tool_lines', []).append(line)
         except Exception as failure:
             error = failure
             raise

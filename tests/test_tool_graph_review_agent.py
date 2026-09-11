@@ -22,11 +22,13 @@ class ReviewAgentTest(unittest.TestCase):
                 self.assertEqual(client.reasoning_effort, "low")
                 self.assertFalse(client.enable_web_search)
                 self.assertIn('features.shell_tool=false', client._llm_arguments({}))
+                self.assertIn('--json', client._llm_arguments({}))
                 self.assertEqual(list(working_directory.iterdir()), [])
                 self.assertEqual((working_directory.parent / "state/state.json").read_text(), '{"existing": 2}')
                 log = client.log_directory / "run_01"
                 log.mkdir(parents=True)
                 (log / "stderr.log").write_text("read state.json: existing=2")
+                (log / "stdout.log").write_text('{"type":"thread.started","thread_id":"test"}\n{"type":"item.completed","item":{"type":"agent_message","text":"observed"}}\n')
                 return '{"accepted":true,"chain":["query"],"reason":"Two existing records"}'
 
             with patch.object(review_agent.CodexAgentClient, "run", run), llm.capture_calls("review", records.append):
@@ -40,6 +42,9 @@ class ReviewAgentTest(unittest.TestCase):
             self.assertEqual(len(records), 2)
             self.assertTrue(all(record["agent_log"]["stderr"] == "read state.json: existing=2" for record in records))
             self.assertEqual({record["batch_index"] for record in records}, {0, 1})
+            self.assertTrue(all(len(record['agent_log']['events']) == 2 for record in records))
+            self.assertEqual(records[0]['agent_log']['events'][0]['thread_id'], 'test')
+            self.assertIn('tools', records[0]['agent_log']['server_config'])
 
     def test_mutated_copy_fails_only_its_candidate(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -47,7 +52,7 @@ class ReviewAgentTest(unittest.TestCase):
             (source / "state.json").write_text('{}')
 
             def run(client, prompt, *, working_directory):
-                if prompt == "mutate":
+                if prompt.endswith("\n\nmutate"):
                     (working_directory.parent / "state/state.json").write_text('{"changed": true}')
                 return '{}'
 
@@ -77,6 +82,10 @@ class ReviewAgentTest(unittest.TestCase):
 
             def run(client, prompt, *, working_directory):
                 directories.append(working_directory)
+                log = client.log_directory / 'run_01'
+                log.mkdir(parents=True)
+                (log / 'stdout.log').write_text('{"type":"turn.started"}\n{"partial":')
+                (working_directory.parent / 'tool_calls.jsonl').write_text('{"tool":"query","result":{}}\n{"partial":')
                 raise TimeoutError("agent timed out")
 
             with patch.object(review_agent.CodexAgentClient, "run", run), llm.capture_calls("review", records.append):
@@ -85,6 +94,10 @@ class ReviewAgentTest(unittest.TestCase):
             self.assertTrue(all(not directory.exists() for directory in directories))
             self.assertEqual(records[0]["status"], "failed")
             self.assertIn("timed out", records[0]["error"])
+            self.assertEqual(records[0]['agent_log']['events'], [{'type': 'turn.started'}])
+            self.assertEqual(records[0]['agent_log']['unparsed_event_lines'], ['{"partial":'])
+            self.assertEqual(len(records[0]['agent_log']['tool_calls']), 1)
+            self.assertEqual(records[0]['agent_log']['unparsed_tool_lines'], ['{"partial":'])
 
 
 if __name__ == "__main__":

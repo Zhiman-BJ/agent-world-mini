@@ -102,7 +102,7 @@ def _record_call(
     started: float,
     result: InferenceResult | None = None,
     error: Exception | None = None,
-    agent_log: dict[str, str] | None = None,
+    agent_log: dict[str, Any] | None = None,
 ) -> None:
     if trace is None:
         return
