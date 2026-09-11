@@ -194,6 +194,8 @@ def infer(
     parameters: dict[str, object] = {"temperature": float(config.get("temperature", 0.2))}
     if config.get("max_tokens") is not None:
         parameters["max_tokens"] = int(config["max_tokens"])
+    if config.get("response_format") is not None:
+        parameters["response_format"] = config["response_format"]
 
     def run(index: int, item: str) -> InferenceResult:
         started_at = datetime.now().astimezone().isoformat()

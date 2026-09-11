@@ -29,6 +29,20 @@ class FakeLLMClient:
 
 
 class ToolGraphLLMTest(unittest.TestCase):
+    def test_explicit_response_format_reaches_api_without_changing_defaults(self):
+        parameters = []
+
+        class Client(FakeLLMClient):
+            def complete_messages(self, messages, **kwargs):
+                parameters.append(kwargs)
+                return '{}', {}
+
+        with patch.object(llm, '_client', return_value=Client()):
+            llm.infer('Return JSON', llm_config={'response_format': {'type': 'json_object'}})
+            llm.infer('Return text')
+        self.assertEqual(parameters[0].get('response_format'), {'type': 'json_object'})
+        self.assertNotIn('response_format', parameters[1])
+
     def test_infer_records_each_batch_call_with_current_step(self) -> None:
         records: list[dict[str, object]] = []
 

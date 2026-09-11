@@ -1,0 +1,18 @@
+# 仅用于本机 Qwen 的独立评测；不改变主管线或 Step2 review 配置。
+llm:
+  backend: api
+  model: Qwen/Qwen3.8-27B
+  base_url: http://127.0.0.1:8000/v1
+  api_key_file: /data1/home/tianfang/qwen-service/local-client.json
+  timeout_seconds: 3600
+  max_tokens: 32768
+  temperature: 1.0
+  response_format:
+    type: json_object
+  max_concurrency: 1
+execution:
+  retry_count: 3
+  tool_timeout_seconds: 300
+  tool_result_max_bytes: 65536
+  tool_max_memory_bytes: 2147483648
+  tool_max_write_bytes: 268435456

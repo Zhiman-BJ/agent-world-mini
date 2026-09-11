@@ -12,7 +12,6 @@ from unittest.mock import patch
 from task_gen.task_eval import (
     DEFAULT_INPUT_ROOT,
     VERIFIER_CACHE_VERSION,
-    _TaskEvalCodexClient,
     _agent_prompt,
     _result_counts,
     _run_agent,
@@ -1959,31 +1958,9 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("7", prompt["role"])
             self.assertIn("tool calls", prompt["role"])
 
-    def test_task_evaluation_uses_isolated_codex_and_defaults_to_fifty_calls(self) -> None:
-        self.assertEqual(_TaskEvalCodexClient.__mro__[1].__module__, "task_gen.tool_graph.codex")
+    def test_task_evaluation_defaults_to_fifty_calls(self) -> None:
         self.assertEqual(evaluate_case.__kwdefaults__["max_tool_calls"], 50)
         self.assertEqual(run_evaluation.__kwdefaults__["max_tool_calls"], 50)
-
-    def test_run_agent_propagates_llm_timeout(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            captured: dict[str, object] = {}
-
-            class FakeClient:
-                def __init__(self, *_args: object, **kwargs: object):
-                    captured.update(kwargs)
-
-                def run(self, _prompt: str, *, working_directory: Path) -> str:
-                    return str(working_directory)
-
-            with patch("task_gen.task_eval._TaskEvalCodexClient", FakeClient):
-                _run_agent("task", root, root / "server.json", root / "trace", {
-                    "timeout_seconds": 321,
-                    "codex_home": "~/.codex-task-eval",
-                })
-
-            self.assertEqual(captured["timeout_seconds"], 321)
-            self.assertEqual(captured["codex_home"], "~/.codex-task-eval")
 
     def test_cli_rejects_nonpositive_max_tool_calls(self) -> None:
         with patch("sys.argv", ["task-eval", "--max-tool-calls", "0"]):
@@ -2001,39 +1978,6 @@ class TaskEvalTest(unittest.TestCase):
 
     def test_defaults_to_this_repository_task_runs(self) -> None:
         self.assertEqual(DEFAULT_INPUT_ROOT, ROOT / "runs/taskgen")
-
-    def test_eval_codex_client_bypasses_approval_for_isolated_workspace_tools(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            arguments_path = root / "arguments.txt"
-            codex_home_path = root / "codex-home.txt"
-            executable = root / "fake-codex"
-            executable.write_text(
-                "#!/usr/bin/env bash\nset -eu\n"
-                f'printf "%s\\n" "$@" > {arguments_path}\n'
-                f'printf "%s" "$CODEX_HOME" > {codex_home_path}\n'
-                'output=""\nwhile [ "$#" -gt 0 ]; do\n'
-                '  if [ "$1" = "--output-last-message" ]; then shift; output="$1"; fi\n'
-                '  shift\ndone\ncat >/dev/null\necho done > "$output"\n',
-                encoding="utf-8",
-            )
-            executable.chmod(0o755)
-            client = _TaskEvalCodexClient(
-                root / "task_eval_mcp.py",
-                root / "server.json",
-                executable=str(executable),
-                sandbox="workspace-write",
-                codex_home=root / "isolated-codex",
-            )
-
-            client.run("work", working_directory=root)
-
-            arguments = arguments_path.read_text(encoding="utf-8").splitlines()
-            self.assertIn("--dangerously-bypass-approvals-and-sandbox", arguments)
-            self.assertNotIn("--approve-for-me", arguments)
-            self.assertNotIn("--sandbox", arguments)
-            self.assertIn("mcp_servers={}", arguments)
-            self.assertEqual(codex_home_path.read_text(), str((root / "isolated-codex").resolve()))
 
     def test_result_counts_do_not_treat_error_null_as_infrastructure_failure(self) -> None:
         counts = _result_counts([
@@ -2153,7 +2097,7 @@ class TaskEvalTest(unittest.TestCase):
             self.assertTrue(result["evaluation"]["passed"])
             self.assertEqual(len(agent_calls), 1)
             self.assertEqual(agent_calls[0][1], root / "evaluation")
-            self.assertIn("environment MCP tools", agent_calls[0][0])
+            self.assertIn("environment tools", agent_calls[0][0])
             self.assertIn("429 or 503", agent_calls[0][0])
             self.assertIn("do not ask the user", agent_calls[0][0])
             judge = json.loads(judge_prompts[0])

@@ -10,13 +10,13 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
+import time
 from typing import Any, Callable
 
-from .tool_graph.codex import CodexAgentClient
-from .tool_graph.llm import InferenceResult, infer, parse_json_object
-from .tool_graph.run_io import load_config
+from .task_eval_react import run_react_agent
+from .tool_graph.llm import InferenceResult, capture_calls, infer, parse_json_object
+from .tool_graph.run_io import append_llm_call, load_config
 from .tool_graph.step_3_chain_execute import (
     _bounded_calls,
     _public_environment,
@@ -37,29 +37,6 @@ DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"
 VERIFIER_CACHE_VERSION = 15
 InferFn = Callable[..., InferenceResult]
 AgentRunFn = Callable[[str, Path, Path, Path], str]
-
-
-class _TaskEvalCodexClient(CodexAgentClient):
-    """Add this evaluation's temporary MCP server to one Codex invocation."""
-
-    def __init__(self, server: Path, server_config: Path, **options: Any):
-        options["bypass_approvals_and_sandbox"] = True
-        super().__init__(**options)
-        self.server = server.resolve()
-        self.server_config = server_config.resolve()
-
-    def _llm_arguments(self, environment: dict[str, str]) -> list[str]:
-        arguments = super()._llm_arguments(environment)
-        arguments.extend([
-            "--config",
-            "mcp_servers={}",
-            "--config",
-            f"mcp_servers.agent_world_eval.command={json.dumps(sys.executable)}",
-            "--config",
-            "mcp_servers.agent_world_eval.args="
-            + json.dumps([str(self.server), str(self.server_config)]),
-        ])
-        return arguments
 
 
 @dataclass(frozen=True)
@@ -156,7 +133,7 @@ def evaluate_case(
     verifier_output: Path | None = None,
     verifier_cache: Path | None = None,
 ) -> dict[str, Any]:
-    """Let one Codex agent solve a task with environment MCP tools, then judge it."""
+    """Let one API ReAct agent solve a task with environment tools, then judge it."""
     if max_tool_calls < 1:
         raise ValueError("max_tool_calls 必须大于 0")
     if agent_attempts < 1:
@@ -259,7 +236,7 @@ def evaluate_case(
             }, ensure_ascii=False), encoding="utf-8")
             answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
             if not answer:
-                raise ValueError("Codex Agent 未提交最终答案")
+                raise ValueError("评测 Agent 未提交最终答案")
             calls = _read_trace(trace)
         unavailable = (
             not calls
@@ -272,7 +249,7 @@ def evaluate_case(
         if not unavailable:
             break
         if agent_attempt == agent_attempts:
-            raise RuntimeError(f"Codex Agent 基础设施连续 {agent_attempts} 次返回 503 且未执行工具调用")
+            raise RuntimeError(f"评测 Agent 基础设施连续 {agent_attempts} 次返回 503 且未执行工具调用")
 
     if _workspace_signature(case.initial_state) != source_signature:
         raise ValueError("来源初态在评测期间被修改")
@@ -341,17 +318,16 @@ def evaluate_case(
 def _agent_prompt(case: EvalCase, max_tool_calls: int) -> str:
     return json.dumps({
         "role": (
-            "You are the agent responsible for completing this task in the provided task workspace. "
-            "Use the environment MCP tools exposed in this session to inspect and change environment state. "
-            "You may inspect workspace files directly when useful, but all business state changes must go through the "
-            "environment MCP tools so they are auditable. Never guess internal identifiers; discover them from list, "
-            "search, read, or workspace evidence and use business errors to correct invalid calls. Do not stop at a "
+            "You are the agent responsible for completing this task. "
+            "Use only the provided environment tools to inspect and change environment state. "
+            "Never guess internal identifiers; discover them through environment tools "
+            "and use business errors to correct invalid calls. Do not stop at a "
             "transient 429 or 503 tool error while call budget remains; retry it at least once. For validation errors, "
             "correct the arguments before retrying. The task itself is authorization to execute it; do not ask the user "
             "for confirmation or approval before using the provided tools. "
-            "plan. Complete the task, verify the result with the environment tools when useful, then return only the "
+            "Complete the task, verify the result with the environment tools when useful, then submit the "
             f"final user-facing answer. You may make at most {max_tool_calls} environment tool calls, so reserve "
-            "calls for every required state change and use direct workspace inspection for read-only verification when useful."
+            "calls for required state changes and verification."
         ),
         "task": case.task.get("task_text"),
         "environment": _public_environment(case.environment),
@@ -362,20 +338,10 @@ def _run_agent(
     prompt: str,
     workspace: Path,
     server_config: Path,
-    _trace: Path,
+    trace: Path,
     llm_config: dict[str, Any],
 ) -> str:
-    server = Path(__file__).with_name("task_eval_mcp.py")
-    client = _TaskEvalCodexClient(
-        server,
-        server_config,
-        model=str(llm_config["model"]) if llm_config.get("model") else None,
-        codex_home=str(llm_config["codex_home"]) if llm_config.get("codex_home") else None,
-        timeout_seconds=int(llm_config.get("timeout_seconds", 1800)),
-        sandbox="workspace-write",
-        network_access=False,
-    )
-    return client.run(prompt, working_directory=workspace)
+    return run_react_agent(prompt, workspace, server_config, trace, llm_config)
 
 
 def _read_trace(path: Path) -> list[dict[str, Any]]:
@@ -472,20 +438,24 @@ def run_evaluation(
     def run(case: EvalCase) -> dict[str, Any]:
         filename = f"{case.source_run.name}__{case.task['task_id']}"
         workspace = run_dir / "workspaces" / filename
+        verifier_log_dir = run_dir / "verifier_logs" / filename
+        verifier_log_dir.mkdir(parents=True)
+        started = time.perf_counter()
         try:
-            result = evaluate_case(
-                case,
-                workspace,
-                llm_config,
-                max_tool_calls=max_tool_calls,
-                agent_attempts=int(execution_config.get("retry_count", 3)),
-                tool_timeout_seconds=int(execution_config.get("tool_timeout_seconds", 300)),
-                tool_max_memory_bytes=int(execution_config.get("tool_max_memory_bytes", 2 * 1024 * 1024 * 1024)),
-                tool_max_write_bytes=int(execution_config.get("tool_max_write_bytes", 256 * 1024 * 1024)),
-                tool_result_max_bytes=int(execution_config.get("tool_result_max_bytes", 65536)),
-                verifier_output=verifier_dir / f"{filename}.json",
-                verifier_cache=verifier_cache,
-            )
+            with capture_calls("task_eval.verifier", lambda record: append_llm_call(verifier_log_dir, record)):
+                result = evaluate_case(
+                    case,
+                    workspace,
+                    llm_config,
+                    max_tool_calls=max_tool_calls,
+                    agent_attempts=int(execution_config.get("retry_count", 3)),
+                    tool_timeout_seconds=int(execution_config.get("tool_timeout_seconds", 300)),
+                    tool_max_memory_bytes=int(execution_config.get("tool_max_memory_bytes", 2 * 1024 * 1024 * 1024)),
+                    tool_max_write_bytes=int(execution_config.get("tool_max_write_bytes", 256 * 1024 * 1024)),
+                    tool_result_max_bytes=int(execution_config.get("tool_result_max_bytes", 65536)),
+                    verifier_output=verifier_dir / f"{filename}.json",
+                    verifier_cache=verifier_cache,
+                )
         except Exception as error:
             verifier_error = isinstance(error, VerifierPreparationError)
             result = {
@@ -498,6 +468,7 @@ def run_evaluation(
                 "verifier_attempts": error.attempts if verifier_error else None,
                 "error": f"{type(error).__name__}: {error}",
             }
+        result["duration_seconds"] = time.perf_counter() - started
         (task_result_dir / f"{filename}.json").write_text(
             json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8",
         )
@@ -509,6 +480,7 @@ def run_evaluation(
     payload = {
         "input_root": str(input_root.expanduser().resolve()),
         "model": llm_config.get("model"),
+        "agent_backend": "react-api",
         "task_count": len(results),
         **counts,
         "results": results,
