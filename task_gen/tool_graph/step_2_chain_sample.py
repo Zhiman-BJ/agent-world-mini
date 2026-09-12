@@ -642,7 +642,9 @@ def _review_chains(
                 if any(not isinstance(text, str) or not text.strip() for text in (entry["requirement"], entry["evidence"])):
                     raise ValueError("coverage requirement/evidence 必须非空")
                 if not isinstance(entry["input_sources"], list) or any(
-                        not isinstance(source, str) or not source.strip() for source in entry["input_sources"]):
+                        not ((isinstance(source, str) and source.strip() in {"task", "initial_state"}) or
+                             (type(source) is int and 1 <= source < min(positions or [len(value) + 1], default=len(value) + 1)))
+                        for source in entry["input_sources"]):
                     raise ValueError("coverage input_sources 非法")
                 covered_positions.update(positions)
             if accepted and any(entry["status"] != "covered" for entry in coverage):
