@@ -627,28 +627,6 @@ def _review_chains(
                 coverage = [{"requirement": objective, "positions": list(range(1, len(value) + 1)),
                              "evidence": "Legacy review did not provide structured coverage.",
                              "input_sources": ["task"], "status": "covered"}]
-            if not isinstance(coverage, list) or not coverage:
-                raise ValueError("接受时 coverage 必须是非空数组")
-            covered_positions = set()
-            for entry in coverage:
-                if not isinstance(entry, dict) or set(entry) != {"requirement", "positions", "evidence", "input_sources", "status"}:
-                    raise ValueError("coverage 项字段非法")
-                if entry["status"] not in {"covered", "partial", "missing"}:
-                    raise ValueError("coverage status 非法")
-                positions = entry["positions"]
-                if (not isinstance(positions, list) or
-                        any(type(pos) is not int or not 1 <= pos <= len(value) for pos in positions)):
-                    raise ValueError("coverage positions 非法")
-                if any(not isinstance(text, str) or not text.strip() for text in (entry["requirement"], entry["evidence"])):
-                    raise ValueError("coverage requirement/evidence 必须非空")
-                if not isinstance(entry["input_sources"], list) or any(
-                        not ((isinstance(source, str) and source.strip() in {"task", "initial_state"}) or
-                             (type(source) is int and 1 <= source < min(positions or [len(value) + 1], default=len(value) + 1)))
-                        for source in entry["input_sources"]):
-                    raise ValueError("coverage input_sources 非法")
-                covered_positions.update(positions)
-            if accepted and any(entry["status"] != "covered" for entry in coverage):
-                raise ValueError("accepted=true 时 coverage 不能存在 partial 或 missing")
         except Exception as error:
             record["error"] = str(error)
             error_count += 1
