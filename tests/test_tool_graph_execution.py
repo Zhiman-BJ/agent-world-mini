@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from task_gen.tool_graph.contracts import Config
 from task_gen.tool_graph.llm import InferenceResult
-from task_gen.tool_graph.step_3_chain_execute import _call_tool, execute_chains
+from task_gen.tool_graph.step_3_chain_execute import _call_tool, execute_frozen_chains as execute_chains
 
 
 def inference(arguments: dict | None = None) -> InferenceResult:
