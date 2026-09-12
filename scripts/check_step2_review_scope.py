@@ -36,6 +36,7 @@ def main():
             if not isinstance(record.get("objective"), str) or not record["objective"].strip():
                 raise ValueError("保存目标必须是非空字符串")
             candidate["objective"] = record["objective"]
+            candidate["design_basis"] = record.get("design_basis")
     args.output.mkdir(parents=True, exist_ok=False)
     (args.output / "inputs.json").write_text(json.dumps({"task_numbers": args.tasks, "candidates": candidates}, ensure_ascii=False, indent=2))
     lock = threading.Lock()
