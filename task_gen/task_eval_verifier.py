@@ -818,6 +818,8 @@ def generate_verification_spec(
             "内部 ID、文件路径、字段承载方式、数量或措辞。"
         ),
         "principles": [
+            "结果分类：persistent_state 表示创建、修改或删除环境状态；query 表示查询或核实事实；computation 表示计算、比较或推导结果；presentation 表示整理、解释或准确呈现信息；preservation 表示任务要求已有环境状态保持不变；execution_integrity 仅表示任务明确要求检查执行副作用或安全性。",
+            "证据渠道：workspace 证明环境初末状态及其变化；tool_trace 证明工具实际返回的事实；answer 证明最终回答中的呈现或计算。按 requirement 的结果性质选择足够且直接的渠道，不因词语相似而改变分类。",
             "先完整拆出任务中的原子结果；每个结果只表达一个可独立失败的 claim，所有 claim 的并集覆盖任务，且每个 task clause 恰好覆盖一次。",
             "同一句中的并列结果仍分别建模；共同对象、范围和关系作为上下文绑定，不能用绑定掩盖独立失败。",
             "每个 requirement 必须同时给出充分通过、明确失败和证据不足三种边界；没有明确反证或完整权威缺失时不得判 fail。",
@@ -2738,32 +2740,39 @@ def prepare_verifier(
     _ = empty_evidence, initial_state, final_state, tools
     history: list[dict[str, Any]] = []
 
-    def run_stage(stage: str, operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
-        try:
-            result = operation()
-        except Exception as error:
-            history.append({
-                "stage": stage,
-                "attempt": 1,
-                "error": f"{type(error).__name__}: {error}"[:4000],
-            })
-            raise VerifierPreparationError(history) from error
-        history.append({"stage": stage, "attempt": 1, "error": None, stage: result})
-        return result
+    def run_stage(stage: str, operation: Callable[[InferFn], dict[str, Any]]) -> dict[str, Any]:
+        """Retry one time when the stage raises a deterministic contract error."""
+        previous_error: str | None = None
+        for attempt in range(1, 3):
+            def retry_infer(prompt: Any, **kwargs: Any) -> InferenceResult | list[InferenceResult]:
+                if previous_error:
+                    prompt = (prompt if isinstance(prompt, str) else json.dumps(prompt, ensure_ascii=False)) + \
+                        "\n\n上一次输出触发了可由程序明确检测的错误，请仅修正该错误后重新输出完整结果：\n" + previous_error
+                return infer_fn(prompt, **kwargs)
+            try:
+                result = operation(retry_infer)
+                history.append({"stage": stage, "attempt": attempt, "error": None, stage: result})
+                return result
+            except Exception as error:
+                previous_error = f"{type(error).__name__}: {error}"[:4000]
+                history.append({"stage": stage, "attempt": attempt, "error": previous_error})
+                if attempt == 2:
+                    raise VerifierPreparationError(history) from error
+        raise AssertionError("unreachable")
 
-    specification = run_stage("subtask_plan", lambda: generate_verification_spec(
-        task, environment, llm_config, infer_fn=infer_fn,
+    specification = run_stage("subtask_plan", lambda call: generate_verification_spec(
+        task, environment, llm_config, infer_fn=call,
     ))
-    evidence_plan = run_stage("evidence_plan", lambda: generate_evidence_plan(
-        task, environment, specification, reference_evidence, llm_config, infer_fn=infer_fn,
+    evidence_plan = run_stage("evidence_plan", lambda call: generate_evidence_plan(
+        task, environment, specification, reference_evidence, llm_config, infer_fn=call,
     ))
-    generated = run_stage("implementation", lambda: generate_planned_verifier(
+    generated = run_stage("implementation", lambda call: generate_planned_verifier(
         task, environment, specification, evidence_plan, reference_evidence,
-        llm_config, infer_fn=infer_fn,
+        llm_config, infer_fn=call,
     ))
-    reviewed = run_stage("implementation_review", lambda: review_and_revise_verifier(
+    reviewed = run_stage("implementation_review", lambda call: review_and_revise_verifier(
         task, environment, specification, evidence_plan, generated, reference_evidence,
-        llm_config, infer_fn=infer_fn,
+        llm_config, infer_fn=call,
     ))
     validate_verifier(reviewed)
     metadata = {
