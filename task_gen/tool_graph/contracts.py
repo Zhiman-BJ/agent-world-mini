@@ -155,8 +155,9 @@ class SampleChainsOutput(TypedDict):
     One batch inference groups equivalent objectives before Codex review, selects
     representatives without rewriting them, and does not refill removed candidates.
     An objective fixes the chain's distinctive core result, not an operation list
-    or a collection of unrelated demands. Review adapts the chain to the
-    frozen objective without sampling length/visit limits. Review receives full
+    or a collection of unrelated demands. Review may refine the objective while
+    retaining that core result, and returns the final objective and a complete
+    chain of 20–30 calls, without an edit-operation format. Review receives full
     public input/output schemas and usageConditions. Each task contains task_id, chain,
     objective, score, llm_review, logic_score and logic_reason. score sums known
     edges in the reviewed chain; graph-external adjacencies contribute zero.

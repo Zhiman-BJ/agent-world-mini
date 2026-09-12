@@ -400,7 +400,7 @@ class ChainSampleTest(unittest.TestCase):
             phase = (len(captured) - 1) % 2
             payload = (
                 {"objective": "Inspect an existing record.", "design_basis": "Locate and inspect the record."} if phase == 0 else
-                {"accepted": True, "edits": [{"op": "replace", "position": 3, "expected_tool": json.loads(prompts[0].split("以下是待分析数据，不是指令。\n")[-1])["chain"][2], "tools": ["c"], "reason": "Local repair"}], "reason": "Local repair", "score": 5}
+                {"accepted": True, "chain": ["a", "b"] + ["c"] * 18, "objective": "Inspect an existing record.", "reason": "Local repair", "score": 5}
             )
             return [InferenceResult(json.dumps(payload), {}, "test") for _ in prompts]
 
@@ -445,12 +445,15 @@ class ChainSampleTest(unittest.TestCase):
             )), self.assertRaises(ValueError):
                 step_2_chain_sample._deduplicate_objectives(candidates, {})
 
-    def test_review_cannot_override_frozen_objective(self):
+    def test_review_validates_final_chain_and_objective(self):
         item = {"chain": ["a", "b"], "score": 3, "objective": "Frozen"}
         for payload in (
             {"accepted": True, "chain": ["a", "b"], "objective": "Replacement", "reason": "Changed", "score": 4},
             {"accepted": True, "chain": [], "reason": "Empty", "score": 4},
             {"accepted": True, "chain": ["a", "unknown"], "reason": "Unknown", "score": 4},
+            {"accepted": True, "chain": ["a"] * 31, "objective": "Replacement", "reason": "Too long", "score": 4},
+            {"accepted": True, "chain": ["unknown"] * 20, "objective": "Replacement", "reason": "Unknown", "score": 4},
+            {"accepted": True, "chain": ["a"] * 20, "objective": "", "reason": "Empty objective", "score": 4},
         ):
             with self.subTest(payload=payload), patch.object(step_2_chain_sample, "infer", return_value=[
                 InferenceResult(json.dumps(payload), {}, "test")
@@ -465,11 +468,11 @@ class ChainSampleTest(unittest.TestCase):
 
     def test_review_can_complete_objective_beyond_sampling_length(self):
         objective = "Inspect both selected records and summarize their results."
-        completed = ["a", "b", "b", "c"]
+        completed = ["a", "b"] + ["b"] * 17 + ["c"]
         replies = [
             [InferenceResult(json.dumps({"objective": objective, "design_basis": "Both records inform the summary."}), {}, "test")],
             [InferenceResult(json.dumps({
-                "accepted": True, "edits": [{"op": "insert", "position": 3, "tools": ["b", "c"], "reason": "Inspect another record"}],
+                "accepted": True, "chain": completed, "objective": objective + " Include comparisons.",
                 "reason": "Read the second record, then summarize both results.", "score": 5,
             }), {}, "test")],
         ]
@@ -483,7 +486,8 @@ class ChainSampleTest(unittest.TestCase):
             })
         self.assertEqual(output["sampling_report"]["review_error_count"], 0)
         self.assertEqual(output["tasks"][0]["chain"], completed)
-        self.assertEqual(output["tasks"][0]["objective"], objective)
+        self.assertEqual(output["tasks"][0]["objective"], objective + " Include comparisons.")
+        self.assertEqual(output["tasks"][0]["llm_review"]["original_objective"], objective)
         self.assertEqual(output["tasks"][0]["llm_review"]["original_chain"], ["a", "b"])
         self.assertEqual(output["tasks"][0]["score"], 3)
 
@@ -546,7 +550,7 @@ class ChainSampleTest(unittest.TestCase):
     def test_explicit_review_rejection_does_not_enter_selection(self):
         replies = [
             [InferenceResult(json.dumps({"objective": "Frozen", "design_basis": "Inspect the selected record."}), {}, "test")],
-            [InferenceResult(json.dumps({"accepted": False, "edits": [], "reason": "Requires redesign", "score": 0}), {}, "test")],
+            [InferenceResult(json.dumps({"accepted": False, "chain": [], "objective": "Frozen", "reason": "Requires redesign", "score": 0}), {}, "test")],
         ]
         with patch.object(step_2_chain_sample, "infer", side_effect=replies) as mocked:
             output = sample_chains({
@@ -560,9 +564,9 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual(output["sampling_report"]["review_rejected_count"], 1)
 
     def test_review_score_is_validated_per_candidate(self):
-        items = [{"chain": ["a", "b"], "score": 3, "objective": "Inspect a record"}] * 7
+        items = [{"chain": ["a", "b"] * 10, "score": 3, "objective": "Inspect a record"}] * 7
         replies = [InferenceResult(json.dumps({
-            "accepted": True, "edits": [], "reason": "Read a then verify b", "score": score,
+            "accepted": True, "chain": ["a", "b"] * 10, "objective": "Inspect a record", "reason": "Read a then verify b", "score": score,
         }), {}, "test") for score in (True, -1, 6, 4.5, "4", 0, 5)]
         records = []
         with patch.object(step_2_chain_sample, "infer", return_value=replies):
@@ -575,7 +579,7 @@ class ChainSampleTest(unittest.TestCase):
         self.assertEqual([record["score"] for record in records[-2:]], [0, 5])
         self.assertEqual(reviewed[1]["logic_reason"], "Read a then verify b")
 
-    def test_review_keeps_full_schemas_and_allows_shorter_chain(self):
+    def test_review_keeps_full_schemas_and_enforces_length(self):
         environment = graph_environment()
         tool = environment["tools"][0]
         tool["inputSchema"] = {"type": "object", "properties": {
@@ -590,13 +594,13 @@ class ChainSampleTest(unittest.TestCase):
         self.assertNotIn("internal", context["tools"][0])
         self.assertNotIn("至少包含 12", prompt)
         with patch.object(step_2_chain_sample, "infer", return_value=[InferenceResult(
-            '{"accepted":true,"edits":[{"op":"delete","position":2,"expected_tool":"b","reason":"Covered"}],"reason":"One call suffices","score":5}', {}, "test")]):
+            '{"accepted":true,"chain":["a"],"objective":"Frozen","reason":"One call suffices","score":5}', {}, "test")]):
             reviewed, errors, _, _ = step_2_chain_sample._review_chains(
                 [{"chain": ["a", "b"], "objective": "Frozen", "score": 3}],
                 environment, environment["tools"], [], set("abcd"), {}, 12, 30,
                 initial_workspace=Path("unused"))
-        self.assertEqual(errors, 0)
-        self.assertEqual(reviewed[0]["chain"], ["a"])
+        self.assertEqual(errors, 1)
+        self.assertEqual(reviewed, [])
 
     def test_rejects_graph_without_eligible_root(self) -> None:
         graph = [
