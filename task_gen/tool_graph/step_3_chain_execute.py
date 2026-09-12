@@ -1,4 +1,9 @@
-"""Step 3: execute frozen-objective chains in isolated per-candidate workspaces.
+"""Step 3 delegates combined review/execution to execution_agent.
+
+The sandbox helpers below are shared by MCP tools. execute_frozen_chains retains
+the historical fixed-chain implementation for experiment replay only.
+
+Historical fixed-chain behavior:
 
 Inputs include config, run_dir, environment, tasks and an optional initial
 exploration report. Each parameter request sees the objective, current public
@@ -50,6 +55,12 @@ from .llm import infer, parse_json_object
 
 
 def execute_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutput:
+    """沿原链持续规划与执行，随后筛选真实完成的任务。"""
+    from .execution_agent import execute_candidates
+    return execute_candidates(stage_input)
+
+
+def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutput:
     """并发执行候选链，以干净初态重试，并记录成功轨迹或失败历史。"""
     config = stage_input["config"]
     run_dir = stage_input["run_dir"].resolve()

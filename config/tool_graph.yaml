@@ -4,7 +4,7 @@ paths:
   output_root: ../runs/taskgen
 
 llm:
-  # 普通阶段使用 API；Step 2 review 由 review_agent 单独使用 Codex CLI。
+  # 普通阶段使用 API；Step 3 合并审查与执行，使用工具隔离的 Codex CLI。
   backend: api
   model: gpt-5.6-terra
   # review、管线和评测使用独立配置，不影响当前对话。
@@ -30,7 +30,7 @@ planning:
   length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
-  # 初选 30 条生成核心目标，整批语义去重后送 review，最多 10 条进入 Step 3；不补足去重数量。
+  # 初选 30 条生成核心目标，整批语义去重后全部送 Step 3；执行后最多保留 10 条。
   review_count: 30
   edge_sampling_probabilities:
     "1": 0.2
@@ -39,6 +39,7 @@ planning:
   diversity_lambda: 10
 execution:
   max_concurrency: 4
+  agent_max_tool_calls: 100
   retry_count: 3
   tool_result_max_bytes: 65536
   # 工具可能包含慢速扫描；仍由子进程提供可强制终止的硬上限。

@@ -1,10 +1,7 @@
-"""Step 2: sample -> structural selection -> draft objective
--> batch objective deduplication -> objective-driven chain completion and scoring -> structural diversity.
+"""Step 2: sample -> structural selection -> objective -> objective deduplication.
 
-Codex review explores isolated initial-state copies and passes evidence in reason.
-Sampled chains and public tool contracts inspire quality-first objectives.
-Review jointly refines objectives and chains into 20–30-call plans.
-Reviewed scores sum known graph edges; unknown adjacencies contribute zero.
+All remaining candidates enter Step 3 for combined review and real execution.
+Historical review helpers remain available for replaying previous experiments.
 """
 from __future__ import annotations
 
@@ -113,85 +110,20 @@ def _sample_candidates(stage_input: SampleChainsInput) -> tuple[list[tuple[tuple
 
 
 def sample_chains(stage_input: SampleChainsInput) -> SampleChainsOutput:
-    """按文件顶部规格完成采样、review、逻辑评分、去重和任务编号。"""
+    """采样、生成目标并语义去重；全部剩余候选交给 Step 3。"""
     selected_for_review, sampling_report = _sample_candidates(stage_input)
     config = stage_input["config"]
-    parameters = sampling_report["sampling_parameters"]
-    minimum, maximum = parameters["min_chain_length"], parameters["max_chain_length"]
-    diversity_lambda = parameters["diversity_lambda"]
-    keep_count = _positive(config.planning, "keep_top_count", 10)
-    names, public_tools = _tools(stage_input["environment"])
-    graph = stage_input["tool_graph"]
-    adjacency, _ = _legacy_graph(graph, names) if isinstance(graph, list) else _graph(graph, names)
-
-    grounded, objective_records = _generate_objectives(
-        selected_for_review, stage_input["environment"], public_tools, config.llm,
-    )
-    grounded, objective_deduplication = _deduplicate_objectives(grounded, config.llm)
-    review_records: list[dict[str, Any]] = []
-    reviewed, review_errors, review_changed, review_rejected = _review_chains(
-        grounded,
-        stage_input["environment"],
-        public_tools,
-        stage_input["tool_graph"],
-        names,
-        config.llm,
-        minimum,
-        maximum,
-        records=review_records,
-        initial_workspace=config.environment_dir / ("state" if stage_input['environment'].get('schema_version') == '2.0' else 'workspace'),
-    )
-    for item in reviewed:
-        item["score"] = _chain_score(item["chain"], adjacency)
-    reviewed = _deduplicate_reviewed_chains(reviewed)
-    selected = _select_final_chains(reviewed, keep_count, diversity_lambda)
-
-    tasks = []
-    for index, item in enumerate(selected, start=1):
-        tasks.append({
-            "task_id": f"task{index}",
-            "chain": item["chain"],
-            "objective": item["objective"],
-            "score": item["score"],
-            "llm_review": item["llm_review"],
-            "logic_score": item["logic_score"],
-            "logic_reason": item["logic_reason"],
-        })
-    distribution: dict[str, int] = {}
-    for item in reviewed:
-        key = str(item["logic_score"])
-        distribution[key] = distribution.get(key, 0) + 1
-    return {
-        "tasks": tasks,
-        "sampling_report": {
-            **sampling_report,
-            "objective_candidate_count": len(selected_for_review),
-            "objective_generated_count": sum(r["objective"] is not None for r in objective_records),
-            "objective_deduplication": objective_deduplication,
-            "objective_error_count": sum(r["error"] is not None for r in objective_records),
-            "objective_records": objective_records,
-            "review_candidate_count": len(grounded),
-            "review_records": review_records,
-            "review_unchanged_count": len(grounded) - review_changed - review_rejected - review_errors,
-            "review_changed_count": review_changed,
-            "review_rejected_count": review_rejected,
-            "review_error_count": review_errors,
-            "post_review_unique_chain_count": len(reviewed),
-            "logic_score_distribution": distribution,
-            "logic_score_source": "review",
-            "selected_count": len(selected),
-            "selected_unique_edge_count": len({
-                edge
-                for item in selected
-                for edge in _chain_edges(item["chain"])
-            }),
-            "final_task_count": len(tasks),
-            "selected_unknown_edge_count": len({
-                (source, target) for item in selected for source, target in _chain_edges(item["chain"])
-                if target not in dict(adjacency[source])
-            }),
-        },
-    }
+    _, public_tools = _tools(stage_input["environment"])
+    grounded, records = _generate_objectives(selected_for_review, stage_input["environment"], public_tools, config.llm)
+    grounded, dedup = _deduplicate_objectives(grounded, config.llm)
+    tasks = [{**item, "task_id": f"task{i}"} for i, item in enumerate(grounded, 1)]
+    return {"tasks": tasks, "sampling_report": {
+        **sampling_report, "objective_records": records,
+        "objective_deduplication": dedup,
+        "objective_generated_count": sum(r["objective"] is not None for r in records),
+        "objective_error_count": sum(r["error"] is not None for r in records),
+        "final_task_count": len(tasks),
+    }}
 
 
 def _positive(config: dict[str, Any], name: str, default: int) -> int:

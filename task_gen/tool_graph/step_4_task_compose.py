@@ -59,6 +59,7 @@ def compose_tasks(stage_input: ComposeTasksInput) -> ComposeTasksOutput:
             "review_guidance": (candidate.get("llm_review") or {}).get("reason"),
             "chain": candidate.get("chain"),
             "tool_calls": execution.get("tool_calls"),
+            "execution_answer": execution.get("answer"),
         }
 
     active = list(contexts)

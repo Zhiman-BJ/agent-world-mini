@@ -137,10 +137,7 @@ class BuildGraphOutput(TypedDict):
 
 
 class SampleChainsInput(TypedDict):
-    """Step 2 uses config, public tool contracts and graph edges. An isolated probe
-    may execute tools on temporary initial-workspace copies. Codex review reads
-    its own initial-state copy, but does not receive internal tool code or run
-    business writes. Sampling probabilities are independent of edge weights."""
+    """Step 2 uses config, public tool contracts and graph edges, without initial-state access."""
 
     config: Config
     environment: dict[str, Any]
@@ -148,42 +145,25 @@ class SampleChainsInput(TypedDict):
 
 
 class SampleChainsOutput(TypedDict):
-    """Step 2 returns candidates and sampling_report.
+    """Step 2 samples, selects candidates, generates objectives and deduplicates them.
 
-    Objectives extract a core outcome from the chain rather than enumerate calls;
-    initial-state exploration belongs to Codex review, not objective generation.
-    One batch inference groups equivalent objectives before Codex review, selects
-    representatives without rewriting them, and does not refill removed candidates.
-    An objective fixes the chain's distinctive core result, not an operation list
-    or a collection of unrelated demands. Review may refine the objective while
-    retaining that core result, and returns the final objective and a complete
-    chain of 20–30 calls, without an edit-operation format. Review receives full
-    public input/output schemas and usageConditions. Each task contains task_id, chain,
-    objective, score, llm_review, logic_score and logic_reason. score sums known
-    edges in the reviewed chain; graph-external adjacencies contribute zero.
-    Codex review supplies logic_score (0-5) for the final plan's value and expected
-    objective completion; its reason supplies logic_reason and task-state-chain
-    guidance to execution, composition, reflection, answer and validation.
-    There is no separate scoring inference. Invalid scores are review errors.
-    sampling_report records objective generation, objective_deduplication (groups
-    of zero-based generated-candidate indices, representative first, and reason),
-    review decisions, failures and coverage. Generated and reviewed counts differ.
-    Review reason records observed facts and evidence coverage; unobserved state
-    remains unknown rather than proof of absence."""
+    Each task contains task_id, chain, objective, design_basis and original graph
+    score. All retained objectives enter Step 3; no review or final scoring runs here.
+    sampling_report retains sampling statistics and objective generation/deduplication.
+    """
 
     tasks: list[dict[str, Any]]
     sampling_report: dict[str, Any]
 
 
 class ExecuteChainsInput(TypedDict):
-    """Step 3 receives frozen objectives, chains and review guidance.
+    """Step 3 combines review and execution in one environment-tool-only session.
 
-    config.environment_dir/workspace is the source of isolated initial/final
-    copies under run_dir/tasks/<task_id>. Parameter generation sees public
-    contracts, review guidance, completed calls and previous failures.
-    Review guidance is a planning reference, not a new objective or proven facts;
-    legacy candidates without it remain executable.
-    Only the sandbox executor consumes internal.code."""
+    Each candidate receives an isolated copy of config.environment_dir/state.
+    The agent sees original chain, objective, design_basis and public contracts;
+    only the sandbox tool executor receives internal.code. Original chains remain
+    the default plan; actual evidence can justify necessary repairs.
+    """
 
     config: Config
     run_dir: Path
@@ -192,48 +172,22 @@ class ExecuteChainsInput(TypedDict):
 
 
 class ExecuteChainsOutput(TypedDict):
-    """Step 3 扩充任务候选的执行信息。
+    """Step 3 returns selected completed tasks and failed candidates.
 
-    tasks:
-        保留每项已有内容并新增：
-        {
-            "execution": {
-                "success": bool,
-                "tool_calls": [
-                    {
-                        "tool": str,
-                        "arguments": dict,
-                        "result": dict,
-                    }
-                ],
-                "initial_state": str | None,
-                "final_state": str | None,
-                "error": str | None,
-                "attempts": [
-                    {
-                        "attempt": int,
-                        "success": bool,
-                        "tool_calls": list[dict],
-                        "failed_tool": str | None,
-                        "failed_arguments": dict | None,
-                        "failure_kind": str | None,
-                        "failed_result": dict | None,
-                        "error": str | None,
-                    }
-                ],
-            }
-        }
-        成功与失败的执行记录都保留。参数生成错误只在当前工具位置重试；工具执行失败
-        后最多整链重试 3 次，每次从 initial 重新复制 final。候选可并发，但输出顺序不变。
-        每个工具在独立子进程中执行并受 300 秒默认硬超时保护。
-        initial_state 和 final_state 都是相对本次 run_dir 的 workspace
-        目录路径；两个 workspace 与环境源 workspace 目录结构同构，内容分别
-        表示执行前和执行后状态。它们不是内联资源数组或文件内容快照。
-        失败项删除任务目录，两个字段为 None，只保留执行记录。
-        failure_kind 取 llm、input_schema、timeout、exception、business 或
-        output_schema；failed_result 保存已返回但判定失败的工具结果。
-        启动并发前必须统一拒绝重复 task_id 和已存在的任务目录；工具超时时必须
-        终止其整个进程组，不能遗留工具创建的子孙进程。
+    chain is extracted from real business calls, including valid negative outcomes
+    and changes of direction. raw_tool_calls also retains parameter/service errors
+    and plan selection calls. objective is the final core-preserving goal;
+    llm_review keeps original_chain, original_objective and evidence-based reason.
+    logic_score (0-5) and logic_reason reflect actual completion, value and call
+    contribution. Final selection ranks completion score, then balances diversity
+    using actual chains and the original graph score as a tie-breaker.
+
+    execution contains success, tool_calls, raw_tool_calls, answer, error and
+    initial_state/final_state (paths relative to run_dir). attempts is retained as
+    an empty compatibility field: execution now continues in one session rather
+    than restarting the complete chain. All candidates keep their initial/final
+    states, logs and agent_result.json, including failures and unselected successes.
+    Step 4 receives execution evidence, final answer and review reason.
     """
 
     tasks: list[dict[str, Any]]
