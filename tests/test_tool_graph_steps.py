@@ -399,7 +399,7 @@ class ChainSampleTest(unittest.TestCase):
             captured.append(prompts)
             phase = (len(captured) - 1) % 2
             payload = (
-                {"objective": "Inspect an existing record."} if phase == 0 else
+                {"objective": "Inspect an existing record.", "design_basis": "Locate and inspect the record."} if phase == 0 else
                 {"accepted": True, "chain": ["a", "b", "c"], "reason": "Local repair", "score": 5}
             )
             return [InferenceResult(json.dumps(payload), {}, "test") for _ in prompts]
@@ -467,7 +467,7 @@ class ChainSampleTest(unittest.TestCase):
         objective = "Inspect both selected records and summarize their results."
         completed = ["a", "b", "b", "c"]
         replies = [
-            [InferenceResult(json.dumps({"objective": objective}), {}, "test")],
+            [InferenceResult(json.dumps({"objective": objective, "design_basis": "Both records inform the summary."}), {}, "test")],
             [InferenceResult(json.dumps({
                 "accepted": True, "chain": completed,
                 "reason": "Read the second record, then summarize both results.", "score": 5,
@@ -524,6 +524,8 @@ class ChainSampleTest(unittest.TestCase):
             {"accepted": False, "objective": None, "reason": "Incoherent main chain"},
             {"chain": ["a", "b"], "objective": "Changed chain"},
             {"objective": " "},
+            {"objective": "Valid", "design_basis": " "},
+            {"objective": "Valid", "design_basis": None},
         ):
             with self.subTest(payload=payload), patch.object(step_2_chain_sample, "infer", return_value=[
                 InferenceResult(json.dumps(payload), {}, "test")
@@ -543,7 +545,7 @@ class ChainSampleTest(unittest.TestCase):
 
     def test_explicit_review_rejection_does_not_enter_selection(self):
         replies = [
-            [InferenceResult(json.dumps({"objective": "Frozen"}), {}, "test")],
+            [InferenceResult(json.dumps({"objective": "Frozen", "design_basis": "Inspect the selected record."}), {}, "test")],
             [InferenceResult(json.dumps({"accepted": False, "chain": [], "reason": "Requires redesign", "score": 0}), {}, "test")],
         ]
         with patch.object(step_2_chain_sample, "infer", side_effect=replies) as mocked:
