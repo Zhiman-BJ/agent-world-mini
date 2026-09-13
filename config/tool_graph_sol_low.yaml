@@ -10,23 +10,24 @@ llm:
   base_url: http://47.237.200.112:8080/v1
   api_key_file: ~/.codex-task-eval/auth.json
   timeout_seconds: 1200
-  max_concurrency: 4
-  max_tokens: 81920
+  max_concurrency: 16
+  max_tokens: 131072
+  temperature: 0
 graph: {}
 planning:
-  sample_count: 10000
+  sample_count: 100000
   keep_top_count: 10
-  min_chain_length: 12
+  min_chain_length: 20
   max_chain_length: 30
   termination_tau: 0.4
   length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
   review_count: 30
-  edge_sampling_probabilities: {"1": 0.2, "2": 0.3, "3": 0.5}
+  edge_sampling_probabilities: {"1": 0.1, "2": 0.2, "3": 0.7}
   diversity_lambda: 10
 execution:
-  max_concurrency: 4
+  max_concurrency: 16
   retry_count: 3
   tool_result_max_bytes: 65536
   tool_timeout_seconds: 300
