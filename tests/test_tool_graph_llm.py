@@ -169,6 +169,16 @@ class ToolGraphLLMTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             llm.parse_json_object('<think>x</think> [1, 2]')
 
+    def test_parse_json_object_closes_tail_only(self) -> None:
+        for text in ('{"answer":"完成', '{"answer":"完成"', '{"answer":"完成\\n'):
+            with self.subTest(text=text):
+                self.assertTrue(llm.parse_json_object(text)["answer"].startswith("完成"))
+        self.assertEqual(llm.parse_json_object('{"items":[{"text":"a } [ \\"b\\""'),
+                         {"items": [{"text": 'a } [ "b"'}]})
+        for text in ('{"a":', '{"a":tru', '{"a":1,', '{"a":[1}', '{"a":"abc' + '\\', '{"a":"\\u12'):
+            with self.subTest(text=text), self.assertRaises(llm.MalformedJSONError):
+                llm.parse_json_object(text)
+
     def test_infer_builds_multi_turn_messages_and_returns_metadata(self) -> None:
         client = FakeLLMClient()
         with patch.object(llm.LLMClient, "from_environment", return_value=client):

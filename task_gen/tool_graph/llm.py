@@ -346,7 +346,7 @@ def parse_json_object(text: str) -> dict[str, Any]:
     """从 LLM 回复中提取唯一的顶层 JSON object。
 
     容忍 ``` 围栏以及 object 前后的解释性文字；不容忍顶层不是 object、
-    结构被截断或根本没有 object。失败时抛出 :class:`MalformedJSONError`，
+    缺少末尾闭合符时尝试补齐，但不补字段、值或分隔符。失败时抛出 :class:`MalformedJSONError`，
     消息带原始回复的首尾片段，用于区分"模型没按格式回答"和"输出被截断"
     这两种需要不同处置的情况。
     """
@@ -359,9 +359,7 @@ def parse_json_object(text: str) -> dict[str, Any]:
     if start < 0:
         raise MalformedJSONError(f"回复中没有 JSON object：{_excerpt(text)}")
     end = _match_object(stripped, start)
-    if end < 0:
-        raise MalformedJSONError(f"JSON object 未闭合，可能被截断：{_excerpt(text)}")
-    candidate = stripped[start:end]
+    candidate = stripped[start:end] if end >= 0 else _close_json_tail(stripped[start:])
     try:
         value = json.loads(candidate)
     except json.JSONDecodeError as error:
@@ -376,6 +374,30 @@ def parse_json_object(text: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise MalformedJSONError(f"顶层不是 JSON object：{_excerpt(text)}")
     return value
+
+
+def _close_json_tail(text: str) -> str:
+    """只追加末尾缺少的闭合符；不修复错配括号或未完成的转义。"""
+    stack: list[str] = []
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append("}" if char == "{" else "]")
+        elif char in "}]":
+            if not stack or stack.pop() != char:
+                return text
+    if escaped:
+        return text
+    return text + ('"' if in_string else "") + "".join(reversed(stack))
 
 
 def _escape_control_characters(text: str) -> str:
