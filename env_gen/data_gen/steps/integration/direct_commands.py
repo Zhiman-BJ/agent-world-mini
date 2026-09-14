@@ -1,16 +1,10 @@
-"""Unified Agent-authored build and deterministic Step 3 acceptance."""
+"""Mechanical validation for Agent-authored environment state."""
 
 from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
 import sqlite3
-import subprocess
-import sys
-import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -20,9 +14,7 @@ from env_gen.data_gen.analysis.v2_validator import V2EnvironmentPackageValidator
 from ..common.constants import (
     COLLECTION_PROFILE_PATH,
     CONTROL_INTEGRATION_ASSESSMENT,
-    CONTROL_INTEGRATION_FINALIZATION,
     CONTROL_RUN_CONFIG,
-    INTEGRATION_BUILD_PATH,
     SCENARIO_RESEARCH_PATH,
 )
 from ..common.control_io import control_path, read_json, write_json
@@ -33,72 +25,6 @@ from ..step2_collect_data import source_research_receipt_issues
 
 def _issue(code: str, path: str, message: str) -> dict[str, str]:
     return {"code": code, "path": path, "message": message}
-
-
-def _raw_root(run_dir: Path) -> Path:
-    workspace = run_dir / "workspace/raw"
-    if workspace.is_dir():
-        return workspace
-    frozen = run_dir / "provenance/raw"
-    if frozen.is_dir():
-        return frozen
-    raise RuntimeError("缺少 Raw 数据目录 workspace/raw 或 provenance/raw")
-
-
-def run_environment_build(
-    run_dir: Path,
-    *,
-    output_state: Path,
-    timeout_seconds: int = 900,
-) -> None:
-    """Run the one build script with read-only inputs, no network and one writable output."""
-
-    run_dir = run_dir.resolve()
-    script = run_dir / INTEGRATION_BUILD_PATH
-    if not script.is_file() or script.is_symlink():
-        raise RuntimeError(f"缺少普通文件 {INTEGRATION_BUILD_PATH}")
-    bubblewrap = shutil.which("bwrap")
-    if bubblewrap is None:
-        raise RuntimeError("统一环境构建需要 bubblewrap（bwrap）")
-    output_state = output_state.resolve()
-    shutil.rmtree(output_state, ignore_errors=True)
-    output_state.mkdir(parents=True)
-    raw_root = _raw_root(run_dir).resolve()
-    command = [
-        bubblewrap,
-        "--die-with-parent",
-        "--unshare-net",
-        "--ro-bind", "/", "/",
-        "--dev", "/dev",
-        "--proc", "/proc",
-        "--bind", str(output_state), str(output_state),
-        "--chdir", str(run_dir),
-        "--clearenv",
-        "--setenv", "PATH", os.environ.get("PATH", "/usr/bin:/bin"),
-        "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
-        "--setenv", "PYTHONHASHSEED", "0",
-        "--setenv", "LANG", "C.UTF-8",
-        sys.executable,
-        str(script),
-        "--raw-dir", str(raw_root),
-        "--state-dir", str(output_state),
-    ]
-    result = subprocess.run(
-        command,
-        cwd=run_dir,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout_seconds,
-        check=False,
-        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")},
-    )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout)[-3000:]
-        raise RuntimeError(f"build.py 退出码 {result.returncode}：{detail}")
-    for path in output_state.rglob("*"):
-        if path.is_symlink():
-            raise RuntimeError(f"build.py 生成了不允许的符号链接：{path.relative_to(output_state)}")
 
 
 def _state_manifest(state: Path, environment: dict[str, Any]) -> dict[str, Any]:
@@ -149,30 +75,6 @@ def _validation_issues(
     return [item.to_dict() for item in report.errors], report.statistics
 
 
-def build_environment(run_dir: Path, *, timeout_seconds: int = 900) -> dict[str, Any]:
-    """Materialize all Record Sets and Scopes from one script in one operation."""
-
-    run_dir = run_dir.resolve()
-    config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
-    environment = read_json(run_dir / "environment.json", "环境声明")
-    with tempfile.TemporaryDirectory(prefix="datagen-direct-build-") as directory:
-        root = Path(directory)
-        state = root / "state"
-        run_environment_build(run_dir, output_state=state, timeout_seconds=timeout_seconds)
-        write_json(root / "environment.json", environment)
-        issues, statistics = _validation_issues(
-            root, schema_path=Path(config["environment_schema_path"]),
-        )
-        if issues:
-            messages = "; ".join(item["message"] for item in issues[:12])
-            raise RuntimeError(f"统一构建结果无效：{messages}")
-        target = run_dir / "state"
-        shutil.rmtree(target, ignore_errors=True)
-        shutil.copytree(state, target)
-    manifest = _state_manifest(run_dir / "state", environment)
-    return {"status": "built", "state": manifest, "statistics": statistics}
-
-
 def _coverage_issues(run_dir: Path) -> tuple[list[dict[str, str]], dict[str, Any]]:
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
     path = run_dir / COLLECTION_PROFILE_PATH
@@ -202,13 +104,8 @@ def _coverage_issues(run_dir: Path) -> tuple[list[dict[str, str]], dict[str, Any
     return issues, metrics
 
 
-def assess_environment(
-    run_dir: Path,
-    *,
-    replay: bool = True,
-    timeout_seconds: int = 900,
-) -> dict[str, Any]:
-    """Validate the Agent's final declaration and state, optionally replaying build.py."""
+def assess_environment(run_dir: Path) -> dict[str, Any]:
+    """Validate the environment declaration and final state written by the Agent."""
 
     run_dir = run_dir.resolve()
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
@@ -223,12 +120,6 @@ def assess_environment(
     statistics: dict[str, Any] = {}
     candidate_manifest: dict[str, Any] | None = None
     environment_path = run_dir / "environment.json"
-    build_path = run_dir / INTEGRATION_BUILD_PATH
-    if not build_path.is_file() or build_path.is_symlink():
-        issues.append(_issue(
-            "missing_build_script", INTEGRATION_BUILD_PATH,
-            "缺少统一、可重放的 provenance/build.py",
-        ))
     if not environment_path.is_file():
         issues.append(_issue("missing_environment", "environment.json", "缺少最终 environment.json"))
     else:
@@ -252,28 +143,6 @@ def assess_environment(
             issues.extend(validation_issues)
             if not validation_issues:
                 candidate_manifest = _state_manifest(run_dir / "state", environment)
-    replay_manifest: dict[str, Any] | None = None
-    if replay and not issues and candidate_manifest is not None:
-        try:
-            with tempfile.TemporaryDirectory(prefix="datagen-direct-replay-") as directory:
-                root = Path(directory)
-                run_environment_build(
-                    run_dir, output_state=root / "state", timeout_seconds=timeout_seconds,
-                )
-                write_json(root / "environment.json", environment)
-                replay_issues, _ = _validation_issues(
-                    root, schema_path=Path(config["environment_schema_path"]),
-                )
-                issues.extend(replay_issues)
-                if not replay_issues:
-                    replay_manifest = _state_manifest(root / "state", environment)
-        except Exception as error:
-            issues.append(_issue("build_replay_failed", INTEGRATION_BUILD_PATH, str(error)))
-        if replay_manifest is not None and replay_manifest["digest"] != candidate_manifest["digest"]:
-            issues.append(_issue(
-                "build_state_mismatch", "state",
-                "当前 state 与 provenance/build.py 独立重放结果不同，请重新执行统一构建",
-            ))
     assessment = {
         "workflow_version": str(config.get("workflow_version") or "3.0"),
         "decision": "ready" if not issues else "fix",
@@ -283,107 +152,13 @@ def assess_environment(
         "environment_sha256": (
             file_sha256(environment_path) if environment_path.is_file() else None
         ),
-        "build_sha256": file_sha256(build_path) if build_path.is_file() else None,
         "state_digest": candidate_manifest.get("digest") if candidate_manifest else None,
-        "replay_state_digest": replay_manifest.get("digest") if replay_manifest else None,
     }
     write_json(control_path(run_dir, CONTROL_INTEGRATION_ASSESSMENT), assessment)
     return assessment
 
 
-def finalize_environment(run_dir: Path, *, timeout_seconds: int = 900) -> dict[str, Any]:
-    """Record Step 3 completion only after deterministic Python acceptance."""
-
-    run_dir = run_dir.resolve()
-    assessment_path = control_path(run_dir, CONTROL_INTEGRATION_ASSESSMENT)
-    assessment = (
-        read_json(assessment_path, "集成验收")
-        if assessment_path.is_file() else {}
-    )
-    try:
-        current = (
-            assessment.get("decision") == "ready"
-            and assessment.get("environment_sha256") == file_sha256(run_dir / "environment.json")
-            and assessment.get("build_sha256") == file_sha256(run_dir / INTEGRATION_BUILD_PATH)
-            and assessment.get("state_digest")
-            == _state_manifest(
-                run_dir / "state", read_json(run_dir / "environment.json", "环境声明")
-            )["digest"]
-            and assessment.get("replay_state_digest") == assessment.get("state_digest")
-        )
-    except Exception:
-        current = False
-    if not current:
-        assessment = assess_environment(
-            run_dir, replay=True, timeout_seconds=timeout_seconds,
-        )
-    if assessment["decision"] != "ready":
-        detail = "; ".join(
-            str(item.get("message")) for item in assessment["blocking_issues"][:12]
-        )
-        raise RuntimeError(f"环境集成尚未通过：{detail}")
-    config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
-    collection = read_json(run_dir / COLLECTION_PROFILE_PATH, "Step 2 采集画像")
-    partial = (
-        config.get("allow_partial_integration") is True
-        and collection.get("decision") == "partial"
-    )
-    payload = {
-        "workflow_version": assessment["workflow_version"],
-        "decision": "finalized",
-        "result": "partial" if partial else "ready",
-        "environment_sha256": file_sha256(run_dir / "environment.json"),
-        "build_sha256": file_sha256(run_dir / INTEGRATION_BUILD_PATH),
-        "state_digest": assessment["state_digest"],
-        "finalized_at": datetime.now(timezone.utc).isoformat(),
-    }
-    write_json(control_path(run_dir, CONTROL_INTEGRATION_FINALIZATION), payload)
-    return payload
-
-
-def finalization_issues(run_dir: Path) -> list[dict[str, str]]:
-    """Return precise errors when the Agent's finalization receipt is absent or stale."""
-
-    run_dir = run_dir.resolve()
-    path = control_path(run_dir, CONTROL_INTEGRATION_FINALIZATION)
-    if not path.is_file():
-        return [_issue(
-            "integration_not_finalized", str(path.relative_to(run_dir)),
-            "尚未执行 integratectl finalize",
-        )]
-    try:
-        payload = read_json(path, "集成收口")
-        environment = read_json(run_dir / "environment.json", "环境声明")
-        state_digest = _state_manifest(run_dir / "state", environment)["digest"]
-    except Exception as error:
-        return [_issue("invalid_integration_finalization", str(path), str(error))]
-    config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
-    collection = read_json(run_dir / COLLECTION_PROFILE_PATH, "Step 2 采集画像")
-    partial = (
-        config.get("allow_partial_integration") is True
-        and collection.get("decision") == "partial"
-    )
-    expected = {
-        "decision": "finalized",
-        "result": "partial" if partial else "ready",
-        "environment_sha256": file_sha256(run_dir / "environment.json"),
-        "build_sha256": file_sha256(run_dir / INTEGRATION_BUILD_PATH),
-        "state_digest": state_digest,
-    }
-    mismatches = [name for name, value in expected.items() if payload.get(name) != value]
-    if mismatches:
-        return [_issue(
-            "stale_integration_finalization", str(path.relative_to(run_dir)),
-            "集成收口与当前文件不一致：" + ", ".join(mismatches),
-        )]
-    return []
-
-
 __all__ = [
     "assess_environment",
-    "build_environment",
-    "finalize_environment",
-    "finalization_issues",
-    "run_environment_build",
     "_state_manifest",
 ]

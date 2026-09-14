@@ -5,296 +5,107 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from task_gen.program_form import (
-    CompleteEnvironmentPackage,
-    CompleteEnvironmentRuntime,
-    ProgramGenerationPolicy,
-    execute_reference_program,
-    run_step1,
-    run_step2,
-    run_step3,
-    run_step4,
+from task_gen.program_form import ProgramGenerationPolicy, validate_solution_code
+from task_gen.program_form.steps.step2_research_real_world_tasks import (
+    build_task_research_prompt,
 )
-from task_gen.program_form.steps.step2_gen_task_solution import (
-    build_program_generation_prompt,
+from task_gen.program_form.steps.step3_generate_task_solution import (
+    build_task_solution_prompt,
 )
-from task_gen.program_form.utils.io import read_records
-from task_gen.program_form.utils.reference_program import validate_reference_program
+from task_gen.program_form.steps.step4_generate_scoring_criteria import (
+    build_scoring_prompt,
+)
+from task_gen.program_form.steps.step5_evaluate_difficulty import (
+    build_rubric_judge_prompt,
+    classify_difficulty,
+    estimate_pass_at_k,
+)
+from task_gen.program_form.utils.io import read_records, write_jsonl
+from task_gen.program_form.utils.verifier import (
+    execute_verifier_code,
+    state_verifier_smoke_test,
+    verifier_smoke_test,
+)
 
 
-def object_schema(properties, required):
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required,
-        "additionalProperties": False,
-    }
+class ProgramFormContractTests(unittest.TestCase):
+    def test_each_agent_prompt_keeps_its_step_responsibility_visible(self):
+        policy = ProgramGenerationPolicy()
+        research = build_task_research_prompt(1)
+        generation = build_task_solution_prompt(1, policy)
+        scoring = build_scoring_prompt(policy, 1)
+        difficulty = build_rubric_judge_prompt(1)
 
+        self.assertIn("不负责生成 benchmark 题目", research)
+        self.assertIn("task_research.json", research)
+        self.assertIn("真实 Runtime", generation)
+        self.assertIn("solution_code", generation)
+        self.assertIn("answer_verifier_code", scoring)
+        self.assertIn("state_verifier_code", scoring)
+        self.assertIn("不读取模型声明的总分", difficulty)
 
-def output_schema(data_properties, data_required):
-    return {
-        "oneOf": [
-            object_schema(
-                {
-                    "success": {"type": "boolean", "const": True},
-                    "data": object_schema(data_properties, data_required),
-                },
-                ["success", "data"],
-            ),
-            object_schema(
-                {
-                    "success": {"type": "boolean", "const": False},
-                    "error": object_schema(
-                        {
-                            "code": {"type": "string", "enum": ["not_found"]},
-                            "path": {"type": "string"},
-                            "message": {"type": "string", "minLength": 1},
-                            "retryable": {"type": "boolean"},
-                        },
-                        ["code", "path", "message", "retryable"],
-                    ),
-                },
-                ["success", "error"],
-            ),
-        ]
-    }
+    def test_policy_rejects_impossible_difficulty_gate(self):
+        with self.assertRaisesRegex(ValueError, "minimum_passing_runs"):
+            ProgramGenerationPolicy(
+                difficulty_eval_runs=2,
+                minimum_passing_runs=3,
+            ).validate()
+        with self.assertRaisesRegex(ValueError, "infrastructure_retries"):
+            ProgramGenerationPolicy(infrastructure_retries=-1).validate()
 
-
-TOOL_SOURCE = '''
-def run(arguments, context):
-    import json
-    path = context.workspace_root / "entities" / "items.json"
-    items = json.loads(path.read_text(encoding="utf-8"))
-    operation = "__OPERATION__"
-    if operation == "list_items":
-        return {"success": True, "data": {"items": items}}
-    if operation == "get_item":
-        item = next((row for row in items if row["item_id"] == arguments["item_id"]), None)
-        if item is None:
-            return {"success": False, "error": {"code": "not_found", "path": "$.item_id", "message": "Item not found", "retryable": False}}
-        return {"success": True, "data": {"item": item}}
-    item = next((row for row in items if row["item_id"] == arguments["item_id"]), None)
-    if item is None:
-        return {"success": False, "error": {"code": "not_found", "path": "$.item_id", "message": "Item not found", "retryable": False}}
-    item["status"] = arguments["status"]
-    path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"success": True, "data": {"item_id": item["item_id"], "status": item["status"]}}
-'''
-
-
-class ProgramFormTests(unittest.TestCase):
-    def make_package(self, root: Path) -> Path:
-        package = root / "environment"
-        workspace = package / "workspace" / "entities"
-        workspace.mkdir(parents=True)
-        (workspace / "items.json").write_text(
-            json.dumps(
-                [
-                    {"item_id": "a", "score": 4, "eligible": True, "status": "open"},
-                    {"item_id": "b", "score": 9, "eligible": False, "status": "open"},
-                    {"item_id": "c", "score": 7, "eligible": True, "status": "open"},
-                ]
-            ),
-            encoding="utf-8",
-        )
-        item = object_schema(
-            {
-                "item_id": {"type": "string"},
-                "score": {"type": "integer"},
-                "eligible": {"type": "boolean"},
-                "status": {"type": "string"},
-            },
-            ["item_id", "score", "eligible", "status"],
-        )
-        tools = [
-            {
-                "name": "list_items",
-                "description": "List all review candidates and their current evidence.",
-                "inputSchema": object_schema({}, []),
-                "outputSchema": output_schema(
-                    {"items": {"type": "array", "items": item}}, ["items"]
-                ),
-                "internal": {"code": TOOL_SOURCE.replace("__OPERATION__", "list_items")},
-            },
-            {
-                "name": "get_item",
-                "description": "Inspect one candidate by its stable identifier.",
-                "inputSchema": object_schema({"item_id": {"type": "string"}}, ["item_id"]),
-                "outputSchema": output_schema({"item": item}, ["item"]),
-                "internal": {"code": TOOL_SOURCE.replace("__OPERATION__", "get_item")},
-            },
-            {
-                "name": "update_item_status",
-                "description": "Change the workflow status of one candidate.",
-                "inputSchema": object_schema(
-                    {
-                        "item_id": {"type": "string"},
-                        "status": {"type": "string", "enum": ["open", "selected"]},
-                    },
-                    ["item_id", "status"],
-                ),
-                "outputSchema": output_schema(
-                    {"item_id": {"type": "string"}, "status": {"type": "string"}},
-                    ["item_id", "status"],
-                ),
-                "internal": {"code": TOOL_SOURCE.replace("__OPERATION__", "update")},
-            },
-        ]
-        environment = {
-            "schema_version": "1.0",
-            "environment_id": "candidate_review",
-            "name": "Candidate review",
-            "description": "Select the highest-scoring eligible candidate and record the decision.",
-            "resources": [
-                {
-                    "resource_id": "items",
-                    "name": "Items",
-                    "description": "Review candidates.",
-                    "data_type": "raw",
-                    "storage_type": "file",
-                    "path": "entities/items.json",
-                    "format": "json",
-                    "writable": True,
-                }
-            ],
-            "rules": [],
-            "tools": tools,
-        }
-        (package / "environment.json").write_text(
-            json.dumps(environment), encoding="utf-8"
-        )
-        return package
-
-    @staticmethod
-    def solution_code() -> str:
-        return '''
-listed = call_tool("list_items", {})
-eligible = []
-for row in listed["data"]["items"]:
-    detail = call_tool("get_item", {"item_id": row["item_id"]})
-    if detail["data"]["item"]["eligible"]:
-        eligible.append(detail["data"]["item"])
-eligible = sorted(eligible, key=lambda row: row["score"], reverse=True)
-winner = eligible[0]
-updated = call_tool("update_item_status", {"item_id": winner["item_id"], "status": "selected"})
-final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner["score"], "status": updated["data"]["status"]}
-'''.strip()
-
-    @staticmethod
-    def answer_schema():
-        return object_schema(
-            {
-                "selected_item_id": {"type": "string"},
-                "selected_score": {"type": "integer"},
-                "status": {"type": "string"},
-            },
-            ["selected_item_id", "selected_score", "status"],
-        )
-
-    def test_public_projection_removes_internal_tool_code(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package = CompleteEnvironmentPackage.load(self.make_package(Path(temporary)))
-            public = package.public_environment()
-            self.assertNotIn("internal", public["tools"][0])
-            self.assertIn("inputSchema", public["tools"][0])
-
-    def test_reference_program_executes_tools_and_changes_isolated_state(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package = CompleteEnvironmentPackage.load(self.make_package(Path(temporary)))
-            result = execute_reference_program(package, self.solution_code(), self.answer_schema())
-            self.assertTrue(result.success, result.error)
-            self.assertEqual(result.answer["selected_item_id"], "c")
-            self.assertEqual(len(result.trace), 5)
-            self.assertEqual({item["tool"] for item in result.trace}, {"list_items", "get_item", "update_item_status"})
-            self.assertEqual(result.state_diff["modified"], ["entities/items.json"])
-            baseline = json.loads((package.workspace_root / "entities/items.json").read_text())
-            self.assertTrue(all(item["status"] == "open" for item in baseline))
-
-    def test_runtime_rejects_arguments_outside_tool_schema(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package = CompleteEnvironmentPackage.load(self.make_package(Path(temporary)))
-            with CompleteEnvironmentRuntime(package) as runtime:
-                with self.assertRaisesRegex(ValueError, "输入不符合 Schema"):
-                    runtime.call("get_item", {"item_id": "a", "unexpected": True})
-
-    def test_reference_program_rejects_direct_file_access(self):
-        errors = validate_reference_program(
-            'value = open("workspace/file.json").read()\nfinal_answer = {"value": value}'
+    def test_solution_language_rejects_direct_environment_access(self):
+        errors = validate_solution_code(
+            'value = open("state/data.json").read()\nfinal_answer = {"value": value}'
         )
         self.assertTrue(any("open" in error for error in errors))
-
-    def test_offline_candidate_becomes_deterministic_task_package(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            package_path = self.make_package(root)
-            candidates = root / "candidates.json"
-            candidates.write_text(
-                json.dumps(
-                    {
-                        "candidates": [
-                            {
-                                "task_internal": "请审查当前全部候选记录，排除不符合资格的对象，从剩余对象中选择评分最高者，并把最终选择正式记录为已选中，同时返回所选对象、评分和最新状态。",
-                                "output_schema": self.answer_schema(),
-                                "solution_code": self.solution_code(),
-                            }
-                        ]
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            output = root / "tasks"
-            step1_path = run_step1(
-                environment_package=package_path,
-                output_dir=output,
-            )
-            step2 = run_step2(
-                step1_path=step1_path,
-                output_dir=output,
-                agent=None,
-                policy=ProgramGenerationPolicy(
-                    task_count=1,
-                    min_tool_calls=5,
-                    min_distinct_tools=3,
-                    clean_replays=2,
-                    require_state_change=True,
-                ),
-                candidates_path=candidates,
-            )
-            step3 = run_step3(
-                step1_path=step1_path,
-                step2_path=step2.output_path,
-                output_dir=output,
-                policy=ProgramGenerationPolicy(),
-            )
-            step4 = run_step4(
-                step1_path=step1_path,
-                step3_path=step3.jsonl_path,
-                output_dir=output,
-                policy=ProgramGenerationPolicy(require_state_change=True),
-            )
-            task = read_records(step4.output_path)[0]
-            self.assertEqual(task["ground_truth"]["candidate_answer"]["selected_item_id"], "c")
-            self.assertEqual(task["solution_trace_length"], 5)
-            receipt = json.loads(step1_path.read_text(encoding="utf-8"))
-            self.assertNotIn("internal", receipt["public_environment"]["tools"][0])
-
-    def test_generation_prompt_defines_business_quality_before_code_contract(self):
-        prompt = build_program_generation_prompt(
-            round_index=1,
-            policy=ProgramGenerationPolicy(
-                task_count=2,
-                min_tool_calls=6,
-                min_distinct_tools=3,
-                require_state_change=True,
-            ),
+        self.assertEqual(
+            validate_solution_code('final_answer = {"status": "ok"}'),
+            [],
         )
-        self.assertLess(prompt.index("# 合格任务的核心定义"), prompt.index("# 隐藏参考程序"))
-        self.assertIn("至少三类语义不同", prompt)
-        self.assertIn("表面相关但", prompt)
-        self.assertIn("不得通过重复查询", prompt)
-        self.assertIn("每个任务都必须完成一项", prompt)
-        self.assertIn("validation_feedback.json", prompt)
+
+    def test_answer_and_state_verifier_smoke_tests_use_negative_cases(self):
+        answer_code = """def verify(candidate_answer, ground_truth_answer):
+    return 1.0 if candidate_answer == ground_truth_answer else 0.0
+"""
+        state_code = """def verify_state(candidate_state, ground_truth_state, initial_state):
+    return 1.0 if candidate_state == ground_truth_state else 0.0
+"""
+        answer_ok, answer_errors = verifier_smoke_test(answer_code, {"value": 3})
+        state_ok, state_errors = state_verifier_smoke_test(
+            state_code,
+            {"value": 1},
+            {"value": 3},
+        )
+        self.assertTrue(answer_ok, answer_errors)
+        self.assertTrue(state_ok, state_errors)
+
+        permissive = """def verify(candidate_answer, ground_truth_answer):
+    return 1.0
+"""
+        permissive_ok, _ = verifier_smoke_test(permissive, {"value": 3})
+        self.assertFalse(permissive_ok)
+
+    def test_verifier_execution_budget_stops_an_infinite_loop(self):
+        code = """def verify(candidate_answer, ground_truth_answer):
+    while True:
+        candidate_answer = candidate_answer
+"""
+        with self.assertRaisesRegex(TimeoutError, "最大执行行数|执行超时"):
+            execute_verifier_code(code, {"value": 1}, {"value": 1})
+
+    def test_jsonl_reader_uses_latest_checkpoint_for_an_index(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "records.jsonl"
+            write_jsonl(path, [{"value": 1}, {"value": 2}])
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({"__idx": 0, "item": {"value": 9}}) + "\n")
+            self.assertEqual(read_records(path), [{"value": 9}, {"value": 2}])
+
+    def test_difficulty_math_does_not_label_zero_success_as_hard(self):
+        self.assertEqual(classify_difficulty(0, 5), "unsolved_rework")
+        self.assertEqual(classify_difficulty(1, 5), "very_hard")
+        self.assertAlmostEqual(estimate_pass_at_k(5, 1, 1), 0.2)
+        self.assertIsNone(estimate_pass_at_k(2, 1, 3))
 
 
 if __name__ == "__main__":

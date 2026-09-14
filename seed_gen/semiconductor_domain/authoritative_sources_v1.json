@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "researched_at": "2026-09-13",
+  "sources": [
+    {
+      "id": "AUTH-IRDS-ROADMAP",
+      "publisher": "IEEE International Roadmap for Devices and Systems",
+      "title": "IRDS Roadmap Editions",
+      "url": "https://irds.ieee.org/editions/",
+      "authority_role": "提供器件到系统路线图的总入口以及各国际焦点团队的技术域划分。"
+    },
+    {
+      "id": "AUTH-IRDS-MORE-MOORE",
+      "publisher": "IEEE IRDS",
+      "title": "More Moore",
+      "url": "https://irds.ieee.org/irds-more-moore/",
+      "authority_role": "界定主流逻辑与存储器件在物理、电学、可靠性和高产量制造方面的技术要求。"
+    },
+    {
+      "id": "AUTH-IRDS-BEYOND-CMOS",
+      "publisher": "IEEE IRDS",
+      "title": "Beyond CMOS and Emerging Materials Integration",
+      "url": "https://irds.ieee.org/beyond-cmos/",
+      "authority_role": "覆盖新材料、新型信息处理器件、异质集成和新计算范式的研究与成熟度评估。"
+    },
+    {
+      "id": "AUTH-IRDS-SYSTEMS",
+      "publisher": "IEEE IRDS",
+      "title": "Systems and Architectures",
+      "url": "https://irds.ieee.org/irds-systems-and-architectures/",
+      "authority_role": "连接应用需求、系统架构和器件技术，并明确电子、计算和光子系统之间存在交叉。"
+    },
+    {
+      "id": "AUTH-IRDS-FACTORY",
+      "publisher": "IEEE IRDS",
+      "title": "Factory Integration",
+      "url": "https://irds.ieee.org/irds-factory-integration/",
+      "authority_role": "覆盖高产量微电子制造中的工厂系统、前后段生产、设施、生产率、成本与良率集成。"
+    },
+    {
+      "id": "AUTH-IRDS-METROLOGY",
+      "publisher": "IEEE IRDS",
+      "title": "Metrology and Virtual Metrology",
+      "url": "https://irds.ieee.org/irds-metrology/",
+      "authority_role": "覆盖材料、器件、三维结构、互连、芯粒和先进封装在研发、过程控制及性能保证中的测量需求。"
+    },
+    {
+      "id": "AUTH-IRDS-PACKAGING",
+      "publisher": "IEEE IRDS",
+      "title": "Packaging Integration",
+      "url": "https://irds.ieee.org/irds-packaging-integration/",
+      "authority_role": "将封装定义为把分别制造的组件集成为更高层级组件，并识别相关技术挑战。"
+    },
+    {
+      "id": "AUTH-IRDS-YIELD",
+      "publisher": "IEEE IRDS",
+      "title": "Yield Enhancement",
+      "url": "https://irds.ieee.org/irds-yield-enhancement/",
+      "authority_role": "覆盖晶圆和后段制造中缺陷、污染、工艺波动、设计问题与功能/可靠性良率之间的关系。"
+    },
+    {
+      "id": "AUTH-IRDS-LITHOGRAPHY",
+      "publisher": "IEEE IRDS",
+      "title": "2024 IRDS Lithography Tables",
+      "url": "https://irds.ieee.org/images/files/pdf/2024/2024IRDS_LITHO_Tables.xlsx",
+      "authority_role": "为图形化、掩模和关键尺寸相关工作域提供路线图级参数与挑战依据。"
+    },
+    {
+      "id": "AUTH-NIST-CHIPS-RD",
+      "publisher": "National Institute of Standards and Technology",
+      "title": "CHIPS Research and Development Programs",
+      "url": "https://www.nist.gov/chips/research-development-programs",
+      "authority_role": "给出美国 CHIPS 研发体系中的先进制造、计量、先进封装和技术中心边界。"
+    },
+    {
+      "id": "AUTH-NIST-METROLOGY",
+      "publisher": "National Institute of Standards and Technology",
+      "title": "CHIPS Metrology Program",
+      "url": "https://www.nist.gov/chips/research-development-programs/metrology-program",
+      "authority_role": "提供半导体材料、器件、制造和封装测量科学与标准化方向。"
+    },
+    {
+      "id": "AUTH-NIST-PACKAGING",
+      "publisher": "National Institute of Standards and Technology",
+      "title": "National Advanced Packaging Manufacturing Program",
+      "url": "https://www.nist.gov/chips/research-development-programs/national-advanced-packaging-manufacturing-program",
+      "authority_role": "界定先进封装制造、基板、异质集成及其研发基础设施。"
+    },
+    {
+      "id": "AUTH-ACCELLERA-WG",
+      "publisher": "Accellera Systems Initiative",
+      "title": "Accellera Working Groups",
+      "url": "https://www.accellera.org/activities/working-groups",
+      "authority_role": "覆盖 UVM、SystemC、IP-XACT、Portable Stimulus、CDC、功能安全等设计与验证标准工作域。"
+    },
+    {
+      "id": "AUTH-SEMI-COMMITTEES",
+      "publisher": "SEMI",
+      "title": "SEMI Standards Committees",
+      "url": "https://www.semi.org/en/standards/standards-committees",
+      "authority_role": "提供材料、设备自动化、信息与控制、载具接口、封装、测试和可追溯等制造标准领域。"
+    },
+    {
+      "id": "AUTH-JEDEC-COMMITTEES",
+      "publisher": "JEDEC Solid State Technology Association",
+      "title": "JEDEC Committees",
+      "url": "https://www.jedec.org/committees",
+      "authority_role": "覆盖固态器件与组件的特性、测试、质量、可靠性和封装标准。"
+    },
+    {
+      "id": "AUTH-IEEE-EPS",
+      "publisher": "IEEE Electronics Packaging Society",
+      "title": "EPS Technology and Technical Committees",
+      "url": "https://eps.ieee.org/technology/",
+      "authority_role": "补充电子封装、热机械、互连、建模与可靠性专业工作域。"
+    },
+    {
+      "id": "AUTH-NIST-RELIABILITY",
+      "publisher": "National Institute of Standards and Technology",
+      "title": "Engineering Statistics Handbook: Reliability",
+      "url": "https://www.itl.nist.gov/div898/handbook/apr/apr.htm",
+      "authority_role": "提供可靠性数据分析、寿命分布、加速试验和失效建模的方法边界。"
+    }
+  ]
+}

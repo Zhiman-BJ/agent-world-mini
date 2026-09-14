@@ -3,7 +3,6 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from task_gen.program_form.run_pipeline import (
     build_parser,
@@ -15,55 +14,60 @@ from task_gen.program_form.utils.contracts import ProgramGenerationPolicy
 
 
 class ProgramFormRunnerTests(unittest.TestCase):
-    def test_parse_step_range_matches_omnia_runner(self):
-        self.assertEqual(parse_step_range("3-7"), [3, 4, 5, 6, 7])
-        self.assertEqual(parse_step_range("2,4,5"), [2, 4, 5])
-        self.assertEqual(parse_step_range("2-4,7,10-12"), [2, 3, 4, 7, 10, 11, 12])
+    def test_parse_step_range_supports_only_five_steps(self):
+        self.assertEqual(parse_step_range("all"), [1, 2, 3, 4, 5])
+        self.assertEqual(parse_step_range("2-4"), [2, 3, 4])
+        self.assertEqual(parse_step_range("1,3,5"), [1, 3, 5])
+        with self.assertRaisesRegex(ValueError, "未知步骤"):
+            parse_step_range("6")
+        with self.assertRaisesRegex(ValueError, "起点大于终点"):
+            parse_step_range("4-2")
 
-    def test_validate_arguments_rejects_invalid_pass_rate(self):
+    def test_validate_arguments_checks_minimum_passing_runs(self):
         with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
             arguments = build_parser().parse_args([
                 "--environment-package",
-                temporary,
+                str(root),
                 "--output-dir",
-                str(Path(temporary) / "output"),
-                "--min-final-pass-rate",
-                "1.1",
+                str(root / "out"),
+                "--difficulty-runs",
+                "2",
+                "--minimum-passing-runs",
+                "3",
             ])
-            with self.assertRaisesRegex(ValueError, "0..1"):
+            with self.assertRaisesRegex(ValueError, "minimum_passing_runs"):
                 validate_arguments(arguments)
 
-    @patch("task_gen.program_form.run_pipeline._agent", return_value=object())
-    def test_runner_reuses_complete_step_artifact(self, _mock_agent):
+    def test_runner_reuses_complete_step1_without_creating_an_agent(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            output = root / "output"
+            output = root / "out"
             output.mkdir()
-            artifact = output / "step2_task_solution.json"
-            artifact.write_text("[]\n", encoding="utf-8")
-            results = run_selected_steps(
-                steps=[2],
-                environment_package=root / "unused",
+            (output / "step1_environment.json").write_text("{}", encoding="utf-8")
+            (output / "baseline_environment").mkdir()
+            result = run_selected_steps(
+                steps=[1],
+                environment_package=root / "not-needed-when-skipped",
                 output_dir=output,
                 policy=ProgramGenerationPolicy(),
-                model="test-model",
+                model="test",
             )
-            self.assertEqual(results[2], artifact)
+            self.assertEqual(result[1], output / "step1_environment.json")
 
-    @patch("task_gen.program_form.run_pipeline._agent", return_value=object())
-    def test_runner_rejects_partial_multi_artifact_step(self, _mock_agent):
+    def test_runner_rejects_partial_step5_artifacts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            output = root / "output"
+            output = root / "out"
             output.mkdir()
-            (output / "step8_filter_rewrite.jsonl").write_text("", encoding="utf-8")
+            (output / "step5_difficulty.jsonl").write_text("", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "部分产物"):
                 run_selected_steps(
-                    steps=[8],
-                    environment_package=root / "unused",
+                    steps=[5],
+                    environment_package=root,
                     output_dir=output,
                     policy=ProgramGenerationPolicy(),
-                    model="test-model",
+                    model="test",
                 )
 
 

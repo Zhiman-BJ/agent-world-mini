@@ -1,4 +1,4 @@
-"""Program-form 参考程序的隔离环境 Runtime。
+"""Program-form Solution 与独立求解会话共用的隔离环境 Runtime。
 
 Runtime 每次从基线 ``state/``（v2）或 ``workspace/``（v1 兼容）复制一份
 独立状态，校验工具输入/输出 Schema，检查只读边界，并保证

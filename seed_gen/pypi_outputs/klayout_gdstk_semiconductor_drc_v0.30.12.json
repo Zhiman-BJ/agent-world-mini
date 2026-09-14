@@ -1,0 +1,2744 @@
+[
+  {
+    "global_id": "pypi_klayout_7",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "name": "KLayout",
+        "version": "v0.30.12",
+        "index": 7,
+        "url": [
+          "https://pypi.org/project/klayout/",
+          "https://github.com/KLayout/klayout",
+          "https://www.klayout.de/doc-qt5/programming/python.html",
+          "https://www.klayout.de/doc-qt5/manual/drc_basic.html",
+          "https://github.com/IHP-GmbH/IHP-Open-PDK"
+        ]
+      },
+      "description": "这是一个真实半导体 PDK 与芯片版图的几何检查、DRC、修复和签核准备环境。KLayout 负责读取 GDS/OASIS、理解 cell/layer/hierarchy、执行真实规则 deck、保存 marker 并做最终复核；gdstk 作为直接协作的几何后端，完成布尔、offset、slice、层变换和候选版图写出。数据以 IHP SG13G2 开放 PDK 的 FEOL/BEOL/density DRC deck、QA cells、标准单元和测量版图为主要连贯上下文，并可扩展到其他具有真实 PDK 规则与设计文件的半导体项目。环境不把 gdspy 或 PICwriter 等替代框架强行并入同一工作流。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": "gds_geometry_drc",
+        "level3": "layout_verification_and_repair"
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "LayerInfo",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief A structure encapsulating the layer properties  The layer properties describe how a layer is stored in a GDS2 or OASIS file for example. The \\LayerInfo object represents the storage properties that are attached to a layer in the database.  In general, a layer has either a layer and a datatype number (in GDS2), a name (for example in DXF or CIF) or both (in OASIS). In the latter case, the primary identification is through layer and datatype number and the name is some annotation attached to it. A \\LayerInfo object which specifies just a name returns true on \\is_named?. The \\LayerInfo object can also specify an anonymous layer (use \\LayerInfo#new without arguments). Such a layer will not be stored when saving the layout. They can be employed for temporary layers for example. Use \\LayerInfo#anonymous? to test whether a layer does not have a specification.  The \\LayerInfo is used for example in \\Layout#insert_layer to specify the properties of the new layer that will be created. The \\is_equivalent? method compares two \\LayerInfo objects using the layer and datatype numbers with a higher priority over the name.",
+        "function": [
+          {
+            "name": "from_string",
+            "description": "@brief Create a layer info object from a string @param The string @return The LayerInfo object  If 'as_target' is true, relative specifications such as '*+1' for layer or datatype are permitted.  This method will take strings as produced by \\to_s and create a \\LayerInfo object from them. The format is either \"layer\", \"layer/datatype\", \"name\" or \"name (layer/datatype)\".  This method was added in version 0.23. The 'as_target' argument has been added in version 0.26.5.",
+            "input": {
+              "cls": null,
+              "s": {
+                "type": "str",
+                "description": ""
+              },
+              "as_target": {
+                "type": "Optional[bool]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, s: str, as_target: Optional[bool] = ...",
+            "ori_description": "@brief Create a layer info object from a string @param The string @return The LayerInfo object  If 'as_target' is true, relative specifications such as '*+1' for layer or datatype are permitted.  This method will take strings as produced by \\to_s and create a \\LayerInfo object from them. The format is either \"layer\", \"layer/datatype\", \"name\" or \"name (layer/datatype)\".  This method was added in version 0.23. The 'as_target' argument has been added in version 0.26.5."
+          },
+          {
+            "name": "new",
+            "description": "@brief The default constructor. Creates a default \\LayerInfo object.  This method was added in version 0.18.",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief The default constructor. Creates a default \\LayerInfo object.  This method was added in version 0.18."
+          },
+          {
+            "name": "to_s",
+            "description": "@brief Convert the layer info object to a string @return The string  If 'as_target' is true, wildcard and relative specifications are formatted such such.  This method was added in version 0.18. The 'as_target' argument has been added in version 0.26.5.",
+            "input": {
+              "self": null,
+              "as_target": {
+                "type": "Optional[bool]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, as_target: Optional[bool] = ...",
+            "ori_description": "@brief Convert the layer info object to a string @return The string  If 'as_target' is true, wildcard and relative specifications are formatted such such.  This method was added in version 0.18. The 'as_target' argument has been added in version 0.26.5."
+          }
+        ]
+      },
+      {
+        "name": "Layout",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief The layout object  This object represents a layout. The layout object contains the cell hierarchy and adds functionality for managing cell names and layer names. The cell hierarchy can be changed by adding cells and cell instances. Cell instances will virtually put the content of a cell into another cell. Many cell instances can be put into a cell thus forming repetitions of the cell content. This process can be repeated over multiple levels. In effect a cell graphs is created with parent cells and child cells. The graph must not be recursive, so there is at least one top cell, which does not have a parent cell. Multiple top cells can be present.  \\Layout is the very basic class of the layout database. It has a rich set of methods to manipulate and query the layout hierarchy, the geometrical objects, the meta information and other features of the layout database. For a discussion of the basic API and the related classes see @<a href=\"/programming/database_api.xml\">The Database API@</a>.  Usually layout objects have already been created by KLayout's application core. You can address such a layout via the \\CellView object inside the \\LayoutView class. For example:  @code active_layout = RBA::CellView::active.layout puts \"Top cell of current layout is #{active_layout.top_cell.name}\" @/code  However, a layout can also be used standalone:  @code layout = RBA::Layout::new cell = layout.create_cell(\"TOP\") layer = layout.layer(RBA::LayerInfo::new(1, 0)) cell.shapes(layer).insert(RBA::Box::new(0, 0, 1000, 1000)) layout.write(\"single_rect.gds\") @/code",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Creates a layout object  Starting with version 0.25, layouts created with the default constructor are always editable. Before that version, they inherited the editable flag from the application.",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Creates a layout object  Starting with version 0.25, layouts created with the default constructor are always editable. Before that version, they inherited the editable flag from the application."
+          },
+          {
+            "name": "cell_by_name",
+            "description": "@brief Gets the cell index for a given name Returns the cell index for the cell with the given name. If no cell with this name exists, an exception is thrown. From version 0.23 on, a version of the \\cell method is provided which returns a \\Cell object for the cell with the given name or \"nil\" if the name is not valid. This method replaces \\cell_by_name and \\has_cell?",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str",
+            "ori_description": "@brief Gets the cell index for a given name Returns the cell index for the cell with the given name. If no cell with this name exists, an exception is thrown. From version 0.23 on, a version of the \\cell method is provided which returns a \\Cell object for the cell with the given name or \"nil\" if the name is not valid. This method replaces \\cell_by_name and \\has_cell?"
+          },
+          {
+            "name": "cleanup",
+            "description": "@brief Cleans up the layout This method will remove proxy objects that are no longer in use. After changing PCell parameters such proxy objects may still be present in the layout and are cached for later reuse. Usually they are cleaned up automatically, but in a scripting context it may be useful to clean up these cells explicitly.  Use 'cell_indexes_to_keep' for specifying a list of cell indexes of PCell variants or library proxies you don't want to be cleaned up.  This method has been introduced in version 0.25.",
+            "input": {
+              "self": null,
+              "cell_indexes_to_keep": {
+                "type": "Optional[Sequence[int]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell_indexes_to_keep: Optional[Sequence[int]] = ...",
+            "ori_description": "@brief Cleans up the layout This method will remove proxy objects that are no longer in use. After changing PCell parameters such proxy objects may still be present in the layout and are cached for later reuse. Usually they are cleaned up automatically, but in a scripting context it may be useful to clean up these cells explicitly.  Use 'cell_indexes_to_keep' for specifying a list of cell indexes of PCell variants or library proxies you don't want to be cleaned up.  This method has been introduced in version 0.25."
+          },
+          {
+            "name": "clip",
+            "description": "@brief Clips the given cell by the given rectangle and produce a new cell with the clip @param cell The cell reference of the cell to clip @param box The clip box in database units @return The reference to the new cell  This variant which takes cell references instead of cell indexes has been added in version 0.28.",
+            "input": {
+              "self": null,
+              "cell": {
+                "type": "Cell",
+                "description": ""
+              },
+              "box": {
+                "type": "Box",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell: Cell, box: Box",
+            "ori_description": "@brief Clips the given cell by the given rectangle and produce a new cell with the clip @param cell The cell reference of the cell to clip @param box The clip box in database units @return The reference to the new cell  This variant which takes cell references instead of cell indexes has been added in version 0.28."
+          },
+          {
+            "name": "create_cell",
+            "description": "@brief Creates a cell with the given name @param name The name of the cell to create @return The \\Cell object of the newly created cell.  If a cell with that name already exists, the unique name will be chosen for the new cell consisting of the given name plus a suitable suffix.  This method has been introduce in version 0.23 and replaces \\add_cell.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str",
+            "ori_description": "@brief Creates a cell with the given name @param name The name of the cell to create @return The \\Cell object of the newly created cell.  If a cell with that name already exists, the unique name will be chosen for the new cell consisting of the given name plus a suitable suffix.  This method has been introduce in version 0.23 and replaces \\add_cell."
+          },
+          {
+            "name": "each_cell",
+            "description": "@brief Iterates the unsorted cell list",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Iterates the unsorted cell list"
+          },
+          {
+            "name": "flatten",
+            "description": "@brief Flattens the given cell  This method propagates all shapes and instances from the specified number of hierarchy levels below into the given cell. It also removes the instances of the cells from which the shapes came from, but does not remove the cells themselves if prune is set to false. If prune is set to true, these cells are removed if not used otherwise.  @param cell The cell which should be flattened @param levels The number of hierarchy levels to flatten (-1: all, 0: none, 1: one level etc.) @param prune Set to true to remove orphan cells.  This convenience variant taking a cell object has been introduced in version 0.30.9.",
+            "input": {
+              "self": null,
+              "cell": {
+                "type": "Cell",
+                "description": ""
+              },
+              "levels": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "prune": {
+                "type": "Optional[bool]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell: Cell, levels: Optional[int] = ..., prune: Optional[bool] = ...",
+            "ori_description": "@brief Flattens the given cell  This method propagates all shapes and instances from the specified number of hierarchy levels below into the given cell. It also removes the instances of the cells from which the shapes came from, but does not remove the cells themselves if prune is set to false. If prune is set to true, these cells are removed if not used otherwise.  @param cell The cell which should be flattened @param levels The number of hierarchy levels to flatten (-1: all, 0: none, 1: one level etc.) @param prune Set to true to remove orphan cells.  This convenience variant taking a cell object has been introduced in version 0.30.9."
+          },
+          {
+            "name": "layer",
+            "description": "@brief Creates a new internal layer  This method will create a new internal layer and return the layer index for this layer. The layer does not have any properties attached to it. That means, it is not going to be saved to a layout file unless it is given database properties with \\set_info.  This method is equivalent to \"layer(RBA::LayerInfo::new())\".  This method has been introduced in version 0.25.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Creates a new internal layer  This method will create a new internal layer and return the layer index for this layer. The layer does not have any properties attached to it. That means, it is not going to be saved to a layout file unless it is given database properties with \\set_info.  This method is equivalent to \"layer(RBA::LayerInfo::new())\".  This method has been introduced in version 0.25."
+          },
+          {
+            "name": "layer_infos",
+            "description": "@brief Gets a list of valid layer's properties The method returns an array with layer properties representing valid layers. The sequence and length of this list corresponds to that of \\layer_indexes.  This method has been introduced in version 0.25.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Gets a list of valid layer's properties The method returns an array with layer properties representing valid layers. The sequence and length of this list corresponds to that of \\layer_indexes.  This method has been introduced in version 0.25."
+          },
+          {
+            "name": "read",
+            "description": "@brief Load the layout from the given file The format of the file is determined automatically and automatic unzipping is provided. No particular options can be specified. @param filename The name of the file to load. @return A layer map that contains the mapping used by the reader including the layers that have been created. This method has been added in version 0.18.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str",
+            "ori_description": "@brief Load the layout from the given file The format of the file is determined automatically and automatic unzipping is provided. No particular options can be specified. @param filename The name of the file to load. @return A layer map that contains the mapping used by the reader including the layers that have been created. This method has been added in version 0.18."
+          },
+          {
+            "name": "read_bytes",
+            "description": "@brief Load the layout from the given bytes array The format of the file is determined automatically and automatic unzipping is provided. A function that creates a byte string is \\write_bytes.  @param bytes The data to load. @return A layer map that contains the mapping used by the reader including the layers that have been created. This method has been added in version 0.29.9.",
+            "input": {
+              "self": null,
+              "bytes": {
+                "type": "bytes",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, bytes: bytes",
+            "ori_description": "@brief Load the layout from the given bytes array The format of the file is determined automatically and automatic unzipping is provided. A function that creates a byte string is \\write_bytes.  @param bytes The data to load. @return A layer map that contains the mapping used by the reader including the layers that have been created. This method has been added in version 0.29.9."
+          },
+          {
+            "name": "top_cells",
+            "description": "@brief Returns the top cell objects @return The \\Cell objects of the top cells This method returns and array of \\Cell objects representing the top cells of the layout. This array can be empty, if the layout does not have a top cell (i.e. no cell at all).  This method has been introduced in version 0.23.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Returns the top cell objects @return The \\Cell objects of the top cells This method returns and array of \\Cell objects representing the top cells of the layout. This array can be empty, if the layout does not have a top cell (i.e. no cell at all).  This method has been introduced in version 0.23."
+          },
+          {
+            "name": "write",
+            "description": "@brief Writes the layout to a stream file @param filename The file to which to write the layout",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str",
+            "ori_description": "@brief Writes the layout to a stream file @param filename The file to which to write the layout"
+          },
+          {
+            "name": "write_bytes",
+            "description": "@brief Writes the layout to a binary string @param options The option set to use for writing. See \\SaveLayoutOptions for details. Options are used specifically to define the format to use.  Instead of writing a file, this function generates a binary string. As there is no filename, the format cannot be determined from the suffix. It needs to be specified in the options. A function that reads bytes is \\read_bytes.  This method has been introduced in version 0.29.9.",
+            "input": {
+              "self": null,
+              "options": {
+                "type": "SaveLayoutOptions",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, options: SaveLayoutOptions",
+            "ori_description": "@brief Writes the layout to a binary string @param options The option set to use for writing. See \\SaveLayoutOptions for details. Options are used specifically to define the format to use.  Instead of writing a file, this function generates a binary string. As there is no filename, the format cannot be determined from the suffix. It needs to be specified in the options. A function that reads bytes is \\read_bytes.  This method has been introduced in version 0.29.9."
+          }
+        ]
+      },
+      {
+        "name": "Cell",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief A cell  A cell object consists of a set of shape containers (called layers), a set of child cell instances and auxiliary information such as the parent instance list. A cell is identified through an index given to the cell upon instantiation. Cell instances refer to single instances or array instances. Both are encapsulated in the same object, the \\CellInstArray object. In the simple case, this object refers to a single instance. In the general case, this object may refer to a regular array of cell instances as well.  Starting from version 0.16, the child_inst and erase_inst methods are no longer available since they were using index addressing which is no longer supported. Instead, instances are now addressed with the \\Instance reference objects.  See @<a href=\"/programming/database_api.xml\">The Database API@</a> for more details about the database objects like the Cell class.",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Creates a new object of this class",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Creates a new object of this class"
+          },
+          {
+            "name": "bbox",
+            "description": "@brief Gets the bounding box of the cell  @return The bounding box of the cell  The bounding box is computed over all layers. To compute the bounding box over single layers, use \\bbox with a layer index argument.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Gets the bounding box of the cell  @return The bounding box of the cell  The bounding box is computed over all layers. To compute the bounding box over single layers, use \\bbox with a layer index argument."
+          },
+          {
+            "name": "bbox_per_layer",
+            "description": "@brief Gets the per-layer bounding box of the cell  @return The bounding box of the cell considering only the given layer  The bounding box is the box enclosing all shapes on the given layer.  'bbox' is the preferred synonym since version 0.28.",
+            "input": {
+              "self": null,
+              "layer_index": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, layer_index: int",
+            "ori_description": "@brief Gets the per-layer bounding box of the cell  @return The bounding box of the cell considering only the given layer  The bounding box is the box enclosing all shapes on the given layer.  'bbox' is the preferred synonym since version 0.28."
+          },
+          {
+            "name": "begin_shapes_rec",
+            "description": "@brief Delivers a recursive shape iterator for the shapes below the cell on the given layer @param layer The layer from which to get the shapes @return A suitable iterator  For details see the description of the \\RecursiveShapeIterator class.  This method has been added in version 0.23.",
+            "input": {
+              "self": null,
+              "layer": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, layer: int",
+            "ori_description": "@brief Delivers a recursive shape iterator for the shapes below the cell on the given layer @param layer The layer from which to get the shapes @return A suitable iterator  For details see the description of the \\RecursiveShapeIterator class.  This method has been added in version 0.23."
+          },
+          {
+            "name": "begin_shapes_rec_overlapping",
+            "description": "@brief Delivers a recursive shape iterator for the shapes below the cell on the given layer using a region search @param layer The layer from which to get the shapes @param region The search region @return A suitable iterator  For details see the description of the \\RecursiveShapeIterator class. This version gives an iterator delivering shapes whose bounding box overlaps the given region.  This method has been added in version 0.23.",
+            "input": {
+              "self": null,
+              "layer": {
+                "type": "int",
+                "description": ""
+              },
+              "region": {
+                "type": "Box",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, layer: int, region: Box",
+            "ori_description": "@brief Delivers a recursive shape iterator for the shapes below the cell on the given layer using a region search @param layer The layer from which to get the shapes @param region The search region @return A suitable iterator  For details see the description of the \\RecursiveShapeIterator class. This version gives an iterator delivering shapes whose bounding box overlaps the given region.  This method has been added in version 0.23."
+          },
+          {
+            "name": "copy_tree_shapes",
+            "description": "@brief Copies the shapes from the given cell and the cell tree below into this cell or subcells of this cell @param source_cell The starting cell from where to copy shapes @param cell_mapping The cell mapping object that determines how cells are identified between source and target layout  This method is provided if source and target cell reside in different layouts. If will copy the shapes from all cells below the given source cell, but use a cell mapping object that provides a specification how cells are identified between the layouts. Cells in the source tree, for which no mapping is provided, will be flattened - their shapes will be propagated into parent cells for which a mapping is provided.  The cell mapping object provides various methods to map cell trees between layouts. See the \\CellMapping class for details about the mapping methods available. The cell mapping object is also responsible for creating a proper hierarchy of cells in the target layout if that is required.  Layers are identified between the layouts by the layer/datatype number of name if no layer/datatype number is present.  The shapes copied will be added to any shapes already in the cells.  This method has been added in version 0.23.",
+            "input": {
+              "self": null,
+              "source_cell": {
+                "type": "Cell",
+                "description": ""
+              },
+              "cell_mapping": {
+                "type": "CellMapping",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, source_cell: Cell, cell_mapping: CellMapping",
+            "ori_description": "@brief Copies the shapes from the given cell and the cell tree below into this cell or subcells of this cell @param source_cell The starting cell from where to copy shapes @param cell_mapping The cell mapping object that determines how cells are identified between source and target layout  This method is provided if source and target cell reside in different layouts. If will copy the shapes from all cells below the given source cell, but use a cell mapping object that provides a specification how cells are identified between the layouts. Cells in the source tree, for which no mapping is provided, will be flattened - their shapes will be propagated into parent cells for which a mapping is provided.  The cell mapping object provides various methods to map cell trees between layouts. See the \\CellMapping class for details about the mapping methods available. The cell mapping object is also responsible for creating a proper hierarchy of cells in the target layout if that is required.  Layers are identified between the layouts by the layer/datatype number of name if no layer/datatype number is present.  The shapes copied will be added to any shapes already in the cells.  This method has been added in version 0.23."
+          },
+          {
+            "name": "each_inst",
+            "description": "@brief Iterates over all child instances (which may actually be instance arrays)  Starting with version 0.15, this iterator delivers \\Instance objects rather than \\CellInstArray objects.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Iterates over all child instances (which may actually be instance arrays)  Starting with version 0.15, this iterator delivers \\Instance objects rather than \\CellInstArray objects."
+          },
+          {
+            "name": "flatten",
+            "description": "@brief Flattens the given cell  This method propagates all shapes from the specified number of hierarchy levels below into the given cell. It also removes the instances of the cells from which the shapes came from, but does not remove the cells themselves if prune is set to false. If prune is set to true, these cells are removed if not used otherwise.  @param levels The number of hierarchy levels to flatten (-1: all, 0: none, 1: one level etc.) @param prune Set to true to remove orphan cells.  This method has been introduced in version 0.23.",
+            "input": {
+              "self": null,
+              "levels": {
+                "type": "int",
+                "description": ""
+              },
+              "prune": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, levels: int, prune: bool",
+            "ori_description": "@brief Flattens the given cell  This method propagates all shapes from the specified number of hierarchy levels below into the given cell. It also removes the instances of the cells from which the shapes came from, but does not remove the cells themselves if prune is set to false. If prune is set to true, these cells are removed if not used otherwise.  @param levels The number of hierarchy levels to flatten (-1: all, 0: none, 1: one level etc.) @param prune Set to true to remove orphan cells.  This method has been introduced in version 0.23."
+          },
+          {
+            "name": "shapes",
+            "description": "@brief Returns the shapes list of the given layer  This version takes a \\LayerInfo object and will look up the layer index. If no layer exists with these attributes, it will be created.  @param layer The layer attributes  @return A reference to the shapes list  This variant has been introduced in version 0.29.7.",
+            "input": {
+              "self": null,
+              "layer": {
+                "type": "LayerInfo",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, layer: LayerInfo",
+            "ori_description": "@brief Returns the shapes list of the given layer  This version takes a \\LayerInfo object and will look up the layer index. If no layer exists with these attributes, it will be created.  @param layer The layer attributes  @return A reference to the shapes list  This variant has been introduced in version 0.29.7."
+          },
+          {
+            "name": "transform",
+            "description": "@brief Transforms the instance with the given complex floating-point transformation given in micrometer units @return A reference (an \\Instance object) to the new instance This method is identical to the corresponding \\transform method with a \\ICplxTrans argument. For this variant however, the transformation is given in micrometer units and is translated to database units internally.  This variant has been introduced in version 0.25.",
+            "input": {
+              "self": null,
+              "instance": {
+                "type": "Instance",
+                "description": ""
+              },
+              "trans": {
+                "type": "DCplxTrans",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, instance: Instance, trans: DCplxTrans",
+            "ori_description": "@brief Transforms the instance with the given complex floating-point transformation given in micrometer units @return A reference (an \\Instance object) to the new instance This method is identical to the corresponding \\transform method with a \\ICplxTrans argument. For this variant however, the transformation is given in micrometer units and is translated to database units internally.  This variant has been introduced in version 0.25."
+          }
+        ]
+      },
+      {
+        "name": "Region",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "ShapeCollection",
+        "description": "@brief A region (a potentially complex area consisting of multiple polygons)  This class was introduced to simplify operations on polygon sets like boolean or sizing operations. Regions consist of many polygons and thus are a generalization of single polygons which describes a single coherence set of points. Regions support a variety of operations and have several states.  The region's state can be empty (does not contain anything) or box-like, i.e. the region consists of a single box. In that case, some operations can be simplified. Regions can have merged state. In merged state, regions consist of merged (non-touching, non-self overlapping) polygons. Each polygon describes one coherent area in merged state.  The preferred representation of polygons inside the region are polygons with holes.  Regions are always expressed in database units. If you want to use regions from different database unit domains, scale the regions accordingly, i.e. by using the \\transformed method.  Regions provide convenient operators for the boolean operations. Hence it is often no longer required to work with the \\EdgeProcessor class. For example:  @code r1 = RBA::Region::new(RBA::Box::new(0, 0, 100, 100)) r2 = RBA::Region::new(RBA::Box::new(20, 20, 80, 80)) # compute the XOR: r1_xor_r2 = r1 ^ r2 @/code  Regions can be used in two different flavors: in raw mode or merged semantics. With merged semantics (the default), connected polygons are considered to belong together and are effectively merged. Overlapping areas are counted once in that mode. Internal edges (i.e. arising from cut lines) are not considered. In raw mode (without merged semantics), each polygon is considered as it is. Overlaps between polygons may exists and merging has to be done explicitly using the \\merge method. The semantics can be selected using \\merged_semantics=.  This class has been introduced in version 0.23.",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Default constructor  This constructor creates an empty region.",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Default constructor  This constructor creates an empty region."
+          },
+          {
+            "name": "area",
+            "description": "@brief The area of the region  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept) If merged semantics is not enabled, overlapping areas are counted twice.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief The area of the region  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept) If merged semantics is not enabled, overlapping areas are counted twice."
+          },
+          {
+            "name": "count",
+            "description": "@brief Returns the (flat) number of polygons in the region  This returns the number of raw polygons (not merged polygons if merged semantics is enabled). The count is computed 'as if flat', i.e. polygons inside a cell are multiplied by the number of times a cell is instantiated.  The 'count' alias has been provided in version 0.26 to avoid ambiguity with the 'size' method which applies a geometrical bias.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Returns the (flat) number of polygons in the region  This returns the number of raw polygons (not merged polygons if merged semantics is enabled). The count is computed 'as if flat', i.e. polygons inside a cell are multiplied by the number of times a cell is instantiated.  The 'count' alias has been provided in version 0.26 to avoid ambiguity with the 'size' method which applies a geometrical bias."
+          },
+          {
+            "name": "enclosed_check",
+            "description": "@brief Performs an inside check with options @param d The minimum distance for which the polygons are checked @param other The other region against which to check @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative Negative output from the first input @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  If \"negative\" is true, only edges from the first input are output as pseudo edge-pairs where the distance is larger or equal to the limit. This is a way to flag the parts of the first input where the distance to the second input is bigger. Note that only the first input's edges are output. The output is still edge pairs, but each edge pair contains one edge from the original input and the reverse version of the edge as the second edge.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. The interpretation of the 'negative' flag has been restriced to first-layout only output in 0.27.1. The 'enclosed_check' alias was introduced in version 0.27.5. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29.",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Region",
+                "description": ""
+              },
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "opposite_filter": {
+                "type": "Optional[Region.OppositeFilter]",
+                "description": ""
+              },
+              "rect_filter": {
+                "type": "Optional[Region.RectFilter]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Region, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., opposite_filter: Optional[Region.OppositeFilter] = ..., rect_filter: Optional[Region.RectFilter] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs an inside check with options @param d The minimum distance for which the polygons are checked @param other The other region against which to check @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative Negative output from the first input @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  If \"negative\" is true, only edges from the first input are output as pseudo edge-pairs where the distance is larger or equal to the limit. This is a way to flag the parts of the first input where the distance to the second input is bigger. Note that only the first input's edges are output. The output is still edge pairs, but each edge pair contains one edge from the original input and the reverse version of the edge as the second edge.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. The interpretation of the 'negative' flag has been restriced to first-layout only output in 0.27.1. The 'enclosed_check' alias was introduced in version 0.27.5. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29."
+          },
+          {
+            "name": "enclosing_check",
+            "description": "@brief Performs an enclosing check with options @param d The minimum enclosing distance for which the polygons are checked @param other The other region against which to check @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative Negative output from the first input @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  If \"negative\" is true, only edges from the first input are output as pseudo edge-pairs where the enclosure is larger or equal to the limit. This is a way to flag the parts of the first input where the enclosure vs. the second input is bigger. Note that only the first input's edges are output. The output is still edge pairs, but each edge pair contains one edge from the original input and the reverse version of the edge as the second edge.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. The interpretation of the 'negative' flag has been restriced to first-layout only output in 0.27.1. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29.",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Region",
+                "description": ""
+              },
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "opposite_filter": {
+                "type": "Optional[Region.OppositeFilter]",
+                "description": ""
+              },
+              "rect_filter": {
+                "type": "Optional[Region.RectFilter]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Region, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., opposite_filter: Optional[Region.OppositeFilter] = ..., rect_filter: Optional[Region.RectFilter] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs an enclosing check with options @param d The minimum enclosing distance for which the polygons are checked @param other The other region against which to check @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative Negative output from the first input @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  If \"negative\" is true, only edges from the first input are output as pseudo edge-pairs where the enclosure is larger or equal to the limit. This is a way to flag the parts of the first input where the enclosure vs. the second input is bigger. Note that only the first input's edges are output. The output is still edge pairs, but each edge pair contains one edge from the original input and the reverse version of the edge as the second edge.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. The interpretation of the 'negative' flag has been restriced to first-layout only output in 0.27.1. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29."
+          },
+          {
+            "name": "insert_into",
+            "description": "@brief Inserts this region into the given layout, below the given cell and into the given layer. If the region is a hierarchical one, a suitable hierarchy will be built below the top cell or and existing hierarchy will be reused.  This method has been introduced in version 0.26.",
+            "input": {
+              "self": null,
+              "layout": {
+                "type": "Layout",
+                "description": ""
+              },
+              "cell_index": {
+                "type": "int",
+                "description": ""
+              },
+              "layer": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, layout: Layout, cell_index: int, layer: int",
+            "ori_description": "@brief Inserts this region into the given layout, below the given cell and into the given layer. If the region is a hierarchical one, a suitable hierarchy will be built below the top cell or and existing hierarchy will be reused.  This method has been introduced in version 0.26."
+          },
+          {
+            "name": "inside",
+            "description": "@brief Returns the polygons of this region which are completely inside polygons from the other region  @return A new region containing the polygons which are inside polygons from the other region  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Region",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Region",
+            "ori_description": "@brief Returns the polygons of this region which are completely inside polygons from the other region  @return A new region containing the polygons which are inside polygons from the other region  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)"
+          },
+          {
+            "name": "interacting",
+            "description": "@brief Returns the polygons of this region which overlap or touch edges from the edge collection  'min_count' and 'max_count' impose a constraint on the number of times a polygon of this region has to interact with edges of the edge collection to make the polygon selected. A polygon is selected by this method if the number of edges interacting with the polygon is between min_count and max_count (including max_count).  @return A new region containing the polygons overlapping or touching edges from the edge collection  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)  This method has been introduced in version 0.25. The min_count and max_count arguments have been added in version 0.27.",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Edges",
+                "description": ""
+              },
+              "min_count": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "max_count": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Edges, min_count: Optional[int] = ..., max_count: Optional[int] = ...",
+            "ori_description": "@brief Returns the polygons of this region which overlap or touch edges from the edge collection  'min_count' and 'max_count' impose a constraint on the number of times a polygon of this region has to interact with edges of the edge collection to make the polygon selected. A polygon is selected by this method if the number of edges interacting with the polygon is between min_count and max_count (including max_count).  @return A new region containing the polygons overlapping or touching edges from the edge collection  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)  This method has been introduced in version 0.25. The min_count and max_count arguments have been added in version 0.27."
+          },
+          {
+            "name": "isolated_check",
+            "description": "@brief Performs a space check between edges of different polygons with options @param d The minimum space for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29.",
+            "input": {
+              "self": null,
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "opposite_filter": {
+                "type": "Optional[Region.OppositeFilter]",
+                "description": ""
+              },
+              "rect_filter": {
+                "type": "Optional[Region.RectFilter]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., opposite_filter: Optional[Region.OppositeFilter] = ..., rect_filter: Optional[Region.RectFilter] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs a space check between edges of different polygons with options @param d The minimum space for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29."
+          },
+          {
+            "name": "merge",
+            "description": "@brief Merge the region  @return The region after it has been merged (self).  Merging removes overlaps and joins touching polygons. If the region is already merged, this method does nothing. This method will behave according to the settings of the \\min_coherence and \\join_properties_on_merge attributes.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Merge the region  @return The region after it has been merged (self).  Merging removes overlaps and joins touching polygons. If the region is already merged, this method does nothing. This method will behave according to the settings of the \\min_coherence and \\join_properties_on_merge attributes."
+          },
+          {
+            "name": "merged",
+            "description": "@brief Returns the merged region  @return The region after it has been merged.  Merging removes overlaps and joins touching polygons. If the region is already merged, this method does nothing. This method will behave according to the settings of the \\min_coherence and \\join_properties_on_merge attributes. In contrast to \\merge, this method does not modify the region but returns a merged copy.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Returns the merged region  @return The region after it has been merged.  Merging removes overlaps and joins touching polygons. If the region is already merged, this method does nothing. This method will behave according to the settings of the \\min_coherence and \\join_properties_on_merge attributes. In contrast to \\merge, this method does not modify the region but returns a merged copy."
+          },
+          {
+            "name": "moved",
+            "description": "@brief Returns the moved region (does not modify self)  Moves the region by the given offset and returns the moved region. The region is not modified.  @param dx The x distance to move the region. @param dy The y distance to move the region.  @return The moved region.",
+            "input": {
+              "self": null,
+              "dx": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "dy": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dx: Optional[int] = ..., dy: Optional[int] = ...",
+            "ori_description": "@brief Returns the moved region (does not modify self)  Moves the region by the given offset and returns the moved region. The region is not modified.  @param dx The x distance to move the region. @param dy The y distance to move the region.  @return The moved region."
+          },
+          {
+            "name": "notch_check",
+            "description": "@brief Performs a space check between edges of the same polygon with options @param d The minimum space for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Specifies whether to consider only shapes with a certain property relation @param property_constraint Only \\IgnoreProperties and \\NoPropertyConstraint are allowed - in the last case, properties are copied from the original shapes to the output@param zero_distance_mode Specifies how to handle edges with zero distance  This version is similar to the simple version with one parameter. In addition, it allows to specify many more options.  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the space check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded' and 'negative' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29.",
+            "input": {
+              "self": null,
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs a space check between edges of the same polygon with options @param d The minimum space for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Specifies whether to consider only shapes with a certain property relation @param property_constraint Only \\IgnoreProperties and \\NoPropertyConstraint are allowed - in the last case, properties are copied from the original shapes to the output@param zero_distance_mode Specifies how to handle edges with zero distance  This version is similar to the simple version with one parameter. In addition, it allows to specify many more options.  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the space check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded' and 'negative' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29."
+          },
+          {
+            "name": "overlap_check",
+            "description": "@brief Performs an overlap check with options @param d The minimum overlap for which the polygons are checked @param other The other region against which to check @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative Negative output from the first input @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  If \"negative\" is true, only edges from the first input are output as pseudo edge-pairs where the overlap is larger or equal to the limit. This is a way to flag the parts of the first input where the overlap vs. the second input is bigger. Note that only the first input's edges are output. The output is still edge pairs, but each edge pair contains one edge from the original input and the reverse version of the edge as the second edge.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. The interpretation of the 'negative' flag has been restriced to first-layout only output in 0.27.1. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29.",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Region",
+                "description": ""
+              },
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "opposite_filter": {
+                "type": "Optional[Region.OppositeFilter]",
+                "description": ""
+              },
+              "rect_filter": {
+                "type": "Optional[Region.RectFilter]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Region, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., opposite_filter: Optional[Region.OppositeFilter] = ..., rect_filter: Optional[Region.RectFilter] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs an overlap check with options @param d The minimum overlap for which the polygons are checked @param other The other region against which to check @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative Negative output from the first input @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  If \"negative\" is true, only edges from the first input are output as pseudo edge-pairs where the overlap is larger or equal to the limit. This is a way to flag the parts of the first input where the overlap vs. the second input is bigger. Note that only the first input's edges are output. The output is still edge pairs, but each edge pair contains one edge from the original input and the reverse version of the edge as the second edge.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. The interpretation of the 'negative' flag has been restriced to first-layout only output in 0.27.1. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29."
+          },
+          {
+            "name": "overlapping",
+            "description": "@brief Returns the polygons of this region which overlap polygons from the other region  @return A new region containing the polygons overlapping polygons from the other region  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)  The count options have been introduced in version 0.27.",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Region",
+                "description": ""
+              },
+              "min_count": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "max_count": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Region, min_count: Optional[int] = ..., max_count: Optional[int] = ...",
+            "ori_description": "@brief Returns the polygons of this region which overlap polygons from the other region  @return A new region containing the polygons overlapping polygons from the other region  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)  The count options have been introduced in version 0.27."
+          },
+          {
+            "name": "sized",
+            "description": "@brief Returns the isotropically sized region  @return The sized region  This method is equivalent to \"sized(d, d, mode)\". This method returns the sized region (see \\size), but does not modify self.  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)",
+            "input": {
+              "self": null,
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "mode": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d: int, mode: Optional[int] = ...",
+            "ori_description": "@brief Returns the isotropically sized region  @return The sized region  This method is equivalent to \"sized(d, d, mode)\". This method returns the sized region (see \\size), but does not modify self.  Merged semantics applies for this method (see \\merged_semantics= for a description of this concept)"
+          },
+          {
+            "name": "space_check",
+            "description": "@brief Performs a space check with options @param d The minimum space for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29.",
+            "input": {
+              "self": null,
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "opposite_filter": {
+                "type": "Optional[Region.OppositeFilter]",
+                "description": ""
+              },
+              "rect_filter": {
+                "type": "Optional[Region.RectFilter]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., opposite_filter: Optional[Region.OppositeFilter] = ..., rect_filter: Optional[Region.RectFilter] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs a space check with options @param d The minimum space for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param opposite_filter Specifies a filter mode for errors happening on opposite sides of inputs shapes @param rect_filter Specifies an error filter for rectangular input shapes @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Specifies whether to consider only shapes with a certain property relation @param zero_distance_mode Specifies how to handle edges with zero distance  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  \"opposite_filter\" specifies whether to require or reject errors happening on opposite sides of a figure. \"rect_filter\" allows suppressing specific error configurations on rectangular input figures.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded', 'negative', 'not_opposite' and 'rect_sides' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.29."
+          },
+          {
+            "name": "width_check",
+            "description": "@brief Performs a width check with options @param d The minimum width for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Only \\IgnoreProperties and \\NoPropertyConstraint are allowed - in the last case, properties are copied from the original shapes to the output. @param zero_distance_mode Specifies how to handle edges with zero distance Other than 'width' allow more options here.  This version is similar to the simple version with one parameter. In addition, it allows to specify many more options.  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded' and 'negative' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.28.16.",
+            "input": {
+              "self": null,
+              "d": {
+                "type": "int",
+                "description": ""
+              },
+              "whole_edges": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "metrics": {
+                "type": "Optional[Metrics]",
+                "description": ""
+              },
+              "ignore_angle": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "min_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "max_projection": {
+                "type": "Optional[Any]",
+                "description": ""
+              },
+              "shielded": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "negative": {
+                "type": "Optional[bool]",
+                "description": ""
+              },
+              "property_constraint": {
+                "type": "Optional[PropertyConstraint]",
+                "description": ""
+              },
+              "zero_distance_mode": {
+                "type": "Optional[ZeroDistanceMode]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d: int, whole_edges: Optional[bool] = ..., metrics: Optional[Metrics] = ..., ignore_angle: Optional[Any] = ..., min_projection: Optional[Any] = ..., max_projection: Optional[Any] = ..., shielded: Optional[bool] = ..., negative: Optional[bool] = ..., property_constraint: Optional[PropertyConstraint] = ..., zero_distance_mode: Optional[ZeroDistanceMode] = ...",
+            "ori_description": "@brief Performs a width check with options @param d The minimum width for which the polygons are checked @param whole_edges If true, deliver the whole edges @param metrics Specify the metrics type @param ignore_angle The angle above which no check is performed @param min_projection The lower threshold of the projected length of one edge onto another @param max_projection The upper limit of the projected length of one edge onto another @param shielded Enables shielding (see below) @param negative If true, edges not violation the condition will be output as pseudo-edge pairs @param property_constraint Only \\IgnoreProperties and \\NoPropertyConstraint are allowed - in the last case, properties are copied from the original shapes to the output. @param zero_distance_mode Specifies how to handle edges with zero distance Other than 'width' allow more options here.  This version is similar to the simple version with one parameter. In addition, it allows to specify many more options.  If \"whole_edges\" is true, the resulting \\EdgePairs collection will receive the whole edges which contribute in the width check.  \"metrics\" can be one of the constants \\Euclidian, \\Square or \\Projection. See there for a description of these constants.  \"ignore_angle\" specifies the angle limit of two edges. If two edges form an angle equal or above the given value, they will not contribute in the check. Setting this value to 90 (the default) will exclude edges with an angle of 90 degree or more from the check. Use nil for this value to select the default.  \"min_projection\" and \"max_projection\" allow selecting edges by their projected value upon each other. It is sufficient if the projection of one edge on the other matches the specified condition. The projected length must be larger or equal to \"min_projection\" and less than \"max_projection\". If you don't want to specify one limit, pass nil to the respective value.  \"shielded\" controls whether shielding is applied. Shielding means that rule violations are not detected 'through' other features. Measurements are only made where the opposite edge is unobstructed. Shielding often is not optional as a rule violation in shielded case automatically comes with rule violations between the original and the shielding features. If not necessary, shielding can be disabled by setting this flag to false. In general, this will improve performance somewhat.  Merged semantics applies for the input of this method (see \\merged_semantics= for a description of this concept)  The 'shielded' and 'negative' options have been introduced in version 0.27. 'property_constraint' has been added in version 0.28.4. 'zero_distance_mode' has been added in version 0.28.16."
+          },
+          {
+            "name": "write",
+            "description": "@brief Writes the region to a file This method is provided for debugging purposes. It writes the object to a flat layer 0/0 in a single top cell.  This method has been introduced in version 0.29.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str",
+            "ori_description": "@brief Writes the region to a file This method is provided for debugging purposes. It writes the object to a flat layer 0/0 in a single top cell.  This method has been introduced in version 0.29."
+          }
+        ]
+      },
+      {
+        "name": "Shapes",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief A collection of shapes  A shapes collection is a collection of geometrical objects, such as polygons, boxes, paths, edges, edge pairs or text objects.  Shapes objects are the basic containers for geometrical objects of a cell. Inside a cell, there is one Shapes object per layer.",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Creates a new object of this class",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Creates a new object of this class"
+          },
+          {
+            "name": "each",
+            "description": "@brief Gets all shapes  This call is equivalent to each(SAll). This convenience method has been introduced in version 0.16",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Gets all shapes  This call is equivalent to each(SAll). This convenience method has been introduced in version 0.16"
+          },
+          {
+            "name": "erase",
+            "description": "@brief Erases the shape pointed to by the given \\Shape object This method has been introduced in version 0.16. It can only be used in editable mode. Erasing a shape will invalidate the shape reference. Access to this reference may then render invalid results.  @param shape The shape which to destroy",
+            "input": {
+              "self": null,
+              "shape": {
+                "type": "Shape",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shape: Shape",
+            "ori_description": "@brief Erases the shape pointed to by the given \\Shape object This method has been introduced in version 0.16. It can only be used in editable mode. Erasing a shape will invalidate the shape reference. Access to this reference may then render invalid results.  @param shape The shape which to destroy"
+          },
+          {
+            "name": "insert",
+            "description": "@brief Inserts a box into the shapes list @return A reference to the new shape (a \\Shape object)  Starting with version 0.16, this method returns a reference to the newly created shape",
+            "input": {
+              "self": null,
+              "box": {
+                "type": "Box",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, box: Box",
+            "ori_description": "@brief Inserts a box into the shapes list @return A reference to the new shape (a \\Shape object)  Starting with version 0.16, this method returns a reference to the newly created shape"
+          },
+          {
+            "name": "replace",
+            "description": "@brief Replaces the given shape with a box @return A reference to the new shape (a \\Shape object)  This method has been introduced with version 0.16. It replaces the given shape with the object specified. It does not change the property Id. To change the property Id, use the \\replace_prop_id method. To replace a shape and discard the property Id, erase the shape and insert a new shape. This method is permitted in editable mode only.",
+            "input": {
+              "self": null,
+              "shape": {
+                "type": "Shape",
+                "description": ""
+              },
+              "box": {
+                "type": "Box",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shape: Shape, box: Box",
+            "ori_description": "@brief Replaces the given shape with a box @return A reference to the new shape (a \\Shape object)  This method has been introduced with version 0.16. It replaces the given shape with the object specified. It does not change the property Id. To change the property Id, use the \\replace_prop_id method. To replace a shape and discard the property Id, erase the shape and insert a new shape. This method is permitted in editable mode only."
+          },
+          {
+            "name": "transform",
+            "description": "@brief Transforms the shape given by the reference with the given complex transformation, where the transformation is given in micrometer units @param trans The transformation to apply (displacement in micrometer units) @return A reference (a \\Shape object) to the new shape The original shape may be deleted and re-inserted by this method. Therefore, a new reference is returned. It is permitted in editable mode only. This method has been introduced in version 0.25.",
+            "input": {
+              "self": null,
+              "shape": {
+                "type": "Shape",
+                "description": ""
+              },
+              "trans": {
+                "type": "DCplxTrans",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shape: Shape, trans: DCplxTrans",
+            "ori_description": "@brief Transforms the shape given by the reference with the given complex transformation, where the transformation is given in micrometer units @param trans The transformation to apply (displacement in micrometer units) @return A reference (a \\Shape object) to the new shape The original shape may be deleted and re-inserted by this method. Therefore, a new reference is returned. It is permitted in editable mode only. This method has been introduced in version 0.25."
+          }
+        ]
+      },
+      {
+        "name": "RecursiveShapeIterator",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief An iterator delivering shapes recursively  The iterator can be obtained from a cell, a layer and optionally a region. It simplifies retrieval of shapes from a geometrical region while considering subcells as well. Some options can be specified in addition, i.e. the level to which to look into or shape classes and shape properties. The shapes are retrieved by using the \\shape method, \\next moves to the next shape and \\at_end tells, if the iterator has move shapes to deliver.  This is some sample code:  @code # print the polygon-like objects as seen from the initial cell \"cell\" iter = cell.begin_shapes_rec(layer) while !iter.at_end? if iter.shape.renders_polygon? polygon = iter.shape.polygon.transformed(iter.itrans) puts \"In cell #{iter.cell.name}: \" + polygon.to_s end iter.next end  # or shorter: cell.begin_shapes_rec(layer).each do |iter| if iter.shape.renders_polygon? polygon = iter.shape.polygon.transformed(iter.itrans) puts \"In cell #{iter.cell.name}: \" + polygon.to_s end end @/code  \\Cell offers three methods to get these iterators: begin_shapes_rec, begin_shapes_rec_touching and begin_shapes_rec_overlapping. \\Cell#begin_shapes_rec will deliver a standard recursive shape iterator which starts from the given cell and iterates over all child cells. \\Cell#begin_shapes_rec_touching delivers a RecursiveShapeIterator which delivers the shapes whose bounding boxed touch the given search box. \\Cell#begin_shapes_rec_overlapping delivers all shapes whose bounding box overlaps the search box.  A RecursiveShapeIterator object can also be created explicitly. This allows some more options, i.e. using multiple layers. A multi-layer recursive shape iterator can be created like this:  @code iter = RBA::RecursiveShapeIterator::new(layout, cell, [ layer_index1, layer_index2 .. ]) @/code  \"layout\" is the layout object, \"cell\" the RBA::Cell object of the initial cell. layer_index1 etc. are the layer indexes of the layers to get the shapes from. While iterating, \\RecursiveShapeIterator#layer delivers the layer index of the current shape.  The recursive shape iterator can be confined to a maximum hierarchy depth. By using \\max_depth=, the iterator will restrict the search depth to the given depth in the cell tree.  In addition, the recursive shape iterator supports selection and exclusion of subtrees. For that purpose it keeps flags per cell telling it for which cells to turn shape delivery on and off. The \\select_cells method sets the \"start delivery\" flag while \\unselect_cells sets the \"stop delivery\" flag. In effect, using \\unselect_cells will exclude that cell plus the subtree from delivery. Parts of that subtree can be turned on again using \\select_cells. For the cells selected that way, the shapes of these cells and their child cells are delivered, even if their parent was unselected.  To get shapes from a specific cell, i.e. \"MACRO\" plus its child cells, unselect the top cell first and the select the desired cell again:  @code # deliver all shapes inside \"MACRO\" and the sub-hierarchy: iter = RBA::RecursiveShapeIterator::new(layout, cell, layer) iter.unselect_cells(cell.cell_index) iter.select_cells(\"MACRO\") @/code  Note that if \"MACRO\" uses library cells for example which are used otherwise as well, the iterator will only deliver the shapes for those instances belonging to \"MACRO\" (directly or indirectly), not those for other instances of these library cells.  The \\unselect_all_cells and \\select_all_cells methods turn on the \"stop\" and \"start\" flag for all cells respectively. If you use \\unselect_all_cells and use \\select_cells for a specific cell, the iterator will deliver only the shapes of the selected cell, not its children. Those are still unselected by \\unselect_all_cells:  @code # deliver all shapes of \"MACRO\" but not of child cells: iter = RBA::RecursiveShapeIterator::new(layout, cell, layer) iter.unselect_all_cells iter.select_cells(\"MACRO\") @/code  Cell selection is done using cell indexes or glob pattern. Glob pattern are equivalent to the usual file name wildcards used on various command line shells. For example \"A*\" matches all cells starting with an \"A\". The curly brace notation and character classes are supported as well. For example \"C{125,512}\" matches \"C125\" and \"C512\" and \"[ABC]*\" matches all cells starting with an \"A\", a \"B\" or \"C\". \"[^ABC]*\" matches all cells not starting with one of that letters.  The RecursiveShapeIterator class has been introduced in version 0.18 and has been extended substantially in 0.23. Starting with version 0.29.9, the recursive shape iterator will lock the layout it acts on while in iterating mode. While the iterator is active, the Layout object is maintained in 'under construction mode' (see \\Layout#under_construction). This is to prevent layout modifications to interfere with the iterator's operation. Specifically when coding in Ruby, pending iterators may block the Layout until the garbage collector cleans up these objects. To avoid this, call \\_destroy on the iterator when you no longer need it. The Layout is automatically unlocked when the iterator reaches the end.",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Creates a recursive, single-layer shape iterator. @param layout The layout which shall be iterated @param cell The initial cell which shall be iterated (including its children) @param layer The layer (index) from which the shapes are taken  This constructor creates a new recursive shape iterator which delivers the shapes of the given cell plus its children from the layer given by the layer index in the \"layer\" parameter.  This constructor has been introduced in version 0.23.",
+            "input": {
+              "cls": null,
+              "layout": {
+                "type": "Layout",
+                "description": ""
+              },
+              "cell": {
+                "type": "Cell",
+                "description": ""
+              },
+              "layer": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, layout: Layout, cell: Cell, layer: int",
+            "ori_description": "@brief Creates a recursive, single-layer shape iterator. @param layout The layout which shall be iterated @param cell The initial cell which shall be iterated (including its children) @param layer The layer (index) from which the shapes are taken  This constructor creates a new recursive shape iterator which delivers the shapes of the given cell plus its children from the layer given by the layer index in the \"layer\" parameter.  This constructor has been introduced in version 0.23."
+          },
+          {
+            "name": "each",
+            "description": "@brief Native iteration This method enables native iteration, e.g.  @code iter = ... # RecursiveShapeIterator iter.each do |i| ... i is the iterator itself end @/code  This is slightly more convenient than the 'at_end' .. 'next' loop.  This feature has been introduced in version 0.28.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Native iteration This method enables native iteration, e.g.  @code iter = ... # RecursiveShapeIterator iter.each do |i| ... i is the iterator itself end @/code  This is slightly more convenient than the 'at_end' .. 'next' loop.  This feature has been introduced in version 0.28."
+          },
+          {
+            "name": "layer",
+            "description": "@brief Returns the layer index where the current shape is coming from.  This method has been introduced in version 0.23.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Returns the layer index where the current shape is coming from.  This method has been introduced in version 0.23."
+          },
+          {
+            "name": "path",
+            "description": "@brief Gets the instantiation path of the shape addressed currently  This attribute is a sequence of \\InstElement objects describing the cell instance path from the initial cell to the current cell containing the current shape.  This method has been introduced in version 0.25.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Gets the instantiation path of the shape addressed currently  This attribute is a sequence of \\InstElement objects describing the cell instance path from the initial cell to the current cell containing the current shape.  This method has been introduced in version 0.25."
+          },
+          {
+            "name": "reset",
+            "description": "@brief Resets the iterator to the initial state  This method has been introduced in version 0.23.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Resets the iterator to the initial state  This method has been introduced in version 0.23."
+          },
+          {
+            "name": "select_cells",
+            "description": "@brief Unselects the given cells.  This method will sets the \"selected\" mark on the given cells. That means that these cells or their child cells are visited, unless they are marked as \"unselected\" again with the \\unselect_cells method.  The cells are given as a list of cell indexes.  This method will also reset the iterator.  This method has been introduced in version 0.23.",
+            "input": {
+              "self": null,
+              "cells": {
+                "type": "Sequence[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cells: Sequence[int]",
+            "ori_description": "@brief Unselects the given cells.  This method will sets the \"selected\" mark on the given cells. That means that these cells or their child cells are visited, unless they are marked as \"unselected\" again with the \\unselect_cells method.  The cells are given as a list of cell indexes.  This method will also reset the iterator.  This method has been introduced in version 0.23."
+          },
+          {
+            "name": "shape",
+            "description": "@brief Gets the current shape  Returns the shape currently referred to by the recursive iterator. This shape is not transformed yet and is located in the current cell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Gets the current shape  Returns the shape currently referred to by the recursive iterator. This shape is not transformed yet and is located in the current cell."
+          },
+          {
+            "name": "unselect_cells",
+            "description": "@brief Unselects the given cells.  This method will sets the \"unselected\" mark on the given cells. That means that these cells or their child cells will not be visited, unless they are marked as \"selected\" again with the \\select_cells method.  The cells are given as a list of cell indexes.  This method will also reset the iterator.  This method has been introduced in version 0.23.",
+            "input": {
+              "self": null,
+              "cells": {
+                "type": "Sequence[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cells: Sequence[int]",
+            "ori_description": "@brief Unselects the given cells.  This method will sets the \"unselected\" mark on the given cells. That means that these cells or their child cells will not be visited, unless they are marked as \"selected\" again with the \\select_cells method.  The cells are given as a list of cell indexes.  This method will also reset the iterator.  This method has been introduced in version 0.23."
+          }
+        ]
+      },
+      {
+        "name": "LayoutDiff",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief The layout compare tool  The layout compare tool is a facility to quickly compare layouts and derive events that give details about the differences. The events are basically emitted following a certain order:  @ul @li General configuration events (database units, layers ...) @/li @li \\on_begin_cell @/li @li \\on_begin_inst_differences (if the instances differ) @/li @li details about instance differences (if \\Verbose flag is given) @/li @li \\on_end_inst_differences (if the instances differ) @/li @li \\on_begin_layer @/li @li \\on_begin_polygon_differences (if the polygons differ) @/li @li details about polygon differences (if \\Verbose flag is given) @/li @li \\on_end_polygon_differences (if the polygons differ) @/li @li other shape difference events (paths, boxes, ...) @/li @li \\on_end_layer @/li @li repeated layer event groups @/li @li \\on_end_cell @/li @li repeated cell event groups @/li @/ul  To use the diff facility, create a \\LayoutDiff object and call the \\compare_layout or \\compare_cell method:  @code lya = ... # layout A lyb = ... # layout B  diff = RBA::LayoutDiff::new diff.on_polygon_in_a_only do |poly| puts \"Polygon in A: #{diff.cell_a.name}@#{diff.layer_info_a.to_s}: #{poly.to_s}\" end diff.on_polygon_in_b_only do |poly| puts \"Polygon in A: #{diff.cell_b.name}@#{diff.layer_info_b.to_s}: #{poly.to_s}\" end diff.compare(lya, lyb, RBA::LayoutDiff::Verbose + RBA::LayoutDiff::NoLayerNames) @/code",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Creates a new object of this class",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Creates a new object of this class"
+          },
+          {
+            "name": "compare",
+            "description": "@brief Compares two cells  Compares layer definitions, cells, instances and shapes and properties of two layout hierarchies starting from the given cells. Cells are identified by name. Only layers with valid layer and datatype are compared. Several flags can be specified as a bitwise or combination of the constants.  @param a The first top cell @param b The second top cell @param flags Flags to use for the comparison @param tolerance A coordinate tolerance to apply (0: exact match, 1: one DBU tolerance is allowed ...)  @return True, if the cells are identical",
+            "input": {
+              "self": null,
+              "a": {
+                "type": "Cell",
+                "description": ""
+              },
+              "b": {
+                "type": "Cell",
+                "description": ""
+              },
+              "flags": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "tolerance": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, a: Cell, b: Cell, flags: Optional[int] = ..., tolerance: Optional[int] = ...",
+            "ori_description": "@brief Compares two cells  Compares layer definitions, cells, instances and shapes and properties of two layout hierarchies starting from the given cells. Cells are identified by name. Only layers with valid layer and datatype are compared. Several flags can be specified as a bitwise or combination of the constants.  @param a The first top cell @param b The second top cell @param flags Flags to use for the comparison @param tolerance A coordinate tolerance to apply (0: exact match, 1: one DBU tolerance is allowed ...)  @return True, if the cells are identical"
+          }
+        ]
+      },
+      {
+        "name": "LoadLayoutOptions",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief Layout reader options  This object describes various layer reader options used for loading layouts.  This class has been introduced in version 0.18.",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Creates a new object of this class",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Creates a new object of this class"
+          },
+          {
+            "name": "select_all_layers",
+            "description": "@brief Selects all layers and disables the layer map  This disables any layer map and enables reading of all layers. New layers will be created when required.  Starting with version 0.25 this method only applies to GDS2 and OASIS format. Other formats provide their own configuration.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Selects all layers and disables the layer map  This disables any layer map and enables reading of all layers. New layers will be created when required.  Starting with version 0.25 this method only applies to GDS2 and OASIS format. Other formats provide their own configuration."
+          },
+          {
+            "name": "set_layer_map",
+            "description": "@brief Sets the layer map This sets a layer mapping for the reader. The layer map allows selection and translation of the original layers, for example to add a layer name. @param map The layer map to set.@param create_other_layers The flag telling whether other layer should be created as well. Set to false if just the layers in the mapping table should be read.  Starting with version 0.25 this option only applies to GDS2 and OASIS format. Other formats provide their own configuration.",
+            "input": {
+              "self": null,
+              "map": {
+                "type": "LayerMap",
+                "description": ""
+              },
+              "create_other_layers": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, map: LayerMap, create_other_layers: bool",
+            "ori_description": "@brief Sets the layer map This sets a layer mapping for the reader. The layer map allows selection and translation of the original layers, for example to add a layer name. @param map The layer map to set.@param create_other_layers The flag telling whether other layer should be created as well. Set to false if just the layers in the mapping table should be read.  Starting with version 0.25 this option only applies to GDS2 and OASIS format. Other formats provide their own configuration."
+          }
+        ]
+      },
+      {
+        "name": "SaveLayoutOptions",
+        "type": "class",
+        "module": "klayout.db",
+        "input": "",
+        "description": "@brief Options for saving layouts  This class describes the various options for saving a layout to a stream file (GDS2, OASIS and others). There are: layers to be saved, cell or cells to be saved, scale factor, format, database unit and format specific options.  Usually the default constructor provides a suitable object. Please note, that the format written is \"GDS2\" by default. Either explicitly set a format using \\format= or derive the format from the file name using \\set_format_from_filename.  The layers are specified by either selecting all layers or by defining layer by layer using the \\add_layer method. \\select_all_layers will explicitly select all layers for saving, \\deselect_all_layers will explicitly clear the list of layers.  Cells are selected in a similar fashion: by default, all cells are selected. Using \\add_cell, specific cells can be selected for saving. All these cells plus their hierarchy will then be written to the stream file.",
+        "function": [
+          {
+            "name": "new",
+            "description": "@brief Default constructor  This will initialize the scale factor to 1.0, the database unit is set to \"same as original\" and all layers are selected as well as all cells. The default format is GDS2.",
+            "input": {
+              "cls": null
+            },
+            "output": null,
+            "ori_input": "cls",
+            "ori_description": "@brief Default constructor  This will initialize the scale factor to 1.0, the database unit is set to \"same as original\" and all layers are selected as well as all cells. The default format is GDS2."
+          },
+          {
+            "name": "add_layer",
+            "description": "@brief Add a layer to be saved  Adds the layer with the given index to the layer list that will be written. If all layers have been selected previously, all layers will be unselected first and only the new layer remains.  The 'properties' argument can be used to assign different layer properties than the ones present in the layout. Pass a default \\LayerInfo object to this argument to use the properties from the layout object. Construct a valid \\LayerInfo object with explicit layer, datatype and possibly a name to override the properties stored in the layout.",
+            "input": {
+              "self": null,
+              "layer_index": {
+                "type": "int",
+                "description": ""
+              },
+              "properties": {
+                "type": "LayerInfo",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, layer_index: int, properties: LayerInfo",
+            "ori_description": "@brief Add a layer to be saved  Adds the layer with the given index to the layer list that will be written. If all layers have been selected previously, all layers will be unselected first and only the new layer remains.  The 'properties' argument can be used to assign different layer properties than the ones present in the layout. Pass a default \\LayerInfo object to this argument to use the properties from the layout object. Construct a valid \\LayerInfo object with explicit layer, datatype and possibly a name to override the properties stored in the layout."
+          },
+          {
+            "name": "select_all_cells",
+            "description": "@brief Select all cells to save  This method will clear all cells specified with \\add_cells so far and set the 'select all cells' flag. This is the default.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Select all cells to save  This method will clear all cells specified with \\add_cells so far and set the 'select all cells' flag. This is the default."
+          },
+          {
+            "name": "select_all_layers",
+            "description": "@brief Select all layers to be saved  This method will clear all layers selected with \\add_layer so far and set the 'select all layers' flag. This is the default.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "@brief Select all layers to be saved  This method will clear all layers selected with \\add_layer so far and set the 'select all layers' flag. This is the default."
+          },
+          {
+            "name": "select_cell",
+            "description": "@brief Selects a cell to be saved (plus hierarchy below)  This method is basically a convenience method that combines \\clear_cells and \\add_cell. This method clears the 'select all cells' flag.  This method has been added in version 0.22.",
+            "input": {
+              "self": null,
+              "cell_index": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell_index: int",
+            "ori_description": "@brief Selects a cell to be saved (plus hierarchy below)  This method is basically a convenience method that combines \\clear_cells and \\add_cell. This method clears the 'select all cells' flag.  This method has been added in version 0.22."
+          },
+          {
+            "name": "set_format_from_filename",
+            "description": "@brief Select a format from the given file name  This method will set the format according to the file's extension.  This method has been introduced in version 0.22. Beginning with version 0.23, this method always returns true, since the only consumer for the return value, Layout#write, now ignores that parameter and automatically determines the compression mode from the file name.  Starting with version 0.30.8, this method allows specifying the desired format's extension in square brackets after the file name (e.g. 'file.txt[def]'). This allows writing files with non-standard extensions. The return value of this function now is the actual file name used without the square brackets ('file.txt' in the example case).",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str",
+            "ori_description": "@brief Select a format from the given file name  This method will set the format according to the file's extension.  This method has been introduced in version 0.22. Beginning with version 0.23, this method always returns true, since the only consumer for the return value, Layout#write, now ignores that parameter and automatically determines the compression mode from the file name.  Starting with version 0.30.8, this method allows specifying the desired format's extension in square brackets after the file name (e.g. 'file.txt[def]'). This allows writing files with non-standard extensions. The return value of this function now is the actual file name used without the square brackets ('file.txt' in the example case)."
+          }
+        ]
+      },
+      {
+        "name": "Cell",
+        "type": "class",
+        "module": "gdstk",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str",
+            "ori_description": ""
+          },
+          {
+            "name": "add",
+            "description": "",
+            "input": {
+              "self": null,
+              "elements": {
+                "type": "Polygon | FlexPath | RobustPath | Label | Reference",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *elements: Polygon | FlexPath | RobustPath | Label | Reference",
+            "ori_description": ""
+          },
+          {
+            "name": "area",
+            "description": "",
+            "input": {
+              "self": null,
+              "by_spec": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, by_spec: bool = False",
+            "ori_description": ""
+          },
+          {
+            "name": "bounding_box",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "dependencies",
+            "description": "",
+            "input": {
+              "self": null,
+              "recursive": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, recursive: bool = True",
+            "ori_description": ""
+          },
+          {
+            "name": "flatten",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True",
+            "ori_description": ""
+          },
+          {
+            "name": "get_labels",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              },
+              "depth": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "layer": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "texttype": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True, depth: Optional[int] = None, layer: Optional[int] = None, texttype: Optional[int] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "get_paths",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              },
+              "depth": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "layer": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "datatype": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True, depth: Optional[int] = None, layer: Optional[int] = None, datatype: Optional[int] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "get_polygons",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              },
+              "include_paths": {
+                "type": "bool",
+                "description": ""
+              },
+              "depth": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "layer": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "datatype": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True, include_paths: bool = True, depth: Optional[int] = None, layer: Optional[int] = None, datatype: Optional[int] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "remove",
+            "description": "",
+            "input": {
+              "self": null,
+              "elements": {
+                "type": "Label | Polygon | RobustPath | FlexPath | Reference",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *elements: Label | Polygon | RobustPath | FlexPath | Reference",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "FlexPath",
+        "type": "class",
+        "module": "gdstk",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "points": {
+                "type": "tuple[float, float] | complex | Sequence[tuple[float, float] | complex]",
+                "description": ""
+              },
+              "width": {
+                "type": "float | Sequence[float]",
+                "description": ""
+              },
+              "offset": {
+                "type": "float | Sequence[float]",
+                "description": ""
+              },
+              "joins": {
+                "type": "Literal['natural', 'miter', 'bevel', 'round', 'smooth'] | Callable[[float, float, float, float, float, float], Sequence[tuple[float, float] | complex]] | Sequence[Literal['natural', 'miter', 'bevel', 'round', 'smooth'] | Callable[[float, float, float, float, float, float], Sequence[tuple[float, float] | complex]]]",
+                "description": ""
+              },
+              "ends": {
+                "type": "Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]] | Sequence[Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]]]",
+                "description": ""
+              },
+              "bend_radius": {
+                "type": "float | Sequence[float]",
+                "description": ""
+              },
+              "bend_function": {
+                "type": "Optional[Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]]] | Sequence[Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]]]",
+                "description": ""
+              },
+              "tolerance": {
+                "type": "float",
+                "description": ""
+              },
+              "simple_path": {
+                "type": "bool",
+                "description": ""
+              },
+              "scale_width": {
+                "type": "bool",
+                "description": ""
+              },
+              "layer": {
+                "type": "int | Sequence[int]",
+                "description": ""
+              },
+              "datatype": {
+                "type": "int | Sequence[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, points: tuple[float, float] | complex | Sequence[tuple[float, float] | complex], width: float | Sequence[float], offset: float | Sequence[float] = 0, joins: Literal['natural', 'miter', 'bevel', 'round', 'smooth'] | Callable[[float, float, float, float, float, float], Sequence[tuple[float, float] | complex]] | Sequence[Literal['natural', 'miter', 'bevel', 'round', 'smooth'] | Callable[[float, float, float, float, float, float], Sequence[tuple[float, float] | complex]]] = 'natural', ends: Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]] | Sequence[Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]]] = 'flush', bend_radius: float | Sequence[float] = 0, bend_function: Optional[Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]]] | Sequence[Callable[[float, float, float, float], Sequence[tuple[float, float] | complex]]] = None, tolerance: float = 0.01, simple_path: bool = False, scale_width: bool = True, layer: int | Sequence[int] = 0, datatype: int | Sequence[int] = 0",
+            "ori_description": ""
+          },
+          {
+            "name": "arc",
+            "description": "",
+            "input": {
+              "self": null,
+              "radius": {
+                "type": "float | tuple[float, float]",
+                "description": ""
+              },
+              "initial_angle": {
+                "type": "float",
+                "description": ""
+              },
+              "final_angle": {
+                "type": "float",
+                "description": ""
+              },
+              "rotation": {
+                "type": "float",
+                "description": ""
+              },
+              "width": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              },
+              "offset": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, radius: float | tuple[float, float], initial_angle: float, final_angle: float, rotation: float = 0, width: Optional[float] | Sequence[float] = None, offset: Optional[float] | Sequence[float] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "segment",
+            "description": "",
+            "input": {
+              "self": null,
+              "xy": {
+                "type": "Sequence[tuple[float, float] | complex] | tuple[float, float] | complex",
+                "description": ""
+              },
+              "width": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              },
+              "offset": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              },
+              "relative": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, xy: Sequence[tuple[float, float] | complex] | tuple[float, float] | complex, width: Optional[float] | Sequence[float] = None, offset: Optional[float] | Sequence[float] = None, relative: bool = False",
+            "ori_description": ""
+          },
+          {
+            "name": "to_polygons",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "translate",
+            "description": "",
+            "input": {
+              "self": null,
+              "dx": {
+                "type": "float | tuple[float, float] | complex",
+                "description": ""
+              },
+              "dy": {
+                "type": "Optional[float]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dx: float | tuple[float, float] | complex, dy: Optional[float] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "turn",
+            "description": "",
+            "input": {
+              "self": null,
+              "radius": {
+                "type": "float",
+                "description": ""
+              },
+              "angle": {
+                "type": "float",
+                "description": ""
+              },
+              "width": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              },
+              "offset": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, radius: float, angle: float, width: Optional[float] | Sequence[float] = None, offset: Optional[float] | Sequence[float] = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Library",
+        "type": "class",
+        "module": "gdstk",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              },
+              "unit": {
+                "type": "float",
+                "description": ""
+              },
+              "precision": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str = 'library', unit: float = 1e-06, precision: float = 1e-09",
+            "ori_description": ""
+          },
+          {
+            "name": "add",
+            "description": "",
+            "input": {
+              "self": null,
+              "cells": {
+                "type": "Cell | RawCell",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *cells: Cell | RawCell",
+            "ori_description": ""
+          },
+          {
+            "name": "new_cell",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str",
+            "ori_description": ""
+          },
+          {
+            "name": "top_level",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "write_gds",
+            "description": "",
+            "input": {
+              "self": null,
+              "outfile": {
+                "type": "str | pathlib.Path",
+                "description": ""
+              },
+              "max_points": {
+                "type": "int",
+                "description": ""
+              },
+              "timestamp": {
+                "type": "Optional[datetime.datetime]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, outfile: str | pathlib.Path, max_points: int = 199, timestamp: Optional[datetime.datetime] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "write_oas",
+            "description": "",
+            "input": {
+              "self": null,
+              "outfile": {
+                "type": "str | pathlib.Path",
+                "description": ""
+              },
+              "compression_level": {
+                "type": "int",
+                "description": ""
+              },
+              "detect_rectangles": {
+                "type": "bool",
+                "description": ""
+              },
+              "detect_trapezoids": {
+                "type": "bool",
+                "description": ""
+              },
+              "circletolerance": {
+                "type": "float",
+                "description": ""
+              },
+              "standard_properties": {
+                "type": "bool",
+                "description": ""
+              },
+              "validation": {
+                "type": "Optional[Literal['crc32', 'checksum32']]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, outfile: str | pathlib.Path, compression_level: int = 6, detect_rectangles: bool = True, detect_trapezoids: bool = True, circletolerance: float = 0, standard_properties: bool = False, validation: Optional[Literal['crc32', 'checksum32']] = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Polygon",
+        "type": "class",
+        "module": "gdstk",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "points": {
+                "type": "Sequence[tuple[float, float] | complex]",
+                "description": ""
+              },
+              "layer": {
+                "type": "int",
+                "description": ""
+              },
+              "datatype": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, points: Sequence[tuple[float, float] | complex], layer: int = 0, datatype: int = 0",
+            "ori_description": ""
+          },
+          {
+            "name": "area",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "bounding_box",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "contain",
+            "description": "",
+            "input": {
+              "self": null,
+              "points": {
+                "type": "tuple[float, float] | complex",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *points: tuple[float, float] | complex",
+            "ori_description": ""
+          },
+          {
+            "name": "fillet",
+            "description": "",
+            "input": {
+              "self": null,
+              "radius": {
+                "type": "float | Sequence[float]",
+                "description": ""
+              },
+              "tolerance": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, radius: float | Sequence[float], tolerance: float = 0.01",
+            "ori_description": ""
+          },
+          {
+            "name": "fracture",
+            "description": "",
+            "input": {
+              "self": null,
+              "max_points": {
+                "type": "int",
+                "description": ""
+              },
+              "precision": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, max_points: int = 199, precision: float = 0.001",
+            "ori_description": ""
+          },
+          {
+            "name": "rotate",
+            "description": "",
+            "input": {
+              "self": null,
+              "angle": {
+                "type": "float",
+                "description": ""
+              },
+              "center": {
+                "type": "tuple[float, float] | complex",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, angle: float, center: tuple[float, float] | complex = (0, 0)",
+            "ori_description": ""
+          },
+          {
+            "name": "scale",
+            "description": "",
+            "input": {
+              "self": null,
+              "sx": {
+                "type": "float",
+                "description": ""
+              },
+              "sy": {
+                "type": "float",
+                "description": ""
+              },
+              "center": {
+                "type": "tuple[float, float] | complex",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sx: float, sy: float = 0, center: tuple[float, float] | complex = (0, 0)",
+            "ori_description": ""
+          },
+          {
+            "name": "transform",
+            "description": "",
+            "input": {
+              "self": null,
+              "magnification": {
+                "type": "float",
+                "description": ""
+              },
+              "x_reflection": {
+                "type": "bool",
+                "description": ""
+              },
+              "rotation": {
+                "type": "float",
+                "description": ""
+              },
+              "translation": {
+                "type": "Optional[tuple[float, float] | complex]",
+                "description": ""
+              },
+              "matrix": {
+                "type": "Optional[ArrayLike]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, magnification: float = 1, x_reflection: bool = False, rotation: float = 0, translation: Optional[tuple[float, float] | complex] = None, matrix: Optional[ArrayLike] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "translate",
+            "description": "",
+            "input": {
+              "self": null,
+              "dx": {
+                "type": "float | tuple[float, float] | complex",
+                "description": ""
+              },
+              "dy": {
+                "type": "Optional[float]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dx: float | tuple[float, float] | complex, dy: Optional[float] = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Reference",
+        "type": "class",
+        "module": "gdstk",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "cell": {
+                "type": "Cell",
+                "description": ""
+              },
+              "origin": {
+                "type": "tuple[float, float] | complex",
+                "description": ""
+              },
+              "rotation": {
+                "type": "float",
+                "description": ""
+              },
+              "magnification": {
+                "type": "float",
+                "description": ""
+              },
+              "x_reflection": {
+                "type": "bool",
+                "description": ""
+              },
+              "columns": {
+                "type": "int",
+                "description": ""
+              },
+              "rows": {
+                "type": "int",
+                "description": ""
+              },
+              "spacing": {
+                "type": "Optional[Sequence[float]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell: Cell, origin: tuple[float, float] | complex = (0, 0), rotation: float = 0, magnification: float = 1, x_reflection: bool = False, columns: int = 1, rows: int = 1, spacing: Optional[Sequence[float]] = ...",
+            "ori_description": ""
+          },
+          {
+            "name": "bounding_box",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "get_labels",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              },
+              "depth": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "layer": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "texttype": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True, depth: Optional[int] = None, layer: Optional[int] = None, texttype: Optional[int] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "get_paths",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              },
+              "depth": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "layer": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "datatype": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True, depth: Optional[int] = None, layer: Optional[int] = None, datatype: Optional[int] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "get_polygons",
+            "description": "",
+            "input": {
+              "self": null,
+              "apply_repetitions": {
+                "type": "bool",
+                "description": ""
+              },
+              "include_paths": {
+                "type": "bool",
+                "description": ""
+              },
+              "depth": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "layer": {
+                "type": "Optional[int]",
+                "description": ""
+              },
+              "datatype": {
+                "type": "Optional[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, apply_repetitions: bool = True, include_paths: bool = True, depth: Optional[int] = None, layer: Optional[int] = None, datatype: Optional[int] = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "RobustPath",
+        "type": "class",
+        "module": "gdstk",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "initial_point": {
+                "type": "tuple[float, float] | complex",
+                "description": ""
+              },
+              "width": {
+                "type": "float | Sequence[float]",
+                "description": ""
+              },
+              "offset": {
+                "type": "float | Sequence[float]",
+                "description": ""
+              },
+              "ends": {
+                "type": "Sequence[Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[complex | tuple[float, float]]]] | Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[complex | tuple[float, float]]]",
+                "description": ""
+              },
+              "tolerance": {
+                "type": "float",
+                "description": ""
+              },
+              "max_evals": {
+                "type": "int",
+                "description": ""
+              },
+              "simple_path": {
+                "type": "bool",
+                "description": ""
+              },
+              "scale_width": {
+                "type": "bool",
+                "description": ""
+              },
+              "layer": {
+                "type": "int | list[int]",
+                "description": ""
+              },
+              "datatype": {
+                "type": "int | list[int]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, initial_point: tuple[float, float] | complex, width: float | Sequence[float], offset: float | Sequence[float] = 0, ends: Sequence[Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[complex | tuple[float, float]]]] | Literal['flush', 'extended', 'round', 'smooth'] | tuple[float, float] | Callable[[float, float, float, float], Sequence[complex | tuple[float, float]]] = 'flush', tolerance: float = 0.01, max_evals: int = 1000, simple_path: bool = False, scale_width: bool = True, layer: int | list[int] = 0, datatype: int | list[int] = 0",
+            "ori_description": ""
+          },
+          {
+            "name": "arc",
+            "description": "",
+            "input": {
+              "self": null,
+              "radius": {
+                "type": "float | tuple[float, float]",
+                "description": ""
+              },
+              "initial_angle": {
+                "type": "float",
+                "description": ""
+              },
+              "final_angle": {
+                "type": "float",
+                "description": ""
+              },
+              "rotation": {
+                "type": "float",
+                "description": ""
+              },
+              "width": {
+                "type": "Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]]",
+                "description": ""
+              },
+              "offset": {
+                "type": "Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, radius: float | tuple[float, float], initial_angle: float, final_angle: float, rotation: float = 0, width: Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]] = None, offset: Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "segment",
+            "description": "",
+            "input": {
+              "self": null,
+              "xy": {
+                "type": "tuple[float, float] | complex",
+                "description": ""
+              },
+              "width": {
+                "type": "Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]]",
+                "description": ""
+              },
+              "offset": {
+                "type": "Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]]",
+                "description": ""
+              },
+              "relative": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, xy: tuple[float, float] | complex, width: Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]] = None, offset: Optional[float] | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float] | Sequence[float | tuple[float, Literal['constant', 'linear', 'smooth']] | Callable[[float], float]] = None, relative: bool = False",
+            "ori_description": ""
+          },
+          {
+            "name": "to_polygons",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "translate",
+            "description": "",
+            "input": {
+              "self": null,
+              "dx": {
+                "type": "float | tuple[float, float] | complex",
+                "description": ""
+              },
+              "dy": {
+                "type": "Optional[float]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dx: float | tuple[float, float] | complex, dy: Optional[float] = None",
+            "ori_description": ""
+          },
+          {
+            "name": "turn",
+            "description": "",
+            "input": {
+              "self": null,
+              "radius": {
+                "type": "float",
+                "description": ""
+              },
+              "angle": {
+                "type": "float",
+                "description": ""
+              },
+              "width": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              },
+              "offset": {
+                "type": "Optional[float] | Sequence[float]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, radius: float, angle: float, width: Optional[float] | Sequence[float] = None, offset: Optional[float] | Sequence[float] = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "boolean",
+        "type": "function",
+        "module": "gdstk",
+        "description": "",
+        "input": {
+          "operand1": {
+            "type": "Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference]",
+            "description": ""
+          },
+          "operand2": {
+            "type": "Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference]",
+            "description": ""
+          },
+          "operation": {
+            "type": "Literal['or', 'and', 'xor', 'not']",
+            "description": ""
+          },
+          "precision": {
+            "type": "float",
+            "description": ""
+          },
+          "layer": {
+            "type": "int",
+            "description": ""
+          },
+          "datatype": {
+            "type": "int",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "operand1: Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference], operand2: Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference], operation: Literal['or', 'and', 'xor', 'not'], precision: float = 0.001, layer: int = 0, datatype: int = 0",
+        "ori_description": ""
+      },
+      {
+        "name": "inside",
+        "type": "function",
+        "module": "gdstk",
+        "description": "",
+        "input": {
+          "points": {
+            "type": "Sequence[tuple[float, float] | complex]",
+            "description": ""
+          },
+          "polygons": {
+            "type": "Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference]",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "points: Sequence[tuple[float, float] | complex], polygons: Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference]",
+        "ori_description": ""
+      },
+      {
+        "name": "offset",
+        "type": "function",
+        "module": "gdstk",
+        "description": "",
+        "input": {
+          "polygons": {
+            "type": "Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference]",
+            "description": ""
+          },
+          "distance": {
+            "type": "float",
+            "description": ""
+          },
+          "join": {
+            "type": "Literal['miter', 'bevel', 'round']",
+            "description": ""
+          },
+          "tolerance": {
+            "type": "int",
+            "description": ""
+          },
+          "precision": {
+            "type": "float",
+            "description": ""
+          },
+          "use_union": {
+            "type": "bool",
+            "description": ""
+          },
+          "layer": {
+            "type": "int",
+            "description": ""
+          },
+          "datatype": {
+            "type": "int",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "polygons: Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference], distance: float, join: Literal['miter', 'bevel', 'round'] = 'miter', tolerance: int = 2, precision: float = 0.001, use_union: bool = False, layer: int = 0, datatype: int = 0",
+        "ori_description": ""
+      },
+      {
+        "name": "read_gds",
+        "type": "function",
+        "module": "gdstk",
+        "description": "",
+        "input": {
+          "infile": {
+            "type": "str | pathlib.Path",
+            "description": ""
+          },
+          "unit": {
+            "type": "float",
+            "description": ""
+          },
+          "tolerance": {
+            "type": "float",
+            "description": ""
+          },
+          "filter": {
+            "type": "Optional[Iterable[tuple[int, int]]]",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "infile: str | pathlib.Path, unit: float = 0, tolerance: float = 0, filter: Optional[Iterable[tuple[int, int]]] = None",
+        "ori_description": ""
+      },
+      {
+        "name": "read_oas",
+        "type": "function",
+        "module": "gdstk",
+        "description": "",
+        "input": {
+          "infile": {
+            "type": "str | pathlib.Path",
+            "description": ""
+          },
+          "unit": {
+            "type": "float",
+            "description": ""
+          },
+          "tolerance": {
+            "type": "float",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "infile: str | pathlib.Path, unit: float = 0, tolerance: float = 0",
+        "ori_description": ""
+      },
+      {
+        "name": "slice",
+        "type": "function",
+        "module": "gdstk",
+        "description": "",
+        "input": {
+          "polygons": {
+            "type": "Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference]",
+            "description": ""
+          },
+          "position": {
+            "type": "float | Sequence[float]",
+            "description": ""
+          },
+          "axis": {
+            "type": "Literal['x', 'y']",
+            "description": ""
+          },
+          "precision": {
+            "type": "float",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "polygons: Polygon | FlexPath | RobustPath | Reference | Sequence[Polygon | FlexPath | RobustPath | Reference], position: float | Sequence[float], axis: Literal['x', 'y'], precision: float = 0.001",
+        "ori_description": ""
+      }
+    ],
+    "others": {
+      "python_source_extraction": {
+        "strategy": "official_type_stubs",
+        "source_version": "KLayout 0.30.12 + gdstk 1.0.1",
+        "requested_modules": [
+          "klayout.db",
+          "gdstk"
+        ],
+        "source_files": [
+          "klayout/dbcore.pyi",
+          "gdstk/_gdstk.pyi"
+        ],
+        "selection": "public classes, functions, and methods used for layout I/O, hierarchy inspection, geometry checks, repair, round-trip comparison, and delivery",
+        "excluded": "GUI-only APIs, unrelated extraction/schematic APIs, private bindings, and alternative gdspy/PICwriter frameworks"
+      },
+      "application_evidence": {
+        "l2": "03.02 GDS / Geometry / DRC",
+        "package_relationships": [
+          {
+            "package": "KLayout",
+            "role": "anchor_and_verifier",
+            "relationship": "版图读取、层级与图层检查、真实 DRC deck 执行、marker 输出和回归验证"
+          },
+          {
+            "package": "gdstk",
+            "role": "geometry_backend",
+            "relationship": "针对 marker 定位的图形执行布尔、offset、slice、变换并写回 GDS/OASIS"
+          },
+          {
+            "package": "gdspy",
+            "role": "alternative",
+            "relationship": "与 gdstk 能力重叠，不作为默认协作依赖"
+          },
+          {
+            "package": "PICwriter",
+            "role": "specialized_alternative",
+            "relationship": "偏光子版图生成，不纳入通用芯片 DRC 环境"
+          }
+        ],
+        "real_applications": [
+          {
+            "title": "IHP Open Source PDK",
+            "url": "https://github.com/IHP-GmbH/IHP-Open-PDK",
+            "relevance": "真实 130 nm BiCMOS PDK，包含 KLayout 技术文件、完整 DRC deck、QA GDS、标准单元和测量版图。"
+          },
+          {
+            "title": "KLayout DRC manual",
+            "url": "https://www.klayout.de/doc-qt5/manual/drc_basic.html",
+            "relevance": "明确 Region 运算、宽度/间距等规则和 marker 输出工作方式。"
+          }
+        ],
+        "data_directions": [
+          "优先取得同一 PDK 版本中的 layer map、完整 KLayout DRC deck、规则配置和 QA GDS，使规则、工艺层及预期违规可以直接关联。",
+          "取得真实标准单元、器件、测量结构或小型设计 GDS/OASIS，以及已知 DRC marker/report，用于层级审计、规则运行、违规定位与比较。",
+          "保留可修改的原始版图、修复候选及前后版本关系，使 gdstk 几何修改、KLayout 重验和 LayoutDiff 可形成闭环。"
+        ]
+      }
+    },
+    "init_ref_tasks": [
+      {
+        "description": "载入真实开放 PDK 的 GDS/OASIS 版图和 layer map，遍历顶层单元、层级实例、图层与多边形，识别缺失引用、意外空层、非法坐标和与工艺层定义不一致的图形。",
+        "input": {
+          "layouts": "IHP SG13G2 等真实 PDK 或设计项目的 GDS/OASIS",
+          "technology": "layer map、单位、顶层单元和预期图层"
+        },
+        "output": {
+          "hierarchy_inventory": "单元、实例、图层和边界统计",
+          "integrity_issues": "带 cell/layer/bbox 定位的结构问题"
+        },
+        "solution_path": [
+          "用 Layout.read 载入版图并检查单位。",
+          "遍历 top_cells、Cell 实例和 RecursiveShapeIterator。",
+          "按 LayerInfo 对齐工艺层。",
+          "把每项异常定位到层级路径和边界框。"
+        ]
+      },
+      {
+        "description": "对真实 PDK QA 单元、标准单元或测量版图执行宽度、间距、包围、重叠、凹口和密度规则检查，按 FEOL、BEOL、器件和特殊规则组运行，并保存可定位的违规 marker。",
+        "input": {
+          "layout": "与 PDK 匹配的 GDS",
+          "drc_decks": "官方 KLayout DRC 脚本及规则配置",
+          "rule_groups": "需要运行的规则组和参数"
+        },
+        "output": {
+          "drc_run": "规则版本、参数、状态和汇总",
+          "violations": "rule_id、cell、layer、geometry、severity 和 marker"
+        },
+        "solution_path": [
+          "确认版图与规则 deck 使用同一工艺和单位。",
+          "运行官方 KLayout DRC deck。",
+          "用 Region 检查关键几何规则。",
+          "按规则和层级汇总 marker 而不丢失原始定位。"
+        ]
+      },
+      {
+        "description": "分析一批 DRC marker，区分单个局部形状问题、层级复用造成的重复违规和全局密度问题，选择不会破坏相邻层或设计意图的修复候选，并记录修复依据。",
+        "input": {
+          "violations": "带规则、层级路径和几何区域的 marker",
+          "layout_context": "违规周边图形、单元复用和层定义",
+          "rule_constraints": "最小宽度、间距、包围及禁止区域"
+        },
+        "output": {
+          "repair_candidates": "移动、扩张、裁剪、布尔或保持不变的候选",
+          "impact_analysis": "对相邻规则、实例和边界的影响"
+        },
+        "solution_path": [
+          "把 marker 映射回原 cell 和 shape。",
+          "用 Region 的相交、包含和尺寸操作取得局部上下文。",
+          "识别应在源 cell 修复还是仅改单个实例。",
+          "排除会产生新违规的候选。"
+        ]
+      },
+      {
+        "description": "使用 gdstk 对选定多边形执行布尔、offset、slice、移动或层变换，写出候选 GDS，再由 KLayout 重新读取并运行同一组 DRC，只有违规减少且层级和非目标几何保持一致时才接受。",
+        "input": {
+          "layout": "待修复版图",
+          "repair_candidates": "明确 shape、操作和目标几何",
+          "baseline_violations": "修复前 marker 集合"
+        },
+        "output": {
+          "repaired_layout": "可再次交付的 GDS/OASIS",
+          "verification": "违规差异、版图差异和新增问题",
+          "change_log": "每次几何修改与原因"
+        },
+        "solution_path": [
+          "用 gdstk.read_gds 和层级引用定位图形。",
+          "调用 boolean、offset 或 slice 形成候选。",
+          "写出后用 KLayout 重新读取和 DRC。",
+          "用 LayoutDiff 及 marker 差异验证非目标区域不变。"
+        ]
+      },
+      {
+        "description": "比较同一设计的两个版图修订，区分预期 ECO、单元重命名、展平差异和真实几何变化，并把差异关联到变更说明与 DRC 结果，判断新版是否可以进入下一签核阶段。",
+        "input": {
+          "baseline_layout": "签核基线版图",
+          "candidate_layout": "ECO 或修复后的版图",
+          "expected_changes": "允许变化的 cell、layer 和区域",
+          "drc_results": "两个版本的规则结果"
+        },
+        "output": {
+          "layout_diff": "按 cell/layer 分类的增删改",
+          "unexpected_changes": "超出批准范围的差异",
+          "signoff_decision": "通过、返修或需人工复核"
+        },
+        "solution_path": [
+          "规范化单位、顶层和 cell 映射。",
+          "用 LayoutDiff.compare 获取结构化差异。",
+          "将差异与 expected_changes 匹配。",
+          "联合 DRC 回归结果作出签核决定。"
+        ]
+      },
+      {
+        "description": "准备一组可交付版图：裁剪指定顶层、清理未引用单元、控制输出图层与格式，在 GDS 和 OASIS 间转换，并在写出后重新读取，核验层级、边界、图形数量、精度和规则结果未发生意外变化。",
+        "input": {
+          "project_layouts": "多个真实设计或 QA 顶层",
+          "delivery_manifest": "顶层、允许图层、单位、格式与命名要求"
+        },
+        "output": {
+          "deliverables": "按清单输出的 GDS/OASIS",
+          "roundtrip_audit": "写出前后层级和几何比较",
+          "excluded_content": "清理内容及原因"
+        },
+        "solution_path": [
+          "用 Layout.clip/cleanup 生成交付视图。",
+          "用 SaveLayoutOptions 选择 cell、layer 和格式。",
+          "重新读取每个产物。",
+          "比较层级、bbox、面积、图形数和 DRC 汇总。"
+        ]
+      }
+    ]
+  }
+]

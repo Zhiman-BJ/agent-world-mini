@@ -14,9 +14,9 @@ Step 1 场景研究
   ↓ scenario_research.json
 Step 2 Agent 自主下载与文件卡
   ↓ source_research.json + source_inventory.json + workspace/raw/
-Step 3 Agent 直接建模、清洗并统一构建
-  ↓ environment.json + build.py + records.sqlite + Filesystem Scopes
-Step 4 独立重放、冻结并原子发布
+Step 3 Agent 直接建模、清洗并生成最终环境
+  ↓ environment.json + records.sqlite + Filesystem Scopes
+Step 4 再次验收、冻结并原子发布
 ```
 
 Step 1 把 Seed 具象化，但不下载数据；Step 2 由 Agent 自主循环下载真实文件并记录简单文件卡；
@@ -43,7 +43,7 @@ env_gen/data_gen/
 │   ├── step2_collect_data.py
 │   ├── step3_integrate_data.py       # Agent 集成工作流与 Prompt
 │   ├── step4_freeze_environment.py
-│   ├── integration/                    # Step 3 机械构建与验收命令
+│   ├── integration/                    # Step 3 机械验收命令
 │   └── common/
 │       ├── constants.py
 │       ├── control_io.py
@@ -82,19 +82,17 @@ Python 只核对最终路径，补充哈希、大小、格式和粗略数量，�
 
 ## Step 3 直接集成
 
-Step 3 读取 Step 2 的实际样本，由 Agent 直接维护 `environment.json` 和唯一的
-`provenance/build.py`。控制器只提供三个命令：
+Step 3 读取 Step 2 的实际样本，由 Agent 直接维护 `environment.json` 和最终 `state/`。控制器只提供
+一个检查命令：
 
 ```text
-build      无网络运行统一 build.py，一次生成全部 state
-assess     校验 Schema、SQLite、键、关系、Scope，并独立重放
-finalize   验收通过后记录 Step 3 收口
+assess     校验 Schema、SQLite、键、关系和 Scope
 ```
 
 Step 2 用文件卡把 Step 1 的实体、工具和任务连接到真实来源。Step 3 不重新下载，也不生成单独的
-integration plan；最终结构由 `environment.json` 表达，所有转换由一个可重放脚本表达。Agent 的
+integration plan；Agent 可以自主选择转换方式，最终结构由 `environment.json` 和 `state/` 表达。Agent 的
 完整集成工作流和 Prompt 都定义在 `step3_integrate_data.py`，`integration/` 目录只保留无业务语义的
-`build / assess / finalize` 命令实现。
+`assess` 命令实现。
 
 ## 运行态与发布数据
 
@@ -106,7 +104,6 @@ integration plan；最终结构由 `environment.json` 表达，所有转换由�
 │   └── filesystem_scopes/<scope_id>/
 └── provenance/
     ├── raw/
-    ├── build.py
     ├── integration_receipt.json
     └── source_manifest.json
 ```
@@ -120,8 +117,8 @@ integration plan；最终结构由 `environment.json` 表达，所有转换由�
 
 Step 2 负责真实业务数据的丰富度和主体覆盖，只有达到 Seed 90% 与 Step 1 75% 最低线的 `ready`
 结果才能自动进入 Step 3。Step 3 不再重复制作全局画像，而是检查最终 state 的 SQLite 完整性、
-表列与字段类型、唯一键、关系、文件引用、Scope 文件树以及统一构建重放。Step 4 再独立重放一次，
-并将覆盖统计、Raw 哈希、build.py 哈希和最终状态摘要写入紧凑的 `integration_receipt.json`。
+表列与字段类型、唯一键、关系、文件引用和 Scope 文件树。Step 4 再独立验收一次，并将覆盖统计、Raw 哈希
+和最终状态摘要写入紧凑的 `integration_receipt.json`。
 
 ## 运行
 

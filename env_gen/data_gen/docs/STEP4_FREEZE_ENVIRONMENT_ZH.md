@@ -2,19 +2,18 @@
 
 阶段入口：`env_gen/data_gen/steps/step4_freeze_environment.py`
 
-Step 4 是流程的最终发布门。它不调用 Agent、不联网、不补采，也不修改业务模型；它只独立重放
-Step 3 的统一构建、冻结来源证据并原子发布。
+Step 4 是流程的最终发布门。它不调用 Agent、不联网、不补采，也不修改业务模型；它只独立验收
+Step 3 的最终状态、冻结来源证据并原子发布。
 
 ## 1. 流程
 
 ```text
-读取 Step 3 finalization
+读取 Step 3 最终环境
         |
         v
-独立执行 provenance/build.py
+重新执行机械验收
         |
-        +--> 与候选 state 的逻辑摘要一致
-        +--> environment.json 与重放 state 同时通过 v2 Validator
+        +--> environment.json 与当前 state 通过 v2 Validator
         |
         v
 冻结来源与构建证据
@@ -35,14 +34,13 @@ Step 3 的统一构建、冻结来源证据并原子发布。
 
 `provenance/integration_receipt.json` 由 Python 自动生成，包含：
 
-- `environment.json` 和 `provenance/build.py` 的 SHA-256；
+- `environment.json` 的 SHA-256；
 - 每个 Raw 的路径、来源、大小和 SHA-256；
 - 每张最终表的记录数和逻辑摘要；
 - 每个 Scope 的文件数和文件树摘要；
-- 独立重放得到的 state 摘要；
 - Step 2 已确认的 Seed 与 Step 1 覆盖统计。
 
-它用于回答“哪些真实输入通过哪个构建脚本形成了哪个最终状态”，不重复保存字段频次、样本值、
+它用于记录“哪些真实输入对应哪个最终状态”，不重复保存字段频次、样本值、
 逐表转换计划或长篇质量结论。
 
 ## 3. 发布包
@@ -61,7 +59,6 @@ Step 3 的统一构建、冻结来源证据并原子发布。
     ├── source_inventory.json
     ├── source_manifest.json
     ├── integration_receipt.json
-    ├── build.py
     ├── generation_audit.json
     ├── freeze_manifest.json
     └── raw/
@@ -74,7 +71,6 @@ Step 3 的统一构建、冻结来源证据并原子发布。
 | 问题 | 返回阶段 |
 |---|---|
 | Raw、下载证据或 Step 2 覆盖失效 | Step 2 |
-| build.py 失败或重放结果不同 | Step 3 |
 | SQLite、关系、文件引用或 Scope 不合法 | Step 3 |
 | environment.json 与最终 state 不一致 | Step 3 |
 | 冻结或原子发布失败 | Step 4 |

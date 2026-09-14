@@ -1,0 +1,566 @@
+{
+  "schema_version": "1.0",
+  "researched_at": "2026-09-14",
+  "sources": [
+    {
+      "id": "WF-MAT-MP-API",
+      "kind": "official_documentation",
+      "title": "Materials Project API: Getting Started",
+      "url": "https://docs.materialsproject.org/downloading-data/using-the-api/getting-started",
+      "evidence": "说明如何按材料标识和性质查询 Materials Project 的结构化材料数据。"
+    },
+    {
+      "id": "WF-MAT-NOMAD-API",
+      "kind": "official_documentation",
+      "title": "NOMAD API",
+      "url": "https://docs.nomad-lab.eu/tutorial/access_api.html",
+      "evidence": "提供计算材料归档的条目、材料和原始文件程序化访问方式。"
+    },
+    {
+      "id": "WF-MAT-MATBENCH",
+      "kind": "public_benchmark",
+      "title": "Matbench",
+      "url": "https://matbench.materialsproject.org/",
+      "evidence": "提供材料性质预测的固定数据集、任务定义、交叉验证和可比较基准。"
+    },
+    {
+      "id": "WF-MAT-PYMATGEN",
+      "kind": "official_documentation",
+      "title": "pymatgen",
+      "url": "https://pymatgen.org/",
+      "evidence": "记录晶体结构、组成、相图和主流第一性原理输入输出的 Python 对象与分析能力。"
+    },
+    {
+      "id": "WF-MAT-SPGLIB",
+      "kind": "official_documentation",
+      "title": "Spglib",
+      "url": "https://spglib.readthedocs.io/en/stable/",
+      "evidence": "说明晶体对称性搜索、标准化晶胞和等价原子的确定性计算能力。"
+    },
+    {
+      "id": "WF-MAT-SEEKPATH",
+      "kind": "official_documentation",
+      "title": "SeeK-path",
+      "url": "https://seekpath.readthedocs.io/en/latest/",
+      "evidence": "提供晶体结构标准化和能带计算高对称 k 路径生成工作流。"
+    },
+    {
+      "id": "WF-MAT-ATOMATE2",
+      "kind": "official_workflow",
+      "title": "atomate2 Running Workflows",
+      "url": "https://materialsproject.github.io/atomate2/user/running-workflows.html",
+      "evidence": "说明 Maker、Job、Flow、job store 和执行管理器组成的计算材料工作流。"
+    },
+    {
+      "id": "WF-MAT-JOBFLOW",
+      "kind": "official_documentation",
+      "title": "jobflow",
+      "url": "https://materialsproject.github.io/jobflow/",
+      "evidence": "提供具有输出引用、依赖和持久化结果的 Python Job/Flow 模型。"
+    },
+    {
+      "id": "WF-MAT-CUSTODIAN",
+      "kind": "official_documentation",
+      "title": "custodian",
+      "url": "https://materialsproject.github.io/custodian/",
+      "evidence": "提供计算任务运行、错误检测、修正和重启记录机制。"
+    },
+    {
+      "id": "WF-MAT-PV-PROJECT",
+      "kind": "real_project",
+      "title": "PV_paper photovoltaic calculations",
+      "url": "https://github.com/mattheww98/PV_paper",
+      "evidence": "真实光伏研究项目保存材料结构、atomate2 工作流脚本和多阶段 VASP 计算结果。"
+    },
+    {
+      "id": "WF-MAT-RUN-DEFECTS",
+      "kind": "real_project",
+      "title": "Database-scale charged defects workflow",
+      "url": "https://github.com/jmmshn/run_defects",
+      "evidence": "公开数据库级带电缺陷计算的 atomate2、jobflow 与缺陷分析代码。"
+    },
+    {
+      "id": "WF-MAT-DOPED",
+      "kind": "official_workflow",
+      "title": "doped",
+      "url": "https://doped.readthedocs.io/en/latest/",
+      "evidence": "覆盖缺陷生成、VASP 输入、计算解析、有限尺寸修正、化学势和缺陷热力学。"
+    },
+    {
+      "id": "WF-MAT-SHAKENBREAK",
+      "kind": "official_workflow",
+      "title": "ShakeNBreak",
+      "url": "https://shakenbreak.readthedocs.io/en/latest/",
+      "evidence": "说明对缺陷局部结构施加成键畸变和随机扰动、比较能量并重测低能构型的流程。"
+    },
+    {
+      "id": "WF-MAT-PYSCFERMI",
+      "kind": "real_project",
+      "title": "py-sc-fermi",
+      "url": "https://github.com/bjmorgan/py-sc-fermi",
+      "evidence": "实现缺陷和载流子浓度耦合下的自洽费米能级求解。"
+    },
+    {
+      "id": "WF-MAT-PHONOPY",
+      "kind": "official_workflow",
+      "title": "Phonopy workflow",
+      "url": "https://phonopy.github.io/phonopy/workflow.html",
+      "evidence": "描述生成位移超胞、收集力、构建力常数并计算声子性质的完整步骤。"
+    },
+    {
+      "id": "WF-MAT-PHONO3PY",
+      "kind": "official_workflow",
+      "title": "Phono3py workflow",
+      "url": "https://phonopy.github.io/phono3py/workflow.html",
+      "evidence": "描述三阶力常数、声子相互作用和晶格热导率计算的数据流。"
+    },
+    {
+      "id": "WF-MAT-DIFFUSION",
+      "kind": "real_project",
+      "title": "pymatgen-analysis-diffusion",
+      "url": "https://github.com/materialsvirtuallab/pymatgen-analysis-diffusion",
+      "evidence": "提供分子动力学轨迹的扩散、迁移路径和活化行为分析。"
+    },
+    {
+      "id": "WF-MAT-SUMO",
+      "kind": "official_workflow",
+      "title": "sumo band structure plotting and analysis",
+      "url": "https://smtg-bham.github.io/sumo/sumo-bandplot.html",
+      "evidence": "说明从 VASP 结果提取、对齐和展示能带及轨道投影的工作方式。"
+    },
+    {
+      "id": "WF-MAT-EFFMASS",
+      "kind": "real_project",
+      "title": "effmass",
+      "url": "https://github.com/lucydot/effmass",
+      "evidence": "提供从电子能带数据计算多种有效质量并检查拟合区间的实现。"
+    },
+    {
+      "id": "WF-MAT-AMSET",
+      "kind": "official_workflow",
+      "title": "AMSET getting started",
+      "url": "https://hackingmaterials.lbl.gov/amset/using/",
+      "evidence": "说明以能带、结构和材料参数为输入计算散射率、迁移率和电导输运。"
+    },
+    {
+      "id": "WF-MAT-PYTASER",
+      "kind": "official_documentation",
+      "title": "PyTASER",
+      "url": "https://pytaser.readthedocs.io/en/latest/",
+      "evidence": "说明根据第一性原理能带、DOS 和光学矩阵元模拟半导体瞬态吸收。"
+    },
+    {
+      "id": "WF-MAT-WANNIERBERRI",
+      "kind": "official_documentation",
+      "title": "WannierBerri",
+      "url": "https://docs.wannier-berri.org/en/latest/",
+      "evidence": "提供基于 Wannier 插值的 Berry 曲率及反常输运计算工作流。"
+    },
+    {
+      "id": "WF-DEV-DEVSIM",
+      "kind": "official_documentation",
+      "title": "DEVSIM TCAD Semiconductor Device Simulator",
+      "url": "https://devsim.org/",
+      "evidence": "提供由 Python 控制的半导体器件网格、方程、接触、求解和结果访问接口。"
+    },
+    {
+      "id": "WF-DEV-DEVSIM-EXAMPLES",
+      "kind": "official_examples",
+      "title": "DEVSIM examples",
+      "url": "https://github.com/devsim/devsim/tree/main/examples",
+      "evidence": "包含二极管一维/二维/三维、瞬态、小信号 AC、MOS 迁移率和 Gmsh 网格案例。"
+    },
+    {
+      "id": "WF-DEV-SESAME",
+      "kind": "official_workflow",
+      "title": "Sesame documentation",
+      "url": "https://sesame.readthedocs.io/en/latest/",
+      "evidence": "提供二维半导体器件和太阳能电池的漂移扩散建模、缺陷与电流分析。"
+    },
+    {
+      "id": "WF-DEV-SOLCORE",
+      "kind": "official_workflow",
+      "title": "Solcore documentation",
+      "url": "https://docs.solcore.solar/en/master/",
+      "evidence": "覆盖太阳能电池材料、光学、结、量子阱、IV 和量子效率建模。"
+    },
+    {
+      "id": "WF-DEV-NEXTNANOPY",
+      "kind": "real_project",
+      "title": "nextnanopy",
+      "url": "https://github.com/nextnanopy/nextnanopy",
+      "evidence": "提供 nextnano 输入文件修改、参数扫描、求解器执行和输出数据解析的 Python 工作流。"
+    },
+    {
+      "id": "WF-DEV-GMSH",
+      "kind": "official_documentation",
+      "title": "Gmsh",
+      "url": "https://pypi.org/project/gmsh/",
+      "evidence": "提供几何、物理分组、局部网格尺寸和 Python API 驱动的有限元网格生成。"
+    },
+    {
+      "id": "WF-DEV-MESHIO",
+      "kind": "real_project",
+      "title": "meshio",
+      "url": "https://github.com/nschloe/meshio",
+      "evidence": "在多种网格格式之间转换点、单元和场数据，支持求解器间的数据交接。"
+    },
+    {
+      "id": "WF-DEV-SKFINITE",
+      "kind": "official_documentation",
+      "title": "scikit-fem",
+      "url": "https://scikit-fem.readthedocs.io/en/latest/",
+      "evidence": "提供 Python 有限元离散、边界条件、组装、求解与误差评估案例。"
+    },
+    {
+      "id": "WF-DEV-LMFIT",
+      "kind": "official_documentation",
+      "title": "lmfit",
+      "url": "https://lmfit.github.io/lmfit-py/",
+      "evidence": "提供带边界和约束的非线性最小二乘拟合、参数不确定度与残差诊断。"
+    },
+    {
+      "id": "WF-DEV-MOBILITYPY",
+      "kind": "real_project",
+      "title": "mobilitypy",
+      "url": "https://github.com/SemiconductorTransport/mobilitypy",
+      "evidence": "实现 III-V 族异质结构中二维/三维载流子迁移率和散射机制计算。"
+    },
+    {
+      "id": "WF-CIR-PYSPICE",
+      "kind": "official_documentation",
+      "title": "PySpice",
+      "url": "https://pyspice.fabrice-salvaire.fr/releases/v1.6/",
+      "evidence": "从 Python 构建 SPICE 电路并运行工作点、DC、AC、瞬态和灵敏度分析。"
+    },
+    {
+      "id": "WF-CIR-SPICELIB",
+      "kind": "official_documentation",
+      "title": "spicelib",
+      "url": "https://spicelib.readthedocs.io/en/latest/",
+      "evidence": "支持编辑 SPICE 网表、批量仿真、参数步进和读取仿真输出。"
+    },
+    {
+      "id": "WF-CIR-NGSPICE",
+      "kind": "official_documentation",
+      "title": "ngspice documentation",
+      "url": "https://ngspice.sourceforge.io/docs.html",
+      "evidence": "提供开放 SPICE 求解器的电路分析类型、模型和批处理接口依据。"
+    },
+    {
+      "id": "WF-CIR-SKRF",
+      "kind": "official_workflow",
+      "title": "scikit-rf documentation",
+      "url": "https://scikit-rf.readthedocs.io/en/latest/",
+      "evidence": "覆盖 Touchstone 网络、端口、级联、校准、去嵌和射频指标分析。"
+    },
+    {
+      "id": "WF-CIR-LCAPY",
+      "kind": "official_documentation",
+      "title": "Lcapy",
+      "url": "https://lcapy.readthedocs.io/en/latest/",
+      "evidence": "提供线性电路的符号网络、传递函数、阻抗和时域/频域分析。"
+    },
+    {
+      "id": "WF-CIR-SAX",
+      "kind": "real_project",
+      "title": "SAX",
+      "url": "https://github.com/flaport/sax",
+      "evidence": "使用 Python/JAX 的散射矩阵模型组合和优化光子电路。"
+    },
+    {
+      "id": "WF-CIR-PYMTL3",
+      "kind": "official_workflow",
+      "title": "PyMTL3 documentation",
+      "url": "https://pymtl3.readthedocs.io/en/latest/",
+      "evidence": "支持 Python 硬件建模、组件组合、仿真、验证和 RTL 翻译。"
+    },
+    {
+      "id": "WF-CIR-AMARANTH",
+      "kind": "official_documentation",
+      "title": "Amaranth HDL",
+      "url": "https://amaranth-lang.org/docs/amaranth/v0.5.8/",
+      "evidence": "提供 Python RTL、时钟域、存储器、仿真和 Verilog 转换能力。"
+    },
+    {
+      "id": "WF-CIR-FUSESOC",
+      "kind": "official_workflow",
+      "title": "FuseSoC documentation",
+      "url": "https://fusesoc.readthedocs.io/en/stable/",
+      "evidence": "说明硬件 IP core 描述、依赖解析、参数和构建 target 管理。"
+    },
+    {
+      "id": "WF-CIR-EDALIZE",
+      "kind": "official_workflow",
+      "title": "Edalize documentation",
+      "url": "https://edalize.readthedocs.io/en/latest/",
+      "evidence": "将统一的文件、参数和工具选项映射到不同 EDA 后端。"
+    },
+    {
+      "id": "WF-DIG-COCOTB",
+      "kind": "official_workflow",
+      "title": "cocotb documentation",
+      "url": "https://docs.cocotb.org/en/stable/",
+      "evidence": "提供以 Python coroutine 驱动 HDL 仿真器、访问 DUT、运行测试和回归的流程。"
+    },
+    {
+      "id": "WF-DIG-PYUVM",
+      "kind": "official_workflow",
+      "title": "pyuvm",
+      "url": "https://pyuvm.github.io/pyuvm/",
+      "evidence": "在 Python 中实现 UVM 的 sequence、driver、monitor、scoreboard 和 phase。"
+    },
+    {
+      "id": "WF-DIG-COCOTB-AXI",
+      "kind": "real_project",
+      "title": "cocotbext-axi",
+      "url": "https://github.com/alexforencich/cocotbext-axi",
+      "evidence": "提供 AXI、AXI Stream 和 RAM 的 cocotb driver、monitor、transaction 与测试实例。"
+    },
+    {
+      "id": "WF-DIG-PYVERILOG",
+      "kind": "real_project",
+      "title": "Pyverilog",
+      "url": "https://github.com/PyHDI/Pyverilog",
+      "evidence": "提供 Verilog AST、数据流、控制流分析和代码生成。"
+    },
+    {
+      "id": "WF-DIG-VCDVCD",
+      "kind": "real_project",
+      "title": "vcdvcd",
+      "url": "https://github.com/cirosantilli/vcdvcd",
+      "evidence": "解析 VCD 信号层级、时间和值变化，适合失败波形定位和比较。"
+    },
+    {
+      "id": "WF-DIG-SBY",
+      "kind": "official_workflow",
+      "title": "SymbiYosys documentation",
+      "url": "https://yosyshq.readthedocs.io/projects/sby/en/latest/",
+      "evidence": "描述形式任务配置、证明/覆盖模式、引擎执行和反例产物。"
+    },
+    {
+      "id": "WF-DIG-SILICONCOMPILER",
+      "kind": "official_workflow",
+      "title": "SiliconCompiler documentation",
+      "url": "https://docs.siliconcompiler.com/en/stable/",
+      "evidence": "提供 Python 驱动的硬件构建图、工具任务、输入输出和指标收集。"
+    },
+    {
+      "id": "WF-DIG-OPENROAD",
+      "kind": "official_workflow",
+      "title": "OpenROAD documentation",
+      "url": "https://openroad.readthedocs.io/en/latest/",
+      "evidence": "覆盖 floorplan、placement、CTS、routing、时序和物理设计数据库操作。"
+    },
+    {
+      "id": "WF-DIG-LIBRELANE",
+      "kind": "official_workflow",
+      "title": "LibreLane documentation",
+      "url": "https://librelane.readthedocs.io/en/latest/",
+      "evidence": "定义开放 RTL-to-GDS 流程的步骤、配置、阶段产物和错误诊断。"
+    },
+    {
+      "id": "WF-LAY-GDSFACTORY",
+      "kind": "official_workflow",
+      "title": "GDSFactory",
+      "url": "https://gdsfactory.github.io/gdsfactory/",
+      "evidence": "提供 Python PCell、端口、放置、路由、网表和 GDS 生成流程。"
+    },
+    {
+      "id": "WF-LAY-KLAYOUT-DRC",
+      "kind": "official_workflow",
+      "title": "KLayout DRC",
+      "url": "https://www.klayout.de/doc-qt5/manual/drc_basic.html",
+      "evidence": "说明图层选择、Region 运算、宽度/间距等规则和 marker 数据库输出。"
+    },
+    {
+      "id": "WF-LAY-KLAYOUT-LVS",
+      "kind": "official_workflow",
+      "title": "KLayout LVS",
+      "url": "https://www.klayout.de/doc-qt5/manual/lvs.html",
+      "evidence": "说明版图器件/网络提取、网表比较和 mismatch 报告流程。"
+    },
+    {
+      "id": "WF-LAY-GDSTK",
+      "kind": "official_documentation",
+      "title": "gdstk",
+      "url": "https://heitzmann.github.io/gdstk/",
+      "evidence": "提供 GDS/OASIS 单元、引用、多边形、路径、布尔和写回操作。"
+    },
+    {
+      "id": "WF-LAY-IHP-PDK",
+      "kind": "real_project",
+      "title": "IHP Open Source PDK",
+      "url": "https://github.com/IHP-GmbH/IHP-Open-PDK",
+      "evidence": "真实 130 nm BiCMOS PDK，包含工艺层、器件、模型、KLayout DRC/LVS 和 QA 版图。"
+    },
+    {
+      "id": "WF-LAY-SKY130",
+      "kind": "real_project",
+      "title": "SkyWater SKY130 PDK",
+      "url": "https://skywater-pdk.readthedocs.io/en/main/",
+      "evidence": "公开工艺设计规则、器件库、模型和版图数据。"
+    },
+    {
+      "id": "WF-LAY-CARAVEL",
+      "kind": "real_project",
+      "title": "Caravel user project template",
+      "url": "https://github.com/efabless/caravel",
+      "evidence": "提供开放 MPW SoC 外壳、用户区接口、版图和流片交付结构。"
+    },
+    {
+      "id": "WF-LAY-MPW-PRECHECK",
+      "kind": "real_project",
+      "title": "MPW precheck",
+      "url": "https://github.com/efabless/mpw_precheck",
+      "evidence": "公开 MPW 提交前的结构、边界、层和一致性检查流程。"
+    },
+    {
+      "id": "WF-LAY-VOLARE",
+      "kind": "real_project",
+      "title": "Volare",
+      "url": "https://github.com/efabless/volare",
+      "evidence": "提供开放 PDK 版本下载、启用、缓存和版本锁定管理。"
+    },
+    {
+      "id": "WF-FAB-SECSGEM",
+      "kind": "official_documentation",
+      "title": "secsgem",
+      "url": "https://secsgem.readthedocs.io/en/latest/",
+      "evidence": "实现 SEMI E5/E30 等 SECS/GEM 通信、状态变量、事件、报警和远程命令模型。"
+    },
+    {
+      "id": "WF-FAB-SIMPY",
+      "kind": "official_documentation",
+      "title": "SimPy",
+      "url": "https://simpy.readthedocs.io/en/latest/",
+      "evidence": "提供资源、队列、事件和时间推进的离散事件仿真，可表达晶圆厂 WIP 与设备约束。"
+    },
+    {
+      "id": "WF-FAB-SECOM",
+      "kind": "public_dataset",
+      "title": "UCI SECOM",
+      "url": "https://archive.ics.uci.edu/dataset/179/secom",
+      "evidence": "公开来自半导体制造过程的匿名传感变量、时间戳和合格/不合格标签。"
+    },
+    {
+      "id": "WF-MET-NIST-CONTROL",
+      "kind": "authoritative_method",
+      "title": "NIST process monitoring and control",
+      "url": "https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc3.htm",
+      "evidence": "提供控制图、过程监控和异常判定的统计方法。"
+    },
+    {
+      "id": "WF-MET-HYPERSPY",
+      "kind": "official_workflow",
+      "title": "HyperSpy",
+      "url": "https://hyperspy.org/hyperspy-doc/current/",
+      "evidence": "处理多维电子显微图像和谱学数据，支持校准、分解、拟合和映射。"
+    },
+    {
+      "id": "WF-MET-PY4DSTEM",
+      "kind": "official_workflow",
+      "title": "py4DSTEM",
+      "url": "https://py4dstem.readthedocs.io/en/latest/",
+      "evidence": "覆盖 4D-STEM 数据校准、衍射盘检测、应变和取向映射。"
+    },
+    {
+      "id": "WF-MET-KIKUCHIPY",
+      "kind": "official_workflow",
+      "title": "kikuchipy",
+      "url": "https://kikuchipy.org/en/stable/",
+      "evidence": "提供 EBSD 模式读取、背景校正、索引和晶体取向分析。"
+    },
+    {
+      "id": "WF-MET-ATOMAP",
+      "kind": "official_workflow",
+      "title": "Atomap",
+      "url": "https://atomap.org/install.html",
+      "evidence": "从高分辨 STEM 图像定位原子柱并量化位移、距离和强度。"
+    },
+    {
+      "id": "WF-MET-SKIMAGE",
+      "kind": "official_documentation",
+      "title": "scikit-image",
+      "url": "https://scikit-image.org/docs/stable/",
+      "evidence": "提供图像校正、分割、形态学、测量和特征提取基础能力。"
+    },
+    {
+      "id": "WF-MET-WM811K",
+      "kind": "public_dataset",
+      "title": "WM-811K wafer map dataset",
+      "url": "https://github.com/Junliangwangdhu/WaferMap",
+      "evidence": "公开大规模晶圆图及已标注的中心、边缘、环、刮痕等缺陷图形。"
+    },
+    {
+      "id": "WF-PKG-HIR",
+      "kind": "authoritative_roadmap",
+      "title": "Heterogeneous Integration Roadmap",
+      "url": "https://eps.ieee.org/technology/heterogeneous-integration-roadmap/",
+      "evidence": "IEEE EPS 路线图覆盖芯粒、互连、基板、热机械、电气和装联等异质集成问题。"
+    },
+    {
+      "id": "WF-PKG-OPENEMS",
+      "kind": "official_workflow",
+      "title": "openEMS Python interface",
+      "url": "https://docs.openems.de/",
+      "evidence": "提供 Python 驱动的三维电磁模型、端口、网格、求解和场/网络结果。"
+    },
+    {
+      "id": "WF-TEST-STDF",
+      "kind": "real_project",
+      "title": "Semi-ATE STDF",
+      "url": "https://github.com/Semi-ATE/STDF",
+      "evidence": "提供 STDF V4 记录读取、写入和字段访问，可处理半导体 ATE 测试数据。"
+    },
+    {
+      "id": "WF-TEST-QCODES",
+      "kind": "official_workflow",
+      "title": "QCoDeS",
+      "url": "https://microsoft.github.io/Qcodes/",
+      "evidence": "提供仪器参数、测量循环、实验和数据集管理。"
+    },
+    {
+      "id": "WF-TEST-PYMEASURE",
+      "kind": "official_workflow",
+      "title": "PyMeasure",
+      "url": "https://pymeasure.readthedocs.io/en/latest/",
+      "evidence": "提供仪器驱动、Procedure、参数、结果和实验队列。"
+    },
+    {
+      "id": "WF-TEST-OPENHTF",
+      "kind": "real_project",
+      "title": "OpenHTF",
+      "url": "https://github.com/google/openhtf",
+      "evidence": "提供硬件测试 phase、plug、measurement、limit 和测试记录框架。"
+    },
+    {
+      "id": "WF-TEST-WAFERMAP",
+      "kind": "official_documentation",
+      "title": "wafermap",
+      "url": "https://pypi.org/project/wafermap/",
+      "evidence": "提供晶圆、die 坐标、bin 和交互式晶圆图表达。"
+    },
+    {
+      "id": "WF-REL-NIST",
+      "kind": "authoritative_method",
+      "title": "NIST Reliability Handbook",
+      "url": "https://www.itl.nist.gov/div898/handbook/apr/apr.htm",
+      "evidence": "系统说明可靠性数据、寿命分布、加速模型、退化和试验设计。"
+    },
+    {
+      "id": "WF-REL-RELIABILITY",
+      "kind": "official_documentation",
+      "title": "reliability Python library",
+      "url": "https://reliability.readthedocs.io/en/latest/",
+      "evidence": "实现寿命分布拟合、概率图、失效模式和加速寿命模型。"
+    },
+    {
+      "id": "WF-REL-LIFELINES",
+      "kind": "official_documentation",
+      "title": "lifelines",
+      "url": "https://lifelines.readthedocs.io/en/latest/",
+      "evidence": "提供删失数据的生存曲线、回归和模型诊断。"
+    }
+  ]
+}

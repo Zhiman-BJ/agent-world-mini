@@ -19,7 +19,6 @@ from .common.constants import (
     COLLECTION_PROFILE_PATH,
     ENVIRONMENT_CONTEXT_PATH,
     FREEZE_MANIFEST_PATH,
-    INTEGRATION_BUILD_PATH,
     INTEGRATION_RECEIPT_PATH,
     SOURCE_INVENTORY_PATH,
     SOURCE_MANIFEST_PATH,
@@ -31,7 +30,6 @@ from .common.workspace_files import file_sha256
 from .integration.direct_commands import (
     _state_manifest,
     assess_environment,
-    finalization_issues,
 )
 
 
@@ -208,20 +206,14 @@ def _direct_integration_receipt(
     run_dir: Path,
     *,
     environment: dict[str, Any],
-    assessment: dict[str, Any],
     source_manifest: dict[str, Any],
 ) -> dict[str, Any]:
     collection = read_json(run_dir / COLLECTION_PROFILE_PATH, "Step 2 采集画像")
     return {
         "schema_version": "1.0",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "integration_method": "agent_direct_final_state",
         "environment_sha256": file_sha256(run_dir / "environment.json"),
-        "build": {
-            "path": INTEGRATION_BUILD_PATH,
-            "sha256": file_sha256(run_dir / INTEGRATION_BUILD_PATH),
-            "runner": "bubblewrap_read_only_no_network",
-            "interface": "--raw-dir <path> --state-dir <path>",
-        },
         "raw_files": [
             {
                 "path": item.get("path"),
@@ -233,7 +225,6 @@ def _direct_integration_receipt(
             if isinstance(item, dict)
         ],
         "state": _state_manifest(run_dir / "state", environment),
-        "replay_state_digest": assessment.get("replay_state_digest"),
         "coverage": collection.get("metrics", {}),
     }
 
@@ -244,16 +235,10 @@ def freeze_and_publish_environment(
     final_output_dir: Path,
     overwrite: bool,
 ) -> dict[str, Any]:
-    """Independently replay, freeze and atomically publish a direct Step 3 result."""
+    """Independently validate, freeze and atomically publish a direct Step 3 result."""
 
     run_dir = run_dir.resolve()
-    receipt_issues = finalization_issues(run_dir)
-    if receipt_issues:
-        raise EnvironmentFreezeError(
-            "Step 3 尚未可靠收口："
-            + "; ".join(item["message"] for item in receipt_issues[:12])
-        )
-    assessment = assess_environment(run_dir, replay=True)
+    assessment = assess_environment(run_dir)
     if assessment.get("decision") != "ready":
         raise EnvironmentFreezeError(
             "最终独立验收失败："
@@ -310,7 +295,6 @@ def freeze_and_publish_environment(
         _direct_integration_receipt(
             run_dir,
             environment=environment,
-            assessment=assessment,
             source_manifest=source_manifest,
         ),
     )

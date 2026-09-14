@@ -27,24 +27,20 @@ def write_json(path: Path, payload: object) -> None:
 def sample_seed() -> dict[str, Any]:
     return {
         "global_id": "demo_catalog_1",
-        "schema_version": "1.1",
+        "schema_version": "1.0",
         "environment": {
             "basic_info": {
                 "source": "demo",
-                "url": ["https://example.test/catalog"],
+                "url": "https://example.test/catalog",
                 "name": "catalog",
-                "version": "2026-09-02",
                 "index": 1,
             },
             "description": "A public catalog of items and categories.",
             "domain": {"level1": "general", "level2": None, "level3": None},
-            "nums": {"class": 0, "function": 1, "class_func": 0, "all_func": 1},
         },
         "init_ref_tools": [
             {
                 "name": "list_items",
-                "type": "function",
-                "module": None,
                 "description": "List and filter items.",
                 "inputSchema": {
                     "type": "object",
@@ -78,7 +74,45 @@ def sample_seed() -> dict[str, Any]:
                 "solution_path": [{"tool_name": "list_items"}],
             }
         ],
-        "others": {},
+        "others": {"data_directions": ["Public item and category records"]},
+    }
+
+
+def sample_python_package_seed() -> dict[str, Any]:
+    def tool(module: str) -> dict[str, Any]:
+        return {
+            "name": "RecordParser",
+            "type": "function",
+            "module": module,
+            "description": "Parse a package-compatible domain record.",
+            "input": {"path": {"type": "str", "description": "Input record path."}},
+            "output": {"return": {"type": "dict", "description": "Parsed record."}},
+            "ori_input": "path: str",
+            "ori_description": "Parse a package-compatible domain record.",
+        }
+
+    return {
+        "global_id": "pypi_demo_package_1",
+        "schema_version": "1.1",
+        "environment": {
+            "basic_info": {
+                "source": "pypi",
+                "url": ["https://example.test/demo-package", "https://example.test/docs"],
+                "name": "demo-package",
+                "version": "v1.2.3",
+                "index": 1,
+            },
+            "description": "A Python package for parsing and analyzing domain records.",
+            "domain": {"level1": "general", "level2": None, "level3": None},
+        },
+        "init_ref_tools": [tool("demo_package.alpha"), tool("demo_package.beta")],
+        "init_ref_tasks": [],
+        "others": {
+            "python_source_extraction": {
+                "strategy": "static_ast",
+                "requested_modules": ["demo_package"],
+            }
+        },
     }
 
 
@@ -205,8 +239,9 @@ def prepare_step0(
     run_dir: Path,
     *,
     policy: CollectionPolicy | None = None,
+    selected_seed: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], str]:
-    seed = sample_seed()
+    seed = selected_seed or sample_seed()
     seed_path = run_dir / "seeds.json"
     write_json(seed_path, [seed])
     digest = prepare_generation_run(
