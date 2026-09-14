@@ -17,6 +17,11 @@ from urllib.parse import urlparse
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from env_gen.data_gen.analysis.seed import (
+    is_python_package_seed,
+    reference_tool_label,
+)
+
 from .common.constants import (
     COLLECTION_PROFILE_PATH,
     CONTROL_COLLECTION_RESULT,
@@ -40,7 +45,7 @@ AgentRunner = Callable[[str, int, tuple[Path, ...]], str]
 _SOURCE_ID = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 _ALLOWED_ROLES = {"business_records", "task_domain_files"}
 _SUBJECT_TYPES = ("entity", "tool", "task")
-_RESULT_REPAIR_SECONDS = 180
+_RESULT_REPAIR_SECONDS = 600
 
 
 class DataCollectionError(RuntimeError):
@@ -143,6 +148,7 @@ def source_research_receipt_issues(run_dir: Path) -> list[dict[str, str]]:
 
 def _subject_universe(seed: dict[str, Any], scenario: dict[str, Any]) -> list[dict[str, Any]]:
     found: dict[tuple[str, str], dict[str, Any]] = {}
+    python_package_seed = is_python_package_seed(seed)
 
     def add(subject_type: str, name: str | None, origin: str) -> None:
         if not name or not name.strip():
@@ -156,21 +162,35 @@ def _subject_universe(seed: dict[str, Any], scenario: dict[str, Any]) -> list[di
         if origin not in item["origins"]:
             item["origins"].append(origin)
 
-    for item in seed.get("init_ref_tools", []):
-        if isinstance(item, dict):
-            add("tool", str(item.get("name") or ""), "seed")
-    for item in seed.get("init_ref_tasks", []):
-        if isinstance(item, dict):
-            add("task", seed_task_label(item), "seed")
+    if not python_package_seed:
+        for item in seed.get("init_ref_tools", []):
+            if isinstance(item, dict):
+                add("tool", reference_tool_label(seed, item), "seed")
+        for item in seed.get("init_ref_tasks", []):
+            if isinstance(item, dict):
+                add("task", seed_task_label(item), "seed")
     for subject_type, collection in (("entity", "entities"), ("tool", "tools"), ("task", "tasks")):
         for item in scenario.get(collection, []):
             if isinstance(item, dict):
-                add(subject_type, str(item.get("name") or ""), "scenario")
+                name = str(item.get("name") or "")
+                add(subject_type, name, "scenario")
+                if python_package_seed and subject_type in {"tool", "task"}:
+                    # A Python Seed can contain a very large API index and unnamed task
+                    # descriptions. Step 1 supplies the validated, relevant named set.
+                    add(subject_type, name, "seed")
     return sorted(found.values(), key=lambda item: (_SUBJECT_TYPES.index(item["subject_type"]), item["subject_name"]))
 
 
 def _build_collection_prompt(run_dir: Path) -> str:
     config = read_json(control_path(run_dir.resolve(), CONTROL_RUN_CONFIG), "运行配置")
+    seed = read_json(control_path(run_dir.resolve(), CONTROL_SELECTED_SEED), "选中 Seed")
+    seed_floor_scope = "初始 Seed 中的参考工具与任务"
+    seed_input_description = (
+        "来源入口、环境说明、参考工具与任务，以及可能的数据方向。参考工具和任务用于理解目标工作；"
+        "Seed 自身的简短内容用于定位，不视为已经核实的事实；调研报告会补充现实使用中的实体、工具、"
+        "任务和数据方向"
+    )
+    collection_scope = "围绕 Seed 和调研报告中的实体、工具、任务，并结合 `data_directions` 理解它们之间的数据需求"
     policy = config["collection_policy"]
     seed_min = int(policy.get("min_seed_coverage_percent", 90))
     scenario_min = int(policy.get("min_scenario_coverage_percent", 75))
@@ -192,13 +212,14 @@ def _build_collection_prompt(run_dir: Path) -> str:
 
 先读取两个输入：
 
-- `.datagen/selected_seed.json`：来源平台提供的原始入口，包含来源地址、简要场景描述、参考工具与任务，
-  以及可能的数据方向。参考工具和任务构成第一组覆盖清单；其他内容用于定位来源，不视为已经核实的事实。
+- `.datagen/selected_seed.json`：{seed_input_description}。
 - `provenance/scenario_research.json`：基于外部来源核实并扩展后的现实业务报告，包含工作背景、业务实体、
   工具、典型任务、建议寻找的数据、来源证据和待确认问题。实体、工具和任务构成第二组覆盖清单；
-  `data_directions` 用于选择数据，`open_questions` 用于避免把尚未确认的内容当成事实。
+  `data_directions` 用于理解任务需要什么数据以及如何组织采集，`open_questions` 用于避免把尚未确认的内容
+  当成事实。
 
-围绕这两组覆盖清单，将可用原件下载到 `workspace/raw/<source>/`。所有下载命令的目标路径必须明确包含
+{collection_scope}，将可用原件下载到
+`workspace/raw/<source>/`。所有下载命令的目标路径必须明确包含
 `workspace/raw/`，不要在运行目录顶层另建 `raw/`。文件卡中的 `path` 才省略 `workspace/` 前缀，写成
 `raw/<source>/<file>`。尽可能让同一批数据共同支持多项相关操作，并优先选择来自同一系统、可以通过稳定 ID
 相互关联的数据。
@@ -221,22 +242,35 @@ def _build_collection_prompt(run_dir: Path) -> str:
 
 # 下载循环
 
-按以下顺序重复执行，不要先搜完所有来源再统一整理：
+按以下顺序重复执行，由你检查实际数据并判断覆盖情况，不要调用额外的覆盖评估脚本：
 
-1. 把尚未覆盖的实体、工具和任务按它们共同需要的数据分组。优先处理能用同一批数据同时支持最多清单项的组，
-   尤其是能够连接多个实体或完成一条典型任务流程的数据，不要按单个工具逐一下载。
-2. 为这一组依次尝试最多 3 个真正可能提供同类业务对象的不同来源：首选官方 API 或数据集，其次是同一机构
-   的其他正式出口，最后是可信公开镜像或同类数据。只有来源预计包含这一组所需的对象和关键字段时才计为一次
-   尝试；同一站点的不同 URL 不算多个来源，源码、产品页和说明文档也不能为普通业务记录凑满尝试次数。
-   某个来源超时、认证后仍无权限、返回错误内容或下载失败时，记住 URL 和原因并换下一个来源；任一来源成功
-   后不必凑满 3 次。
-3. 下载该来源中一个或几个相互关联的文件到 `workspace/raw/<source>/`。
-4. 打开实际内容。确认它不是登录页、错误响应、空文件或只有说明文字，并检查是否包含所需对象、状态、ID
-   和业务字段。无用、损坏或与现有 URL/内容重复的文件直接删除。
-5. 为每个保留文件立即写一张文件卡，然后重新检查待支持清单并开始下一轮。
+1. 每次开始下载一批数据前，只查看 `.datagen/collection_result.json` 中持续维护的增量文件画像，直接根据
+   `summary` 记录的当前覆盖缺口和相关文件卡决定下一批目标。不要重新遍历全部 Raw、逐张复查所有文件卡，
+   也不要每轮从两个输入重新计算一遍完整覆盖。只有缺口记录不清时才查看相关文件卡；文件卡信息不足、矛盾
+   或缺少关键字段依据时，才回看对应的少量原文件。
+2. 把当前缺口按共同需要的数据组织起来。优先选择能够用同一批数据连接多个实体、支撑多个工具或完成一条
+   典型任务流程的目标，并结合 `data_directions` 说明这批数据在任务中的用途；不要按单个工具逐一找接口。
+3. 调查真正发布现成业务记录或原始工作文件的渠道。优先考虑官方公开数据集、正式导出、数据仓库和返回现有
+   记录的 API，再考虑可信数据平台或镜像。产品主页、MCP 调用入口、管理控制台和空账户 API 不是默认数据源；
+   只有明确提供现成记录或可下载导出时才采用。不要先选定一个平台，再枚举它的全部接口。
+4. 下载前比较候选来源的真实性、能够支撑的任务环节和清单项、对象之间的关联键、内容完整性以及数据规模。
+   选择最适合当前目标的来源，必要时使用少量能够明确关联的互补来源。`source_id` 应表示具体数据集、项目、
+   组织或业务上下文，不能只写 `github_api`、`kaggle` 这类平台名来掩盖彼此无关的数据。
+5. 为当前缺口依次尝试最多 3 个真正可能提供所需数据的不同来源。某个来源超时、认证后仍无权限、返回错误
+   内容或下载失败时，记录 URL、原本预计取得的内容和失败原因，然后换下一个来源；任一来源成功后不必凑满
+   3 次。同一平台的不同接口、产品页、文档和服务调用入口不能算作多个数据来源。
+6. 每批下载 1 至 5 个相互关联的文件到 `workspace/raw/<source>/`。打开实际内容，确认它不是登录页、错误响应、
+   空文件或只有说明文字，并检查是否包含当前任务所需的对象、状态、ID、关系和业务字段。无用、损坏或与已有
+   内容重复的文件直接删除。同一个 API 地址可能因查询参数或请求体不同返回不同业务记录；只要内容不同且分别
+   保留了可追溯的请求说明，就可以各自登记，不能仅因 URL 相同而删除。
+7. 检查完一批数据后立即更新文件卡和 `summary`。写清这批数据支撑哪些任务或 `data_directions`、涉及哪些
+   实体和工具、文件或记录之间如何通过 ID、路径或业务事实关联，并把仍未解决的覆盖缺口更新到 `summary`，
+   供下一批直接使用。即使仍在调查同一批数据，距离上次更新达到 8 分钟时，也先保存当前进展。
+8. 更新后直接根据这份增量文件画像决定下一批下载什么。不要因为某一个来源能下载很多文件，就持续在该来源
+   扩张与当前任务无关的数据。
 
-如果一组数据连续尝试 3 个合格来源仍未取得，把该组未覆盖的实体、工具或任务、三个来源 URL、各来源原本
-预计提供的数据及失败原因写入最终 `summary`，然后继续处理下一组缺口。
+如果一个数据缺口连续尝试 3 个合格的数据发布来源仍未取得，把相关 `data_directions`、实体、工具或任务、
+三个来源 URL、各来源原本预计提供的数据及失败原因写入 `summary`，然后继续处理下一组缺口。
 
 网络请求应设置超时。全部文件必须遵守以下上限：单文件 {max_single_mib} MiB、Raw 合计 {max_raw_mib} MiB、
 workspace 合计 {max_workspace_mib} MiB、Raw 文件最多 {max_raw_files} 个。来源过大时选取能够保留主要对象、
@@ -287,6 +321,8 @@ workspace 合计 {max_workspace_mib} MiB、Raw 文件最多 {max_raw_files} 个�
 
 `subjects` 用来说明这个文件支持待支持清单中的哪些项目：
 
+- `source_id` 是机器标识，不是展示名称；必须匹配 `[a-z][a-z0-9_]{{1,63}}`，只使用小写字母、数字和
+  下划线，例如 `openzeppelin_contracts_bbf3600`。空格、斜杠、连字符和大写字母都不能使用。
 - `subject_type` 只能是 `entity`、`tool` 或 `task`；`subject_name` 必须原样复制输入文件中的名称。
 - `supported` 表示文件具备完成该项操作所需的对象、状态、ID 和关键业务字段。
 - `partial` 表示内容相关，但缺少完成操作所需的数据；`partial` 不计入覆盖率。
@@ -307,29 +343,47 @@ Raw 必须保留从 `url` 实际取得的原件。只需要归档中的少量成
 # 完成条件
 
 Python 会按名称去重，只把 `supported` 计入覆盖率，并把经过说明的 `data_independent_tools` 单独列出、从
-数据覆盖分母排除。初始参考工具和任务至少覆盖 {seed_min}%；调研文件中的实体、工具和任务至少覆盖 {scenario_min}%。
+数据覆盖分母排除。{seed_floor_scope}至少覆盖 {seed_min}%；调研文件中的实体、工具和任务至少覆盖 {scenario_min}%。
+判断数字的同时也要结合 `data_directions` 自查：覆盖若干孤立名称，不等于已经取得完成典型
+任务所需且能够相互关联的数据。
 这两个数字是最低线，不是达到后立即停止的目标。
 
 - 低于任一最低线：继续采集。只有剩余数据组都已成功取得数据，或已分别记录 3 个失败来源，才以 `partial` 结束。
 - 达到两条最低线：再检查一遍未覆盖项目；仍有明确可取得且能增加新业务内容的来源就继续，否则以 `ready` 结束。
 - 没有取得任何可用文件：以 `insufficient_data` 结束。
 
-结束前更新所有文件卡，并在 `summary` 中写清最终数据范围、覆盖数字、剩余缺口及停止原因。
+结束前根据最新文件卡和两组覆盖清单再自行检查一次，然后设置最终 `result`，并在 `summary` 中写清最终数据
+范围、覆盖数字、相关任务与数据之间的关系、剩余缺口及停止原因。
 """
 
 
 def _build_result_repair_prompt(run_dir: Path, error: Exception) -> str:
     detail = str(error).strip()[-2000:]
+    universe = _subject_universe(
+        read_json(control_path(run_dir.resolve(), CONTROL_SELECTED_SEED), "选中 Seed"),
+        read_saved_scenario_research(run_dir.resolve()),
+    )
+    allowed_subjects = "\n".join(
+        f"- `{item['subject_type']}`：`{item['subject_name']}`"
+        for item in universe
+    )
     return f"""工作目录：`{run_dir.resolve()}`。
 
 数据采集已经结束，但 Python 对 `.datagen/collection_result.json` 的机械校验失败：
 
 `{detail}`
 
-只修复现有下载文件、必要的目录包装和文件卡，不再调查或下载新来源，也不要检查流水线源码。确保每张文件卡的 `path` 指向
-`workspace/raw/` 下的普通文件，所有 Raw 文件各有且仅有一张卡，URL、路径和内容不重复，Prepared 路径
+文件卡的 `subject_type` 和 `subject_name` 只能从下面的清单逐字复制。错误条目若不能明确对应清单中的同一项，
+就删除该覆盖声明，不要改成 Seed API 索引里未进入清单的其他名称：
+
+{allowed_subjects}
+
+只修复现有下载文件、必要的目录包装和文件卡，不再调查或下载新来源，也不要检查流水线源码。`source_id`
+必须匹配 `[a-z][a-z0-9_]{{1,63}}`，空格、斜杠、连字符和大写字母都要改成小写下划线标识。确保每张文件卡的 `path` 指向
+`workspace/raw/` 下的普通文件，所有 Raw 文件各有且仅有一张卡，路径和内容不重复，Prepared 路径
 真实存在。只有来源本身交付为多文件目录制品或 Git 检出时才打包成单个 Raw 归档并移除检出目录；
-同一来源目录中的独立 API 响应不得合并。需要展开使用的内容放到 `workspace/prepared/`。不得把提取成员
+同一 URL 的不同 API 查询响应以及同一来源目录中的独立 API 响应不得合并。需要展开使用的内容放到
+`workspace/prepared/`。不得把提取成员
 重新打包后填写上游完整归档 URL；必要时可以重新下载已经登记的原 URL，或改用成员自身的直接 URL。保留原来的
 语义判断和最终 `result`，除非错误明确说明它与最低覆盖线冲突。
 
@@ -369,15 +423,23 @@ def _validate_agent_result(
         (item["subject_type"], item["subject_name"])
         for item in universe
     }
-    tool_descriptions: dict[str, list[str]] = {}
-    for payload, collection in ((seed, "init_ref_tools"), (scenario, "tools")):
-        for item in payload.get(collection, []):
-            if not isinstance(item, dict):
+    unknown_subjects: list[str] = []
+    for raw_card in report.get("file_cards", []):
+        if not isinstance(raw_card, dict) or not isinstance(raw_card.get("subjects", []), list):
+            continue
+        for subject in raw_card.get("subjects", []):
+            if not isinstance(subject, dict):
                 continue
-            name = str(item.get("name") or "").strip()
-            description = str(item.get("description") or "").strip()
-            if name and description:
-                tool_descriptions.setdefault(name, []).append(description)
+            key = (
+                str(subject.get("subject_type") or ""),
+                str(subject.get("subject_name") or ""),
+            )
+            if key not in allowed:
+                unknown_subjects.append(f"{key[0]}/{key[1]}")
+    if unknown_subjects:
+        raise RuntimeError(
+            "文件卡引用未知主体：" + "、".join(dict.fromkeys(unknown_subjects))
+        )
     independent_raw = report.get("data_independent_tools", [])
     if not isinstance(independent_raw, list):
         raise RuntimeError("collection_result.data_independent_tools 必须是数组")
@@ -398,25 +460,11 @@ def _validate_agent_result(
             raise RuntimeError(f"data_independent_tools[{index}] 必须具体说明无需初始数据的原因")
         if key in independent:
             raise RuntimeError(f"data_independent_tools 包含重复工具：{name}")
-        description = " ".join(tool_descriptions.get(name, [])).lower()
-        explicitly_empty = any(marker in description for marker in (
-            "always returns an empty collection",
-            "always returns empty",
-            "始终返回空集合",
-            "总是返回空集合",
-        ))
-        fixed_capability = "capabil" in name.lower() or "capabil" in description
-        creates_first_object = name.lower().startswith("create_")
-        if not (explicitly_empty or fixed_capability or creates_first_object):
-            raise RuntimeError(
-                f"工具 {name} 不是固定能力声明、明确空集合或创建首对象操作，不能排除数据需求"
-            )
         independent[key] = reason
 
     cards: list[dict[str, Any]] = []
     card_subjects: set[tuple[str, str]] = set()
     paths: set[str] = set()
-    urls: set[str] = set()
     hashes: set[str] = set()
     for index, raw_card in enumerate(report.get("file_cards", [])):
         if not isinstance(raw_card, dict):
@@ -471,10 +519,9 @@ def _validate_agent_result(
             })
             card_subjects.add((subject_type, subject_name))
         digest = file_sha256(physical)
-        if path in paths or url in urls or digest in hashes:
-            raise RuntimeError(f"file_cards[{index}] 与已有文件的路径、URL 或内容重复")
+        if path in paths or digest in hashes:
+            raise RuntimeError(f"file_cards[{index}] 与已有文件的路径或内容重复")
         paths.add(path)
-        urls.add(url)
         hashes.add(digest)
         stats = simple_file_stats(physical)
         cards.append({

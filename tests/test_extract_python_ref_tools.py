@@ -14,6 +14,42 @@ def parse_function(source: str) -> ast.FunctionDef:
 
 
 class PythonRefToolExtractionTests(unittest.TestCase):
+    def test_sphinx_fields_keep_summary_types_and_multiline_descriptions(self):
+        function = parse_function('''
+def evaluate(layer, T=298):
+    """Evaluate a layer.
+
+    :param Layer layer: Material layer with
+        a continuation line.
+    :param T: Temperature in kelvin.
+    :type T: float
+    :returns: Calculated result.
+    :rtype: dict
+    :raises ValueError: Invalid layer.
+    """
+''')
+        record = _function_record(function)
+        self.assertEqual(record["description"], "Evaluate a layer.")
+        self.assertEqual(record["input"]["layer"], {
+            "type": "Layer", "description": "Material layer with a continuation line.",
+        })
+        self.assertEqual(record["input"]["T"], {"type": "float", "description": "Temperature in kelvin."})
+        self.assertEqual(record["output"], {"return": {"type": "dict", "description": "Calculated result."}})
+        self.assertIn(":raises ValueError:", record["ori_description"])
+
+    def test_sphinx_missing_type_and_return_stay_empty(self):
+        function = parse_function('''
+def update(value, undocumented):
+    """Update a value.
+
+    :param value: New value.
+    """
+''')
+        record = _function_record(function)
+        self.assertEqual(record["input"]["value"], {"type": "", "description": "New value."})
+        self.assertEqual(record["input"]["undocumented"], {"type": "", "description": ""})
+        self.assertIsNone(record["output"])
+
     def test_google_docstring_sections(self):
         function = parse_function(
             '''

@@ -88,13 +88,12 @@ agent_world_mini/
 │   ├── program_form/
 │   │   ├── steps/
 │   │   │   ├── step1_prepare_environment.py
-│   │   │   ├── step2_gen_task_solution.py
-│   │   │   ├── step3_debug_solution_jsonl.py
-│   │   │   ├── step4_ground_truth_jsonl_in_jsonl_out.py
-│   │   │   ├── ...
-│   │   │   └── step12_final_output.py
+│   │   │   ├── step2_research_real_world_tasks.py
+│   │   │   ├── step3_generate_task_solution.py
+│   │   │   ├── step4_generate_scoring_criteria.py
+│   │   │   └── step5_evaluate_difficulty.py
 │   │   ├── utils/                # 加载、JSONL、受限执行和状态隔离
-│   │   ├── schemas/              # Step 2 候选 Schema
+│   │   ├── schemas/              # 调研、候选和评分输出 Schema
 │   │   └── run_pipeline.py
 │   ├── validation/
 │   │   ├── five_run.py
@@ -108,12 +107,12 @@ config/
 └── api_keys.env              # 本地文件，被 Git 忽略
 ```
 
-`program_form/` 已按 OmniaBench Runner 对齐为 Step 1--12。唯一差异是
-Step 1 冻结 DataGen 的真实 `state/`，不再让模型生成 `init_config`。
-Step 2--12 依次负责任务/参考解生成、参考解调试、Ground Truth、
-Verifier、多 Agent 一致性、公开任务改写、轨迹/状态语义检查、Rubric、
-难度评测和最终发布。主要 Prompt 和处理顺序均在对应 Step 文件；
-`utils/` 只保留通用机械能力。
+`program_form/` 是五步管线：Step 1 冻结 DataGen 的真实 `state/`；Step 2 独立调研
+现实任务原型并映射环境能力；Step 3 生成任务和 Solution，完成真实执行、修复、干净
+重放、语义审查和 Ground Truth；Step 4 生成并测试 Rubric、答案 Verifier 和状态
+Verifier；Step 5 运行多个独立求解 Agent，区分基础设施失败和有效失败，最后返工或
+发布。主要 Prompt、处理顺序和接受条件均在对应 Step 文件；`utils/` 只保留跨步骤的
+环境加载、JSONL、Runtime、Verifier 沙箱和必须独立启动的 MCP server。
 
 ## 3. 每个阶段的输入和输出
 
@@ -171,10 +170,9 @@ Step 2 根据 Seed 和 Step 1 尚未覆盖的主体承担全部下载。一个 A
 领域文件、源码和数据库只在真实任务需要时采集。字段统一、关系发现、全局质量画像、最终 Record Set
 和 Filesystem Scope 全部属于 Step 3。
 
-Step 3 让一个 Agent 根据真实 Raw 直接编写最终 `environment.json` 和统一 `provenance/build.py`，
-一次物化 `records.sqlite` 与必要的文件 Scope。Python 只返回 Schema、键、关系、路径和重放错误，
-Agent 原地修复。Step 4 独立重放、冻结并原子发布；不再有单独的 Step 5。下载收据、硬校验、
-阶段收口、哈希和发布均由 Python 完成，不接受 Agent 自报结果。
+Step 3 让一个 Agent 根据真实 Raw 直接生成最终 `environment.json`、`records.sqlite` 与必要的文件 Scope，
+转换方法由 Agent 自主选择。Python 只返回 Schema、键、关系和路径错误，Agent 原地修复。Step 4 再次验收、
+冻结并原子发布；不再有单独的 Step 5。下载收据、硬校验、哈希和发布均由 Python 完成，不接受 Agent 自报结果。
 
 环境语义不能由字段名启发式决定。Python 负责路径、格式、哈希、类型、数量和
 引用覆盖率等可验证事实；声明 Agent 负责资源含义、实体边界和业务关系声明；
@@ -264,4 +262,4 @@ OpenRouter 与 DeepSeek Harness 均调用同一个加载器。`config/api_keys.e
 2. 把 `ToolSpec` 拆成公开工具契约、Runtime 内部实现和 ToolGen 验证材料。
 3. 以 OmniaBench 的 Schema/事务检查为基础增强 Runtime，同时保留当前 workspace、fork 和 outcome 能力。
 4. 让 DAG 图只读取标准化依赖，不再推断工具实现细节。
-5. 用真实 ToolGen `tools.json` 运行 Program-form Step 1--12，并根据实际通过率调整任务生成策略。
+5. 用真实 ToolGen `tools.json` 运行 Program-form 五步管线，并根据实际通过率调整任务生成策略。

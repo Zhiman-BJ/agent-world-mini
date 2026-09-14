@@ -10,7 +10,15 @@
       "items": {
         "type": "object",
         "properties": {
+          "archetype_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,127}$"
+          },
           "task_internal": {
+            "type": "string",
+            "minLength": 40
+          },
+          "task_public": {
             "type": "string",
             "minLength": 40
           },
@@ -22,7 +30,13 @@
             "minLength": 20
           }
         },
-        "required": ["task_internal", "output_schema", "solution_code"],
+        "required": [
+          "archetype_id",
+          "task_internal",
+          "task_public",
+          "output_schema",
+          "solution_code"
+        ],
         "additionalProperties": false
       }
     }

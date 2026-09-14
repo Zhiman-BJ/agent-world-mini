@@ -17,6 +17,12 @@
         "level1": "general",
         "level2": null,
         "level3": null
+      },
+      "nums": {
+        "class": 0,
+        "function": 1,
+        "class_func": 0,
+        "all_func": 1
       }
     },
     "init_ref_tools": [
@@ -43,8 +49,7 @@
     "others": {
       "source_metadata": {
         "qualified_name": "theagenttimes/news"
-      },
-      "tool_count": 1
+      }
     }
   }
 ]

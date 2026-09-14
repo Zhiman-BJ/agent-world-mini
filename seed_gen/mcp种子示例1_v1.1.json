@@ -17,6 +17,12 @@
         "level1": "general",
         "level2": null,
         "level3": null
+      },
+      "nums": {
+        "class": 0,
+        "function": 12,
+        "class_func": 0,
+        "all_func": 80
       }
     },
     "init_ref_tools": [
@@ -111,7 +117,6 @@
         "slug": "news",
         "verified": true,
         "use_count": 43392,
-        "tool_count": "todo",
         "remote": true,
         "is_deployed": true,
         "unlisted": false,

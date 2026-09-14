@@ -1,0 +1,491 @@
+{
+  "profile_id": "devsim_balanced_v1",
+  "package": "devsim",
+  "version": "v2.11.0.rc5",
+  "source_sha256": "001a04c54979ab47d042c10dae38c872eb29ea70c3f4da6914fbf7128a58dc45",
+  "target_all_func": {
+    "min": 50,
+    "max": 100
+  },
+  "boundary": "面向小型一维/二维器件的网格、材料参数、节点/边模型、方程、求解及结果检查，兼顾外部网格导入和简单电路耦合。排除 C++ 内部 API、Python UMFPACK 绑定、调试输出、手工矩阵装配和高阶元素长尾接口。需要 DEVSIM 原生运行库；当前仅静态筛选，数值验证待执行。",
+  "capabilities": [
+    {
+      "id": "device_lifecycle",
+      "description": "设备、区域和接触查询及重置",
+      "selection_reason": "构成创建前后状态检查、重新初始化和设备维度验证的基础。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/devsim/src/pythonapi/DevsimDoc.cc"
+      ],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "reset_devsim",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_device_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_region_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_interface_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_contact_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_dimension",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "delete_device",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "delete_mesh",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_mesh_list",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "mesh_construction",
+      "description": "一维/二维网格构建与 Gmsh 导入",
+      "selection_reason": "覆盖网格线、区域、接触、界面、完成网格和创建设备的依赖链。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/devsim/examples/capacitance/cap1d.py",
+        "seed_pypi_raw/devsim/examples/capacitance/cap2d.py"
+      ],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "create_1d_mesh",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_1d_mesh_line",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_1d_region",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_1d_contact",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_1d_interface",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "create_2d_mesh",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_2d_mesh_line",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_2d_region",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_2d_contact",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_2d_interface",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "create_gmsh_mesh",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_gmsh_region",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_gmsh_contact",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "add_gmsh_interface",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "finalize_mesh",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "create_device",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_element_node_list",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "material_parameters",
+      "description": "材料与参数赋值和查询",
+      "selection_reason": "支持用参数改变模型，并回读检查作用范围和数值。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "set_parameter",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_parameter",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_parameter_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "set_material",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_material",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "physical_models",
+      "description": "节点、边与界面模型和状态值",
+      "selection_reason": "保留泊松/漂移扩散模型常用构件及符号微分，以数组、表达式和模型集合验证。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "node_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "node_solution",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "edge_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "edge_from_node_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "edge_average_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "interface_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "contact_node_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "contact_edge_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "set_node_values",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "set_node_value",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_node_model_values",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_edge_model_values",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_interface_model_values",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_node_model_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_edge_model_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_interface_model_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "delete_node_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "delete_edge_model",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "symdiff",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "equation_assembly",
+      "description": "区域、接触和界面方程",
+      "selection_reason": "保持方程创建、查询和删除闭环，可检查方程配置及边界条件。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "equation",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "contact_equation",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "interface_equation",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_equation_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_contact_equation_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_interface_equation_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_equation_command",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_contact_equation_command",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_interface_equation_command",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "delete_equation",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "solve_and_persistence",
+      "description": "求解、电流电荷及保存恢复",
+      "selection_reason": "求解仅用于小型固定器件，检查收敛、有限值、边界条件和守恒；保存恢复仅限工作目录。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "solve",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_contact_current",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_contact_charge",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "set_initial_condition",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "write_devices",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "load_devices",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "simple_circuits",
+      "description": "简单电路耦合",
+      "selection_reason": "保留电路节点、元件、参数修改及结果回读，不暴露方程编号和内部求解器。",
+      "verification_tier": "native_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "devsim",
+          "name": "add_circuit_node",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "circuit_element",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "circuit_alter",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "circuit_node_alias",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "delete_circuit",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_circuit_node_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_circuit_solution_list",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "get_circuit_node_value",
+          "type": "function"
+        },
+        {
+          "module": "devsim",
+          "name": "set_circuit_node_value",
+          "type": "function"
+        }
+      ]
+    }
+  ]
+}

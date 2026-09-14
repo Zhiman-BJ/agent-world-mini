@@ -144,10 +144,10 @@ python -m task_gen.program_form \
   --min-distinct-tools 3
 ```
 
-TaskGen 的 Step 1 直接冻结 DataGen `state/`；Step 2--12 对齐 OmniaBench，
-依次生成和调试参考解、固化 Ground Truth、生成 Verifier、运行独立
-Agent 一致性检查、改写任务、检查轨迹/状态、生成 Rubric 并评估难度。
-全程隐藏 `tools[].internal.code`，校验工具 Schema、访问边界和失败回滚。
+TaskGen 使用五个显式步骤：冻结 DataGen `state/`、调研真实工作任务、联合生成任务与
+隐藏 Solution 并真实重放、生成答案/状态/Rubric 三类评分规则、运行多个独立 Agent
+做困难测试后返工或发布。全程隐藏 `tools[].internal.code`，校验工具 Schema、访问边界
+和失败回滚；Agent 自报成功不会被当作验收依据。
 详细说明见
 [Program-form README](task_gen/program_form/README.md)。
 

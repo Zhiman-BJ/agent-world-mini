@@ -1,328 +1,454 @@
-# Program-form 任务生成管线
+# Program-form 五步任务生成管线
 
-本目录按 OmniaBench `TaskGen-Program-En` 的 Runner 步骤重建。唯一不同的是
-Step 1：本项目不让模型重新生成 `init_config`，而是冻结 DataGen 已生成并校验的
-真实 `state/`。Step 2 到 Step 12 的职责、顺序、主要字段和检查点与 OmniaBench
-对齐。
+这条管线从一个已经完成 DataGen 和 ToolGen 的环境包生成 Program-form benchmark。
+它不让模型凭空编造初始数据库，也不相信 Agent 自己声称“任务完成”。所有 Solution、
+工具调用、最终答案和最终状态都要由 Python 在隔离环境中实际执行和验证。
 
-## 1. 源码结构
+## 1. 五个步骤
+
+```text
+Step 1  接收并冻结完整环境
+   ↓
+Step 2  调研这个现实场景中真实存在的工作任务
+   ↓
+Step 3  生成任务 + Solution，真实执行、修复、重放并固化 Ground Truth
+   ↓
+Step 4  生成评分项、答案 Verifier 和状态 Verifier，并运行正负例
+   ↓
+Step 5  多个独立 Agent 困难测试，区分基础设施失败，返工或发布
+```
+
+源码中的主流程与步骤一一对应：
 
 ```text
 program_form/
 ├── steps/
 │   ├── step1_prepare_environment.py
-│   ├── step2_gen_task_solution.py
-│   ├── step3_debug_solution_jsonl.py
-│   ├── step4_ground_truth_jsonl_in_jsonl_out.py
-│   ├── step5_verifier_code_jsonl_in_jsonl_out.py
-│   ├── step6_debug_verifier_jsonl_in_jsonl_out.py
-│   ├── step7_consistency_jsonl_in_jsonl_out.py
-│   ├── step8_filter_rewrite_jsonl_in_jsonl_out.py
-│   ├── step9_filter_trace_state_jsonl_in_jsonl_out.py
-│   ├── step10_gen_task_rubric_jsonl_in_jsonl_out.py
-│   ├── step11_difficulty_eval_jsonl_in_jsonl_out.py
-│   └── step12_final_output.py
+│   ├── step2_research_real_world_tasks.py
+│   ├── step3_generate_task_solution.py
+│   ├── step4_generate_scoring_criteria.py
+│   └── step5_evaluate_difficulty.py
+├── schemas/
+│   ├── task_research.schema.json
+│   ├── candidate.schema.json
+│   └── scoring_criteria.schema.json
 ├── utils/
 │   ├── contracts.py
 │   ├── environment.py
 │   ├── io.py
-│   ├── reference_program.py
-│   ├── solver.py
-│   ├── solver_mcp.py
 │   ├── tool_runtime.py
-│   └── verifier.py
-├── schemas/candidate.schema.json
+│   ├── verifier.py
+│   └── solver_mcp.py
 └── run_pipeline.py
 ```
 
-Prompt、业务处理顺序、接受条件和输出组装都在对应 `step*.py` 中。`utils/`
-只保留多个步骤共同使用的环境加载、JSONL、执行器和状态隔离能力。
+Prompt、业务顺序、接受条件、失败处理和输出组装都在对应 `step*.py`。`utils/` 不
+决定任务应该怎样生成、怎样修复、什么难度可以发布。
 
-## 2. 输入环境
+## 2. Step 1 的环境输入
+
+输入是一个完整环境目录：
 
 ```text
 <environment_package>/
 ├── environment.json
 ├── validation.json
+├── tools.json
 ├── state/
 │   ├── records.sqlite
-│   └── filesystem_scopes/<scope_id>/...
-└── tools.json
+│   └── filesystem_scopes/
+│       └── <scope_id>/...
+└── provenance/
+    └── scenario_research.json     # 可选，DataGen Step 1 的场景调研
 ```
 
-- `environment.json` 符合环境契约 v2.0。
-- `validation.json.valid` 必须为 `true`。
-- `state/` 是 DataGen 生成的权威初始状态。
-- 工具包含 `name/description/inputSchema/outputSchema/internal.code`。
-- 生成 Agent 和求解 Agent 看不到 `internal.code`。
+### `environment.json`
 
-## 3. 步骤总览
+它是数据和关系声明，不直接存放业务记录。主要层级为：
 
 ```text
-Step 1   冻结已有环境状态                          本项目适配
-Step 2   生成 task + output_schema + solution_code   对齐 OmniaBench
-Step 3   调试 solution_code                          对齐 OmniaBench
-Step 4   干净重放并固化 Ground Truth                 对齐 OmniaBench
-Step 5   生成答案 Verifier                           对齐 OmniaBench
-Step 6   调试 Verifier                               对齐 OmniaBench
-Step 7   多个独立 Agent 一致性检查                   对齐 OmniaBench
-Step 8   稳定性过滤并改写公开任务                    对齐 OmniaBench
-Step 9   任务、轨迹和状态语义一致性检查              对齐 OmniaBench
-Step 10  生成 Rubric                                 对齐 OmniaBench
-Step 11  多次求解并评估难度/pass@k                   对齐 OmniaBench
-Step 12  最终字段投影和发布                          对齐 OmniaBench Runner
+schema_version
+environment_id
+name
+summary
+description
+record_sets[]
+  record_set_id
+  name / description
+  access
+  key_fields[]
+  fields
+    <field_name>
+      type
+      description
+      nullable
+      enum                  # 可选
+relationships[]
+  relationship_id
+  from_record_set / from_fields
+  to_record_set / to_fields
+filesystem_scopes[]
+  scope_id
+  name / description
+  access
 ```
 
-### Step 1：冻结已有环境状态
+这些字段告诉后续 Agent：环境里有哪些实体集合、每个字段是什么意思、记录怎样关联、
+哪些文件范围可以访问。真实记录位于 `state/records.sqlite`，不是嵌套在声明 JSON 中。
+
+### `validation.json`
+
+这是 DataGen 的验收回执。Step 1 要求 `valid=true`；否则不允许用一个未通过数据校验
+的环境生成任务。
+
+### `tools.json`
+
+每个工具具有两组信息：
+
+```text
+tools[]
+  name
+  description
+  inputSchema
+  outputSchema
+  internal.code
+```
+
+- `name/description/inputSchema/outputSchema` 是公开工具契约，任务作者和求解 Agent 可见。
+- `internal.code` 是 Runtime 执行工具所需的内部实现，绝不写入公开环境投影。
+- `inputSchema/outputSchema` 可以继续包含 object、array、properties、items、required、
+  oneOf 等任意合法 JSON Schema 层级；Runtime 会递归校验，不依赖固定表结构。
+
+### `state/`
+
+- `records.sqlite` 保存 `record_sets` 对应的真实表和记录。
+- `filesystem_scopes/<scope_id>/` 保存声明过的文件资源。
+- 每次 Solution 或求解 Agent 执行时，Runtime 都复制一份新状态；所有写操作只落在该
+  副本中，不修改 Step 1 的基线。
+
+### `scenario_research.json`
+
+这是可选输入。它来自 DataGen 的场景调研，通常包含现实任务线索、来源 URL 和来源说明。
+Step 2 优先复用它，缺少证据时才继续网页调研，避免对同一场景重复从零搜索。
+
+## 3. Step 1：冻结环境
 
 代码：`steps/step1_prepare_environment.py`
 
-这是唯一与 OmniaBench 不同的步骤。它执行：
+### 做什么
 
-1. 校验环境声明、DataGen 回执、状态目录和工具 Schema。
-2. 将环境、工具和 `state/` 复制到 `baseline_environment/`。
-3. 计算初始逻辑状态摘要。
-4. 写出后续步骤使用的 `step1_environment.json`。
+1. 读取并校验环境声明、DataGen 回执、状态目录和完整工具契约。
+2. 将它们复制到输出目录的 `baseline_environment/`。
+3. 将工具投影为不含 `internal.code` 的公开版本。
+4. 对 SQLite Record Set 和文件 Scope 生成逻辑状态摘要。
+5. 可用时把 DataGen 的场景调研一同冻结。
 
-这里没有 `init_config`。后续的 `environment_package` 和最终任务中的
-`initial_state` 取代内联 `init_config`。
+### 为什么不生成 `init_config`
 
-### Step 2：生成任务和参考解
+OmniaBench 的原始 Step 1 需要模型生成初始配置；本项目已经由 DataGen 构造了真实
+`records.sqlite + filesystem_scopes`，重新生成会产生第二套互相冲突的数据。因此这里
+只冻结权威状态。
 
-代码：`steps/step2_gen_task_solution.py`
+### 输出
 
-输入：`step1_environment.json`。
-
-模型获得公开环境、完整工具输入输出 Schema，以及只读的初始状态副本。每个候选
-联合生成：
-
-```text
-task_internal
-output_schema
-solution_code
-```
-
-本步骤执行一次真实 preflight，检查候选 Schema、正文泄露、输出 Schema、工具
-输入输出、工具调用数量和状态变化。失败原因传入下一轮；只有成功候选进入 Step 3。
-
-输出：`step2_task_solution.json`，生成轮次保存在 `step2_rounds/`。
-
-### Step 3：调试参考程序
-
-代码：`steps/step3_debug_solution_jsonl.py`
-
-输入：`step2_task_solution.json`。
-
-1. 从 Step 1 干净基线执行原始 `solution_code`。
-2. 成功时不调用修复模型。
-3. 失败时把任务、完整工具契约、当前代码和真实错误交给修复 Agent。
-4. 每轮修复后从相同基线重新执行。
-5. 保存最终代码、调试历史和工具轨迹。
-6. 不根据错误代码反向改写任务目标。
-
-新增字段包括 `solution_code_fixed`、`solution_debug_success`、
-`solution_debug_history`、`solution_execution_trajectory` 和 `solution_trace`。
-
-输出：`step3_debug_solution.jsonl` 和 `step3_debug_solution.json`。
-
-### Step 4：固化 Ground Truth
-
-代码：`steps/step4_ground_truth_jsonl_in_jsonl_out.py`
-
-输入：`step3_debug_solution.jsonl`。本步骤不调用模型，也不复用 Step 3 的环境实例。
-它从 Step 1 基线重新运行 `solution_code_fixed`，成功后保存：
+`step1_environment.json` 的关键字段：
 
 ```text
-ground_truth.candidate_answer
-ground_truth.init_state
-ground_truth.final_state
-ground_truth.state_diff
-solution_trace
-post_solution_state_snapshot
+step / status / schema_version
+env_id
+environment_package             # baseline_environment
+package_format
+public_environment
+  environment                   # 不含真实记录的数据声明
+  tools[]                       # 不含 internal.code 的工具契约
+initial_state                   # 逻辑状态摘要
+scenario_research               # 可选冻结路径
 ```
 
-输出：`step4_ground_truth.jsonl`。
+## 4. Step 2：调研真实任务
 
-### Step 5：生成答案 Verifier
+代码：`steps/step2_research_real_world_tasks.py`
 
-代码：`steps/step5_verifier_code_jsonl_in_jsonl_out.py`
+本步只回答“现实中这个场景的人会做什么工作”，不生成题目和 Solution。
 
-输入：`step4_ground_truth.jsonl`。模型生成：
+### Agent 输入
+
+- `environment.public.json`：Record Set、关系、文件 Scope 和公开工具。
+- `initial_state.summary.json`：初始状态数量与摘要，不提供隐藏答案。
+- `scenario_research.json`：已有调研，可选。
+- `task_research.schema.json`：固定输出结构。
+- `validation_feedback.json`：前一轮的 Python 校验错误。
+
+### Agent 产出
+
+每个 `task_archetypes[]` 描述一种现实任务原型：
+
+```text
+archetype_id / name
+role                           # 谁执行
+trigger                        # 什么情况下开始
+business_goal                  # 最终业务目的
+workflow[]                     # 现实工作过程，不是工具调用顺序
+required_evidence[]
+hard_constraints[]
+expected_deliverable
+common_failure_modes[]
+source_urls[]
+environment_support
+  record_sets[]
+  relationships[]
+  filesystem_scopes[]
+  tools[]
+  unsupported_requirements[]
+  generatable
+  reason
+```
+
+### Python 接受条件
+
+1. 整体严格满足 `task_research.schema.json`。
+2. `env_id` 与当前环境一致，原型 ID 不重复。
+3. 每个 `source_urls` 都在顶层 `sources[]` 登记。
+4. 支持映射中的所有 Record Set、关系、Scope 和工具都真实存在。
+5. `generatable=true` 时不能仍有未支持的必要能力。
+6. 至少存在一个可由当前环境完整执行的任务原型。
+
+输出为 `step2_task_research.json`。失败轮次写入
+`step2_task_research_failures.json`，供下一次修正。
+
+## 5. Step 3：生成任务和 Solution
+
+代码：`steps/step3_generate_task_solution.py`
+
+这是主要的任务生成阶段。Solution 的限制、执行器、修复循环和 Ground Truth 固化都在
+同一个 Step 文件中。
+
+### 生成 Agent 输入
+
+- Step 1 的公开环境和一份只读初始状态副本。
+- Step 2 已验证且 `generatable=true` 的任务原型。
+- 任务数量、最少工具调用数、最少不同工具数、是否必须改变状态等策略。
+- 前几轮真实失败原因。
+- `candidate.schema.json`。
+
+### 每个候选字段
+
+```text
+archetype_id
+task_internal                  # 内部审计描述
+task_public                    # 求解 Agent 最终看到的自然语言任务
+output_schema                  # 求解 Agent 最终答案的严格 JSON Schema
+solution_code                  # 隐藏参考程序
+```
+
+`task_public` 不能出现工具名、内部字段路径、调用顺序、Python、答案或 Solution 提示。
+`output_schema` 必须是闭合 object：字段非空、全部字段 required、
+`additionalProperties=false`。
+
+Solution 只允许通过下面的接口操作环境：
 
 ```python
-verify(candidate_answer, ground_truth_answer) -> float
+result = call_tool("tool_name", {"argument": "value"})
 ```
 
-Verifier 只比较结构化答案。标准答案正例必须为 `1.0`；缺字段、多字段、错值、
-错类型均不能为 `1.0`。模型连续失败时使用经过同样自测的确定性逐字段回退实现。
+不能 import、读取 `state/`、访问 Runtime 对象或硬编码最终答案；最后一条语句必须给
+`final_answer` 赋值。
 
-输出：`step5_verifier_code.jsonl`，新增 `verifier_code`。
+### 实际执行与修复
 
-### Step 6：调试 Verifier
+1. Python 从 Step 1 基线创建新环境副本。
+2. 校验 Solution 的 Python 语法和禁用操作。
+3. 每次调用工具时校验 inputSchema、outputSchema、访问边界和失败回滚。
+4. 校验 `final_answer` 是否符合候选的 output Schema。
+5. 失败时把真实异常、工具轨迹和当前代码交给 Agent，只允许修复实现，不允许改任务。
+6. 成功后从同一基线干净重放至少两次。
+7. 多次执行的答案、最终状态和状态差异必须完全稳定。
+8. 独立审查 Agent 检查现实调研依据、任务约束、泄露、执行语义和环境支持。
 
-代码：`steps/step6_debug_verifier_jsonl_in_jsonl_out.py`
+Agent 自己写“success=true”没有作用，只有上述 Python 执行结果决定是否接受。
 
-输入：`step5_verifier_code.jsonl`。它独立重跑全部正负例。原代码通过时不调用模型；
-失败时才进行“修复 -> 全套重测”，且不能降低标准。
+### 输出
 
-输出：`step6_debug_verifier.jsonl`，新增 `verifier_debug_success` 和
-`verifier_debug_history`。
-
-### Step 7：独立 Agent 一致性检查
-
-代码：`steps/step7_consistency_jsonl_in_jsonl_out.py`
-
-输入：`step6_debug_verifier.jsonl`。本步骤不运行参考程序。默认启动 5 个全新的
-求解 Agent；每个 Agent 只看到任务、输出 Schema 和公开工具，并通过临时 MCP
-从 Step 1 干净基线调用真实工具。
-
-只有答案 Verifier 为 `1.0` 且最终逻辑状态与 Ground Truth 相同才算成功。
-
-输出：`step7_consistency.jsonl`，新增：
+`step3_task_solution.jsonl` 中每条记录新增：
 
 ```text
-multi_exec_results
-consistency_pass_count
-consistency_pass_rate
-total_runs
-consistency_threshold
-consistency_keep
+env_id / env_class_name / environment_package
+task_id / archetype_id / task_archetype
+task_internal / task_public / output_schema
+solution_code_original / solution_code / solution_code_fixed
+solution_trace[]
+ground_truth
+  candidate_answer
+  init_state
+  final_state
+  state_diff
+solution_validation
+  success
+  debug_history[]
+  clean_replay_count
+  tool_call_count / distinct_tools[]
+  state_changed
+  semantic_review
 ```
 
-### Step 8：过滤并改写公开任务
+`step3_validation.json` 保存请求数、接受数和所有拒绝原因。
 
-代码：`steps/step8_filter_rewrite_jsonl_in_jsonl_out.py`
+## 6. Step 4：生成完整评分规则
 
-输入：`step7_consistency.jsonl`。先要求 Step 3、4、6 成功且 Step 7
-`consistency_keep=true`，再只对保留项调用模型生成 `task_public`。改写保留业务
-目标和约束，但隐藏工具名、内部字段、调用顺序和参考答案。
+代码：`steps/step4_generate_scoring_criteria.py`
 
-输出：`step8_filter_rewrite.jsonl` 和 `step8_filter_rewrite_kept.jsonl`。
+这一步同时生成三种互补的判断，避免只比较一句最终答案：
 
-### Step 9：任务、轨迹、状态一致性检查
+1. `rubric_items`：自然语言任务要求是否逐项完成。
+2. `answer_verifier_code`：结构化答案是否正确。
+3. `state_verifier_code`：环境中的实际业务效果是否正确。
 
-代码：`steps/step9_filter_trace_state_jsonl_in_jsonl_out.py`
-
-输入：`step8_filter_rewrite_kept.jsonl`。默认运行 3 个独立 Judge，检查公开任务
-是否能解释参考工具轨迹和状态变化，以及参考执行是否做了额外业务动作。与
-OmniaBench 当前实现一致，只有所有 Judge 都否决时才过滤；分歧票会保留并设置
-`step9_review_required=true`，供后续复核。
-
-输出：`step9_filter_trace_state.jsonl` 和 `step9_filter_trace_state_kept.jsonl`。
-
-### Step 10：生成 Rubric
-
-代码：`steps/step10_gen_task_rubric_jsonl_in_jsonl_out.py`
-
-输入：`step9_filter_trace_state_kept.jsonl`。模型根据公开任务、输出 Schema、
-初始/最终状态、状态差异和参考工具序列生成 `general` 与 `task_specific` 两类评分项。
-模型文件严格使用 OmniaBench 的四字段格式：`rubric_count`、`total_score`、
-`rubrics_text`、`explanation`；代码再解析评分行，并确定性检查 ID、1/2/3 分值和
-两类总分。默认总分为 14，其中 general 为 6。
-
-输出：`step10_rubric.jsonl`，新增 `rubric_items/rubric_count/rubric_total_score`。
-
-### Step 11：难度与 pass@k
-
-代码：`steps/step11_difficulty_eval_jsonl_in_jsonl_out.py`
-
-输入：`step10_rubric.jsonl`。再次运行多个全新求解 Agent。一次运行必须同时满足：
+### Agent 输入
 
 ```text
-Verifier score == 1.0
-State verifier score == 1.0
-Rubric judge score == 1.0
+task_public / output_schema / task_archetype
+ground_truth
+solution_trace
+总分和 general/task_specific 分值要求
+scoring_criteria.schema.json
+上一轮 Python 校验错误
 ```
 
-Rubric 总分由代码根据逐项 `earned` 重算，不能相信模型自行声明的总分。
+### Python 接受条件
 
-输出：`step11_difficulty.jsonl`，新增 `difficulty_eval_results_3`、
-`difficulty_pass_count_3`、`empirical_pass_rate_3`、`pass_at_k` 和
-`difficulty_bucket`。
+- Rubric ID 唯一，general 使用 `G` 前缀，task_specific 使用 `T` 前缀。
+- 每项只能为 1、2、3 分，两类分数和总分必须精确匹配配置。
+- 答案 Verifier 的 Ground Truth 正例必须为 1.0；缺字段、多字段、错值、错类型不能满分。
+- 状态 Verifier 的 Ground Truth 最终状态必须为 1.0；错误状态和应变化却未变化的初始
+  状态不能满分。
+- 两段 Verifier 禁止 import、文件访问和动态代码执行，受到执行时间与行数预算限制，
+  且只能返回 0..1。
+- 当前状态验证固定为 `exact_final_state`；只有逻辑最终状态完整一致才能满分。
 
-### Step 12：最终发布
-
-代码：`steps/step12_final_output.py`
-
-输入：`step11_difficulty.jsonl`。本步骤不调用模型、不重新评分，只投影最终字段：
+输出 `step4_scoring_criteria.jsonl`，关键新增字段为：
 
 ```text
-env_id / environment_summary / task_id / task / output_schema
-candidate_tools / initial_state / environment_package / rubrics
-ground_truth_answer / verifier_code / additional_information
+scoring_ready / scoring_validation
+rubric_items / rubric_count / rubric_total_score
+general_rubric_score / task_specific_rubric_score
+verifier_code / state_verifier_code / state_verification
+rubric_explanation
 ```
 
-`initial_state + environment_package` 是本项目对 OmniaBench `init_config` 的唯一替代。
+## 7. Step 5：困难测试、返工与发布
 
-输出：`final/task_gen_final_english.json`。
+代码：`steps/step5_evaluate_difficulty.py`
 
-## 4. 运行
+### 求解 Agent 能看见什么
+
+每一次都是新的 Agent 和新的环境副本。它只获得：
+
+```text
+task_public
+output_schema
+public_environment.environment
+public_environment.tools[]
+Agent-World MCP 工具
+```
+
+它的 Prompt 不包含现实调研、Solution、Ground Truth、Verifier 或 Rubric。
+
+### 一次有效 Rollout 怎样判分
+
+1. 答案 Verifier 比较 Agent 答案和 Ground Truth 答案。
+2. 状态 Verifier 比较 Agent 最终状态、Ground Truth 最终状态和初始状态。
+3. 独立 Rubric Judge 根据真实答案、工具轨迹和最终状态逐项打分。
+4. 三项都为 `1.0`，本次 Rollout 才算通过。
+
+Rubric Judge 只提交每项 `passed` 和证据。Python 使用 Step 4 固定的 points 重新计算
+总分，不相信模型声明的总分。
+
+### 基础设施失败和任务失败的区别
+
+- MCP 未启动、最终状态文件缺失、Agent 超时、评分 Agent 未生成合法文件：基础设施失败，
+  自动补跑，不进入难度分母。
+- Agent 返回错误答案、没有完成状态变化、Rubric 未满足：有效任务失败，计入难度分母。
+
+如果补跑后仍没有收集到配置数量的有效 Rollout，任务进入返工。有效 Rollout 全部失败
+也进入返工，不会被标成“极难任务”；至少达到 `minimum_passing_runs` 才能证明任务既可解
+又具有可测难度。
+
+### 输出
+
+```text
+step5_difficulty.jsonl          # 所有任务、每次评分和基础设施记录
+step5_rework.jsonl              # 未发布任务及明确原因
+final/task_gen_final.json       # 通过困难测试的正式任务
+```
+
+最终任务明确补齐环境摘要、完整公开环境契约、公开工具契约、初始状态、Ground Truth
+答案/最终状态/状态差异、答案/状态 Verifier、Rubric 和难度统计。求解时只应向 Agent
+投影其中的公开字段。
+
+## 8. 为什么仍保留 `utils/`
+
+是否放进 `utils` 不以“代码长不长”判断，而看它是否是多个步骤或独立进程共同依赖、且
+不包含阶段决策。
+
+| 文件 | 保留原因 | 不允许放入的内容 |
+| --- | --- | --- |
+| `contracts.py` | Step 3--5 共用字段名和运行参数 | 发布策略、修复顺序 |
+| `io.py` | 多个 Step 共用 JSON/JSONL checkpoint 格式 | 某一步的输出组装 |
+| `environment.py` | Step 1--3、5 共用环境包加载和公开投影 | 任务选择规则 |
+| `tool_runtime.py` | Solution 和 MCP 都需要隔离状态、工具执行、Schema 校验和 diff | Solution 接受条件、难度判定 |
+| `verifier.py` | Step 4 要测试，Step 5 要执行同一受限代码 | Rubric 内容和发布门槛 |
+| `solver_mcp.py` | 必须由 Codex 作为独立 stdio MCP 子进程启动 | Agent Prompt、重试规则、计分规则 |
+
+任务调研、任务生成、Solution 执行合同、修复、重放、评分生成、独立求解编排、困难度和
+发布条件全部留在 Step 文件中。原来的 `reference_program.py` 和 `solver.py` 已删除，
+因为它们只服务单一步骤，会把主流程藏到 `utils`。
+
+## 9. 运行
 
 ```bash
 cd /home/sunshuo/AgenticDataGeneration/agent-world-mini
 
 python -m task_gen.program_form \
   --step all \
-  --environment-package /path/to/environment_package \
+  --environment-package /path/to/complete_environment \
   --output-dir /tmp/program_tasks \
   --model gpt-5.6-terra \
   --task-count 2 \
   --min-tool-calls 6 \
   --min-distinct-tools 3 \
-  --require-state-change
+  --difficulty-runs 5 \
+  --minimum-passing-runs 1
 ```
 
-Runner 支持与 OmniaBench 相同的步骤选择：
+步骤选择支持：
 
 ```bash
-python -m task_gen.program_form --step 4 ...
-python -m task_gen.program_form --step 3-7 ...
-python -m task_gen.program_form --step 2,4,5 ...
+--step 3
+--step 2-4
+--step 1,3,5
+--step all
 ```
 
-非 `--fresh` 模式复用已有完整产物组；如果 Step 3、8、9 只存在其中一部分文件，
-Runner 会拒绝把半成品当成已完成。`--fresh` 重新执行选中步骤。调试 Step 2 时可用
-`--candidates /path/to/candidates.json` 跳过模型生成；其中每个候选只包含
-`task_internal`、`output_schema`、`solution_code`。
+完整产物已存在时会跳过；一组产物只存在一部分时会停止并指出缺失文件。需要重跑所选
+步骤时使用 `--fresh`。
 
-## 5. 产物顺序
+## 10. 完整产物目录
 
 ```text
 <output_dir>/
 ├── baseline_environment/
 ├── step1_environment.json
-├── step2_task_solution.json
-├── step2_validation.json
-├── step2_rounds/
-├── step3_debug_solution.json
-├── step3_debug_solution.jsonl
-├── step4_ground_truth.jsonl
-├── step5_verifier_code.jsonl
-├── step6_debug_verifier.jsonl
-├── step7_consistency.jsonl
-├── step8_filter_rewrite.jsonl
-├── step8_filter_rewrite_kept.jsonl
-├── step9_filter_trace_state.jsonl
-├── step9_filter_trace_state_kept.jsonl
-├── step10_rubric.jsonl
-├── step11_difficulty.jsonl
-└── final/task_gen_final_english.json
+├── step2_research/
+├── step2_task_research.json
+├── step3_repairs/
+├── step3_reviews/
+├── step3_task_solution.jsonl
+├── step3_validation.json
+├── step4_scoring/
+├── step4_scoring_criteria.jsonl
+├── step5_runs/
+├── step5_difficulty.jsonl
+├── step5_rework.jsonl
+└── final/
+    └── task_gen_final.json
 ```
-
-JSONL 使用 OmniaBench 的 checkpoint 包装格式：
-
-```json
-{"__idx": 0, "item": {}}
-```
-
-同一索引出现多行时，读取逻辑以最后一条合法记录为准。
-
-## 6. 执行边界
-
-- 参考程序只能通过 `call_tool` 使用环境，不能直接读写状态。
-- 每次工具调用校验 `inputSchema/outputSchema` 和统一 `success` envelope。
-- 修改只读资产、未声明文件或 SQLite Schema 会被拒绝。
-- 工具异常或失败后留下的状态修改会回滚。
-- SQLite 按规范化记录内容比较，不按数据库文件字节比较。
-- Step 7/11 的求解 Agent 看不到参考程序、Ground Truth 或工具内部代码。
-- v2 DataGen 环境必须先由 ToolGen 提供 `tools.json`。

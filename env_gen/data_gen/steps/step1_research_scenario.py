@@ -11,6 +11,7 @@ from typing import Any, Callable
 from env_gen.data_gen.analysis.scenario_research import (
     validate_scenario_research_payload,
 )
+from env_gen.data_gen.analysis.seed import is_python_package_seed
 
 from .common.constants import (
     CONTROL_RUN_CONFIG,
@@ -24,6 +25,8 @@ from .common.workspace_files import file_sha256
 
 
 AgentRunner = Callable[[str, int, tuple[Path, ...]], str]
+_PYTHON_PACKAGE_RESEARCH_SECONDS = 900
+_PYTHON_PACKAGE_RESEARCH_TOTAL_SECONDS = 1200
 
 
 RESEARCH_GUIDE = """# 任务：通过调研丰富环境 Seed
@@ -49,8 +52,10 @@ RESEARCH_GUIDE = """# 任务：通过调研丰富环境 Seed
    以及通常如何开展工作。
 2. 沿来源中实际出现的工作过程理解业务对象、文件、参与者、工具和典型任务，并据此持续完善
    环境描述。不要根据预想的数据结构反推场景。
-3. Seed 中的工具和任务是必须调查的线索。通过产品页面、官方文档、项目仓库、操作指南、案例或
-   其他可信资料核实它们，不把 Seed 自身的简短描述直接扩写成调研结论。
+3. Seed 中的参考工具能力和任务是调查线索。先理解完整工作流，再核实其中实际用到的能力；当
+   `init_ref_tools` 是很长的 API 索引时按名称查询相关项，不必逐项阅读或把整个索引复刻进场景。
+   通过产品页面、官方文档、项目仓库、操作指南、案例或其他可信资料核实结论，不把 Seed 自身的
+   简短描述直接扩写成调研结论。
 4. 优先使用能反映实际使用方式的资料。规范和接口文档可核实术语及能力边界，操作指南、案例、
    问题记录、测试材料和真实输入输出可说明工作在现实中如何发生。
 5. 环境、实体、工具和任务都引用直接支持该结论的 HTTP(S) 来源。来源没有说明的具体字段、参数、
@@ -58,16 +63,17 @@ RESEARCH_GUIDE = """# 任务：通过调研丰富环境 Seed
 
 ## 内容要求
 
-- **环境简述**：用 1-2 句直接说明这是一个什么环境、服务什么领域和使用者。
-- **环境详细描述**：展开说明专业背景、参与者、工作触发方式、主要数据流转、结果及范围，使读者
-  能理解环境如何运转，而不只是知道它包含哪些概念。
+- **环境简述**：使用 20-160 个字符、1-2 句直接说明这是一个什么环境、服务什么领域和使用者。
+- **环境详细描述**：使用 80-800 个字符展开说明专业背景、参与者、工作触发方式、主要数据流转、
+  结果及范围，使读者能理解环境如何运转，而不只是知道它包含哪些概念。
 - **实体**：记录现实工作中稳定存在的业务对象。每项说明它是什么、在环境中的作用、由谁使用，
   以及与其他对象的主要联系。一个实体名称对应一种可独立存在和变化的业务对象；能够被分别指称、
   产生、使用或改变的对象分别记录。来源明确将多个概念定义为同一对象时才使用复合名称。不预设
   实体字段、标识符、状态枚举或存储结构。
 - **工具**：只记录调研来源中明确存在的工具、产品能力或接口。每项说明现实中的使用者或调用方、
-  处理的业务对象、核心作用、产生的结果，以及与相近能力的边界。Seed 中每个参考工具使用原名称
-  核实和记录。重点描述用途和业务效果；来源明确且有助于理解能力时可以说明关键行为，但不枚举
+  处理的业务对象、核心作用、产生的结果，以及与相近能力的边界。Seed 中实际进入工作流的参考工具沿用其
+  完整标识；同时具有 `module` 和 `name` 时写成 `module.name`。较长的能力索引只核实相关部分。重点描述
+  用途和业务效果；来源明确且有助于理解能力时可以说明关键行为，但不枚举
   认证参数、请求字段、响应字段或持久化设计。岗位职责、工作阶段和待建设系统不作为工具。
 - **任务**：记录调研来源中出现的典型工作。每项说明现实触发场景、参与者和目标，概括主要处理
   过程、使用的环境对象或工具，以及完成后形成的结果，使后续阶段能够理解这项工作需要哪些类型的
@@ -87,7 +93,7 @@ RESEARCH_GUIDE = """# 任务：通过调研丰富环境 Seed
 同时满足以下条件后停止继续扩展：
 
 - 环境简述可以快速识别场景，详细描述足以让陌生读者理解现实工作如何开始、推进和完成；
-- Seed 中的参考工具和参考任务已经通过外部资料核实，并放入现实使用场景；
+- Seed 中的参考任务以及现实工作流实际使用的参考工具已经通过外部资料核实；
 - 核心实体的业务含义和彼此联系清楚；每项工具足以理解其业务用途、对象和结果；每项任务足以理解
   其触发场景、参与者、主要过程和工作结果；
 - 数据方向已经说明要寻找的真实材料、产生环境、业务用途和主要联系，未确认内容已放入开放问题；
@@ -143,6 +149,12 @@ RESEARCH_GUIDE = """# 任务：通过调研丰富环境 Seed
 """
 
 
+def _build_research_guide(seed: dict[str, Any]) -> str:
+    """Use one workflow-oriented research guide for every Seed type."""
+
+    return RESEARCH_GUIDE
+
+
 class ScenarioResearchError(RuntimeError):
     """Step 1 没有交付有效的 scenario_research。"""
 
@@ -163,6 +175,21 @@ def _build_research_prompt(
 """
 
     detail = failure.strip().replace("\x00", " ")[:3000]
+    invalid_draft = run_dir / ".datagen/drafts/scenario_research.invalid.json"
+    if not invalid_draft.is_file():
+        return f"""工作目录：`{run_dir}`。
+
+完整读取 `.datagen/RESEARCH_GUIDE.md` 中的输出格式。Guide 中提到的相对路径均以该工作目录为准。
+
+这是第 {attempt} 次交付修正。上一次 Agent 已经进行了调研，但没有在时限内写出草稿：
+
+{detail}
+
+不要重新联网搜索，也不要重新浏览 API 索引、文档导航、源码或测试目录。先读取
+`.datagen/agent_runs/` 中上一轮的 `stderr.log`，从其中已经访问的来源、已经形成的工作流判断和核实结果中
+整理内容。你的第一项实质操作必须是把一份结构完整的结果写入
+`.datagen/drafts/scenario_research.json`。写完后再用剩余时间按需核对并更新该文件；无论如何不要删除已写草稿。
+"""
     return f"""工作目录：`{run_dir}`。
 
 完整读取并执行 `.datagen/RESEARCH_GUIDE.md` 中的任务。Guide 中提到的相对路径均以该工作目录为准。
@@ -325,11 +352,14 @@ def run_scenario_research(
         control_path(run_dir, CONTROL_RUN_CONFIG),
         "Step 0 运行配置",
     )
-    read_json(control_path(run_dir, CONTROL_SELECTED_SEED), "Step 0 选中 Seed")
-    atomic_write_text(control_path(run_dir, RESEARCH_GUIDE_FILE), RESEARCH_GUIDE)
+    seed = read_json(control_path(run_dir, CONTROL_SELECTED_SEED), "Step 0 选中 Seed")
+    atomic_write_text(control_path(run_dir, RESEARCH_GUIDE_FILE), _build_research_guide(seed))
     policy = run_config["collection_policy"]
     attempt_seconds = int(policy["scenario_research_seconds"])
     total_seconds = int(policy["scenario_research_total_seconds"])
+    if is_python_package_seed(seed):
+        attempt_seconds = max(attempt_seconds, _PYTHON_PACKAGE_RESEARCH_SECONDS)
+        total_seconds = max(total_seconds, _PYTHON_PACKAGE_RESEARCH_TOTAL_SECONDS)
     max_attempts = int(policy["max_scenario_research_attempts"])
     protected = _research_input_snapshot(run_dir)
     research_path = run_dir / SCENARIO_RESEARCH_PATH

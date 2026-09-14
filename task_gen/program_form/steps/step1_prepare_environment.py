@@ -4,7 +4,8 @@
 ``init_config``；Agent-World Mini 已有 DataGen 生成的真实 ``state/``，因此本步
 不生成业务数据，只验证并复制可执行环境包，作为后续全部任务共享的只读基线。
 
-输入：``environment.json + validation.json + state/ + tools.json``。
+输入：``environment.json + validation.json + state/ + tools.json``，以及可选的
+``provenance/scenario_research.json``。
 输出：``step1_environment.json`` 和 ``baseline_environment/``。
 """
 
@@ -25,6 +26,7 @@ def run_step1(
     environment_package: Path,
     output_dir: Path,
     tools_path: Path | None = None,
+    scenario_research_path: Path | None = None,
     overwrite: bool = False,
 ) -> Path:
     """验证输入环境并冻结后续步骤使用的基线副本。"""
@@ -52,6 +54,19 @@ def run_step1(
     state_name = "state" if source.package_format == "v2" else "workspace"
     shutil.copytree(source.state_root, baseline / state_name)
     write_json(baseline / "tools.json", {"tools": list(source.tools)})
+    source_research = (
+        scenario_research_path.resolve()
+        if scenario_research_path is not None
+        else source.package_root / "provenance" / "scenario_research.json"
+    )
+    frozen_research: str | None = None
+    if source_research.is_file():
+        target = baseline / "provenance" / "scenario_research.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_research, target)
+        frozen_research = "baseline_environment/provenance/scenario_research.json"
+    elif scenario_research_path is not None:
+        raise FileNotFoundError(f"找不到指定的场景调研文件：{source_research}")
 
     frozen = CompleteEnvironmentPackage.load(baseline)
     initial_state = compact_state_snapshot(
@@ -70,6 +85,7 @@ def run_step1(
         "package_format": frozen.package_format,
         "public_environment": frozen.public_environment(),
         "initial_state": initial_state,
+        "scenario_research": frozen_research,
     }
     write_json(receipt_path, receipt)
     return receipt_path
@@ -79,6 +95,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--environment-package", type=Path, required=True)
     parser.add_argument("--tools-path", type=Path)
+    parser.add_argument("--scenario-research", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--overwrite", action="store_true")
     arguments = parser.parse_args()
@@ -86,6 +103,7 @@ def main() -> None:
         run_step1(
             environment_package=arguments.environment_package,
             tools_path=arguments.tools_path,
+            scenario_research_path=arguments.scenario_research,
             output_dir=arguments.output_dir,
             overwrite=arguments.overwrite,
         )

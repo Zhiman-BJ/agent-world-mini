@@ -14,7 +14,7 @@ from env_gen.data_gen.config import CollectionPolicy, DEFAULT_OSS_OUTPUT_ROOT, D
 from env_gen.data_gen.steps.step0_prepare_run import prepare_generation_run
 from env_gen.data_gen.steps.step1_research_scenario import ScenarioResearchError, run_scenario_research
 from env_gen.data_gen.steps.step2_collect_data import DataCollectionError, run_data_collection
-from env_gen.data_gen.steps.step3_integrate_data import IntegrationFinalizationError, run_integration_phase
+from env_gen.data_gen.steps.step3_integrate_data import IntegrationError, run_integration_phase
 from env_gen.data_gen.steps.step4_freeze_environment import (
     EnvironmentFreezeError,
     freeze_and_publish_environment,
@@ -262,7 +262,7 @@ def run_pipeline(
                 collection_policy=policy,
                 agent_runner=agent_runner,
             )
-        except IntegrationFinalizationError as error:
+        except IntegrationError as error:
             raise DataGenerationError(str(error)) from error
         quality_tier = "partial" if source_result == "partial" else "rich"
         final_output = explicit_output or output_root / quality_tier / safe_global_id

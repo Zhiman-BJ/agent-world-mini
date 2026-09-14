@@ -1,0 +1,146 @@
+[
+  {
+    "name": "linear",
+    "recommendation": "优先候选，先补输出与状态约束",
+    "dimensions": {
+      "commonness": {"score": 5, "reason": "团队、项目、工单、成员是常见协作对象，可迁移到研发、客服和内部事务。"},
+      "entity_model": {"score": 5, "reason": "工单、项目、团队、用户、标签、周期、评论可关联；create_issue 明示 team/project/assignee/state/priority/parentId/blockedBy 等属性。"},
+      "operation_coverage": {"score": 4, "reason": "有检索、创建、修改、分派、关系管理及评论；不把多个 list 接口算成不同操作类别。缺少通用删除等完整生命周期操作。"},
+      "workflow_closure": {"score": 4, "reason": "项目与工单可查询、创建、修改并读回；状态与阻塞关系仍需补充可执行约束。"},
+      "verifiability": {"score": 3, "reason": "get_issue/get_project 可以作为读回入口，属性与关系可做状态断言；25 个 output 均为空，返回字段与稳定 ID 需补证。"},
+      "task_composability": {"score": 5, "reason": "可围绕分派、项目归属、状态迁移、父子及阻塞关系构造多种依赖链和分支，而非重复查询。"}
+    },
+    "entity_evidence": "Issue(team, project, assignee, state, priority, parentId, blockedBy)、Project(team, state, targetDate)、Comment(issueId, parentId)、Team、User、Label、Cycle。这些是接口线索，尚未成为实例化实体表。",
+    "evidence_tools": ["create_issue", "update_issue", "get_issue", "list_teams", "list_users", "create_project", "get_project", "create_comment"],
+    "proposed_task_chain": ["list_teams", "list_users", "list_projects", "create_issue", "update_issue", "get_issue"],
+    "chain_dependencies": "先选择团队、负责人和已有项目，再创建工单；生成阶段明确 create_issue 返回的 ID，并把它传给 update_issue/get_issue。场景需预先给定合法状态，不能假定更新必然成功。",
+    "proposed_assertion": "工单的 team/project/assignee 对应所选对象，最终 state 与目标一致；原有不相关工单及关系保持不变。",
+    "missing_evidence": "输出结构、状态迁移前置条件、引用完整性规则、初始实体实例、隔离重置机制及失败回滚行为。"
+  },
+  {
+    "name": "airtable",
+    "recommendation": "优先候选，选择具体业务表模型",
+    "dimensions": {
+      "commonness": {"score": 4, "reason": "结构化表格、记录和评论通用性强；具体库存、项目或客户业务需在合成时限定。"},
+      "entity_model": {"score": 4, "reason": "Workspace/Base/Table/Field/Record/Comment 层次清晰，字段有类型和选项，但业务实体与跨表不变量仍需明确。"},
+      "operation_coverage": {"score": 4, "reason": "记录增删改查、字段建模、检索、排序过滤和评论覆盖较丰富；不是完整工作流引擎。"},
+      "workflow_closure": {"score": 4, "reason": "发现 base/table、检查 schema、读写 records、读回结果形成闭环；需要定义实际业务流程和权限边界。"},
+      "verifiability": {"score": 4, "reason": "23 个工具中 21 个 output 非空，记录创建/更新返回 records，查询可读回；可做字段与集合断言，但还没有运行验收。"},
+      "task_composability": {"score": 4, "reason": "baseId/tableId/fieldId/recordId 构成多层依赖，可合成发现结构、选择对象、修改、读回的 4–6 步任务。"}
+    },
+    "entity_evidence": "Workspace→Base→Table→Field/Record，Record→Comment；create_table 的 name/fields，create_records_for_table 的 records，list_record_comments 的 recordId 均为直接字段依据。",
+    "evidence_tools": ["search_bases", "list_tables_for_base", "get_table_schema", "list_records_for_table", "update_records_for_table", "create_records_for_table", "delete_records_for_table"],
+    "proposed_task_chain": ["search_bases", "list_tables_for_base", "get_table_schema", "list_records_for_table", "update_records_for_table", "list_records_for_table"],
+    "chain_dependencies": "从搜索结果取得 baseId，从表列表取得 tableId/fieldId，读取字段类型与可选值，再使用记录 ID 定向更新；读回时按记录 ID 验证，不能凭 success 字段判定。",
+    "proposed_assertion": "选中的记录字段被改成目标值，数量及外键关系一致，未命中的记录没有变化；单选写入按选项名字处理。",
+    "missing_evidence": "业务数据模型、跨表约束、权限规则、失败原子性、默认数据和可重置本地实现。"
+  },
+  {
+    "name": "googlecalendar",
+    "recommendation": "优先小规模试做",
+    "dimensions": {
+      "commonness": {"score": 5, "reason": "日程安排、邀请和冲突检查是高频通用场景。"},
+      "entity_model": {"score": 4, "reason": "日历、事件、参与者、邀请响应及重复规则有清晰属性；实体种类适中。"},
+      "operation_coverage": {"score": 4, "reason": "创建、修改、删除、查询、空闲查找和邀请响应覆盖实际任务；9 个工具已具有组合价值。"},
+      "workflow_closure": {"score": 4, "reason": "查空闲、安排、调整、取消、列举事件能闭环；时区、冲突和周期事件规则需要实现。"},
+      "verifiability": {"score": 3, "reason": "可用 ListEvents 读回事件区间、参与者和变更；创建和查询 output 为空，三个 result 输出也不能直接证明结果正确。"},
+      "task_composability": {"score": 4, "reason": "可用空闲时间结果约束创建参数，再通过查询返回的 event_id 更新，形成真实数据依赖。"}
+    },
+    "entity_evidence": "Calendar(calendar_id)、Event(event_id, summary, start_datetime, end_datetime, recurrence, visibility)、Attendee(attendee_emails, response)。",
+    "evidence_tools": ["GoogleCalendar_ListCalendars", "GoogleCalendar_FindTimeSlotsWhenEveryoneIsFree", "GoogleCalendar_CreateEvent", "GoogleCalendar_UpdateEvent", "GoogleCalendar_ListEvents", "GoogleCalendar_RespondToEvent"],
+    "proposed_task_chain": ["GoogleCalendar_ListCalendars", "GoogleCalendar_FindTimeSlotsWhenEveryoneIsFree", "GoogleCalendar_CreateEvent", "GoogleCalendar_ListEvents"],
+    "chain_dependencies": "选择 calendar_id，使用参与者共同空闲时段作为创建事件的时间，再按日历与时间范围读回。实例需固定当前时间和时区。",
+    "proposed_assertion": "目标事件存在，参与者集合及起止时间正确，start < end，且不与固定初始日程冲突；无关事件保持不变。",
+    "missing_evidence": "创建/查询输出、邀请状态枚举、时区与重复事件展开规则、冲突政策；ListEvents 描述与参数说明对边界是否包含存在差异，生成契约时需统一。"
+  },
+  {
+    "name": "slack",
+    "recommendation": "保留，限定消息与成员管理子场景",
+    "dimensions": {
+      "commonness": {"score": 5, "reason": "用户、频道、消息和讨论线程是常见协作对象。"},
+      "entity_model": {"score": 4, "reason": "用户、频道、成员关系、消息、线程可关联，conversation_id/user_ids/thread_ts 提供关联线索。"},
+      "operation_coverage": {"score": 3, "reason": "读取工具较多，写操作主要是发消息和邀请成员，缺少编辑、删除和移除成员等操作。"},
+      "workflow_closure": {"score": 3, "reason": "发送/读回及邀请/成员读取可形成局部闭环；频道及消息生命周期不完整。"},
+      "verifiability": {"score": 3, "reason": "消息可读回、成员集合可对比；所有 output 为空，需要补充消息 ID、线程时间戳和返回格式。"},
+      "task_composability": {"score": 4, "reason": "从频道定位到成员变更、消息通知、线程读取可合成多步任务；资料明确支持直接按名字操作，不能把可省略查询硬算必要步骤。"}
+    },
+    "entity_evidence": "Conversation(conversation_id/channel_name)、User(user_ids/emails)、Message(message/thread_ts)、成员集合。",
+    "evidence_tools": ["Slack_GetConversationMetadata", "Slack_InviteUsersToChannel", "Slack_GetUsersInConversation", "Slack_SendMessage", "Slack_GetMessages"],
+    "proposed_task_chain": ["Slack_GetConversationMetadata", "Slack_InviteUsersToChannel", "Slack_GetUsersInConversation", "Slack_SendMessage", "Slack_GetMessages"],
+    "chain_dependencies": "场景使用需要查询才能确定的频道条件，定位频道后邀请成员并读回成员集合，再向对应频道发送指定消息并读回。简单已知频道名任务可跳过定位，不能人为强迫多调用。",
+    "proposed_assertion": "目标用户成为频道成员，指定内容的消息出现在目标频道；其他频道成员和消息保持不变。",
+    "missing_evidence": "输出契约、权限/私有频道策略、消息主键及重复发送语义、初始化成员关系与隔离状态。"
+  },
+  {
+    "name": "chadsouthpadre/spt-mcp-server",
+    "recommendation": "高潜力，先缩到预订闭环并补证",
+    "dimensions": {
+      "commonness": {"score": 5, "reason": "房源、报价、客人、预订和取消可迁移到酒店及资源预约等常见场景。"},
+      "entity_model": {"score": 5, "reason": "Property/Guest/Quote/Hold/Reservation/Payment/Refund 等对象及 ID 关系明确，日期、人数和房源属性充足。"},
+      "operation_coverage": {"score": 4, "reason": "搜索、详情、可用性、报价、预订、确认、取消和退款查询较丰富；支付完成、回调等行为没有完整定义。"},
+      "workflow_closure": {"score": 4, "reason": "报价会创建 15 分钟 hold；创建、查询、确认、取消可形成预订主链。退款和支付联动仍有断点。"},
+      "verifiability": {"score": 3, "reason": "预订状态和资源可用性可以读回，适合集合/状态断言；23 个 output 均为空，API key、时间和支付依赖需建成本地可控规则。"},
+      "task_composability": {"score": 5, "reason": "property_id→quote_id/hold_id→reservation_id 有明确参数线索，可加入可用性分支、确认与取消后置检查。"}
+    },
+    "entity_evidence": "Property(property_id, bedrooms, pool, guests)、Quote(quote_id, check_in, check_out)、Hold(hold_id)、Guest(email, name)、Reservation(reservation_id)、Payment(amount, currency)、Refund(refund_id)。",
+    "evidence_tools": ["search_properties", "check_availability", "get_quote", "create_reservation", "get_reservation", "confirm_reservation", "cancel_reservation", "check_refund_status"],
+    "proposed_task_chain": ["search_properties", "check_availability", "get_quote", "create_reservation", "confirm_reservation", "get_reservation"],
+    "chain_dependencies": "选出满足日期、人数与属性条件的 property_id，确认可用后报价；create_reservation 的说明引用 get_quote 的 quote_id/hold_id，再用 reservation_id 确认和查询。所有返回键需在合成前补齐。",
+    "proposed_assertion": "最终预订对应所选房源、客人和日期，状态符合确认规则，hold 被正确释放或消费，同一房源没有冲突预订。",
+    "missing_evidence": "报价/预订输出，价格计算、占用与锁超时规则，支付/确认的前置关系，Guesty 和支付依赖的本地替身。get_quote 名称是 get 但有写入副作用，不能只凭动词分类。"
+  },
+  {
+    "name": "smithery-ai/national-weather-service",
+    "recommendation": "专项保留，优先固定数据查询任务",
+    "dimensions": {
+      "commonness": {"score": 5, "reason": "地点、天气和预警常见。"},
+      "entity_model": {"score": 3, "reason": "地点、站点、观测、预报、预警可作为实体；目前属性主要藏在自然语言中，输入多为 location 与时间窗口。"},
+      "operation_coverage": {"score": 2, "reason": "6 个工具主要是不同粒度的查询，不构成多类状态操作。"},
+      "workflow_closure": {"score": 2, "reason": "具备天气查询子场景，但没有业务状态变更和生命周期；可做只读环境，和复杂事务环境目标匹配较弱。"},
+      "verifiability": {"score": 2, "reason": "若冻结天气表及时间，可比对查询结果；当前实时数据和所有空 output 使稳定判断依据不足。"},
+      "task_composability": {"score": 2, "reason": "当前天气、预报和预警多为共享 location 的并行查询；没有证据证明查询之间必须消费前序结果。"}
+    },
+    "entity_evidence": "Location、Station、Forecast、Alert；直接参数含 location、days、hours、severity。预报数值与站点属性需补充结构。",
+    "evidence_tools": ["find_weather_stations", "get_current_weather", "get_weather_forecast", "get_weather_alerts"],
+    "proposed_task_chain": ["get_weather_forecast", "get_weather_alerts"],
+    "chain_dependencies": "这两次调用只是查询集合，不宣称已存在前后依赖；可拟合成联合条件筛选任务，但需要冻结多地点、多时段资料并明确输出字段。",
+    "proposed_assertion": "答案中的地点/时段满足冻结预报与预警表的联合条件；通过参考表和独立查询计算判断，不能按文字相似度验收。",
+    "missing_evidence": "输出结构、历史数据快照、固定时钟、查询边界、可稳定重复的参考答案；若目标要求状态修改，应另选种子。"
+  },
+  {
+    "name": "EthanHenrickson/math-mcp",
+    "recommendation": "计算专项保留，不作为实体型环境首选",
+    "dimensions": {
+      "commonness": {"score": 4, "reason": "算术和统计常见，但它是基础计算能力，业务场景迁移需要外加实体模型。"},
+      "entity_model": {"score": 0, "reason": "只有数字及数字数组输入，没有业务实体、属性关系和持久状态。"},
+      "operation_coverage": {"score": 2, "reason": "22 个名称实际聚集在数值变换与统计，不能按数量当作丰富业务操作。"},
+      "workflow_closure": {"score": 1, "reason": "单函数或表达式求值完整，但不覆盖实体业务流程。"},
+      "verifiability": {"score": 3, "reason": "可用独立公式与数值容差验证，虽然缺少 output，计算验证潜力较高；还需确定舍入、角度单位及异常语义。"},
+      "task_composability": {"score": 2, "reason": "数值结果可串接，但大部分可合成单表达式；没有自然的跨实体约束和状态分支。"}
+    },
+    "entity_evidence": "firstNumber/secondNumber/numbers 等为参数，不应被统计为实体；multiply 的 SecondNumber 保持来源大小写。",
+    "evidence_tools": ["mean", "subtract", "multiply", "division"],
+    "proposed_task_chain": ["mean", "subtract", "division"],
+    "chain_dependencies": "拟将均值传给 subtract 再做归一化计算；这是人为组合的数值数据流，不足以证明丰富业务任务空间。",
+    "proposed_assertion": "结果与独立公式一致，按规定绝对/相对容差比较；除零、空数组等边界按正式契约处理。",
+    "missing_evidence": "返回类型、单位、数值精度及错误行为；要作为业务环境还需新增当前来源不存在的实体和状态。"
+  },
+  {
+    "name": "pipeworx/gateway",
+    "recommendation": "先按领域拆分，再评价截取集合",
+    "dimensions": {
+      "commonness": {"score": 4, "reason": "天气、企业和记忆等对象常见，但聚合网关覆盖多个领域。"},
+      "entity_model": {"score": 3, "reason": "有公司/药品标识解析、天气位置、键值记忆等线索；前 100 个工具中的对象尚未组织为统一关联模型。"},
+      "operation_coverage": {"score": 3, "reason": "含搜索、解析、比较及 remember/recall/forget；大量工具属于不同数据源的检索，重复能力和跨域混合明显。"},
+      "workflow_closure": {"score": 2, "reason": "记忆子模块能闭环，整个网关并不是一个边界清晰的业务环境；截取前 100 个不能保证保留完整子域。"},
+      "verifiability": {"score": 2, "reason": "记忆可读回，但大量外部实时数据返回未知；保留的 100 个 output 全空，引用 URI 不能替代状态验证。"},
+      "task_composability": {"score": 3, "reason": "实体解析和查询有组合线索，记忆有写读删链；需先限定领域，不能把任意两个同名 ID 当作数据依赖。"}
+    },
+    "entity_evidence": "resolve_entity(type,value) 指向公司/药品 ID；remember(key,value)/recall(key)/forget(key) 指向记忆条目。评分范围是来源顺序前 100 个工具，不外推到全部 2,530 个。",
+    "evidence_tools": ["resolve_entity", "compare_entities", "remember", "recall", "forget", "get_weather"],
+    "proposed_task_chain": ["remember", "recall", "forget", "recall"],
+    "chain_dependencies": "围绕同一 key 写入、读回、删除后再读回；这是小型记忆子环境样例，不证明跨多个数据源的完整性。",
+    "proposed_assertion": "第一次读回值与写入一致，删除后该键不可见，其他键保持不变；固定身份空间并规定缺键行为。",
+    "missing_evidence": "分领域边界、被截去工具对闭环的影响、输出契约、匿名记忆时效与固定时钟、外部数据快照；当前环境描述中的工具数量与实际快照也不一致。"
+  }
+]

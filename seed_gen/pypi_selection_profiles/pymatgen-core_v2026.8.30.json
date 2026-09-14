@@ -1,0 +1,177 @@
+{
+  "profile_id": "pymatgen_core_balanced_v1",
+  "package": "pymatgen-core",
+  "version": "v2026.8.30",
+  "source_sha256": "d0beaad202bb4fbbc7aefb63d474dbc0af789130109a613181a54b95915a97d0",
+  "boundary": "面向小型晶体材料的本地、确定性表示、转换、分析和常见格式互操作；不包含绘图、命令行、网络访问、外部计算程序执行及专用后端的长尾格式。",
+  "capabilities": [
+    {
+      "id": "material_representation",
+      "description": "表示组成、晶格和周期结构，并完成常见坐标、化学式和结构查询。",
+      "selection_reason": "pymatgen.core 的公开核心类型，位于包级重导出入口，输出可继续用于分析和工作流构建。",
+      "verification_tier": "deterministic_local",
+      "evidence": ["public_api", "official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "pymatgen.core.composition",
+          "name": "Composition",
+          "type": "class",
+          "methods": ["__init__", "to_pretty_string", "get_atomic_fraction", "oxi_state_guesses", "as_dict"]
+        },
+        {
+          "module": "pymatgen.core.lattice",
+          "name": "Lattice",
+          "type": "class",
+          "methods": ["__init__", "get_cartesian_coords", "get_fractional_coords", "from_parameters", "get_niggli_reduced_lattice"]
+        },
+        {
+          "module": "pymatgen.core.structure",
+          "name": "IStructure",
+          "type": "class",
+          "methods": ["__init__", "from_spacegroup", "get_space_group_info", "get_neighbors", "get_reduced_structure", "from_str"]
+        },
+        {
+          "module": "pymatgen.core.structure",
+          "name": "Structure",
+          "type": "class",
+          "methods": ["__init__", "replace", "apply_operation", "apply_strain", "make_supercell", "from_prototype"]
+        },
+        {"module": "pymatgen.core.periodic_table", "name": "get_el_sp", "type": "function"},
+        {"module": "pymatgen.core.composition", "name": "reduce_formula", "type": "function"},
+        {"module": "pymatgen.util.coord", "name": "pbc_diff", "type": "function"},
+        {"module": "pymatgen.util.coord", "name": "get_angle", "type": "function"}
+      ]
+    },
+    {
+      "id": "symmetry_and_local_geometry",
+      "description": "执行对称操作、空间群分析、局部配位分析和结构匹配。",
+      "selection_reason": "覆盖 README 中声明的晶格、对称性、局部环境和结构匹配能力，并保留可由小型结构 fixture 验证的代表实现。",
+      "verification_tier": "deterministic_local",
+      "evidence": ["public_api", "official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "pymatgen.core.operations",
+          "name": "SymmOp",
+          "type": "class",
+          "methods": ["__init__", "from_rotation_and_translation", "operate", "from_xyz_str"]
+        },
+        {
+          "module": "pymatgen.symmetry.analyzer",
+          "name": "SpacegroupAnalyzer",
+          "type": "class",
+          "methods": ["__init__", "get_space_group_symbol", "get_space_group_number", "get_refined_structure", "find_primitive"]
+        },
+        {
+          "module": "pymatgen.core.local_env",
+          "name": "CrystalNN",
+          "type": "class",
+          "methods": ["__init__", "get_nn_info", "get_cn"]
+        },
+        {
+          "module": "pymatgen.core.structure_matcher",
+          "name": "StructureMatcher",
+          "type": "class",
+          "methods": ["__init__", "fit", "get_rms_dist", "group_structures"]
+        },
+        {"module": "pymatgen.core.lattice", "name": "get_points_in_spheres", "type": "function"},
+        {"module": "pymatgen.core.bonds", "name": "get_bond_order", "type": "function"},
+        {"module": "pymatgen.core.bond_valence", "name": "calculate_bv_sum", "type": "function"},
+        {"module": "pymatgen.util.coord", "name": "pbc_shortest_vectors", "type": "function"},
+        {"module": "pymatgen.util.coord", "name": "lattice_points_in_supercell", "type": "function"},
+        {"module": "pymatgen.symmetry.groups", "name": "sg_symbol_from_int_number", "type": "function"},
+        {"module": "pymatgen.symmetry.site_symmetries", "name": "get_shared_symmetry_operations", "type": "function"}
+      ]
+    },
+    {
+      "id": "energetics_and_phase_stability",
+      "description": "表示计算条目，计算静电能、分解关系和相稳定性。",
+      "selection_reason": "选择可由固定组成、能量和结构输入验证的基础能量与相图能力，排除绘图和高维化学势长尾接口。",
+      "verification_tier": "deterministic_local",
+      "evidence": ["official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "pymatgen.core.entries",
+          "name": "ComputedEntry",
+          "type": "class",
+          "methods": ["__init__", "normalize", "as_dict"]
+        },
+        {
+          "module": "pymatgen.analysis.phase_diagram",
+          "name": "PhaseDiagram",
+          "type": "class",
+          "methods": ["get_decomposition", "get_e_above_hull", "get_form_energy_per_atom", "get_element_profile"]
+        },
+        {
+          "module": "pymatgen.core.ewald",
+          "name": "EwaldSummation",
+          "type": "class",
+          "methods": ["__init__", "compute_partial_energy", "get_site_energy"]
+        },
+        {"module": "pymatgen.core.entries", "name": "group_entries_by_structure", "type": "function"}
+      ]
+    },
+    {
+      "id": "electronic_structure_summary",
+      "description": "查询态密度、带隙、价带顶和材料金属性。",
+      "selection_reason": "保留电子结构对象的核心数值查询，排除绘图器和依赖显示环境的操作。",
+      "verification_tier": "fixture_replay",
+      "evidence": ["official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "pymatgen.electronic_structure.dos",
+          "name": "Dos",
+          "type": "class",
+          "methods": ["__init__", "get_densities", "get_gap", "as_dict"]
+        },
+        {
+          "module": "pymatgen.electronic_structure.bandstructure",
+          "name": "BandStructure",
+          "type": "class",
+          "methods": ["__init__", "is_metal", "get_vbm", "get_band_gap", "as_dict"]
+        }
+      ]
+    },
+    {
+      "id": "structure_transformations",
+      "description": "构造超胞并执行物种替换等常见结构变换。",
+      "selection_reason": "选择输入输出均为 Structure 的代表性变换，可与结构分析工具形成稳定调用链。",
+      "verification_tier": "deterministic_local",
+      "evidence": ["official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "pymatgen.transformations.standard_transformations",
+          "name": "SupercellTransformation",
+          "type": "class",
+          "methods": ["__init__", "from_scaling_factors", "apply_transformation"]
+        },
+        {
+          "module": "pymatgen.transformations.standard_transformations",
+          "name": "SubstitutionTransformation",
+          "type": "class",
+          "methods": ["__init__", "apply_transformation"]
+        }
+      ]
+    },
+    {
+      "id": "common_structure_formats",
+      "description": "读取 CIF 和 POSCAR，并输出可复用的结构或文本表示。",
+      "selection_reason": "仅保留最常见且可用内置文本 fixture 做往返验证的晶体结构格式。",
+      "verification_tier": "fixture_replay",
+      "evidence": ["public_api", "official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "pymatgen.io.cif",
+          "name": "CifParser",
+          "type": "class",
+          "methods": ["from_str", "parse_structures", "check"]
+        },
+        {
+          "module": "pymatgen.io.vasp.inputs",
+          "name": "Poscar",
+          "type": "class",
+          "methods": ["from_str", "get_str", "as_dict"]
+        }
+      ]
+    }
+  ]
+}

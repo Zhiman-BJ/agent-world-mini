@@ -3,7 +3,7 @@
   "$id": "https://agent-world-mini.local/schemas/validation/env_seeds.schema.json",
   "title": "Agent-World Environment Seed Validation v1.1",
   "description": "用于发布前验证环境种子集合；字段结构与环境种子契约 v1.1 一致。",
-  "$comment": "除本 Schema 外，Validator 还必须重算 global_id，检查集合级唯一性、URL 来源关系，以及 others.tool_count 与 init_ref_tools 长度相等；来源参考工具的重名只审计，不在种子层静默删除。",
+  "$comment": "除本 Schema 外，Validator 还必须重算 global_id，检查集合级唯一性、URL 来源关系，以及 environment.nums 与 init_ref_tools 的跨字段统计关系；来源参考工具的重名只审计，不在种子层静默删除。",
   "type": "array",
   "minItems": 1,
   "uniqueItems": true,
@@ -45,9 +45,10 @@
           "minLength": 1,
           "description": "可选的中文展示译文，不替代来源描述。"
         },
-        "domain": {"$ref": "#/$defs/domain"}
+        "domain": {"$ref": "#/$defs/domain"},
+        "nums": {"$ref": "#/$defs/toolCounts"}
       },
-      "required": ["basic_info", "description", "domain"],
+      "required": ["basic_info", "description", "domain", "nums"],
       "additionalProperties": false
     },
     "basicInfo": {
@@ -96,6 +97,18 @@
           "then": {"properties": {"level3": {"type": "null"}}}
         }
       ]
+    },
+    "toolCounts": {
+      "type": "object",
+      "description": "参考工具的分类计数。all_func 等于 function 与 class_func 之和。",
+      "properties": {
+        "class": {"type": "integer", "minimum": 0},
+        "function": {"type": "integer", "minimum": 0},
+        "class_func": {"type": "integer", "minimum": 0},
+        "all_func": {"type": "integer", "minimum": 0}
+      },
+      "required": ["class", "function", "class_func", "all_func"],
+      "additionalProperties": false
     },
     "parameterMap": {
       "type": "object",
@@ -181,9 +194,10 @@
     "otherInformation": {
       "type": "object",
       "properties": {
-        "tool_count": {"type": "integer", "minimum": 0}
+        "tool_count": false,
+        "data_directions": false,
+        "organization_status": false
       },
-      "required": ["tool_count"],
       "propertyNames": {"pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"},
       "additionalProperties": true
     }

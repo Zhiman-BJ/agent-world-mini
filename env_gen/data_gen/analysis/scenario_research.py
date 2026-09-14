@@ -9,6 +9,8 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from .seed import is_python_package_seed, reference_tool_labels
+
 
 @dataclass(frozen=True)
 class ScenarioResearchIssue:
@@ -123,22 +125,32 @@ def validate_scenario_research_payload(
         issues.extend(_duplicate_name_issues(payload, collection))
     issues.extend(_source_reference_issues(payload))
 
-    reference_tool_names = {
-        str(item.get("name") or "").strip()
-        for item in seed.get("init_ref_tools", [])
-        if isinstance(item, dict) and str(item.get("name") or "").strip()
-    }
+    reference_tool_names = reference_tool_labels(seed)
     researched_tool_names = {
         str(item.get("name") or "").strip()
         for item in payload.get("tools", [])
         if isinstance(item, dict)
     }
-    missing_tools = sorted(reference_tool_names - researched_tool_names)
+    if is_python_package_seed(seed):
+        unknown_tools = sorted(researched_tool_names - reference_tool_names)
+        if unknown_tools:
+            issues.append(ScenarioResearchIssue(
+                "unknown_python_package_tools",
+                "$.tools",
+                "这些工具不是 Seed 所列版本中的 module.name 能力："
+                + ", ".join(unknown_tools),
+            ))
+    missing_tools = (
+        []
+        if is_python_package_seed(seed)
+        else sorted(reference_tool_names - researched_tool_names)
+    )
     if missing_tools:
         issues.append(ScenarioResearchIssue(
             "missing_reference_tools",
             "$.tools",
-            "这些 Seed 参考工具没有使用原名称形成独立说明：" + ", ".join(missing_tools),
+            "这些 Seed 参考工具没有使用原名称形成独立说明："
+            + ", ".join(missing_tools),
         ))
 
     reference_task_count = sum(

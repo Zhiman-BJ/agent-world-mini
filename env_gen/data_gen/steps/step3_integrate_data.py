@@ -18,11 +18,10 @@ from env_gen.data_gen.config import CollectionPolicy
 from .common.constants import (
     COLLECTION_PROFILE_PATH,
     CONTROL_INTEGRATION_ASSESSMENT,
-    CONTROL_INTEGRATION_FINALIZATION,
     CONTROL_INTEGRATION_LAUNCHER,
     CONTROL_RUN_CONFIG,
+    CONTROL_SELECTED_SEED,
     INTEGRATION_GUIDE_FILE,
-    INTEGRATION_BUILD_PATH,
     SCENARIO_RESEARCH_PATH,
     SOURCE_INVENTORY_PATH,
     SOURCE_RESEARCH_PATH,
@@ -31,7 +30,7 @@ from .common.control_io import atomic_write_text, control_path, read_json
 from .common.round_budget import is_last_available_round
 from .common.workspace_files import file_sha256
 from .common.download import cleanup_download_temporaries
-from .integration.direct_commands import assess_environment, finalization_issues
+from .integration.direct_commands import assess_environment
 
 
 AgentRunner = Callable[[str, int, tuple[Path, ...]], str]
@@ -77,7 +76,7 @@ def _integration_guide(
 - ZIP、TAR、GZIP 通常只是下载容器。先检查内部成员；除非业务本身就是操作压缩包，否则应解析其中的
   业务记录，或把需要直接操作的真实文件安全解包到文件工作区，不能用一条“归档记录”或一个原始压缩包
   代替其中的有效内容。
-- 文件路径、成员清单、哈希、下载来源和构建信息用于集成自检与溯源，不是默认的业务对象。除非业务要求
+- 文件路径、成员清单、哈希、下载来源和转换信息用于集成自检与溯源，不是默认的业务对象。除非业务要求
   明确需要按这些信息查询或修改，否则不要为它们建立 Record Set；文件工作区已经能够保留实际文件。
 - 源码、说明文档和测试实现有时只是帮助理解数据或生成后续工具的参考材料。只有业务要求中的典型工作
   确实需要直接读取或修改它们时，才放入最终文件工作区；不要自行发明“审阅源码”等新任务来暴露整套
@@ -86,18 +85,11 @@ def _integration_guide(
 ## 要生成什么
 
 - `environment.json`：声明结构化业务数据表、表间关系，以及任务需要直接操作的文件目录；
-- `provenance/build.py`：你编写的重建脚本。它负责从原件一次生成上述数据库和文件工作区，
-  不是集成说明或额外报告。
+- `state/records.sqlite`：最终结构化业务记录；没有 Record Set 时不需要创建；
+- `state/filesystem_scopes/<scope_id>/`：任务需要直接操作的最终文件；没有文件 Scope 时不需要创建。
 
-`build.py` 的固定接口是：
-
-```text
-python provenance/build.py --raw-dir <raw目录> --state-dir <输出state目录>
-```
-
-脚本必须仅从 `--raw-dir` 读取输入，并在全新的 `--state-dir` 中一次生成需要的
-`records.sqlite` 和 `filesystem_scopes/`。构建过程离线执行，不读取已有 `state/`，不使用时间或随机数。
-遍历和写入采用稳定排序，结束前关闭 SQLite 连接且不留下 WAL/SHM 文件。
+直接把原件转换为这些最终产物。你可以自由选择命令、已安装工具或临时脚本完成解析和批量处理；验收只看
+最终数据是否正确、完整并符合环境声明，不要求提交固定形式的转换程序。临时文件不要放进最终 `state/`。
 
 ## 按这个顺序完成
 
@@ -106,21 +98,20 @@ python provenance/build.py --raw-dir <raw目录> --state-dir <输出state目录>
    关系和可直接操作的文件。
 2. 围绕实际业务对象设计最终表和文件工作区。同一对象的兼容来源合并、去重并统一字段名和类型；
    主键必须稳定且唯一，跨表关系使用统一后的键。
-3. 编写 `environment.json` 和 `provenance/build.py`。转换全部与业务要求有关的有效内容，不得只取前几条、
-   最容易处理的类型或演示样例。保留有意义的原始 ID、状态、时间、分类、文本和关联字段；只排除重复、
-   无关、确实不可解析或纯说明内容。
-4. 执行 `bash ./.datagen/integratectl build`，然后对照原始文件逐项检查结果：所有有用原件是否真的影响了
-   最终状态；记录数量和主要变化类型是否与原件一致；需要直接操作的归档内容是否已经解包且保留有意义的
-   目录；关系是否闭合；数据库中的文件路径是否指向真实文件。
-5. 执行 `bash ./.datagen/integratectl assess`。若 `decision=fix`，按 `blocking_issues` 修复后重新 build 和
-   assess。程序通过只证明结构、引用和可重建性正确，不证明你已经完整使用原件，因此仍要完成第 4 步的
-   内容检查。
-6. 两类检查都完成后，执行 `bash ./.datagen/integratectl finalize` 并结束。
+3. 直接生成 `environment.json`、最终数据库和文件工作区。转换全部与业务要求有关的有效内容，
+   不得只取前几条、最容易处理的类型或演示样例。保留有意义的原始 ID、状态、时间、分类、文本和关联字段；
+   只排除重复、无关、确实不可解析或纯说明内容。
+4. 内容自检只关注程序无法判断的部分：有用原件是否真的进入最终状态，记录数量和主要变化类型是否与原件
+   相符，需要直接操作的归档内容是否已经解包并保留有意义的目录。SQLite 结构、键、关系和文件路径交给
+   assess 检查，不必手工重复验证。
+5. 执行 `bash ./.datagen/integratectl assess`。若 `decision=fix`，按 `blocking_issues` 修复最终声明或状态后
+   重新 assess；若 `decision=ready`，完成第 4 步的内容检查后结束。程序通过只证明结构和引用正确，不证明
+   你已经完整使用原件。
 
 {data_limit_rule}
 
 验收程序会检查输出结构、SQLite 完整性、表列类型、唯一键、关系、文件引用和文件目录，
-并在无网络环境中独立重放构建脚本。
+但不限制你采用哪种转换方法。
 """
 
 
@@ -157,20 +148,20 @@ def prepare_integration(run_dir: Path) -> None:
 
 def build_integration_prompt(run_dir: Path) -> str:
     return """完整读取 `.datagen/INTEGRATION_GUIDE.md` 并按其中的顺序完成环境集成。先实际检查每个原件
-及归档内容，再生成 `environment.json` 和 `provenance/build.py`；不要用压缩包、文件清单或少量样例代替
-原件中的有效业务内容。完成构建、逐项内容自检和程序验收后执行 finalize。
+及归档内容，再直接生成 `environment.json` 和最终 `state/`；不要用压缩包、文件清单或少量样例代替
+原件中的有效业务内容。完成逐项内容自检，并让 assess 返回 ready 后结束。
 """
 
 
 def build_integration_continuation_prompt(
     run_dir: Path, *, round_index: int, final_round: bool,
 ) -> str:
-    ending = "修复后重新执行 build、assess 和 finalize。"
+    ending = "修复后重新执行 assess；返回 ready 后结束。"
     if final_round:
-        ending = "优先修复阻止 finalize 的问题，并在结束前重新执行 build、assess 和 finalize。"
+        ending = "优先修复 blocking_issues，并在结束前重新执行 assess。"
     return f"""继续完成 `.datagen/INTEGRATION_GUIDE.md` 中的集成任务。读取
 `.datagen/integration_assessment.json` 的具体错误，同时检查是否仍有原件、归档成员、记录类型或有效记录
-尚未进入最终数据库或文件工作区；修复 `environment.json` 或 `provenance/build.py`。{ending}
+尚未进入最终数据库或文件工作区；直接修复 `environment.json` 或 `state/`。{ending}
 """
 
 
@@ -182,8 +173,8 @@ class IntegrationResult:
     assessment_runs: int
 
 
-class IntegrationFinalizationError(RuntimeError):
-    """Step 3 未能形成通过程序重算的 integrated 环境。"""
+class IntegrationError(RuntimeError):
+    """Step 3 未能形成通过程序验收的 integrated 环境。"""
 
 
 def _file_tree(root: Path, *, relative_to: Path) -> dict[str, str]:
@@ -233,15 +224,13 @@ def _verify_integration_inputs(expected: dict[str, str]) -> None:
 
 
 def integration_progress_snapshot(run_dir: Path) -> dict[str, Any]:
-    """Track the two Agent-owned artifacts and their materialized state."""
+    """Track the Agent-owned declaration and final state."""
 
     run_dir = run_dir.resolve()
     state = run_dir / "state"
     environment_path = run_dir / "environment.json"
-    build_path = run_dir / INTEGRATION_BUILD_PATH
     payload = {
         "environment": file_sha256(environment_path) if environment_path.is_file() else None,
-        "build": file_sha256(build_path) if build_path.is_file() else None,
         "state": _file_tree(state, relative_to=run_dir),
     }
     encoded = json.dumps(
@@ -255,15 +244,9 @@ def integration_progress_snapshot(run_dir: Path) -> dict[str, Any]:
 
 def _assessment_after_round(run_dir: Path) -> dict[str, Any]:
     try:
-        # Agent-visible assessment may be stale or forged. Recompute the full replay gate
-        # before accepting a round, and retain that evidence for Step 4.
-        assessment = assess_environment(run_dir, replay=True)
-        receipt_issues = finalization_issues(run_dir)
-        if receipt_issues:
-            assessment["decision"] = "fix"
-            assessment["blocking_issues"] = [
-                *assessment.get("blocking_issues", []), *receipt_issues,
-            ]
+        # Agent-visible assessment may be stale or forged. Recompute validation before
+        # accepting a round, and retain the state digest for Step 4.
+        assessment = assess_environment(run_dir)
         return assessment
     except Exception as error:
         return {
@@ -289,7 +272,6 @@ def run_integration_phase(
     run_dir = run_dir.resolve()
     prepare_integration(run_dir)
     protected = _integration_input_snapshot(run_dir)
-    finalization_path = control_path(run_dir, CONTROL_INTEGRATION_FINALIZATION)
     deadline = time.monotonic() + collection_policy.integration_total_seconds
     calls = 0
     assessments = 0
@@ -325,7 +307,7 @@ def run_integration_phase(
             agent_runner(
                 prompt,
                 min(collection_policy.integration_seconds, remaining),
-                (finalization_path,),
+                (),
             )
         except Exception as error:
             last_error = error
@@ -350,7 +332,7 @@ def run_integration_phase(
             no_progress_rounds = 0
         if no_progress_rounds >= collection_policy.max_no_progress_rounds:
             last_error = RuntimeError(
-                f"连续 {no_progress_rounds} 轮没有修改环境声明、统一构建脚本或最终状态"
+                f"连续 {no_progress_rounds} 轮没有修改环境声明或最终状态"
             )
             break
 
@@ -365,13 +347,13 @@ def run_integration_phase(
     if last_error is not None:
         details.append(str(last_error))
     suffix = "：" + "；".join(value for value in details if value) if details else ""
-    raise IntegrationFinalizationError(
-        f"Step 3 在 {calls}/{collection_policy.max_integration_rounds} 轮内未形成可重放环境{suffix}"
+    raise IntegrationError(
+        f"Step 3 在 {calls}/{collection_policy.max_integration_rounds} 轮内未形成有效最终环境{suffix}"
     ) from last_error
 
 
 __all__ = [
-    "IntegrationFinalizationError",
+    "IntegrationError",
     "IntegrationResult",
     "integration_progress_snapshot",
     "run_integration_phase",

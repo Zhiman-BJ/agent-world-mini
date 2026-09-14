@@ -21,13 +21,13 @@ DataGen
 │
 ├── Step 3：Agent 直接集成
 │   ├── 读取全部已确认数据，不再继续采集
-│   ├── 直接设计 environment.json 和统一 build.py
-│   ├── 一次生成 records.sqlite 与必要的 Filesystem Scope
-│   ├── Python 返回 Schema、键、关系、路径和重放错误
-│   └── Agent 修复至 finalize
+│   ├── 直接生成 environment.json 和最终 state
+│   ├── 自主选择解析、清洗与批量处理方法
+│   ├── Python 返回 Schema、键、关系和路径错误
+│   └── Agent 修复至 assess 通过
 │
-└── Step 4：独立验收、冻结与发布
-    ├── 无网络重放统一 build.py
+└── Step 4：再次验收、冻结与发布
+    ├── 重新校验最终环境
     ├── 复核 environment.json 与最终 state
     ├── 生成来源、构建和文件哈希收据
     ├── 清理运行期目录
@@ -41,7 +41,7 @@ DataGen
 | Step 0 | 不调用 Agent | Seed 身份、配置和输入固化 |
 | Step 1 | 现实场景、实体、能力和任务语义 | Schema、Seed 覆盖和来源 URL |
 | Step 2 | 下载、检查、预处理和文件卡语义 | URL/哈希去重、基础统计和覆盖率 |
-| Step 3 | 业务建模、字段统一、去重、关系和文件组织 | 构建隔离、SQLite、引用与重放校验 |
+| Step 3 | 业务建模、字段统一、去重、关系和文件组织 | SQLite、引用与最终格式校验 |
 | Step 4 | 不调用 Agent | 最终复验、哈希、冻结和原子发布 |
 
 流程只在职责发生变化时进入下一步。Step 2 不提前设计最终表；Step 3 不重新联网找数据；Step 4
@@ -68,9 +68,7 @@ Python 计算基础统计和 supported 覆盖
 ## Step 3 循环
 
 ```text
-environment.json + provenance/build.py
-        ↓
-integratectl build
+environment.json + state/
         ↓
 integratectl assess
         ↓
@@ -78,11 +76,11 @@ fix blocking_issues ──┐
         ↑              │
         └──────────────┘
         ↓ ready
-integratectl finalize
+进入 Step 4
 ```
 
-这里没有独立 `integration_plan`。最终环境结构已经由 `environment.json` 表达；统一构建逻辑已经由
-`provenance/build.py` 表达。Agent 循环、完整 Prompt 和运行指南生成都位于
+这里没有独立 `integration_plan` 或强制转换脚本。最终环境结构由 `environment.json` 和 `state/` 直接表达。
+Agent 循环、完整 Prompt 和运行指南生成都位于
 `step3_integrate_data.py`；`integration/` 子目录只执行机械命令。Python 不再生成大型全局画像，
 而是返回可以直接修复的事实错误。
 
@@ -96,8 +94,7 @@ integratectl finalize
 │   ├── collection_profile.json
 │   ├── INTEGRATION_GUIDE.md
 │   ├── integratectl
-│   ├── integration_assessment.json
-│   └── integration_finalization.json
+│   └── integration_assessment.json
 ├── workspace/raw/
 ├── environment.json
 ├── state/
@@ -106,8 +103,7 @@ integratectl finalize
 └── provenance/
     ├── scenario_research.json
     ├── source_research.json
-    ├── source_inventory.json
-    └── build.py
+    └── source_inventory.json
 ```
 
 发布后：
@@ -120,7 +116,6 @@ integratectl finalize
 ├── state/
 └── provenance/
     ├── raw/
-    ├── build.py
     ├── source_manifest.json
     ├── integration_receipt.json
     ├── generation_audit.json

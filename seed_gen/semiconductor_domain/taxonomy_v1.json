@@ -1,0 +1,555 @@
+{
+  "schema_version": "1.0",
+  "title": "面向 Agent 环境生成的半导体领域分类",
+  "researched_at": "2026-09-13",
+  "classification_note": "本分类综合 IEEE IRDS、NIST CHIPS、SEMI、Accellera、JEDEC 和 IEEE EPS 的公开材料，按工程生命周期与稳定专业工作域重新组织，不是任何单一机构发布的原始分类。",
+  "classification_rules": [
+    "L1 表示生命周期中的主要工程阶段，不按软件类型或岗位命名。",
+    "L2 表示具有稳定目标、核心对象、输入输出和验收方式的专业工作域。",
+    "具体任务放在业务场景层，不继续把每个操作拆成固定分类。",
+    "仿真、优化、数据库、机器学习和仪器通信等横向技术映射到实际使用它们的 L2。",
+    "一个场景可以关联相邻 L2，但必须指定一个主要归属，避免重复统计。"
+  ],
+  "levels": [
+    {
+      "id": "01",
+      "key": "materials_research_and_computational_discovery",
+      "name": "材料研究与计算发现",
+      "definition": "从材料数据、晶体结构和原子尺度计算出发，研究半导体候选、缺陷、稳定性以及电子、光学和输运性质。",
+      "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-IRDS-MORE-MOORE", "AUTH-NIST-METROLOGY"],
+      "level2": [
+        {
+          "id": "01.01",
+          "key": "materials_data_and_screening",
+          "name": "材料数据治理与候选筛选",
+          "scope": "查询、清洗、对齐和筛选具有组成、结构、来源及性质记录的半导体材料数据。",
+          "core_objects": ["material", "composition", "structure", "property_record", "provenance"],
+          "typical_outputs": ["候选材料清单", "去重后的材料记录", "筛选依据与数据血缘"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "01.02",
+          "key": "crystallography_and_structure_engineering",
+          "name": "晶体学、对称性与结构工程",
+          "scope": "处理晶胞标准化、空间群、等价位点、超胞、结构匹配和高对称路径等晶体学问题。",
+          "core_objects": ["lattice", "site", "space_group", "symmetry_operation", "supercell"],
+          "typical_outputs": ["标准化晶体结构", "对称性报告", "结构映射与高对称路径"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "01.03",
+          "key": "first_principles_calculation_workflows",
+          "name": "第一性原理计算与工作流",
+          "scope": "准备、编排、审计和恢复结构弛豫、静态、自洽及电子结构计算。",
+          "core_objects": ["calculation", "input_set", "job", "flow", "task_document", "error_record"],
+          "typical_outputs": ["计算输入目录", "计算依赖图", "收敛结果与失败恢复记录"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-IRDS-MORE-MOORE"]
+        },
+        {
+          "id": "01.04",
+          "key": "defects_and_doping",
+          "name": "半导体点缺陷与掺杂",
+          "scope": "研究空位、间隙、替位和复合缺陷的构型、电荷态、形成能、跃迁能级与可掺杂性。",
+          "core_objects": ["host_structure", "defect", "charge_state", "chemical_potential", "formation_energy", "fermi_level"],
+          "typical_outputs": ["缺陷候选集合", "修正后的形成能", "跃迁能级与缺陷浓度"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-IRDS-MORE-MOORE"]
+        },
+        {
+          "id": "01.05",
+          "key": "lattice_thermal_and_diffusion",
+          "name": "晶格动力学、热输运与扩散",
+          "scope": "分析声子稳定性、热容、热导、非谐相互作用以及原子或离子的扩散行为。",
+          "core_objects": ["force_constant", "phonon_mode", "trajectory", "diffusion_path", "thermal_conductivity"],
+          "typical_outputs": ["声子谱与稳定性判断", "热输运张量", "扩散系数和活化能"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "01.06",
+          "key": "electronic_optical_and_carrier_properties",
+          "name": "电子、光学与载流子性质",
+          "scope": "从能带、态密度、波函数和响应函数中提取带隙、有效质量、光谱、迁移率与拓扑性质。",
+          "core_objects": ["band_structure", "density_of_states", "dielectric_response", "effective_mass", "mobility"],
+          "typical_outputs": ["带边和带隙报告", "光学谱", "载流子输运与散射分析"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-IRDS-MORE-MOORE"]
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "key": "process_technology_and_device_engineering",
+      "name": "工艺技术与器件工程",
+      "definition": "围绕单项工艺、工艺集成、器件结构和物理模型开展设计、仿真、参数提取及性能权衡。",
+      "authority_ids": ["AUTH-IRDS-MORE-MOORE", "AUTH-IRDS-BEYOND-CMOS", "AUTH-IRDS-METROLOGY"],
+      "level2": [
+        {
+          "id": "02.01",
+          "key": "unit_process_development",
+          "name": "单项工艺开发",
+          "scope": "研究沉积、刻蚀、光刻、注入、扩散、退火和清洗等单项制造过程的参数与结果。",
+          "core_objects": ["process_step", "recipe", "material_stack", "profile", "process_result"],
+          "typical_outputs": ["工艺条件窗口", "轮廓或材料状态", "实验与仿真对照"],
+          "authority_ids": ["AUTH-IRDS-MORE-MOORE", "AUTH-IRDS-LITHOGRAPHY", "AUTH-SEMI-COMMITTEES"]
+        },
+        {
+          "id": "02.02",
+          "key": "process_integration_and_flow",
+          "name": "工艺集成与流程协同",
+          "scope": "将多个单项工艺组合为 FEOL、MOL、BEOL 或特色器件流程，并检查模块接口和热预算。",
+          "core_objects": ["process_flow", "module", "layer_stack", "thermal_budget", "split"],
+          "typical_outputs": ["集成流程版本", "模块依赖和冲突", "工艺分支比较"],
+          "authority_ids": ["AUTH-IRDS-MORE-MOORE", "AUTH-IRDS-FACTORY"]
+        },
+        {
+          "id": "02.03",
+          "key": "semiconductor_device_tcad",
+          "name": "半导体器件 TCAD",
+          "scope": "建立器件几何、材料、掺杂、接触和物理模型，求解电势、载流子及电学响应。",
+          "core_objects": ["device", "region", "mesh", "doping_profile", "contact", "field_solution"],
+          "typical_outputs": ["器件模型", "I-V/C-V 曲线", "内部场和载流子分布"],
+          "authority_ids": ["AUTH-IRDS-MORE-MOORE", "AUTH-IRDS-BEYOND-CMOS"]
+        },
+        {
+          "id": "02.04",
+          "key": "compact_models_and_parameter_extraction",
+          "name": "紧凑模型与参数提取",
+          "scope": "根据器件测量或仿真数据拟合模型参数，验证工作区间并交付电路仿真模型。",
+          "core_objects": ["measurement_curve", "compact_model", "parameter_set", "corner", "residual"],
+          "typical_outputs": ["模型卡参数", "拟合误差与适用范围", "工艺角模型"],
+          "authority_ids": ["AUTH-IRDS-MORE-MOORE", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "02.05",
+          "key": "optoelectronic_power_and_emerging_devices",
+          "name": "光电、功率与新型器件",
+          "scope": "研究太阳能电池、LED、激光器、宽禁带功率器件、传感器及其他新型半导体器件。",
+          "core_objects": ["device_stack", "junction", "optical_generation", "recombination", "breakdown", "response_curve"],
+          "typical_outputs": ["量子效率或光电响应", "功率器件特性", "结构与性能权衡"],
+          "authority_ids": ["AUTH-IRDS-BEYOND-CMOS", "AUTH-IRDS-MORE-MOORE"]
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "key": "circuit_and_system_design",
+      "name": "电路与系统设计",
+      "definition": "把器件和 IP 组织成模拟、射频、数字或光子系统，完成架构探索、原理图设计、模型连接和性能优化。",
+      "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-ACCELLERA-WG"],
+      "level2": [
+        {
+          "id": "03.01",
+          "key": "system_architecture_and_modeling",
+          "name": "系统架构与性能建模",
+          "scope": "在实现前描述计算、存储、互连和加速器结构，并分析吞吐、延迟、功耗及资源权衡。",
+          "core_objects": ["architecture", "component", "workload", "transaction", "performance_metric"],
+          "typical_outputs": ["系统模型", "性能瓶颈", "架构配置比较"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-ACCELLERA-WG"]
+        },
+        {
+          "id": "03.02",
+          "key": "analog_and_mixed_signal_design",
+          "name": "模拟与混合信号设计",
+          "scope": "构建晶体管级或行为级电路，执行 DC、AC、瞬态、噪声、角落和蒙特卡洛分析。",
+          "core_objects": ["schematic", "netlist", "device_instance", "bias", "waveform", "specification"],
+          "typical_outputs": ["可仿真网表", "性能测量", "满足规格的参数组合"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-ACCELLERA-WG"]
+        },
+        {
+          "id": "03.03",
+          "key": "rf_and_microwave_design",
+          "name": "射频与微波设计",
+          "scope": "处理端口网络、S 参数、匹配、级联、去嵌、稳定性和频域性能。",
+          "core_objects": ["network", "port", "s_parameter", "calibration", "frequency_sweep"],
+          "typical_outputs": ["校准后的网络数据", "匹配和稳定性指标", "级联系统响应"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "03.04",
+          "key": "photonic_circuit_design",
+          "name": "光子电路设计",
+          "scope": "连接波导、耦合器、调制器、探测器等光子组件并优化电路级传输响应。",
+          "core_objects": ["photonic_component", "optical_port", "s_matrix", "route", "circuit_response"],
+          "typical_outputs": ["光子网表", "波长响应", "器件参数和拓扑优化结果"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-IRDS-PACKAGING"]
+        },
+        {
+          "id": "03.05",
+          "key": "ip_reuse_and_design_configuration",
+          "name": "IP 复用与设计配置",
+          "scope": "管理设计 IP、依赖、参数、寄存器描述和不同 EDA 后端的构建配置。",
+          "core_objects": ["ip_core", "dependency", "parameter", "register_map", "build_target"],
+          "typical_outputs": ["解析后的依赖图", "可复现构建配置", "工具后端任务"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-ACCELLERA-WG"]
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "key": "digital_implementation_and_verification",
+      "name": "数字实现与验证",
+      "definition": "从 RTL 和验证环境出发，完成静态检查、仿真、协议验证、形式检查、综合、时序约束和布局布线。",
+      "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-ACCELLERA-WG"],
+      "level2": [
+        {
+          "id": "04.01",
+          "key": "rtl_design_and_static_analysis",
+          "name": "RTL 设计与静态分析",
+          "scope": "创建或修改可综合 RTL，并检查语法、位宽、锁存器、组合环路和编码规则。",
+          "core_objects": ["rtl_module", "signal", "register", "ast", "lint_finding"],
+          "typical_outputs": ["RTL 修订", "静态检查报告", "接口与依赖清单"],
+          "authority_ids": ["AUTH-ACCELLERA-WG", "AUTH-IRDS-SYSTEMS"]
+        },
+        {
+          "id": "04.02",
+          "key": "functional_verification",
+          "name": "功能仿真与验证",
+          "scope": "使用测试、激励、监视器、参考模型、断言和覆盖率验证数字设计功能。",
+          "core_objects": ["dut", "test", "stimulus", "transaction", "assertion", "coverage"],
+          "typical_outputs": ["回归结果", "失败复现", "覆盖率和缺陷定位"],
+          "authority_ids": ["AUTH-ACCELLERA-WG", "AUTH-IRDS-SYSTEMS"]
+        },
+        {
+          "id": "04.03",
+          "key": "protocol_and_interface_verification",
+          "name": "协议与接口验证",
+          "scope": "验证总线、流接口、存储器和片间接口的事务、时序、背压、错误响应及一致性。",
+          "core_objects": ["interface", "transaction", "driver", "monitor", "scoreboard", "protocol_error"],
+          "typical_outputs": ["协议测试序列", "事务日志", "违规与覆盖结果"],
+          "authority_ids": ["AUTH-ACCELLERA-WG", "AUTH-IRDS-SYSTEMS"]
+        },
+        {
+          "id": "04.04",
+          "key": "formal_equivalence_and_cdc",
+          "name": "形式验证、等价检查与 CDC/RDC",
+          "scope": "证明属性、比较设计版本，并识别跨时钟或复位域同步问题。",
+          "core_objects": ["property", "formal_model", "counterexample", "clock_domain", "equivalence_point"],
+          "typical_outputs": ["证明状态", "反例轨迹", "等价和跨域问题清单"],
+          "authority_ids": ["AUTH-ACCELLERA-WG", "AUTH-IRDS-SYSTEMS"]
+        },
+        {
+          "id": "04.05",
+          "key": "synthesis_sta_and_constraints",
+          "name": "综合、静态时序与约束",
+          "scope": "将 RTL 映射为门级网表，维护时钟和 I/O 约束，并分析时序、面积和功耗结果。",
+          "core_objects": ["netlist", "constraint", "timing_path", "cell", "clock", "qor_metric"],
+          "typical_outputs": ["综合网表", "时序报告", "约束修订与 QoR 比较"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-ACCELLERA-WG"]
+        },
+        {
+          "id": "04.06",
+          "key": "physical_design_and_pnr",
+          "name": "物理设计与布局布线",
+          "scope": "完成 floorplan、placement、时钟树、routing 和物理优化，并迭代 PPA 与拥塞。",
+          "core_objects": ["floorplan", "placement", "clock_tree", "route", "congestion", "ppa_metric"],
+          "typical_outputs": ["阶段数据库", "布局布线结果", "PPA 和拥塞收敛记录"],
+          "authority_ids": ["AUTH-IRDS-SYSTEMS", "AUTH-IRDS-MORE-MOORE"]
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "key": "layout_mask_and_signoff",
+      "name": "版图、掩模与签核",
+      "definition": "处理参数化版图、制造规则验证、电路对照、寄生提取、PDK 技术文件以及最终掩模数据交付。",
+      "authority_ids": ["AUTH-IRDS-LITHOGRAPHY", "AUTH-IRDS-MORE-MOORE", "AUTH-SEMI-COMMITTEES"],
+      "level2": [
+        {
+          "id": "05.01",
+          "key": "parametric_layout_and_routing",
+          "name": "参数化版图与布线",
+          "scope": "生成和修改 PCell、器件实例、端口及互连，保持层次、工艺层和几何约束。",
+          "core_objects": ["pcell", "instance", "port", "route", "cell", "layer"],
+          "typical_outputs": ["参数化版图", "连接和端口清单", "GDS/OASIS"],
+          "authority_ids": ["AUTH-IRDS-LITHOGRAPHY", "AUTH-IRDS-PACKAGING"]
+        },
+        {
+          "id": "05.02",
+          "key": "layout_integrity_and_drc",
+          "name": "版图完整性与 DRC",
+          "scope": "检查层级、图层和几何完整性，执行宽度、间距、包围、密度等设计规则并修复违规。",
+          "core_objects": ["layout", "shape", "region", "rule", "violation_marker"],
+          "typical_outputs": ["DRC 报告", "可定位 marker", "修复后版图和回归差异"],
+          "authority_ids": ["AUTH-IRDS-LITHOGRAPHY", "AUTH-IRDS-YIELD"]
+        },
+        {
+          "id": "05.03",
+          "key": "lvs_extraction_and_parasitics",
+          "name": "LVS、电路提取与寄生参数",
+          "scope": "从版图提取器件和连线，与原理图网表比较，并生成寄生参数供后仿真。",
+          "core_objects": ["layout_netlist", "schematic_netlist", "device_match", "parasitic", "lvs_mismatch"],
+          "typical_outputs": ["LVS 对照结果", "提取网表", "寄生 RC 与后仿真输入"],
+          "authority_ids": ["AUTH-IRDS-MORE-MOORE", "AUTH-IRDS-LITHOGRAPHY"]
+        },
+        {
+          "id": "05.04",
+          "key": "pdk_and_technology_management",
+          "name": "PDK 与技术配置管理",
+          "scope": "管理工艺版本、layer map、器件模型、规则 deck、标准单元和工具配置之间的一致性。",
+          "core_objects": ["pdk", "technology", "layer_map", "rule_deck", "model_library", "version"],
+          "typical_outputs": ["锁定的 PDK 配置", "版本兼容性报告", "工具环境清单"],
+          "authority_ids": ["AUTH-SEMI-COMMITTEES", "AUTH-IRDS-LITHOGRAPHY"]
+        },
+        {
+          "id": "05.05",
+          "key": "mask_data_and_tapeout",
+          "name": "掩模数据准备与流片交付",
+          "scope": "执行层映射、数据裁剪、格式转换、最终签核检查和交付清单核对。",
+          "core_objects": ["mask_layer", "reticle", "top_cell", "deliverable", "signoff_report"],
+          "typical_outputs": ["流片数据包", "交付清单", "写出前后完整性与签核记录"],
+          "authority_ids": ["AUTH-IRDS-LITHOGRAPHY", "AUTH-IRDS-YIELD"]
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "key": "fab_operations_and_equipment",
+      "name": "晶圆厂运营与设备",
+      "definition": "围绕批次和晶圆流转、在制品、设备自动化、配方、维护、设施和制造效率管理高产量工厂。",
+      "authority_ids": ["AUTH-IRDS-FACTORY", "AUTH-SEMI-COMMITTEES"],
+      "level2": [
+        {
+          "id": "06.01",
+          "key": "lot_genealogy_and_route_control",
+          "name": "Lot/Wafer 谱系与流程控制",
+          "scope": "追踪批次、晶圆、工艺步骤、设备、返工、拆并批和物料之间的制造谱系。",
+          "core_objects": ["lot", "wafer", "route", "operation", "equipment", "genealogy_event"],
+          "typical_outputs": ["制造时间线", "谱系关系", "偏离标准流程和返工记录"],
+          "authority_ids": ["AUTH-IRDS-FACTORY", "AUTH-SEMI-COMMITTEES"]
+        },
+        {
+          "id": "06.02",
+          "key": "wip_dispatch_and_capacity",
+          "name": "WIP、派工与产能",
+          "scope": "分析队列、设备资格、批量约束、瓶颈、周期时间和派工策略。",
+          "core_objects": ["wip", "queue", "tool_group", "dispatch_rule", "capacity", "cycle_time"],
+          "typical_outputs": ["派工建议", "瓶颈和利用率报告", "产能情景模拟"],
+          "authority_ids": ["AUTH-IRDS-FACTORY"]
+        },
+        {
+          "id": "06.03",
+          "key": "equipment_automation_and_secs_gem",
+          "name": "设备自动化与 SECS/GEM",
+          "scope": "通过标准消息、状态模型、事件、报警、变量和远程命令集成制造设备。",
+          "core_objects": ["equipment", "communication_session", "event", "alarm", "status_variable", "remote_command"],
+          "typical_outputs": ["设备通信记录", "报警和状态时间线", "命令执行结果"],
+          "authority_ids": ["AUTH-SEMI-COMMITTEES", "AUTH-IRDS-FACTORY"]
+        },
+        {
+          "id": "06.04",
+          "key": "recipe_change_and_configuration",
+          "name": "配方、变更与配置管理",
+          "scope": "控制设备配方版本、参数下载、审批、执行记录和变更影响。",
+          "core_objects": ["recipe", "parameter_set", "revision", "approval", "execution", "change_request"],
+          "typical_outputs": ["受控配方版本", "参数差异", "变更与执行追溯"],
+          "authority_ids": ["AUTH-SEMI-COMMITTEES", "AUTH-IRDS-FACTORY"]
+        },
+        {
+          "id": "06.05",
+          "key": "maintenance_facilities_and_sustainability",
+          "name": "设备维护、厂务与可持续制造",
+          "scope": "管理预防维护、部件寿命、设备可用率、洁净厂务、能耗和环境安全指标。",
+          "core_objects": ["maintenance_order", "failure", "part", "facility_system", "utility_metric", "downtime"],
+          "typical_outputs": ["维护计划", "MTBF/MTTR 和停机分析", "设施与资源异常记录"],
+          "authority_ids": ["AUTH-IRDS-FACTORY", "AUTH-SEMI-COMMITTEES"]
+        }
+      ]
+    },
+    {
+      "id": "07",
+      "key": "metrology_inspection_and_process_control",
+      "name": "量测、检测与过程控制",
+      "definition": "使用物理测量、显微成像、缺陷检测、统计控制和虚拟量测保证工艺、器件与集成结构满足要求。",
+      "authority_ids": ["AUTH-IRDS-METROLOGY", "AUTH-IRDS-YIELD", "AUTH-NIST-METROLOGY"],
+      "level2": [
+        {
+          "id": "07.01",
+          "key": "dimensional_overlay_and_film_metrology",
+          "name": "尺寸、套刻与薄膜量测",
+          "scope": "测量关键尺寸、套刻、膜厚、形貌和材料参数，并分析量测站点及趋势。",
+          "core_objects": ["measurement_site", "critical_dimension", "overlay", "film_thickness", "measurement_run"],
+          "typical_outputs": ["量测结果", "站点和晶圆统计", "超限与漂移判断"],
+          "authority_ids": ["AUTH-IRDS-METROLOGY", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "07.02",
+          "key": "microscopy_and_material_characterization",
+          "name": "显微成像与材料表征",
+          "scope": "处理 SEM、TEM、STEM、4D-STEM、EDS、EELS、EBSD 等图像、衍射和谱学数据。",
+          "core_objects": ["image", "spectrum", "diffraction_pattern", "atomic_column", "orientation_map"],
+          "typical_outputs": ["校准和降噪后的数据", "成分或取向图", "结构测量与不确定度"],
+          "authority_ids": ["AUTH-IRDS-METROLOGY", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "07.03",
+          "key": "defect_inspection_and_classification",
+          "name": "缺陷检测、复判与分类",
+          "scope": "从光学或电子束检测结果中定位缺陷、去重、分类并关联到工艺和良率。",
+          "core_objects": ["inspection_run", "defect", "defect_image", "class", "review_result"],
+          "typical_outputs": ["缺陷清单和坐标", "分类与复判结果", "缺陷 Pareto"],
+          "authority_ids": ["AUTH-IRDS-YIELD", "AUTH-IRDS-METROLOGY"]
+        },
+        {
+          "id": "07.04",
+          "key": "spc_fdc_and_virtual_metrology",
+          "name": "SPC、FDC 与虚拟量测",
+          "scope": "监控工艺参数和设备 trace，识别 OOC/OOS、异常运行和漂移，并预测难以及时实测的质量指标。",
+          "core_objects": ["control_chart", "sensor_trace", "run", "control_limit", "fault", "virtual_measurement"],
+          "typical_outputs": ["控制图和告警", "异常 trace 片段", "虚拟量测预测与置信度"],
+          "authority_ids": ["AUTH-IRDS-METROLOGY", "AUTH-IRDS-FACTORY"]
+        },
+        {
+          "id": "07.05",
+          "key": "wafer_pattern_and_process_correlation",
+          "name": "晶圆空间图形与工艺关联",
+          "scope": "分析晶圆上的空间聚类、环状、边缘、刮痕和系统性图形，并与设备、工艺和测试结果关联。",
+          "core_objects": ["wafer_map", "die", "spatial_pattern", "process_context", "correlation"],
+          "typical_outputs": ["空间图形分类", "异常区域", "候选工艺或设备关联"],
+          "authority_ids": ["AUTH-IRDS-YIELD", "AUTH-IRDS-METROLOGY"]
+        }
+      ]
+    },
+    {
+      "id": "08",
+      "key": "packaging_and_heterogeneous_integration",
+      "name": "封装与异质集成",
+      "definition": "把分别制造的裸片、芯粒、基板和互连集成为封装或系统，并分析电、热、机械、装联和可测性。",
+      "authority_ids": ["AUTH-IRDS-PACKAGING", "AUTH-NIST-PACKAGING", "AUTH-IEEE-EPS"],
+      "level2": [
+        {
+          "id": "08.01",
+          "key": "package_architecture_and_chiplets",
+          "name": "封装架构、芯粒与异质集成",
+          "scope": "选择裸片、芯粒、interposer、基板和互连拓扑，完成系统级封装架构权衡。",
+          "core_objects": ["die", "chiplet", "interposer", "substrate", "link", "package_architecture"],
+          "typical_outputs": ["封装拓扑", "接口和带宽预算", "面积、成本与集成方案比较"],
+          "authority_ids": ["AUTH-IRDS-PACKAGING", "AUTH-NIST-PACKAGING"]
+        },
+        {
+          "id": "08.02",
+          "key": "signal_power_thermal_and_mechanical_integrity",
+          "name": "信号、电源、热与机械完整性",
+          "scope": "分析封装互连的信号和电源网络以及功耗引起的温度、翘曲、应力与可靠性风险。",
+          "core_objects": ["interconnect", "power_delivery_network", "thermal_model", "stress_field", "s_parameter"],
+          "typical_outputs": ["SI/PI 指标", "温度与应力分布", "结构和材料修改建议"],
+          "authority_ids": ["AUTH-IRDS-PACKAGING", "AUTH-IEEE-EPS"]
+        },
+        {
+          "id": "08.03",
+          "key": "assembly_bonding_and_interconnect",
+          "name": "装联、键合与封装互连工艺",
+          "scope": "管理 bump、wire bond、hybrid bond、underfill、焊接和组装过程的参数、量测及缺陷。",
+          "core_objects": ["bond", "bump", "assembly_step", "process_parameter", "joint", "assembly_defect"],
+          "typical_outputs": ["装联流程记录", "键合质量和缺陷报告", "工艺窗口"],
+          "authority_ids": ["AUTH-IRDS-PACKAGING", "AUTH-NIST-PACKAGING", "AUTH-IEEE-EPS"]
+        },
+        {
+          "id": "08.04",
+          "key": "package_layout_test_and_verification",
+          "name": "封装版图、可测性与验证",
+          "scope": "设计和检查基板、RDL、bump map、封装连接与测试结构，验证连通性和制造约束。",
+          "core_objects": ["package_layout", "rdl", "bump_map", "net", "test_structure", "rule_check"],
+          "typical_outputs": ["封装版图", "连通性和规则检查", "测试与交付数据"],
+          "authority_ids": ["AUTH-IRDS-PACKAGING", "AUTH-IEEE-EPS"]
+        }
+      ]
+    },
+    {
+      "id": "09",
+      "key": "test_product_and_yield_engineering",
+      "name": "测试、产品与良率工程",
+      "definition": "从实验室特性测量、晶圆测试和成品测试数据中判断器件质量、产品规格、空间良率与测试效率。",
+      "authority_ids": ["AUTH-IRDS-YIELD", "AUTH-JEDEC-COMMITTEES", "AUTH-SEMI-COMMITTEES"],
+      "level2": [
+        {
+          "id": "09.01",
+          "key": "characterization_and_lab_measurement",
+          "name": "器件特性与实验室测量",
+          "scope": "配置 SMU、VNA、示波器等仪器，执行 I-V、C-V、脉冲、温度和射频测量并管理数据集。",
+          "core_objects": ["device_under_test", "instrument", "measurement_plan", "sweep", "dataset"],
+          "typical_outputs": ["校准后的测量数据", "器件特性指标", "实验运行与异常记录"],
+          "authority_ids": ["AUTH-NIST-METROLOGY", "AUTH-JEDEC-COMMITTEES"]
+        },
+        {
+          "id": "09.02",
+          "key": "ate_cp_ft_and_stdf",
+          "name": "ATE、晶圆测试、成品测试与 STDF",
+          "scope": "解析和分析测试程序产生的 lot、wafer、site、device、test、limit、bin 及执行记录。",
+          "core_objects": ["test_program", "lot", "wafer", "site", "test_item", "stdf_record", "bin"],
+          "typical_outputs": ["测试结果明细", "test/bin Pareto", "站点和批次差异"],
+          "authority_ids": ["AUTH-SEMI-COMMITTEES", "AUTH-JEDEC-COMMITTEES", "AUTH-IRDS-YIELD"]
+        },
+        {
+          "id": "09.03",
+          "key": "wafer_map_bin_and_spatial_analysis",
+          "name": "Wafer Map、Bin 与空间良率",
+          "scope": "将 die 坐标、软硬 bin 和测试结果组织为晶圆图，比较晶圆、区域、site 和批次良率。",
+          "core_objects": ["wafer", "die", "coordinate", "soft_bin", "hard_bin", "yield_metric"],
+          "typical_outputs": ["晶圆图", "bin 和区域统计", "异常晶圆与空间分布"],
+          "authority_ids": ["AUTH-IRDS-YIELD", "AUTH-SEMI-COMMITTEES"]
+        },
+        {
+          "id": "09.04",
+          "key": "product_yield_learning_and_root_cause",
+          "name": "产品良率学习与根因分析",
+          "scope": "联合设计、工艺、设备、量测、缺陷和测试数据解释良率损失并验证改善措施。",
+          "core_objects": ["product", "yield_excursion", "design_revision", "process_context", "hypothesis", "action"],
+          "typical_outputs": ["良率损失分解", "根因证据链", "改善措施前后对比"],
+          "authority_ids": ["AUTH-IRDS-YIELD", "AUTH-IRDS-FACTORY"]
+        },
+        {
+          "id": "09.05",
+          "key": "test_program_and_cost_optimization",
+          "name": "测试程序、覆盖与成本优化",
+          "scope": "在缺陷覆盖、质量风险和测试时间之间优化测试项、限值、顺序、多站点及重测策略。",
+          "core_objects": ["test_item", "limit", "sequence", "coverage", "test_time", "retest_policy"],
+          "typical_outputs": ["测试程序修订", "测试时间和覆盖比较", "风险受控的删减或重排建议"],
+          "authority_ids": ["AUTH-JEDEC-COMMITTEES", "AUTH-SEMI-COMMITTEES"]
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "key": "reliability_quality_and_failure_analysis",
+      "name": "可靠性、质量与失效分析",
+      "definition": "通过资格认证、加速寿命、退化建模、物理失效分析和质量追溯判断产品风险并推动纠正措施。",
+      "authority_ids": ["AUTH-JEDEC-COMMITTEES", "AUTH-NIST-RELIABILITY", "AUTH-IRDS-YIELD"],
+      "level2": [
+        {
+          "id": "10.01",
+          "key": "qualification_and_accelerated_testing",
+          "name": "产品资格与加速试验",
+          "scope": "规划和分析 HTOL、HAST、温度循环、功率循环、ESD 和其他资格或应力试验。",
+          "core_objects": ["qualification_plan", "stress_condition", "sample", "readpoint", "failure"],
+          "typical_outputs": ["资格状态", "失效和读点统计", "试验偏差与处置"],
+          "authority_ids": ["AUTH-JEDEC-COMMITTEES", "AUTH-NIST-RELIABILITY"]
+        },
+        {
+          "id": "10.02",
+          "key": "lifetime_and_degradation_modeling",
+          "name": "寿命、退化与可靠性建模",
+          "scope": "拟合寿命分布和加速模型，评估置信区间、失效率、使用条件寿命及退化机制。",
+          "core_objects": ["lifetime_observation", "censoring", "distribution", "acceleration_model", "failure_rate"],
+          "typical_outputs": ["Weibull/对数正态拟合", "使用寿命预测", "模型诊断与不确定度"],
+          "authority_ids": ["AUTH-NIST-RELIABILITY", "AUTH-JEDEC-COMMITTEES"]
+        },
+        {
+          "id": "10.03",
+          "key": "physical_failure_analysis",
+          "name": "物理失效分析",
+          "scope": "从电性定位、无损检测、截面、显微成像和材料分析中识别失效位置、模式与机制。",
+          "core_objects": ["failed_unit", "failure_signature", "analysis_step", "image", "spectrum", "failure_mechanism"],
+          "typical_outputs": ["失效分析流程记录", "物理证据", "模式和机制判断"],
+          "authority_ids": ["AUTH-JEDEC-COMMITTEES", "AUTH-IRDS-YIELD", "AUTH-NIST-METROLOGY"]
+        },
+        {
+          "id": "10.04",
+          "key": "quality_traceability_and_corrective_action",
+          "name": "质量追溯与纠正预防措施",
+          "scope": "关联产品、批次、变更、供应商、失效和客户问题，执行围堵、根因确认及 CAPA 闭环。",
+          "core_objects": ["quality_event", "affected_population", "change", "root_cause", "corrective_action", "verification"],
+          "typical_outputs": ["影响范围", "8D/CAPA 证据链", "措施有效性验证"],
+          "authority_ids": ["AUTH-JEDEC-COMMITTEES", "AUTH-IRDS-YIELD"]
+        }
+      ]
+    }
+  ]
+}

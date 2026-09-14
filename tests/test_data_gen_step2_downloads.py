@@ -35,6 +35,7 @@ from env_gen.data_gen.steps.step2_collect_data import (
     _build_collection_prompt,
     _finalize_agent_result,
     _prepare_collection,
+    _subject_universe,
     read_saved_source_research,
     run_data_collection,
     source_research_receipt_issues,
@@ -42,6 +43,7 @@ from env_gen.data_gen.steps.step2_collect_data import (
 from tests.data_gen_test_helpers import (
     ROOT,
     prepare_step0,
+    sample_python_package_seed,
     scenario_payload,
     write_json,
 )
@@ -336,6 +338,55 @@ class CoarseInspectionTests(unittest.TestCase):
 
 
 class AgentCollectionResultTests(unittest.TestCase):
+    def test_python_package_prompt_uses_generic_workflow_collection_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            seed, digest = prepare_step0(
+                run_dir,
+                selected_seed=sample_python_package_seed(),
+            )
+            scenario = scenario_payload(seed, digest)
+            scenario["tools"] = [{
+                "name": "demo_package.alpha.RecordParser",
+                "description": "Parses real domain records in the package's researched usage environment.",
+                "source_urls": ["https://example.test/items.json"],
+            }]
+            save_scenario_research(run_dir, scenario)
+
+            universe = _subject_universe(seed, scenario)
+            seed_tools = {
+                item["subject_name"]
+                for item in universe
+                if item["subject_type"] == "tool" and "seed" in item["origins"]
+            }
+            self.assertEqual(seed_tools, {"demo_package.alpha.RecordParser"})
+            seed["init_ref_tasks"] = [{
+                "description": "Parse one package-compatible record and inspect the result.",
+            }]
+            universe = _subject_universe(seed, scenario)
+            researched_task = next(
+                item for item in universe
+                if item["subject_type"] == "task" and item["subject_name"] == "Browse items by category"
+            )
+            researched_tool = next(
+                item for item in universe
+                if item["subject_type"] == "tool"
+                and item["subject_name"] == "demo_package.alpha.RecordParser"
+            )
+            self.assertEqual(researched_task["origins"], ["scenario", "seed"])
+            self.assertEqual(researched_tool["origins"], ["scenario", "seed"])
+            self.assertNotIn(
+                "Parse one package-compatible record and inspect the result.",
+                {item["subject_name"] for item in universe},
+            )
+            prompt = _build_collection_prompt(run_dir)
+            self.assertNotIn("Python 工具包种子的采集边界", prompt)
+            self.assertNotIn("`demo-package` `v1.2.3` 的工具包环境", prompt)
+            self.assertNotIn("只能由辅助包处理", prompt)
+            self.assertIn("围绕 Seed 和调研报告中的实体、工具、任务", prompt)
+            self.assertIn("初始 Seed 中的参考工具与任务", prompt)
+            self.assertIn("优先选择能够用同一批数据连接多个实体", prompt)
+
     def _finalize(self, run_dir: Path, base: str, *, status: str, result: str, role: str = "business_records") -> tuple[str, dict]:
         write_json(run_dir / "workspace/raw/items.json", json.loads(_Handler.item_payload))
         write_json(run_dir / ".datagen/collection_result.json", {
@@ -374,6 +425,40 @@ class AgentCollectionResultTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "低于最低验收线"):
                 self._finalize(run_dir, base, status="partial", result="ready")
 
+    def test_all_unknown_file_card_subjects_are_reported_together(self) -> None:
+        with server() as base, tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_collection_run(run_dir)
+            write_json(run_dir / "workspace/raw/items.json", json.loads(_Handler.item_payload))
+            card = full_card(url=f"{base}/items.json")
+            card["subjects"].extend([
+                {
+                    "subject_type": "tool",
+                    "subject_name": "unknown_reader",
+                    "status": "supported",
+                    "reason": "The file is readable.",
+                },
+                {
+                    "subject_type": "task",
+                    "subject_name": "Unknown review task",
+                    "status": "partial",
+                    "reason": "Some review fields are present.",
+                },
+            ])
+            write_json(run_dir / ".datagen/collection_result.json", {
+                "schema_version": "1.0",
+                "result": "partial",
+                "summary": "The Agent recorded two subjects that are outside the accepted universe.",
+                "file_cards": [card],
+            })
+
+            with self.assertRaises(RuntimeError) as caught:
+                _finalize_agent_result(run_dir)
+
+            message = str(caught.exception)
+            self.assertIn("tool/unknown_reader", message)
+            self.assertIn("task/Unknown review task", message)
+
     def test_single_limitation_string_is_normalized(self) -> None:
         with server() as base, tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory)
@@ -391,6 +476,28 @@ class AgentCollectionResultTests(unittest.TestCase):
             _finalize_agent_result(run_dir)
             profile = json.loads((run_dir / ".datagen/collection_profile.json").read_text())
             self.assertEqual(profile["file_cards"][0]["limitations"], ["Only public records are available."])
+
+    def test_different_api_responses_may_share_one_endpoint_url(self) -> None:
+        with server() as base, tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_collection_run(run_dir)
+            write_json(run_dir / "workspace/raw/items.json", json.loads(_Handler.item_payload))
+            write_json(run_dir / "workspace/raw/other.json", [{"id": "other", "name": "Other"}])
+            endpoint = f"{base}/graphql"
+            write_json(run_dir / ".datagen/collection_result.json", {
+                "schema_version": "1.0",
+                "result": "ready",
+                "summary": "Two distinct GraphQL responses came from separate queries to one endpoint.",
+                "file_cards": [
+                    full_card(path="raw/items.json", url=endpoint),
+                    full_card(path="raw/other.json", url=endpoint),
+                ],
+            })
+
+            decision, inventory = _finalize_agent_result(run_dir)
+
+            self.assertEqual(decision, "ready")
+            self.assertEqual(len(inventory["files"]), 2)
 
     def test_semantic_evidence_is_rejected_as_a_third_file_type(self) -> None:
         with server() as base, tempfile.TemporaryDirectory() as directory:
@@ -468,7 +575,7 @@ class AgentCollectionResultTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "同时登记文件支持和无需初始数据"):
                 _finalize_agent_result(run_dir)
 
-    def test_regular_query_tool_cannot_be_excluded_from_data_requirements(self) -> None:
+    def test_data_independence_semantics_are_left_to_agent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory)
             prepare_collection_run(run_dir)
@@ -482,8 +589,13 @@ class AgentCollectionResultTests(unittest.TestCase):
                 }],
                 "file_cards": [],
             })
-            with self.assertRaisesRegex(RuntimeError, "不能排除数据需求"):
-                _finalize_agent_result(run_dir)
+            _finalize_agent_result(run_dir)
+            profile = json.loads((run_dir / ".datagen/collection_profile.json").read_text())
+            finding = next(
+                item for item in profile["coverage"]
+                if item["subject_type"] == "tool" and item["subject_name"] == "list_items"
+            )
+            self.assertEqual(finding["status"], "not_required")
 
     def test_untracked_raw_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -505,12 +617,12 @@ class AgentCollectionResultTests(unittest.TestCase):
             prepare_collection_run(run_dir)
             prompt = _build_collection_prompt(run_dir)
             self.assertIn("构建一个可以离线运行的真实业务环境", prompt)
-            self.assertIn("来源平台提供的原始入口", prompt)
+            self.assertIn("来源入口、环境说明、参考工具与任务", prompt)
             self.assertIn("不视为已经核实的事实", prompt)
             self.assertIn("基于外部来源核实并扩展后的现实业务报告", prompt)
-            self.assertIn("`data_directions` 用于选择数据", prompt)
+            self.assertIn("`data_directions` 用于理解任务需要什么数据以及如何组织采集", prompt)
             self.assertIn("`open_questions` 用于避免", prompt)
-            self.assertIn("下载到 `workspace/raw/<source>/`", prompt)
+            self.assertIn("`workspace/raw/<source>/`", prompt)
             self.assertIn("不要在运行目录顶层另建 `raw/`", prompt)
             self.assertIn("文件卡中的 `path` 才省略 `workspace/` 前缀", prompt)
             self.assertIn("两种平级的数据形态", prompt)
@@ -529,13 +641,26 @@ class AgentCollectionResultTests(unittest.TestCase):
             self.assertIn("只需要其中一类还是两类都需要", prompt)
             self.assertIn("不要为了凑齐类型而下载", prompt)
             self.assertNotIn("`semantic_evidence`", prompt)
-            self.assertIn("不要先搜完所有来源再统一整理", prompt)
-            self.assertIn("同时支持最多清单项", prompt)
-            self.assertIn("依次尝试最多 3 个真正可能提供同类业务对象的不同来源", prompt)
-            self.assertIn("同一站点的不同 URL 不算多个来源", prompt)
+            self.assertIn("不要调用额外的覆盖评估脚本", prompt)
+            self.assertIn("每次开始下载一批数据前", prompt)
+            self.assertIn("持续维护的增量文件画像", prompt)
+            self.assertIn("不要重新遍历全部 Raw、逐张复查所有文件卡", prompt)
+            self.assertIn("也不要每轮从两个输入重新计算一遍完整覆盖", prompt)
+            self.assertIn("才回看对应的少量原文件", prompt)
+            self.assertIn("不能仅因 URL 相同而删除", prompt)
+            self.assertIn("供下一批直接使用", prompt)
+            self.assertIn("用同一批数据连接多个实体、支撑多个工具", prompt)
+            self.assertIn("不要先选定一个平台，再枚举它的全部接口", prompt)
+            self.assertIn("依次尝试最多 3 个真正可能提供所需数据的不同来源", prompt)
+            self.assertIn("同一平台的不同接口", prompt)
             self.assertIn("预计提供的数据及失败原因", prompt)
             self.assertIn("任一来源成功", prompt)
-            self.assertIn("后不必凑满 3 次", prompt)
+            self.assertIn("不必凑满", prompt)
+            self.assertIn("检查完一批数据后立即更新文件卡和 `summary`", prompt)
+            self.assertIn("距离上次更新达到 8 分钟", prompt)
+            self.assertIn("文件或记录之间如何通过 ID、路径或业务事实关联", prompt)
+            self.assertIn("必须匹配 `[a-z][a-z0-9_]{1,63}`", prompt)
+            self.assertIn("空格、斜杠、连字符和大写字母都不能使用", prompt)
             self.assertIn("目标网站有对应凭据时，从第一次请求就使用认证", prompt)
             self.assertIn("GitHub 使用 `gh api`", prompt)
             self.assertIn("必须先对同一端点做一次认证请求", prompt)
@@ -611,7 +736,10 @@ class CollectionLoopTests(unittest.TestCase):
                 else:
                     self.assertIn("对应文件不存在", prompt)
                     self.assertIn("不再调查或下载新来源", prompt)
-                    self.assertEqual(timeout, 180)
+                    self.assertIn("只能从下面的清单逐字复制", prompt)
+                    self.assertIn("`entity`：`Item`", prompt)
+                    self.assertIn("`tool`：`list_items`", prompt)
+                    self.assertEqual(timeout, 600)
                     write_json(run_dir / ".datagen/collection_result.json", {
                         "schema_version": "1.0",
                         "result": "ready",

@@ -13,7 +13,9 @@ from env_gen.data_gen.analysis.scenario_research import validate_scenario_resear
 from env_gen.data_gen.config import CollectionPolicy, DataGenConfig
 from env_gen.data_gen.run_pipeline import _make_agent_runner, run_pipeline
 from env_gen.data_gen.steps.step1_research_scenario import (
+    RESEARCH_GUIDE,
     ScenarioResearchError,
+    _build_research_guide,
     _build_research_prompt,
     run_scenario_research,
 )
@@ -26,11 +28,12 @@ from env_gen.data_gen.steps.common.control_io import control_path
 from tests.data_gen_test_helpers import (
     ROOT,
     prepare_step0,
+    sample_python_package_seed,
     sample_seed,
     scenario_payload,
     write_json,
 )
-from env_gen.data_gen.analysis.seed import canonical_json_sha256
+from env_gen.data_gen.analysis.seed import canonical_json_sha256, load_selected_seed
 
 
 class ScenarioResearchTests(unittest.TestCase):
@@ -70,6 +73,71 @@ class ScenarioResearchTests(unittest.TestCase):
             seed_sha256=self.digest,
         )
         self.assertIn("missing_reference_tools", {item.code for item in issues})
+
+    def test_python_package_seed_uses_real_apis_without_requiring_the_whole_index(self) -> None:
+        seed = sample_python_package_seed()
+        payload = scenario_payload(seed, canonical_json_sha256(seed))
+        payload["tools"] = [{
+            "name": "demo_package.alpha.RecordParser",
+            "description": "Parses a real domain record in the package's usage environment.",
+            "source_urls": ["https://example.test/items.json"],
+        }]
+        issues = validate_scenario_research_payload(
+            payload,
+            schema=self.schema,
+            seed=seed,
+            seed_sha256=canonical_json_sha256(seed),
+        )
+        self.assertEqual(issues, [])
+
+        payload["tools"].append({
+            "name": "invented.module.Tool",
+            "description": "An API that is not present in this package Seed.",
+            "source_urls": ["https://example.test/items.json"],
+        })
+        issues = validate_scenario_research_payload(
+            payload,
+            schema=self.schema,
+            seed=seed,
+            seed_sha256=canonical_json_sha256(seed),
+        )
+        self.assertIn("unknown_python_package_tools", {item.code for item in issues})
+
+    def test_both_real_python_package_seeds_pass_seed_loading(self) -> None:
+        cases = (
+            ("atomate2_v0.1.5.json", "pypi_atomate2_2"),
+            ("pymatgen-core_v2026.8.30.json", "pypi_pymatgen_core_1"),
+        )
+        for filename, global_id in cases:
+            seed, _ = load_selected_seed(
+                ROOT / "seed_gen/pypi_outputs" / filename,
+                global_id,
+                ROOT / "schemas/validation/env_seeds.schema.json",
+            )
+            self.assertEqual(seed["global_id"], global_id)
+
+    def test_python_package_step1_gets_a_larger_research_window(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            seed, digest = prepare_step0(
+                run_dir,
+                selected_seed=sample_python_package_seed(),
+            )
+            observed: list[int] = []
+
+            def runner(_prompt: str, seconds: int, _paths: tuple[Path, ...]) -> str:
+                observed.append(seconds)
+                payload = scenario_payload(seed, digest)
+                payload["tools"] = [{
+                    "name": "demo_package.alpha.RecordParser",
+                    "description": "Parses records in the package usage environment.",
+                    "source_urls": ["https://example.test/items.json"],
+                }]
+                write_json(run_dir / ".datagen/drafts/scenario_research.json", payload)
+                return "complete"
+
+            run_scenario_research(run_dir=run_dir, agent_runner=runner)
+            self.assertEqual(observed, [900])
 
     def test_researched_items_must_reference_registered_sources(self) -> None:
         payload = scenario_payload(self.seed, self.digest)
@@ -113,16 +181,44 @@ class ScenarioResearchTests(unittest.TestCase):
         self.assertNotIn("scenario_research.json", prompt)
         self.assertNotIn("seed_research_inputs.json", prompt)
         self.assertNotIn("researchctl", prompt)
+        self.assertNotIn("Python 工具包 Seed 的附加要求", RESEARCH_GUIDE)
+        self.assertNotIn("代表性 API", RESEARCH_GUIDE)
+        regular_guide = _build_research_guide(self.seed)
+        self.assertEqual(regular_guide, RESEARCH_GUIDE)
+        package_guide = _build_research_guide(sample_python_package_seed())
+        self.assertEqual(package_guide, RESEARCH_GUIDE)
+        self.assertNotIn("Python 工具包 Seed 的附加要求", package_guide)
+        self.assertIn("先理解完整工作流", package_guide)
+        self.assertIn("不必逐项阅读或把整个索引复刻进场景", package_guide)
+        self.assertIn("20-160 个字符", RESEARCH_GUIDE)
+        self.assertIn("80-800 个字符", RESEARCH_GUIDE)
 
     def test_step1_repair_prompt_only_adds_validation_context(self) -> None:
-        prompt = _build_research_prompt(
-            Path("/tmp/example-step1"),
-            attempt=2,
-            failure="$.entities 缺少必要字段",
-        )
-        self.assertIn("完整读取并执行 `.datagen/RESEARCH_GUIDE.md`", prompt)
-        self.assertIn("scenario_research.invalid.json", prompt)
-        self.assertIn("$.entities 缺少必要字段", prompt)
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            invalid = run_dir / ".datagen/drafts/scenario_research.invalid.json"
+            invalid.parent.mkdir(parents=True)
+            invalid.write_text("{}", encoding="utf-8")
+            prompt = _build_research_prompt(
+                run_dir,
+                attempt=2,
+                failure="$.entities 缺少必要字段",
+            )
+            self.assertIn("完整读取并执行 `.datagen/RESEARCH_GUIDE.md`", prompt)
+            self.assertIn("scenario_research.invalid.json", prompt)
+            self.assertIn("$.entities 缺少必要字段", prompt)
+
+    def test_step1_missing_draft_repair_uses_previous_run_before_research(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            prompt = _build_research_prompt(
+                Path(directory),
+                attempt=2,
+                failure="缺少scenario_research 草稿",
+            )
+            self.assertIn("不要重新联网搜索", prompt)
+            self.assertIn("上一轮的 `stderr.log`", prompt)
+            self.assertIn("第一项实质操作必须是", prompt)
+            self.assertNotIn("scenario_research.invalid.json`，未通过校验", prompt)
 
     def test_step0_prepares_shared_context_without_step_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
