@@ -1,22 +1,29 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from env_gen.tool_gen import ToolGenerationError, ToolGenerator
-from env_gen.tool_gen.compiler import _normalize_tests
 from env_gen.tool_gen.__main__ import _reference_tools
-from task_gen.program_form import CompleteEnvironmentPackage, CompleteEnvironmentRuntime
+from env_gen.tool_gen.compiler import _contains, _normalize_tests
+from env_gen.tool_gen.runtime import ToolPackage, ToolRuntime
 
 
-def object_schema(properties: dict[str, object], required: list[str]) -> dict[str, object]:
-    return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+def closed_object(properties: dict[str, object], required: list[str]) -> dict[str, object]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
 
 
-def output_schema(data: dict[str, object], required: list[str]) -> dict[str, object]:
-    error = object_schema(
+def result_schema(data: dict[str, object], required: list[str]) -> dict[str, object]:
+    error = closed_object(
         {
             "code": {"type": "string", "enum": ["not_found", "invalid_state"]},
             "path": {"type": "string"},
@@ -27,557 +34,568 @@ def output_schema(data: dict[str, object], required: list[str]) -> dict[str, obj
     )
     return {
         "oneOf": [
-            object_schema({"success": {"type": "boolean", "const": True}, "data": object_schema(data, required)}, ["success", "data"]),
-            object_schema({"success": {"type": "boolean", "const": False}, "error": error}, ["success", "error"]),
+            closed_object(
+                {"success": {"type": "boolean", "const": True}, "data": closed_object(data, required)},
+                ["success", "data"],
+            ),
+            closed_object(
+                {"success": {"type": "boolean", "const": False}, "error": error},
+                ["success", "error"],
+            ),
         ]
     }
 
 
-ASSIGN_CODE = '''
+def tool(name: str, code: str, data: dict[str, object], required: list[str]) -> dict[str, object]:
+    is_write = name == "resolve_ticket"
+    return {
+        "name": name,
+        "description": f"Execute the {name} business operation.",
+        "usageConditions": {
+            "targetResources": ["tickets"],
+            "targetObjects": [{"objectType": "support ticket", "identifiedBy": ["ticket_id"]}],
+            "preconditions": [
+                "The ticket exists in the current workspace.",
+                *(["The ticket status allows resolution."] if is_write else []),
+            ],
+            "sideEffects": ["Updates the ticket status to resolved."] if is_write else [],
+        },
+        "inputSchema": closed_object({"ticket_id": {"type": "string"}}, ["ticket_id"]),
+        "outputSchema": result_schema(data, required),
+        "internal": {"code": code},
+    }
+
+
+GET_CODE = '''
 def run(arguments, context):
-    import json
-    tickets_path = context.workspace_root / "entities" / "tickets.json"
-    agents_path = context.workspace_root / "entities" / "agents.json"
-    tickets = json.loads(tickets_path.read_text(encoding="utf-8"))
-    agents = json.loads(agents_path.read_text(encoding="utf-8"))
-    ticket = next((row for row in tickets if row["ticket_id"] == arguments["ticket_id"]), None)
-    if ticket is None:
+    record = context.records.get("tickets", {"ticket_id": arguments["ticket_id"]})
+    if record is None:
         return {"success": False, "error": {"code": "not_found", "path": "$.ticket_id", "message": "Ticket not found.", "retryable": False}}
-    agent = next((row for row in agents if row["agent_id"] == arguments["agent_id"] and row["active"]), None)
-    if agent is None:
-        return {"success": False, "error": {"code": "not_found", "path": "$.agent_id", "message": "Active agent not found.", "retryable": False}}
-    if ticket["status"] == "resolved":
-        return {"success": False, "error": {"code": "invalid_state", "path": "$.ticket_id", "message": "Resolved ticket cannot be assigned.", "retryable": False}}
-    ticket["assignee_id"] = agent["agent_id"]
-    tickets_path.write_text(json.dumps(tickets, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"success": True, "data": {"ticket_id": ticket["ticket_id"], "assignee_id": ticket["assignee_id"]}}
+    return {"success": True, "data": {"ticket_id": record["ticket_id"], "status": record["status"]}}
 '''
 
 
 RESOLVE_CODE = '''
 def run(arguments, context):
-    import json
-    path = context.workspace_root / "entities" / "tickets.json"
-    tickets = json.loads(path.read_text(encoding="utf-8"))
-    ticket = next((row for row in tickets if row["ticket_id"] == arguments["ticket_id"]), None)
-    if ticket is None:
+    record = context.records.get("tickets", {"ticket_id": arguments["ticket_id"]})
+    if record is None:
         return {"success": False, "error": {"code": "not_found", "path": "$.ticket_id", "message": "Ticket not found.", "retryable": False}}
-    if not ticket["assignee_id"] or ticket["status"] != "open":
-        return {"success": False, "error": {"code": "invalid_state", "path": "$.ticket_id", "message": "Ticket must be assigned and open.", "retryable": False}}
-    ticket["status"] = "resolved"
-    ticket["resolution"] = arguments["resolution"]
-    path.write_text(json.dumps(tickets, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"success": True, "data": {"ticket_id": ticket["ticket_id"], "status": "resolved"}}
+    context.records.update("tickets", {"ticket_id": arguments["ticket_id"]}, {"status": "resolved"})
+    return {"success": True, "data": {"ticket_id": record["ticket_id"], "status": "resolved"}}
 '''
 
 
-LOOKUP_CODE = '''
+BAD_AGENT_CODE = '''
 def run(arguments, context):
-    import json
-    path = context.workspace_root / "entities" / "tickets.json"
-    tickets = json.loads(path.read_text(encoding="utf-8"))
-    ticket = next((row for row in tickets if row["ticket_id"] == arguments["ticket_id"]), None)
-    if ticket is None:
-        return {"success": False, "error": {"code": "not_found", "path": "$.ticket_id", "message": "Ticket not found.", "retryable": False}}
-    return {"success": True, "data": {"ticket_id": ticket["ticket_id"], "status": ticket["status"]}}
+    context.records.update("agents", {"agent_id": "agent-1"}, {"name": "Changed"})
+    return {"success": True, "data": {"ticket_id": arguments["ticket_id"], "status": "changed"}}
 '''
 
 
-class FakeToolAgent:
+class FakeAgent:
     def __init__(
         self,
         *,
-        bad_write: bool = False,
-        include_lookup: bool = False,
-        repair_bad_write: bool = False,
-        lookup_mutates: bool = False,
-        omit_capability: bool = False,
-        malformed_inventory: bool = False,
+        bad_lookup: bool = False,
+        duplicate_plan: bool = False,
+        missing_reality: bool = False,
+        standard_only_domain_action: bool = False,
     ) -> None:
-        self.bad_write = bad_write
-        self.include_lookup = include_lookup
-        self.repair_bad_write = repair_bad_write
-        self.lookup_mutates = lookup_mutates
-        self.omit_capability = omit_capability
-        self.malformed_inventory = malformed_inventory
         self.calls: list[str] = []
+        self.bad_lookup = bad_lookup
+        self.duplicate_plan = duplicate_plan
+        self.missing_reality = missing_reality
+        self.standard_only_domain_action = standard_only_domain_action
+
+    def run_until_files(
+        self,
+        prompt: str,
+        *,
+        working_directory: Path,
+        required_paths: tuple[Path, ...],
+    ) -> str:
+        return self.run(prompt, working_directory=working_directory)
 
     def run(self, prompt: str, *, working_directory: Path) -> str:
         self.calls.append(prompt)
-        if "工具修复" in prompt:
-            if self.repair_bad_write:
-                self.bad_write = False
-                self._write_draft(working_directory, "assign_ticket")
-            (working_directory / "repair_done.json").write_text(
-                json.dumps({"status": "ready"}), encoding="utf-8"
-            )
-            return "repair complete"
-
-        if "能力盘点文件修复" in prompt:
-            path = working_directory / "capability_inventory.json"
-            path.write_text(
-                path.read_text(encoding="utf-8").replace(
-                    '"cap_assign_ticket"',
-                    '"capability_id": "cap_assign_ticket"',
-                    1,
-                ),
-                encoding="utf-8",
-            )
-            (working_directory / "inventory_repair_done.json").write_text(
-                json.dumps({"status": "ready"}), encoding="utf-8"
-            )
-            return "inventory repaired"
-
         if "负责盘点" in prompt:
-            capabilities = [
-                {
-                    "capability_id": "cap_assign_ticket",
-                    "name": "Assign a ticket",
-                    "family": "state_change",
-                    "resource_ids": ["tickets", "agents"],
-                    "evidence": ["tickets.assignee_id relates to agents.agent_id"],
-                    "reference_tools": ["assign_ticket"],
-                    "decision": "implement",
-                    "reason": "The ticket resource is writable.",
-                },
-                {
-                    "capability_id": "cap_resolve_ticket",
-                    "name": "Resolve a ticket",
-                    "family": "state_change",
-                    "resource_ids": ["tickets"],
-                    "evidence": ["tickets has status and resolution fields"],
-                    "reference_tools": [],
-                    "decision": "implement",
-                    "reason": "The business rule supports resolution.",
-                },
-            ]
-            if self.include_lookup:
-                capabilities.append(
+            payload = {
+                "environment_id": "support_workspace",
+                "capabilities": [
                     {
-                        "capability_id": "cap_lookup_ticket",
-                        "name": "Look up a ticket",
+                        "capability_id": "get_ticket",
+                        "name": "Get ticket",
                         "family": "query",
-                        "resource_ids": ["tickets"],
-                        "evidence": ["tickets has a stable ticket_id"],
-                        "reference_tools": [],
+                        "asset_ids": ["tickets"],
+                        "evidence": ["tickets.ticket_id"],
+                        "reference_tools": ["get_ticket"],
+                        "reality_evidence": [{
+                            "source_type": "reference_tool",
+                            "source": "get_ticket",
+                            "operation": "Retrieve one support ticket by its stable identifier.",
+                            "adaptation": "direct",
+                        }],
+                        "execution_backends": [{"kind": "record_store", "asset_id": "tickets"}],
                         "decision": "implement",
-                        "reason": "The ticket entity can be read by ID.",
-                    }
-                )
-            inventory_text = json.dumps(
-                {
-                    "environment_id": "support_ticket_workspace",
-                    "capabilities": capabilities,
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-            if self.malformed_inventory:
-                inventory_text = inventory_text.replace(
-                    '"capability_id": "cap_assign_ticket"',
-                    '"cap_assign_ticket"',
-                    1,
-                )
+                        "reason": "Stable key exists.",
+                    },
+                    {
+                        "capability_id": "resolve_ticket",
+                        "name": "Resolve ticket",
+                        "family": "state_change",
+                        "asset_ids": ["tickets"],
+                        "evidence": ["tickets is copy_on_write and has status"],
+                        "reference_tools": ["resolve_ticket"],
+                        "reality_evidence": [{
+                            "source_type": "reference_tool",
+                            "source": "resolve_ticket",
+                            "operation": "Move an existing support ticket into the resolved state.",
+                            "adaptation": "adapted",
+                        }],
+                        "execution_backends": [{"kind": "record_store", "asset_id": "tickets"}],
+                        "decision": "implement",
+                        "reason": "Mutable business status exists.",
+                    },
+                ],
+            }
+            if self.missing_reality:
+                payload["capabilities"][0].pop("reality_evidence")
+            if self.standard_only_domain_action:
+                payload["capabilities"][0]["family"] = "analysis"
+                payload["capabilities"][0]["reality_evidence"] = [{
+                    "source_type": "standard_operation",
+                    "source": "ticket analysis",
+                    "operation": "Analyze support tickets.",
+                    "adaptation": "direct",
+                }]
             (working_directory / "capability_inventory.json").write_text(
-                inventory_text,
-                encoding="utf-8",
+                json.dumps(payload), encoding="utf-8"
             )
             (working_directory / "inventory_done.json").write_text(
                 json.dumps({"status": "ready"}), encoding="utf-8"
             )
-            return "inventory complete"
-
-        actions = [
-            {
-                "name": "assign_ticket",
-                "description": "Assign an open ticket to an active agent.",
-                "capability_ids": ["cap_assign_ticket"],
-                "resource_ids": ["tickets", "agents"],
-                "evidence": ["workspace/entities/tickets.json: ticket_id and assignee_id"],
-                "reference_tools": ["assign_ticket"],
-                "effect": "state change",
-            },
-            {
-                "name": "resolve_ticket",
-                "description": "Resolve an assigned ticket with a resolution note.",
-                "capability_ids": ["cap_resolve_ticket"],
-                "resource_ids": ["tickets"],
-                "evidence": ["workspace/entities/tickets.json: status and resolution"],
-                "reference_tools": [],
-                "effect": "state change",
-            },
-        ]
-        if self.include_lookup:
-            actions.append(
-                {
-                    "name": "lookup_ticket",
-                    "description": "Look up a support ticket.",
-                    "capability_ids": ["cap_lookup_ticket"],
-                    "resource_ids": ["tickets"],
-                    "evidence": ["workspace/entities/tickets.json: ticket_id"],
-                    "reference_tools": [],
-                    "effect": "read",
-                }
-            )
-        if self.omit_capability:
-            actions = [item for item in actions if item["name"] != "resolve_ticket"]
-        (working_directory / "action_plan.json").write_text(
-            json.dumps(
-                {"environment_id": "support_ticket_workspace", "actions": actions},
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        for action in actions:
-            self._write_draft(working_directory, action["name"])
-        (working_directory / "agent_done.json").write_text(
-            json.dumps({"status": "ready"}), encoding="utf-8"
-        )
-        return "generation complete"
-
-    def _write_draft(self, working_directory: Path, action: str) -> None:
-        if action == "assign_ticket":
-            code = ASSIGN_CODE
-            if self.bad_write:
-                code = code.replace(
-                    '    tickets_path.write_text(json.dumps(tickets, ensure_ascii=False, indent=2), encoding="utf-8")',
-                    '    raw_path = context.workspace_root / "raw" / "tickets-source.json"\n'
-                    '    raw_path.write_text(json.dumps({"changed": True}), encoding="utf-8")\n'
-                    '    tickets_path.write_text(json.dumps(tickets, ensure_ascii=False, indent=2), encoding="utf-8")',
-                )
-            tool = {
-                "name": "assign_ticket",
-                "description": "Assign an open support ticket to an active support agent.",
-                "inputSchema": object_schema({"ticket_id": {"type": "string"}, "agent_id": {"type": "string"}}, ["ticket_id", "agent_id"]),
-                "outputSchema": output_schema({"ticket_id": {"type": "string"}, "assignee_id": {"type": "string"}}, ["ticket_id", "assignee_id"]),
-                "internal": {"code": code},
-            }
-            tests = [{"calls": [{"tool": "assign_ticket", "arguments": {"ticket_id": "ticket-1", "agent_id": "agent-1"}}], "expect_success": True, "expect_changed": True, "expected_data": {"ticket_id": "ticket-1", "assignee_id": "agent-1"}}]
-        elif action == "resolve_ticket":
-            tool = {
-                "name": "resolve_ticket",
-                "description": "Resolve an assigned open support ticket and record a resolution.",
-                "inputSchema": object_schema({"ticket_id": {"type": "string"}, "resolution": {"type": "string", "minLength": 1}}, ["ticket_id", "resolution"]),
-                "outputSchema": output_schema({"ticket_id": {"type": "string"}, "status": {"type": "string", "const": "resolved"}}, ["ticket_id", "status"]),
-                "internal": {"code": RESOLVE_CODE},
-            }
-            tests = [{"calls": [
-                {"tool": "assign_ticket", "arguments": {"ticket_id": "ticket-1", "agent_id": "agent-1"}},
-                {"tool": "resolve_ticket", "arguments": {"ticket_id": "ticket-1", "resolution": "Password reset link sent."}},
-            ], "expect_success": True, "expect_changed": True, "expected_data": {"ticket_id": "ticket-1", "status": "resolved"}}]
-        else:
-            code = LOOKUP_CODE
-            if self.lookup_mutates:
-                code = code.replace(
-                    '    return {"success": True, "data": {"ticket_id": ticket["ticket_id"], "status": ticket["status"]}}',
-                    '    ticket["resolution"] = "changed by a read tool"\n'
-                    '    path.write_text(json.dumps(tickets), encoding="utf-8")\n'
-                    '    return {"success": True, "data": {"ticket_id": ticket["ticket_id"], "status": ticket["status"]}}',
-                )
-            tool = {
-                "name": "lookup_ticket",
-                "description": "Look up one support ticket.",
-                "inputSchema": object_schema({"ticket_id": {"type": "string"}}, ["ticket_id"]),
-                "outputSchema": output_schema({"ticket_id": {"type": "string"}, "status": {"type": "string"}}, ["ticket_id", "status"]),
-                "internal": {"code": code},
-            }
-            tests = [{"calls": [{"tool": "lookup_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False, "expected_data": {"ticket_id": "ticket-1", "status": "open"}}]
-        (working_directory / "drafts" / f"{action}.json").write_text(
-            json.dumps({"tool": tool, "tests": tests}, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        done_dir = working_directory / "draft_done"
-        done_dir.mkdir(parents=True, exist_ok=True)
-        (done_dir / f"{action}.json").write_text(
-            json.dumps({"status": "ready"}), encoding="utf-8"
-        )
-
-
-class StepwiseToolAgent(FakeToolAgent):
-    """模拟按动作逐次写文件的 Agent，便于验证断点行为。"""
-
-    def __init__(self, *, fail_action: str | None = None) -> None:
-        super().__init__()
-        self.fail_action = fail_action
-
-    def run(self, prompt: str, *, working_directory: Path) -> str:
-        self.calls.append(prompt)
-        if "负责盘点" in prompt:
-            return super().run(prompt, working_directory=working_directory)
+            return "inventory"
         if "安排工具动作" in prompt:
+            resolve_caps = ["resolve_ticket"]
+            if self.duplicate_plan:
+                resolve_caps.append("get_ticket")
             actions = [
                 {
-                    "name": "assign_ticket",
-                    "description": "Assign an open ticket.",
-                    "capability_ids": ["cap_assign_ticket"],
-                    "resource_ids": ["tickets", "agents"],
-                    "effect": "state change",
+                    "name": "get_ticket",
+                    "description": "Get one ticket.",
+                    "capability_ids": ["get_ticket"],
+                    "asset_ids": ["tickets"],
+                    "evidence": ["tickets.ticket_id"],
+                    "reference_tools": ["get_ticket"],
+                    "effect": "read",
+                    "usageConditions": {
+                        "targetResources": ["tickets"],
+                        "targetObjects": [{"objectType": "support ticket", "identifiedBy": ["ticket_id"]}],
+                        "preconditions": ["The ticket exists in the current workspace."],
+                        "sideEffects": [],
+                    },
                 },
                 {
                     "name": "resolve_ticket",
-                    "description": "Resolve an assigned ticket.",
-                    "capability_ids": ["cap_resolve_ticket"],
-                    "resource_ids": ["tickets"],
-                    "effect": "state change",
+                    "description": "Resolve one ticket.",
+                    "capability_ids": resolve_caps,
+                    "asset_ids": ["tickets"],
+                    "evidence": ["tickets.status"],
+                    "reference_tools": ["resolve_ticket"],
+                    "effect": "write",
+                    "usageConditions": {
+                        "targetResources": ["tickets"],
+                        "targetObjects": [{"objectType": "support ticket", "identifiedBy": ["ticket_id"]}],
+                        "preconditions": [
+                            "The ticket exists in the current workspace.",
+                            "The ticket status allows resolution.",
+                        ],
+                        "sideEffects": ["Updates the ticket status to resolved."],
+                    },
                 },
             ]
             (working_directory / "action_plan.json").write_text(
-                json.dumps({"environment_id": "support_ticket_workspace", "actions": actions}),
+                json.dumps({"environment_id": "support_workspace", "actions": [
+                    action for action in actions
+                    if all(cap in {
+                        item["capability_id"] for item in json.loads(
+                            (working_directory / "approved_capabilities.json").read_text(encoding="utf-8")
+                        )["capabilities"]
+                    } for cap in action["capability_ids"])
+                ]}),
                 encoding="utf-8",
             )
-            return "plan complete"
-        if "编写一个可执行工具：" in prompt:
-            action = prompt.split("编写一个可执行工具：", 1)[1].split("。", 1)[0]
-            if action == self.fail_action:
-                return "stopped before writing"
-            self._write_draft(working_directory, action)
-            return "draft complete"
-        return super().run(prompt, working_directory=working_directory)
+            return "plan"
+        if "这一组相关工具" in prompt:
+            drafts = {
+                "get_ticket": {
+                    "tool": tool(
+                        "get_ticket",
+                        BAD_AGENT_CODE if self.bad_lookup else GET_CODE,
+                        {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
+                        ["ticket_id", "status"],
+                    ),
+                    "tests": [{"calls": [{"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False}],
+                },
+                "resolve_ticket": {
+                    "tool": tool(
+                        "resolve_ticket",
+                        RESOLVE_CODE,
+                        {"ticket_id": {"type": "string"}, "status": {"type": "string", "const": "resolved"}},
+                        ["ticket_id", "status"],
+                    ),
+                    "tests": [{"calls": [{"tool": "resolve_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": True, "expected_data": {"status": "resolved"}}],
+                },
+            }
+            for name, draft in drafts.items():
+                if name in prompt:
+                    path = working_directory / "drafts" / f"{name}.json"
+                    path.write_text(json.dumps(draft), encoding="utf-8")
+            return "drafts"
+        if "工具修复" in prompt:
+            (working_directory / "repair_done.json").write_text(
+                json.dumps({"status": "ready"}), encoding="utf-8"
+            )
+            return "repair"
+        raise AssertionError(prompt)
 
 
-class ToolGenerationTests(unittest.TestCase):
+class ToolGenV2Tests(unittest.TestCase):
     def make_package(self, root: Path) -> Path:
         package = root / "support"
-        workspace = package / "workspace"
-        provenance = package / "provenance"
-        (workspace / "raw").mkdir(parents=True)
-        (workspace / "entities").mkdir()
-        provenance.mkdir()
-        (workspace / "raw" / "tickets-source.json").write_text(json.dumps([{"ticket_id": "ticket-1", "subject": "Password reset"}]), encoding="utf-8")
-        (workspace / "raw" / "agents-source.json").write_text(json.dumps([{"agent_id": "agent-1", "name": "Maya"}]), encoding="utf-8")
-        (workspace / "entities" / "tickets.json").write_text(json.dumps([{"ticket_id": "ticket-1", "subject": "Password reset", "status": "open", "assignee_id": None, "resolution": None}]), encoding="utf-8")
-        (workspace / "entities" / "agents.json").write_text(json.dumps([{"agent_id": "agent-1", "name": "Maya", "active": True}]), encoding="utf-8")
+        scope = package / "state/filesystem_scopes/reports"
+        scope.mkdir(parents=True)
+        (package / "provenance").mkdir()
         environment = {
-            "schema_version": "1.0",
-            "environment_id": "support_ticket_workspace",
-            "name": "Support ticket workspace",
-            "description": "Support tickets and active agents for account-recovery requests.",
-            "resources": [
-                {"resource_id": "raw_tickets", "name": "Ticket source", "description": "Original ticket records.", "data_type": "raw", "storage_type": "file", "path": "raw/tickets-source.json", "format": "json", "writable": False},
-                {"resource_id": "raw_agents", "name": "Agent source", "description": "Original agent records.", "data_type": "raw", "storage_type": "file", "path": "raw/agents-source.json", "format": "json", "writable": False},
-                {"resource_id": "tickets", "name": "Working tickets", "description": "Mutable local support tickets.", "data_type": "entity", "storage_type": "file", "path": "entities/tickets.json", "format": "json", "writable": True, "source_resources": ["raw_tickets"], "entity_schema": {"ticket": {"description": "One support ticket.", "fields": {"ticket_id": {"type": "string", "description": "Stable ticket ID."}, "subject": {"type": "string", "description": "Customer issue."}, "status": {"type": "string", "description": "Current ticket status."}, "assignee_id": {"type": "string", "description": "Assigned agent ID."}, "resolution": {"type": "string", "description": "Recorded resolution."}}}}},
-                {"resource_id": "agents", "name": "Working agents", "description": "Local active support agents.", "data_type": "entity", "storage_type": "file", "path": "entities/agents.json", "format": "json", "writable": False, "source_resources": ["raw_agents"], "entity_schema": {"agent": {"description": "One support agent.", "fields": {"agent_id": {"type": "string", "description": "Stable agent ID."}, "name": {"type": "string", "description": "Agent name."}, "active": {"type": "boolean", "description": "Whether assignments are allowed."}}}}},
+            "schema_version": "2.0",
+            "environment_id": "support_workspace",
+            "name": "Support workspace",
+            "summary": "A support workspace for ticket review and resolution workflows.",
+            "description": "This environment contains support tickets, active service agents, and an editable report directory for realistic ticket review and resolution workflows.",
+            "record_sets": [
+                {
+                    "record_set_id": "tickets",
+                    "name": "Tickets",
+                    "description": "One record represents a support ticket.",
+                    "access": "copy_on_write",
+                    "key_fields": ["ticket_id"],
+                    "fields": {
+                        "ticket_id": {"type": "string", "description": "Stable ticket ID.", "nullable": False},
+                        "subject": {"type": "string", "description": "Ticket subject.", "nullable": False},
+                        "status": {"type": "string", "description": "Current status.", "nullable": False},
+                        "assignee_id": {"type": "string", "description": "Assigned agent.", "nullable": True},
+                    },
+                },
+                {
+                    "record_set_id": "agents",
+                    "name": "Agents",
+                    "description": "One record represents a support agent.",
+                    "access": "read_only",
+                    "key_fields": ["agent_id"],
+                    "fields": {
+                        "agent_id": {"type": "string", "description": "Stable agent ID.", "nullable": False},
+                        "name": {"type": "string", "description": "Agent name.", "nullable": False},
+                        "active": {"type": "boolean", "description": "Whether the agent is active.", "nullable": False},
+                    },
+                },
             ],
-            "rules": [{"description": "A resolved ticket must retain its assignee and resolution.", "resources": ["tickets", "agents"]}],
+            "relationships": [
+                {
+                    "relationship_id": "ticket_to_agent",
+                    "description": "An assigned ticket references an existing support agent.",
+                    "from": {"record_set_id": "tickets", "fields": ["assignee_id"]},
+                    "to": {"record_set_id": "agents", "fields": ["agent_id"]},
+                    "cardinality": "many_to_one",
+                }
+            ],
+            "filesystem_scopes": [
+                {
+                    "scope_id": "reports",
+                    "name": "Reports",
+                    "description": "Editable JSON reports produced by support workflows.",
+                    "access": "copy_on_write",
+                    "structure": {
+                        "kind": "directory",
+                        "path": ".",
+                        "layout": [
+                            {"kind": "file_collection", "path": "*.json", "description": "Support reports.", "required": False, "format": "json"}
+                        ],
+                    },
+                }
+            ],
         }
-        (package / "environment.json").write_text(json.dumps(environment, ensure_ascii=False, indent=2), encoding="utf-8")
-        provenance_payloads = {
-            "research_request.json": {"focus": "support ticket operations"},
-            "research_report.json": {"relations": [{"from": "tickets.assignee_id", "to": "agents.agent_id"}]},
-            "source_inventory.json": {"surfaces": ["tickets", "agents"]},
-            "data_profile.json": {"records": {"tickets": 1, "agents": 1}},
-            "quality_profile.json": {"status": "ready"},
-            "sources.json": {"sources": [{"url": "https://example.test/support"}]},
-        }
-        for name, payload in provenance_payloads.items():
-            (provenance / name).write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+        (package / "environment.json").write_text(json.dumps(environment), encoding="utf-8")
+        (package / "environment.md").write_text("# Support workspace\n", encoding="utf-8")
+        (package / "provenance/scenario_research.json").write_text(
+            json.dumps({"tools": [{"name": "get_ticket", "description": "Get one ticket."}, {"name": "resolve_ticket", "description": "Resolve one ticket."}]}),
+            encoding="utf-8",
+        )
+        database = package / "state/records.sqlite"
+        with closing(sqlite3.connect(database)) as connection:
+            connection.execute('CREATE TABLE "agents" ("agent_id" TEXT NOT NULL, "name" TEXT NOT NULL, "active" INTEGER NOT NULL) STRICT')
+            connection.execute('CREATE UNIQUE INDEX "ux_agents_key" ON "agents" ("agent_id")')
+            connection.execute('INSERT INTO "agents" VALUES (?, ?, ?)', ("agent-1", "Alex", 1))
+            connection.execute('CREATE TABLE "tickets" ("ticket_id" TEXT NOT NULL, "subject" TEXT NOT NULL, "status" TEXT NOT NULL, "assignee_id" TEXT) STRICT')
+            connection.execute('CREATE UNIQUE INDEX "ux_tickets_key" ON "tickets" ("ticket_id")')
+            connection.execute('INSERT INTO "tickets" VALUES (?, ?, ?, ?)', ("ticket-1", "Login issue", "open", "agent-1"))
+            connection.commit()
         return package
 
-    def test_generates_complete_environment_and_executes_stateful_tools(self):
+    def test_generates_tools_from_v2_package_in_one_batch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            result = ToolGenerator(FakeToolAgent()).generate(package_path, tool_hints=[{"name": "assign_ticket"}])
-            self.assertEqual(result.tool_names, ("assign_ticket", "resolve_ticket"))
-            package = CompleteEnvironmentPackage.load(package_path)
-            self.assertEqual(set(package.tool_names), {"assign_ticket", "resolve_ticket"})
-            self.assertEqual(set(package.environment["tools"][0]), {"name", "description", "inputSchema", "outputSchema", "internal"})
-            with CompleteEnvironmentRuntime(package) as runtime:
-                assigned = runtime.call("assign_ticket", {"ticket_id": "ticket-1", "agent_id": "agent-1"})
-                resolved = runtime.call("resolve_ticket", {"ticket_id": "ticket-1", "resolution": "Password reset link sent."})
-            self.assertTrue(assigned["success"])
+            package = self.make_package(Path(temporary))
+            original = (package / "environment.json").read_text(encoding="utf-8")
+            agent = FakeAgent()
+            result = ToolGenerator(agent, draft_batch_size=5).generate(package)
+            self.assertEqual(result.tool_names, ("get_ticket", "resolve_ticket"))
+            self.assertEqual((package / "environment.json").read_text(encoding="utf-8"), original)
+            self.assertTrue(result.tools_path.is_file())
+            grounding = json.loads(result.grounding_path.read_text(encoding="utf-8"))
+            self.assertEqual(grounding["tools"][0]["reality_evidence"][0]["source"], "get_ticket")
+            tools = json.loads(result.tools_path.read_text(encoding="utf-8"))["tools"]
+            self.assertEqual(tools[1]["usageConditions"]["targetResources"], ["tickets"])
+            self.assertEqual(sum("这一组相关工具" in call for call in agent.calls), 1)
+            with ToolRuntime(ToolPackage.load(package)) as runtime:
+                resolved = runtime.call("resolve_ticket", {"ticket_id": "ticket-1"})
             self.assertEqual(resolved["data"]["status"], "resolved")
+
+    def test_context_uses_datagen_v2_paths_and_research_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent()).generate(package)
+            output = package / "tool_generation"
+            context = json.loads((output / "context.json").read_text(encoding="utf-8"))
+            self.assertEqual(context["records_database_path"], "../state/records.sqlite")
+            self.assertEqual(context["filesystem_scopes_path"], "../state/filesystem_scopes")
+            self.assertNotIn("workspace_path", context)
+            hints = json.loads((output / "reference_tools.json").read_text(encoding="utf-8"))
+            self.assertEqual([item["name"] for item in hints], ["get_ticket", "resolve_ticket"])
+
+    def test_rejects_tool_that_modifies_read_only_record_set(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            result = ToolGenerator(FakeAgent(bad_lookup=True), max_repairs=0).generate(package)
+            self.assertEqual(result.tool_names, ("resolve_ticket",))
             report = json.loads(result.validation_path.read_text(encoding="utf-8"))
-            self.assertTrue(all(item["status"] == "passed" for item in report["reports"]))
+            lookup = next(item for item in report["reports"] if item["tool"] == "get_ticket")
+            self.assertEqual(lookup["status"], "rejected")
+            self.assertTrue(any("只读资源" in failure for failure in lookup["failures"]))
 
-    def test_rejects_tool_that_modifies_read_only_resource_without_mutating_environment(self):
+    def test_rejects_capability_assigned_to_two_actions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            with self.assertRaises(ToolGenerationError):
-                ToolGenerator(FakeToolAgent(bad_write=True), max_repairs=0).generate(package_path)
-            environment = json.loads((package_path / "environment.json").read_text(encoding="utf-8"))
-            self.assertNotIn("tools", environment)
-            report = json.loads((package_path / "tool_generation" / "tool_validation.json").read_text(encoding="utf-8"))
-            assign_report = next(item for item in report["reports"] if item["tool"] == "assign_ticket")
-            self.assertEqual(assign_report["status"], "rejected")
-            self.assertTrue(any("non_writable" in item for item in assign_report["failures"]))
+            package = self.make_package(Path(temporary))
+            with self.assertRaisesRegex(ToolGenerationError, "重复安排"):
+                ToolGenerator(FakeAgent(duplicate_plan=True)).generate(package)
 
-    def test_keeps_other_passing_tools_when_one_candidate_is_rejected(self):
+    def test_rejects_implementable_capability_without_reality_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            result = ToolGenerator(
-                FakeToolAgent(bad_write=True, include_lookup=True),
-                max_repairs=0,
-            ).generate(package_path)
-            self.assertEqual(result.tool_names, ("lookup_ticket",))
-            package = CompleteEnvironmentPackage.load(package_path)
-            self.assertEqual(package.tool_names, ("lookup_ticket",))
-            report = json.loads(result.validation_path.read_text(encoding="utf-8"))
+            package = self.make_package(Path(temporary))
+            result = ToolGenerator(FakeAgent(missing_reality=True), max_repairs=0).generate(package)
+            self.assertEqual(result.tool_names, ("resolve_ticket",))
+            review = json.loads((package / "tool_generation/capability_review.json").read_text(encoding="utf-8"))
+            self.assertIn("缺少现实操作依据", review["rejected"][0]["error"])
+
+    def test_domain_action_needs_reference_tool_or_official_documentation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            result = ToolGenerator(FakeAgent(standard_only_domain_action=True), max_repairs=0).generate(package)
+            self.assertEqual(result.tool_names, ("resolve_ticket",))
+            review = json.loads((package / "tool_generation/capability_review.json").read_text(encoding="utf-8"))
+            self.assertIn("领域能力", review["rejected"][0]["error"])
+
+    def test_standard_statistics_and_domain_actions_have_distinct_evidence(self) -> None:
+        value = {
+            "capability_id": "count_by_category", "decision": "implement", "family": "analysis",
+            "operation_kind": "standard_data", "asset_ids": ["icons"],
+            "reality_evidence": [{"source_type": "standard_operation", "source": "Group by and count",
+                                  "operation": "Count records by category", "adaptation": "direct"}],
+            "execution_backends": [{"kind": "record_store", "asset_id": "icons"}],
+        }
+        checked = ToolGenerator._validate_capability(value, set(), {"icons"}, {"record_store": {"icons"}}, set())
+        self.assertEqual(checked["capability_id"], "count_by_category")
+        value["operation_kind"] = "domain"
+        with self.assertRaisesRegex(ToolGenerationError, "领域能力"):
+            ToolGenerator._validate_capability(value, set(), {"icons"}, {"record_store": {"icons"}}, set())
+
+    def test_inventory_reports_all_invalid_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent(), max_repairs=0).generate(package)
+            inventory_path = package / "tool_generation/capability_inventory.json"
+            document = json.loads(inventory_path.read_text(encoding="utf-8"))
+            for item in document["capabilities"]:
+                item.pop("reality_evidence")
+            inventory_path.write_text(json.dumps(document), encoding="utf-8")
+            environment = json.loads((package / "environment.json").read_text(encoding="utf-8"))
+            with self.assertRaises(ToolGenerationError) as caught:
+                ToolGenerator._load_capability_inventory(environment, inventory_path)
+            self.assertIn("get_ticket", str(caught.exception))
+            self.assertIn("resolve_ticket", str(caught.exception))
+            review = json.loads((inventory_path.parent / "capability_review.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(review["rejected"]), 2)
+            with self.assertRaisesRegex(ToolGenerationError, "没有任何可实现能力"):
+                ToolGenerator._load_capability_inventory(environment, inventory_path, allow_partial=True)
+
+    def test_retry_resumes_existing_files_and_is_bounded(self) -> None:
+        from utils.search_agent.codex import CodexTimeoutError, CodexLaunchError
+
+        class InterruptedAgent:
+            def __init__(self, error, recover):
+                self.calls = 0
+                self.error = error
+                self.recover = recover
+
+            def run(self, prompt, *, working_directory):
+                self.calls += 1
+                partial = working_directory / "partial.json"
+                if self.calls == 1:
+                    partial.write_text("{}")
+                else:
+                    assert partial.exists()
+                    assert "已有文件" in prompt
+                    if self.recover:
+                        (working_directory / "done.json").write_text("{}")
+                        return "done"
+                raise self.error
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            agent = InterruptedAgent(CodexTimeoutError("timeout"), True)
+            ToolGenerator(agent)._run_agent_until("continue", working_directory=root, required_path=root / "done.json")
+            self.assertEqual(agent.calls, 2)
+            for error, expected_calls in [(CodexTimeoutError("timeout"), 2), (CodexLaunchError("missing"), 1)]:
+                agent = InterruptedAgent(error, False)
+                with self.assertRaises(type(error)):
+                    ToolGenerator(agent)._run_agent_until("continue", working_directory=root, required_path=root / "other.json")
+                self.assertEqual(agent.calls, expected_calls)
+
+    def test_invalid_schema_does_not_block_independent_tool(self) -> None:
+        class SchemaAgent(FakeAgent):
+            def run(self, prompt, *, working_directory):
+                result = super().run(prompt, working_directory=working_directory)
+                if "这一组相关工具" in prompt:
+                    path = working_directory / "drafts/get_ticket.json"
+                    draft = json.loads(path.read_text(encoding="utf-8"))
+                    draft["tool"]["outputSchema"]["unsupported_output_keyword"] = True
+                    path.write_text(json.dumps(draft), encoding="utf-8")
+                return result
+
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            result = ToolGenerator(SchemaAgent(), max_repairs=0).generate(package)
+            self.assertEqual(result.tool_names, ("resolve_ticket",))
+            reports = json.loads(result.validation_path.read_text(encoding="utf-8"))["reports"]
+            self.assertIn("unsupported_output_keyword", reports[0]["failures"][0])
+            self.assertEqual(reports[1]["status"], "passed")
+            ToolPackage.load(package)
+
+    def test_repair_interruption_still_publishes_passed_tools(self) -> None:
+        from utils.search_agent.codex import CodexTimeoutError
+
+        class RepairAgent(FakeAgent):
+            def run(self, prompt, *, working_directory):
+                if "工具修复" in prompt:
+                    raise CodexTimeoutError("temporary timeout")
+                return super().run(prompt, working_directory=working_directory)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            result = ToolGenerator(RepairAgent(bad_lookup=True)).generate(package)
+            self.assertEqual(result.tool_names, ("resolve_ticket",))
+            self.assertTrue((package / "tool_generation/repair_error.json").is_file())
+            ToolPackage.load(package)
+
+    def test_output_schema_local_refs_preserve_validation(self) -> None:
+        from env_gen.tool_gen.compiler import _inline_output_schema
+        from jsonschema import Draft202012Validator
+        schema = {"$defs": {"number": {"type": "integer", "minimum": 1}},
+                  "type": "object", "properties": {"count": {"$ref": "#/$defs/number"}},
+                  "required": ["count"], "additionalProperties": False}
+        expanded = _inline_output_schema(schema)
+        self.assertNotIn("$defs", expanded)
+        for value in ({"count": 2}, {"count": 0}, {"count": "2"}, {}, {"count": 2, "extra": True}):
+            self.assertEqual(Draft202012Validator(schema).is_valid(value), Draft202012Validator(expanded).is_valid(value))
+        self.assertIn("$ref", schema["properties"]["count"])
+        with self.assertRaises(ValueError):
+            _inline_output_schema({"$defs": {"loop": {"$ref": "#/$defs/loop"}}, "$ref": "#/$defs/loop"})
+
+    def test_generated_schema_refs_are_adapted_and_original_preserved(self) -> None:
+        class ReferenceAgent(FakeAgent):
+            def run(self, prompt, *, working_directory):
+                result = super().run(prompt, working_directory=working_directory)
+                if "这一组相关工具" in prompt:
+                    path = working_directory / "drafts/get_ticket.json"
+                    draft = json.loads(path.read_text(encoding="utf-8"))
+                    schema = draft["tool"]["outputSchema"]
+                    schema["$defs"] = {"error": schema["oneOf"][1]["properties"]["error"]}
+                    schema["oneOf"][1]["properties"]["error"] = {"$ref": "#/$defs/error"}
+                    path.write_text(json.dumps(draft), encoding="utf-8")
+                return result
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            result = ToolGenerator(ReferenceAgent(), max_repairs=0).generate(package)
+            self.assertEqual(set(result.tool_names), {"get_ticket", "resolve_ticket"})
+            self.assertTrue(list((package / "tool_generation/draft_history").glob("get_ticket.*.json")))
+
+    def test_invalid_code_does_not_block_independent_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent(), max_repairs=0).generate(package)
+            drafts = [json.loads(path.read_text(encoding="utf-8")) for path in
+                      sorted((package / "tool_generation/drafts").glob("*.json"))]
+            drafts[0]["tool"]["internal"]["code"] = "def run("
+            environment = json.loads((package / "environment.json").read_text(encoding="utf-8"))
+            reports = ToolGenerator(FakeAgent())._validate(package, environment, drafts)
+            self.assertEqual([item["status"] for item in reports], ["rejected", "passed"])
+            drafts[1]["tests"][0]["calls"].insert(0, {"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}})
+            reports = ToolGenerator(FakeAgent())._validate(package, environment, drafts)
+            self.assertEqual([item["status"] for item in reports], ["rejected", "rejected"])
+
+    def test_batch_retries_draft_when_usage_conditions_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            draft_path = Path(temporary) / "get_ticket.json"
+            draft_path.write_text(
+                json.dumps({
+                    "tool": tool(
+                        "get_ticket",
+                        GET_CODE,
+                        {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
+                        ["ticket_id", "status"],
+                    ),
+                    "tests": [],
+                }),
+                encoding="utf-8",
+            )
+            action = {
+                "usageConditions": {
+                    "targetResources": ["tickets"],
+                    "targetObjects": [{"objectType": "support ticket", "identifiedBy": ["ticket_id"]}],
+                    "preconditions": ["The ticket exists and is assigned."],
+                    "sideEffects": [],
+                }
+            }
             self.assertEqual(
-                next(item for item in report["reports"] if item["tool"] == "assign_ticket")["status"],
-                "rejected",
+                ToolGenerator._ensure_draft_ready(draft_path, "get_ticket", action),
+                "draft_usage_conditions_mismatch",
             )
 
-    def test_agent_context_points_to_datagen_files_without_embedding_workspace_content(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            hints = [{"name": "assign_ticket", "description": "Assign one ticket."}]
-            ToolGenerator(FakeToolAgent()).generate(package_path, tool_hints=hints)
-
-            output_dir = package_path / "tool_generation"
-            context_text = (output_dir / "context.json").read_text(encoding="utf-8")
-            context = json.loads(context_text)
-            self.assertEqual(context["environment_path"], "../environment.json")
-            self.assertEqual(context["workspace_path"], "../workspace")
-            self.assertEqual(
-                context["provenance_files"],
-                [
-                    "../provenance/research_request.json",
-                    "../provenance/research_report.json",
-                    "../provenance/source_inventory.json",
-                    "../provenance/data_profile.json",
-                    "../provenance/quality_profile.json",
-                    "../provenance/sources.json",
-                ],
-            )
-            self.assertTrue(
-                all(set(item) == {"path", "size"} for item in context["workspace_files"])
-            )
-            self.assertNotIn("Password reset", context_text)
-            self.assertEqual(
-                json.loads((output_dir / "reference_tools.json").read_text(encoding="utf-8")),
-                hints,
-            )
-            self.assertEqual(context["tool_schema_path"], "tool.schema.json")
-            self.assertEqual(context["draft_example_path"], "draft_example.json")
-            self.assertTrue((output_dir / "tool.schema.json").is_file())
-            example = json.loads(
-                (output_dir / "draft_example.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(example["tests"][0]["calls"][0]["tool"], "get_item")
-
-    def test_runs_one_repair_round_only_when_a_tool_failed(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            agent = FakeToolAgent(bad_write=True, repair_bad_write=True)
-            result = ToolGenerator(agent, max_repairs=1).generate(package_path)
-            self.assertEqual(result.tool_names, ("assign_ticket", "resolve_ticket"))
-            self.assertEqual(len(agent.calls), 3)
-            self.assertIn("负责盘点", agent.calls[0])
-            self.assertIn("工具修复", agent.calls[2])
-
-    def test_loads_reference_tools_from_current_upstream_seed_catalog(self):
-        catalog = Path(__file__).parents[1] / "seed_gen" / "data" / "smithery_1000_v1_0902.json"
+    def test_reference_tool_catalog_loading_is_preserved(self) -> None:
+        catalog = Path(__file__).parents[1] / "seed_gen/data/smithery_140_v1_0824.json"
         document = json.loads(catalog.read_text(encoding="utf-8"))
         seed = document[0]
-        tools = _reference_tools(
-            hints_path=None,
-            seed_path=catalog,
-            seed_id=seed["global_id"],
-        )
+        tools = _reference_tools(hints_path=None, seed_path=catalog, seed_id=seed["global_id"])
         self.assertEqual(tools, seed["init_ref_tools"])
-        self.assertGreater(len(tools), 0)
 
-    def test_normalizes_flat_agent_calls_into_one_runtime_sequence(self):
-        tests = _normalize_tests(
-            [
-                {"tool": "assign_ticket", "arguments": {"ticket_id": "ticket-1"}},
-                {
-                    "tool": "resolve_ticket",
-                    "arguments": {"ticket_id": "ticket-1"},
-                    "expect_success": True,
-                    "expect_changed": True,
-                    "expected_data": {"status": "resolved"},
-                },
-            ]
-        )
-        self.assertEqual(
-            [call["tool"] for call in tests[0]["calls"]],
-            ["assign_ticket", "resolve_ticket"],
-        )
-        self.assertEqual(tests[0]["expected_data"], {"status": "resolved"})
+    def test_normalizes_flat_calls(self) -> None:
+        tests = _normalize_tests([
+            {"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}},
+            {"tool": "resolve_ticket", "arguments": {"ticket_id": "ticket-1"}, "expect_changed": True},
+        ])
+        self.assertEqual(len(tests), 1)
+        self.assertEqual(tests[0]["calls"][-1]["tool"], "resolve_ticket")
 
-    def test_rejects_read_tool_that_changes_workspace(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            result = ToolGenerator(
-                FakeToolAgent(include_lookup=True, lookup_mutates=True),
-                max_repairs=0,
-            ).generate(package_path)
-            self.assertNotIn("lookup_ticket", result.tool_names)
-            report = json.loads(result.validation_path.read_text(encoding="utf-8"))
-            lookup = next(item for item in report["reports"] if item["tool"] == "lookup_ticket")
-            self.assertTrue(any("workspace_change_mismatch" in item for item in lookup["failures"]))
-
-    def test_rejects_action_plan_that_omits_an_implementable_capability(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            with self.assertRaisesRegex(ToolGenerationError, "cap_resolve_ticket"):
-                ToolGenerator(FakeToolAgent(omit_capability=True)).generate(package_path)
-
-    def test_repairs_a_malformed_inventory_once(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            agent = FakeToolAgent(malformed_inventory=True)
-            result = ToolGenerator(agent, max_repairs=1).generate(package_path)
-            self.assertEqual(result.tool_names, ("assign_ticket", "resolve_ticket"))
-            self.assertEqual(len(agent.calls), 3)
-            self.assertIn("能力盘点文件修复", agent.calls[1])
-
-    def test_generates_each_action_in_a_separate_agent_call(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            agent = StepwiseToolAgent()
-            result = ToolGenerator(agent).generate(package_path)
-            self.assertEqual(result.tool_names, ("assign_ticket", "resolve_ticket"))
-            self.assertEqual(sum("编写一个可执行工具：" in prompt for prompt in agent.calls), 2)
-            progress = json.loads(
-                (package_path / "tool_generation" / "progress.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(progress["status"], "drafts_ready")
-            self.assertEqual(progress["completed_actions"], ["assign_ticket", "resolve_ticket"])
-
-    def test_keeps_completed_drafts_when_a_later_action_stops(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            agent = StepwiseToolAgent(fail_action="resolve_ticket")
-            result = ToolGenerator(agent).generate(package_path)
-            self.assertEqual(result.tool_names, ("assign_ticket",))
-            self.assertTrue(
-                (package_path / "tool_generation" / "drafts" / "assign_ticket.json").is_file()
-            )
-            self.assertFalse(
-                (package_path / "tool_generation" / "drafts" / "resolve_ticket.json").is_file()
-            )
-            progress = json.loads(
-                (package_path / "tool_generation" / "progress.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(progress["status"], "drafts_ready_with_skips")
-            self.assertEqual(progress["failed_actions"], ["resolve_ticket"])
-            reports = json.loads(result.validation_path.read_text(encoding="utf-8"))["reports"]
-            self.assertEqual(next(item for item in reports if item["tool"] == "resolve_ticket")["status"], "skipped")
-
-    def test_resumes_from_existing_completed_draft(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            package_path = self.make_package(Path(temporary))
-            first_agent = StepwiseToolAgent(fail_action="resolve_ticket")
-            first_result = ToolGenerator(first_agent).generate(package_path)
-            self.assertEqual(first_result.tool_names, ("assign_ticket",))
-            environment = json.loads((package_path / "environment.json").read_text(encoding="utf-8"))
-            environment.pop("tools", None)
-            (package_path / "environment.json").write_text(
-                json.dumps(environment, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-
-            second_agent = StepwiseToolAgent()
-            result = ToolGenerator(second_agent).generate(package_path)
-            self.assertEqual(result.tool_names, ("assign_ticket", "resolve_ticket"))
-            self.assertEqual(
-                sum("编写一个可执行工具：" in prompt for prompt in second_agent.calls),
-                1,
-            )
+    def test_expected_data_matches_nested_subset(self) -> None:
+        self.assertTrue(_contains({"status": "resolved", "extra": 1}, {"status": "resolved"}))
 
 
 if __name__ == "__main__":

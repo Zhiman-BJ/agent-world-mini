@@ -10,7 +10,7 @@ from utils.search_agent.codex import CodexAgentClient
 from .compiler import ToolGenerator
 
 
-DEFAULT_TOOL_MODEL = "gpt-5.6-luna"
+DEFAULT_TOOL_MODEL = "gpt-5.6-sol"
 
 
 def _load_json(path: Path) -> Any:
@@ -65,7 +65,7 @@ def _reference_tools(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="使用 Luna Agent 为 DataGen 环境包生成并执行验证工具"
+        description="使用 Codex Agent 为 DataGen v2 环境包生成并执行验证工具"
     )
     parser.add_argument("environment", type=Path, help="DataGen 环境包目录或 environment.json")
     source_group = parser.add_mutually_exclusive_group()
@@ -78,8 +78,15 @@ def main() -> None:
         choices=["minimal", "low", "medium", "high", "xhigh"],
         default="high",
     )
+    parser.add_argument(
+        "--draft-reasoning-effort",
+        choices=["minimal", "low", "medium", "high", "xhigh"],
+        default="medium",
+    )
+    parser.add_argument("--draft-batch-size", type=int, default=5)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--max-repairs", type=int, default=1)
+    parser.add_argument("--software-repair-attempts", type=int, default=3)
     arguments = parser.parse_args()
 
     tools = _reference_tools(
@@ -87,15 +94,37 @@ def main() -> None:
         seed_path=arguments.seed_path,
         seed_id=arguments.seed_id,
     )
+    package_root = (
+        arguments.environment
+        if arguments.environment.is_dir()
+        else arguments.environment.parent
+    ).resolve()
+    log_directory = package_root / "tool_generation/agent_runs"
     agent = CodexAgentClient(
         model=arguments.model,
         timeout_seconds=arguments.timeout_seconds,
         sandbox="workspace-write",
         enable_web_search=False,
-        network_access=False,
+        network_access=True,
         reasoning_effort=arguments.reasoning_effort,
+        log_directory=log_directory,
     )
-    result = ToolGenerator(agent, max_repairs=arguments.max_repairs).generate(
+    draft_agent = CodexAgentClient(
+        model=arguments.model,
+        timeout_seconds=arguments.timeout_seconds,
+        sandbox="workspace-write",
+        enable_web_search=False,
+        network_access=True,
+        reasoning_effort=arguments.draft_reasoning_effort,
+        log_directory=log_directory,
+    )
+    result = ToolGenerator(
+        agent,
+        draft_agent=draft_agent,
+        draft_batch_size=arguments.draft_batch_size,
+        max_repairs=arguments.max_repairs,
+        software_repair_attempts=arguments.software_repair_attempts,
+    ).generate(
         arguments.environment,
         tool_hints=tools,
     )
@@ -103,9 +132,11 @@ def main() -> None:
         json.dumps(
             {
                 "environment": str(result.environment_path),
+                "tools_file": str(result.tools_path),
                 "tools": result.tool_names,
                 "action_plan": str(result.action_plan_path),
                 "validation": str(result.validation_path),
+                "grounding": str(result.grounding_path),
             },
             ensure_ascii=False,
             indent=2,
