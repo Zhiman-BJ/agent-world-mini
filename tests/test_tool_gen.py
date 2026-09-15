@@ -6,11 +6,23 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
+
+from jsonschema import Draft202012Validator
 
 from env_gen.tool_gen import ToolGenerationError, ToolGenerator
 from env_gen.tool_gen.__main__ import _reference_tools
 from env_gen.tool_gen.compiler import _contains, _normalize_tests
 from env_gen.tool_gen.runtime import ToolPackage, ToolRuntime
+from env_gen.tool_gen.software import (
+    expanded_node_packages,
+    expanded_packages,
+    normalized_plan,
+    prepare_software,
+    profile_id,
+    validate_in_runtime,
+)
+from utils.io import write_json
 
 
 def closed_object(properties: dict[str, object], required: list[str]) -> dict[str, object]:
@@ -46,11 +58,17 @@ def result_schema(data: dict[str, object], required: list[str]) -> dict[str, obj
     }
 
 
-def tool(name: str, code: str, data: dict[str, object], required: list[str]) -> dict[str, object]:
+def tool(
+    name: str,
+    code: str,
+    data: dict[str, object],
+    required: list[str],
+    description: str | None = None,
+) -> dict[str, object]:
     is_write = name == "resolve_ticket"
     return {
         "name": name,
-        "description": f"Execute the {name} business operation.",
+        "description": description or f"Execute the {name} business operation.",
         "usageConditions": {
             "targetResources": ["tickets"],
             "targetObjects": [{"objectType": "support ticket", "identifiedBy": ["ticket_id"]}],
@@ -228,21 +246,23 @@ class FakeAgent:
             return "plan"
         if "这一组相关工具" in prompt:
             drafts = {
-                "get_ticket": {
-                    "tool": tool(
-                        "get_ticket",
-                        BAD_AGENT_CODE if self.bad_lookup else GET_CODE,
-                        {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
-                        ["ticket_id", "status"],
-                    ),
+                    "get_ticket": {
+                        "tool": tool(
+                            "get_ticket",
+                            BAD_AGENT_CODE if self.bad_lookup else GET_CODE,
+                            {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
+                            ["ticket_id", "status"],
+                            "Get one ticket.",
+                        ),
                     "tests": [{"calls": [{"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False}],
                 },
                 "resolve_ticket": {
                     "tool": tool(
                         "resolve_ticket",
                         RESOLVE_CODE,
-                        {"ticket_id": {"type": "string"}, "status": {"type": "string", "const": "resolved"}},
-                        ["ticket_id", "status"],
+                            {"ticket_id": {"type": "string"}, "status": {"type": "string", "const": "resolved"}},
+                            ["ticket_id", "status"],
+                            "Resolve one ticket.",
                     ),
                     "tests": [{"calls": [{"tool": "resolve_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": True, "expected_data": {"status": "resolved"}}],
                 },
@@ -326,6 +346,10 @@ class ToolGenV2Tests(unittest.TestCase):
         }
         (package / "environment.json").write_text(json.dumps(environment), encoding="utf-8")
         (package / "environment.md").write_text("# Support workspace\n", encoding="utf-8")
+        write_json(
+            package / "validation.json",
+            {"valid": True, "errors": [], "warnings": []},
+        )
         (package / "provenance/scenario_research.json").write_text(
             json.dumps({"tools": [{"name": "get_ticket", "description": "Get one ticket."}, {"name": "resolve_ticket", "description": "Resolve one ticket."}]}),
             encoding="utf-8",
@@ -358,6 +382,151 @@ class ToolGenV2Tests(unittest.TestCase):
             with ToolRuntime(ToolPackage.load(package)) as runtime:
                 resolved = runtime.call("resolve_ticket", {"ticket_id": "ticket-1"})
             self.assertEqual(resolved["data"]["status"], "resolved")
+
+    def test_software_plan_supports_strings_and_objects(self) -> None:
+        plan = {
+            "python": "3.11",
+            "common_modules": ["numerical"],
+            "python_packages": [
+                "pandas>=2",
+                {"name": "pymatgen-core", "version": "==2026.8.30", "purpose": "domain"},
+                {"name": "spglib", "version": "2.6.0"},
+            ],
+            "node_packages": [
+                {"name": "@openzeppelin/contracts", "version": "5.6.0"}
+            ],
+        }
+        self.assertEqual(
+            expanded_packages(plan),
+            ["pandas>=2", "pymatgen-core==2026.8.30", "spglib==2.6.0", "numpy", "scipy"],
+        )
+        self.assertEqual(
+            expanded_node_packages(plan), ["@openzeppelin/contracts@5.6.0"]
+        )
+
+    def test_software_profile_identity_tracks_runtime_compatibility(self) -> None:
+        first = {
+            "python": "3.11",
+            "python_packages": [{"name": "pymatgen", "version": "==2026.8", "purpose": "A"}],
+            "node_packages": [],
+        }
+        equivalent = {
+            "python": "3.11",
+            "python_packages": [{"name": "pymatgen", "version": "==2026.8", "purpose": "B"}],
+            "node_packages": [],
+        }
+        other_python = {**first, "python": "3.10"}
+        other_version = {
+            **first,
+            "python_packages": [{"name": "pymatgen", "version": "==2026.9"}],
+        }
+        self.assertEqual(profile_id(first), profile_id(equivalent))
+        self.assertNotEqual(profile_id(first), profile_id(other_python))
+        self.assertNotEqual(profile_id(first), profile_id(other_version))
+
+    def test_prepare_software_reuses_an_existing_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "environment"
+            (package / "tool_generation").mkdir(parents=True)
+            plan = {"python": "3.11", "python_packages": ["demo==1"], "node_packages": []}
+            (package / "tool_generation/software_plan.json").write_text(
+                json.dumps(plan), encoding="utf-8"
+            )
+            shared = root / "shared"
+
+            def fake_command(command, *, cwd, log, env=None):
+                if "venv" in command:
+                    python = shared / "profiles" / profile_id(plan) / "python/bin/python"
+                    python.parent.mkdir(parents=True, exist_ok=True)
+                    python.write_text("", encoding="utf-8")
+
+            with patch("env_gen.tool_gen.software._command", side_effect=fake_command) as command, patch(
+                "env_gen.tool_gen.software.subprocess.check_output", return_value="demo==1\n"
+            ):
+                first = prepare_software(package, shared_root=shared)
+                calls = command.call_count
+                second = prepare_software(package, shared_root=shared)
+            self.assertEqual(first["profile_id"], second["profile_id"])
+            self.assertEqual(command.call_count, calls)
+            self.assertTrue((shared / "cache/uv").is_dir())
+            self.assertTrue((shared / "catalog/common_modules.json").is_file())
+
+    def test_runtime_exposes_bound_software_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            software_root = Path(temporary) / "software-profile"
+            software_root.mkdir()
+            write_json(
+                package / "tool_generation/software_environment.json",
+                {
+                    "root": str(software_root),
+                    "python": str(Path(__file__)),
+                    "prefix": str(software_root),
+                },
+            )
+            with ToolRuntime(ToolPackage.load(package, tools=[tool(
+                "get_ticket", GET_CODE,
+                {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
+                ["ticket_id", "status"],
+            )])) as runtime:
+                self.assertEqual(runtime.context.software_root, software_root.resolve())
+
+    def test_profile_validation_uses_virtual_environment_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "environment"
+            output = package / "tool_generation"
+            output.mkdir(parents=True)
+            profile = root / "profile"
+            python = profile / "bin/python"
+            python.parent.mkdir(parents=True)
+            python.write_text("", encoding="utf-8")
+            write_json(
+                output / "software_environment.json",
+                {"root": str(profile), "python": str(python), "prefix": str(profile)},
+            )
+
+            def fake_command(command, *, cwd, log, env=None):
+                write_json(Path(command[-1]), [{"tool": "demo", "status": "passed"}])
+
+            with patch("env_gen.tool_gen.software._command", side_effect=fake_command) as command:
+                reports = validate_in_runtime(package, [])
+            self.assertEqual(reports, [{"tool": "demo", "status": "passed"}])
+            self.assertEqual(command.call_args.args[0][0], str(python))
+
+    def test_publish_separates_tools_environment_and_binding(self) -> None:
+        from env_gen.tool_gen.delivery import publish
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = self.make_package(root)
+            result = ToolGenerator(FakeAgent()).generate(package)
+            delivery = publish(result, root / "published")
+            self.assertTrue((delivery.tools_root / "tools.json").is_file())
+            self.assertTrue((delivery.environment_root / "environment.json").is_file())
+            self.assertTrue((delivery.environment_root / "validation.json").is_file())
+            self.assertTrue((delivery.environment_root / "state/records.sqlite").is_file())
+            self.assertFalse((delivery.environment_root / "tools.json").exists())
+            binding = json.loads(delivery.binding_path.read_text(encoding="utf-8"))
+            self.assertEqual(binding["schema_version"], "1.0")
+            self.assertEqual(binding["package_id"], "support")
+            self.assertEqual(binding["environment_id"], "support_workspace")
+            self.assertEqual(binding["tools_path"], "tools/support/tools.json")
+            self.assertEqual(
+                binding["tool_validation_path"],
+                "tools/support/tool_validation.json",
+            )
+            self.assertEqual(binding["environment_path"], "environments/support")
+            self.assertEqual(
+                binding["environment_validation_path"],
+                "environments/support/validation.json",
+            )
+            schema = json.loads(
+                (Path(__file__).parents[1] / "schemas/toolgen_delivery_binding.schema.json")
+                .read_text(encoding="utf-8")
+            )
+            self.assertFalse(list(Draft202012Validator(schema).iter_errors(binding)))
 
     def test_context_uses_datagen_v2_paths_and_research_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -567,6 +736,7 @@ class ToolGenV2Tests(unittest.TestCase):
                 encoding="utf-8",
             )
             action = {
+                "description": "Execute the get_ticket business operation.",
                 "usageConditions": {
                     "targetResources": ["tickets"],
                     "targetObjects": [{"objectType": "support ticket", "identifiedBy": ["ticket_id"]}],

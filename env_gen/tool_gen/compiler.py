@@ -59,19 +59,17 @@ class ToolGenerator:
         draft_agent: ToolCodingAgent | None = None,
         draft_batch_size: int = 5,
         max_repairs: int = 1,
-        software_repair_attempts: int = 3,
+        software_root: Path | None = None,
     ) -> None:
         if max_repairs < 0:
             raise ValueError("max_repairs 不能小于 0")
         if draft_batch_size < 1:
             raise ValueError("draft_batch_size 必须至少为 1")
-        if software_repair_attempts < 0:
-            raise ValueError("software_repair_attempts 不能小于 0")
         self.agent = agent
         self.draft_agent = draft_agent or agent
         self.draft_batch_size = draft_batch_size
         self.max_repairs = max_repairs
-        self.software_repair_attempts = software_repair_attempts
+        self.software_root = software_root
 
     def generate(
         self,
@@ -138,7 +136,10 @@ class ToolGenerator:
                     inventory = self._load_capability_inventory(
                         environment, inventory_path, allow_partial=True
                     )
-        self._prepare_software(package_root)
+        software_plan = output_dir / "software_plan.json"
+        if software_plan.is_file():
+            from .software import prepare_software
+            prepare_software(package_root, shared_root=self.software_root)
         action_plan_path = output_dir / "action_plan.json"
         if action_plan_path.is_file():
             try:
@@ -198,7 +199,6 @@ class ToolGenerator:
             drafts_dir,
             allow_missing=True,
         )
-        self._prepare_software(package_root)
         reports = [
             {"tool": name, "status": "skipped", "failures": [reason], "tests": []}
             for name, reason in generation_failures.items()
@@ -253,7 +253,6 @@ class ToolGenerator:
                 action["name"]: generation_failures.get(action["name"], "missing_or_invalid_draft_after_repair")
                 for action in actions if action["name"] not in available
             }
-            self._prepare_software(package_root)
             reports = self._validate(package_root, environment, drafts)
             reports = [
                 {"tool": name, "status": "skipped", "failures": [reason], "tests": []}
@@ -443,6 +442,8 @@ class ToolGenerator:
         if not isinstance(tool.get("usageConditions"), dict):
             return "draft_missing_usage_conditions"
         if action is not None:
+            if tool.get("description") != action.get("description"):
+                return "draft_description_mismatch"
             if tool["usageConditions"] != action["usageConditions"]:
                 return "draft_usage_conditions_mismatch"
             input_fields = set((tool.get("inputSchema") or {}).get("properties", {}))
@@ -595,23 +596,7 @@ class ToolGenerator:
             "tool_schema_path": "tool.schema.json",
             "draft_example_path": "draft_example.json",
         }
-        from .software import COMMON_MODULES
-        context["software_guide_path"] = "software_guide.md"
-        context["software_environment_path"] = "software_environment.json"
         write_json(output_dir / "context.json", context)
-        write_json(output_dir / "common_software.json", COMMON_MODULES)
-        (output_dir / "software_guide.md").write_text('''# 软件准备与执行
-
-common_software.json 是按用途整理的通用依赖目录。领域核心包由当前环境根据官方资料选择。
-software_plan.json 示例：
-{"python":"3.11","common_modules":["numerical"],"python_packages":[{"name":"软件包名称","version":">=1,<2","purpose":"所需接口"}],"node_packages":[]}
-包名和版本应根据注册表核实；python 指定该软件所需的解释器。依赖可以用字符串或 name/version 对象，Node 字符串采用 package@version。
-主程序安装失败后会返回错误让智能体修正计划，再自动安装。也可使用当前代码的 Python -m env_gen.tool_gen.software install <环境包目录> 主动安装。
-安装位置在 software_environment.json 的 python/prefix/root。草稿和修复中的 Python 探测使用这里的 python，Node 包在 root/node/node_modules 下。可以联网读取官方源码、调用示例及版本信息，并在本环境软件目录安装辅助程序。
-草稿验证自动使用所选 Python。工具用 context.software_root 定位辅助程序及 Node 包，业务文件仍通过 context.scope_root 访问任务副本。
-安装是运行条件，不是业务能力证明；编写时记录和使用真实接口。缺包错误通过补齐安装解决，专业功能保持其操作含义。
-下游先用 python -m env_gen.tool_gen.software prepare <包目录> 恢复软件，再用 python -m env_gen.tool_gen.software exec <包目录> -- <脚本与参数> 在该环境执行。
-''', encoding="utf-8")
         write_json(output_dir / "reference_tools.json", reference_tools)
         (output_dir / "runtime_api.md").write_text(_runtime_api(), encoding="utf-8")
         shutil.copy2(TOOL_SCHEMA_PATH, output_dir / "tool.schema.json")
@@ -621,9 +606,9 @@ software_plan.json 示例：
     def _build_inventory_prompt(package_root: Path) -> str:
         return f"""你负责盘点一个 DataGen 环境真正能够实现的工具能力。当前目录是 {package_root.name}/tool_generation。
 
-先读 environment.md（若存在）和 environment.json，理解业务场景、Record Set、已验证关系、Filesystem Scope 与 read_only/copy_on_write 边界。再按需抽样 state/records.sqlite 中的真实记录并查看 Scope 中的真实文件。reference_tools.json 汇总了种子和 DataGen 场景研究中的参考工具；联网核对专业系统的官方文档、官方 API/CLI 或真实产品工作流。若内置搜索服务不可用，使用允许联网的 curl、python urllib 或 git 直接读取官方页面，不要反复重试搜索服务。若专业操作需要额外软件，将软件名称、版本和用途写入 software_plan.json；通用计算、表格、文档、图像和 HDF5 依赖写入 common_modules，领域核心软件写入 python_packages 或 node_packages。不要因为尚未安装就把能力判为不可实现。
+先读 environment.md（若存在）和 environment.json，理解业务场景、Record Set、已验证关系、Filesystem Scope 与 read_only/copy_on_write 边界。再按需抽样 state/records.sqlite 中的真实记录并查看 Scope 中的真实文件。reference_tools.json 汇总了种子和 DataGen 场景研究中的参考工具；联网核对专业系统的官方文档、官方 API/CLI 或真实产品工作流。若专业操作需要额外软件，将软件名称、版本和用途写入 software_plan.json；通用计算、表格、文档、图像和 HDF5 依赖写入 common_modules，领域核心软件写入 python_packages 或 node_packages。不要因为尚未安装就把能力判为不可实现。
 
-逐项盘点专业系统中真实存在、并且当前环境可以真实执行的工作面：每个 Record Set 的按键获取、搜索筛选、比较统计和适合其字段的领域分析；每条 Relationship 的关联查询或业务操作；每个 Scope 中现实文件格式支持的查看、校验、计算、转换和产物操作；以及跨记录与文件的常见工作流。copy_on_write 只说明技术上允许修改；创建、更新、删除或状态变化仍须有现实业务依据。专业软件操作必须调用真实 API、CLI 或操作真实项目文件，不能用自建 JSON 状态模拟软件动作。读取复杂 JSON 时先查看实际类型和字段；某个探索脚本报错时记录错误并换用更简单的读取方法继续，不要让单个样本阻塞盘点。先写 software_plan.json 和 capability_inventory.json，再进行更深入的补充调研；软件计划至少包含 common_modules、python_packages、node_packages 三个数组，缺少额外软件时写空数组。
+逐项盘点专业系统中真实存在、并且当前环境可以真实执行的工作面：每个 Record Set 的按键获取、搜索筛选、比较统计和适合其字段的领域分析；每条 Relationship 的关联查询或业务操作；每个 Scope 中现实文件格式支持的查看、校验、计算、转换和产物操作；以及跨记录与文件的常见工作流。copy_on_write 只说明技术上允许修改；创建、更新、删除或状态变化仍须有现实业务依据。专业软件操作必须调用真实 API、CLI 或操作真实项目文件，不能用自建 JSON 状态模拟软件动作。
 
 能力只有同时具备现实操作依据和当前环境执行后端时才能 decision=implement。现实依据可来自 reference_tools.json 中已有工具、官方文档或公认的标准数据/文件操作；standard_operation 只用于读取、写入、统计、转换和比较文件或表格等领域无关操作，领域业务动作必须有参考工具或官方文档。execution_backends 必须指向当前 environment.json 声明的 Record Set 或 Filesystem Scope。参考工具字段不同时保留原业务含义并映射到本地字段，可 direct、adapted、narrowed 或 composed；缺少关键对象、状态或执行接口时 decision=skip。
 
@@ -646,14 +631,13 @@ software_plan.json 示例：
         package_root: Path, actions: list[dict[str, Any]]
     ) -> str:
         action_json = json.dumps(actions, ensure_ascii=False, indent=2)
-        action_json += "\n先读 software_guide.md 与 software_environment.json（若存在），在已安装的解释器中探测接口和执行示例。缺包时可以补充软件计划并安装；联网查证来源中的具体函数、参数与返回值。"
         names = ", ".join(str(action["name"]) for action in actions)
         return f"""你负责为 {package_root.name} 编写这一组相关工具：{names}。
 
 动作计划如下：
 {action_json}
 
-读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set，通过 context.scope_root(scope_id) 访问文件；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
+读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 description 和 usageConditions 原样写入工具。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set，通过 context.scope_root(scope_id) 访问文件；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
 
 保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数取自真实状态，至少包含一次正常调用；写操作测试应使 expect_changed=true。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
 
@@ -962,40 +946,18 @@ software_plan.json 示例：
             )
         return actions
 
-    def _prepare_software(self, package_root: Path) -> None:
-        from .software import prepare_software
-
-        output = package_root / "tool_generation"
-        if not (output / "software_plan.json").is_file():
-            return
-        for attempt in range(self.software_repair_attempts + 1):
-            try:
-                prepare_software(package_root)
-                write_json(output / "software_status.json", {"status": "ready", "repairs": attempt})
-                return
-            except Exception as error:
-                write_json(output / "software_status.json", {
-                    "status": "repairing" if attempt < self.software_repair_attempts else "blocked",
-                    "attempt": attempt, "error": f"{type(error).__name__}: {error}",
-                })
-                if attempt == self.software_repair_attempts:
-                    raise ToolGenerationError(f"软件准备经 {attempt} 次修复仍未完成，产物保留在 {output}") from error
-                checkpoint = output / f"software_repair_{attempt + 1}.json"
-                checkpoint.unlink(missing_ok=True)
-                self._run_agent_until(
-                    f"""你负责修复当前环境的软件安装。读取 software_status.json、software_install.log、software_plan.json、context.json 和上游参考工具及 source_research.json。
-失败原因：{type(error).__name__}: {error}
-通过联网命令查看官方软件包注册表、安装说明和接口，确定正确包名、发布版本、Python 要求与可用功能。可在 tool_generation/software 下安装、执行命令、探测 import 和官方示例；保持操作在当前用户和当前环境内。修订 software_plan.json 后主程序会自动再次安装，缓存和已有文件继续复用。对于临时下载故障可以保持计划并重试。版本选择应保留所需专业接口；业务输入参数不需要预存在数据表中。不要通过删除所需依赖或简化专业算法绕过安装错误。
-软件计划格式见 software_guide.md。若发现需要系统服务或外部凭据，记录具体条件。完成后写 {checkpoint.name}，包含 status 和说明本次修复的 changes。""",
-                    working_directory=output, required_path=checkpoint,
-                )
-
     def _validate(
-        self, package_root: Path, environment: dict[str, Any], drafts: list[dict[str, Any]],
+        self,
+        package_root: Path,
+        environment: dict[str, Any],
+        drafts: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         from .software import validate_in_runtime
+
         reports = validate_in_runtime(package_root, drafts)
-        return reports if reports is not None else self._validate_local(package_root, environment, drafts)
+        return reports if reports is not None else self._validate_local(
+            package_root, environment, drafts
+        )
 
     def _validate_local(
         self,
@@ -1289,10 +1251,12 @@ context.records.create(record_set_id, record)
 context.records.update(record_set_id, key, changes)
 context.records.delete(record_set_id, key)
 context.scope_root(scope_id)
+context.software_root
 ```
 
 `get` 的 key 必须包含该 Record Set 声明的全部 key_fields。`create` 接收完整记录；
-`update` 和 `delete` 返回受影响记录数。`scope_root` 返回任务隔离副本中的 pathlib.Path。
+`update` 和 `delete` 返回受影响记录数。`scope_root` 返回任务隔离副本中的 pathlib.Path；
+`software_root` 返回当前环境绑定的软件 Profile 根目录，可用于调用其中的 Node 命令和资源。
 只对 `access=copy_on_write` 的 Record Set 或 Scope 执行写操作。
 """
 

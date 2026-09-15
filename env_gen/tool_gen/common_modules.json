@@ -1,0 +1,26 @@
+{
+  "numerical": {
+    "purpose": "数组、统计与数值计算",
+    "python_packages": ["numpy", "scipy"]
+  },
+  "tables": {
+    "purpose": "表格与 Parquet 文件处理",
+    "python_packages": ["pandas", "pyarrow"]
+  },
+  "pdf": {
+    "purpose": "读取、搜索和渲染 PDF",
+    "python_packages": ["pymupdf"]
+  },
+  "images": {
+    "purpose": "读取和处理图片",
+    "python_packages": ["pillow"]
+  },
+  "hdf5": {
+    "purpose": "读取和处理 HDF5 数据",
+    "python_packages": ["h5py"]
+  },
+  "yaml": {
+    "purpose": "读取和写入 YAML 配置",
+    "python_packages": ["PyYAML"]
+  }
+}
