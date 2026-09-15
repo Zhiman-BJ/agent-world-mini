@@ -25,7 +25,7 @@
 |task10|FAIL|0 次工具调用；无交付。|
 |task17|PASS|完成 Si-O 相稳定性、结构/运行审计并生成高对称线输入文件，答案与产物一致。|
 |task19|FAIL|答案声称两个 CompleteDos MSON 可由 pymatgen 成功重建；实际环境工具只做字段检查，真实 `CompleteDos.from_dict` 因缺少顶层 `efermi` 失败，属于把假验证当成真实成功。|
-|task22|FAIL|首次结果因基础设施错误未完成；恢复结果仍无可用最终交付，按规则判 FAIL。|
+|task22|FAIL|首次结果遇到 502；恢复后有答案，但本次交付仍沿用工具的假重建/标准化结果，不能证明任务要求的实际对象验证已完成。|
 
 Pymatgen 合计：2 PASS，3 FAIL。
 
