@@ -159,8 +159,7 @@ def test_sandbox_rolls_back_failed_and_undeclared_writes(tmp_path):
     )
 
 
-def test_declared_keys_and_verifier_share_v2_runtime(tmp_path):
-    from task_gen.task_eval_verifier import build_evidence, run_verifier
+def test_declared_keys_remain_readable_for_independent_verification(tmp_path):
 
     setup_state(tmp_path)
     with sqlite3.connect(tmp_path / "records.sqlite") as c:
@@ -174,37 +173,4 @@ def test_declared_keys_and_verifier_share_v2_runtime(tmp_path):
     with pytest.raises(sqlite3.IntegrityError):
         records.create("items", item)
     assert len(records.list("items")) == 1
-    evidence = build_evidence(tmp_path, tmp_path, [], "", 1000, environment=ENV)
-    assert evidence["state_changes"]["changed_assets"] == []
-    tool = {
-        "name": "query",
-        "internal": {
-            "code": "def run(arguments, context):\n    return {'success': True, 'data': context.records.get('items', {'id': 1, 'part': 'a'})}"
-        },
-        "inputSchema": {"type": "object"},
-        "outputSchema": {"type": "object"},
-    }
-    package = {
-        "schema_version": "1",
-        "requirements": [
-            {
-                "id": "r1",
-                "claim": "Record remains readable",
-                "required": True,
-                "evidence_channels": ["workspace"],
-                "pass_condition": "query true",
-                "fail_condition": "query false",
-            }
-        ],
-        "source": "def verify(ctx):\n    result = ctx.call_tool('query', {})\n    if result['error'] is None and result['result']['data']['ok'] is True:\n        ctx.pass_requirement('r1', 'Record is readable', ['verifier_call:0'])\n    else:\n        ctx.fail_requirement('r1', 'Cannot read', ['verifier_call:0'])",
-    }
-    assert (
-        run_verifier(
-            package,
-            evidence,
-            initial_state=tmp_path,
-            final_state=tmp_path,
-            tools=[tool],
-        )[0]["status"]
-        == "pass"
-    )
+    assert Context(tmp_path, ENV, read_only=True).records.get("items", {"id": 1, "part": "a"}) == item

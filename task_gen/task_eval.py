@@ -1,4 +1,4 @@
-"""Run generated tasks with an agent, then compare its answer with the reference."""
+"""Run generated tasks with ReAct, then independently investigate their delivery."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
-import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -15,27 +14,17 @@ import time
 from typing import Any, Callable
 
 from .task_eval_react import run_react_agent
-from .tool_graph.llm import InferenceResult, capture_calls, infer, parse_json_object
+from .tool_graph.llm import capture_calls
 from .tool_graph.run_io import append_llm_call, load_config
 from .tool_graph.step_3_chain_execute import (
-    _bounded_calls,
     _public_environment,
     _tools,
     _workspace_signature,
 )
-from .task_eval_verifier import (
-    aggregate_results,
-    build_evidence,
-    prepare_verifier,
-    run_verifier,
-    validate_verifier,
-    VerifierPreparationError,
-)
+from .task_eval_verifier import verify_execution, VerificationError
 
 
 DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"
-VERIFIER_CACHE_VERSION = 15
-InferFn = Callable[..., InferenceResult]
 AgentRunFn = Callable[[str, Path, Path, Path], str]
 
 
@@ -127,11 +116,9 @@ def evaluate_case(
     tool_timeout_seconds: int = 300,
     tool_max_memory_bytes: int = 2 * 1024 * 1024 * 1024,
     tool_max_write_bytes: int = 256 * 1024 * 1024,
-    tool_result_max_bytes: int = 65536,
     agent_run_fn: AgentRunFn | None = None,
-    judge_infer_fn: InferFn = infer,
+    verifier_run_fn: Callable[..., dict[str, Any]] = verify_execution,
     verifier_output: Path | None = None,
-    verifier_cache: Path | None = None,
 ) -> dict[str, Any]:
     """Let one API ReAct agent solve a task with environment tools, then judge it."""
     if max_tool_calls < 1:
@@ -150,73 +137,9 @@ def evaluate_case(
     ]
     if case.task.get("available_tools") != expected_tools:
         raise ValueError("task.available_tools 与环境公开工具契约不一致")
-    verifier: dict[str, Any] | None = None
-    calibration: dict[str, Any] | None = None
-    verifier_attempts: list[dict[str, Any]] = []
-    verifier_cache_hit = False
-    if case.reference_state is not None:
-        reference_evidence = build_evidence(
-            case.initial_state,
-            case.reference_state,
-            case.reference_calls,
-            case.task.get("reference", {}).get("answer", ""),
-            tool_result_max_bytes,
-            environment=case.environment,
-        )
-        verifier_environment = {
-            **_public_environment(case.environment),
-            "tools": case.task.get("available_tools", []),
-        }
-        empty_evidence = build_evidence(case.initial_state, case.initial_state, [], "", tool_result_max_bytes, environment=case.environment)
-        cache_path = None
-        if verifier_cache is not None:
-            fingerprint_payload = {
-                "version": VERIFIER_CACHE_VERSION,
-                "task": case.task,
-                "environment": verifier_environment,
-                "reference_evidence": reference_evidence,
-            }
-            fingerprint = hashlib.sha256(json.dumps(
-                fingerprint_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-            ).encode()).hexdigest()
-            verifier_cache.mkdir(parents=True, exist_ok=True)
-            cache_path = verifier_cache / f"{fingerprint}.json"
-        if cache_path is not None and cache_path.is_file():
-            cached = json.loads(cache_path.read_text(encoding="utf-8"))
-            if cached.get("fingerprint") != fingerprint:
-                raise ValueError(f"verifier 缓存指纹不一致：{cache_path}")
-            verifier = cached.get("verifier")
-            calibration = cached.get("calibration")
-            validate_verifier(verifier)
-            verifier_cache_hit = True
-        else:
-            verifier, calibration, verifier_attempts = prepare_verifier(
-                case.task,
-                verifier_environment,
-                reference_evidence,
-                empty_evidence,
-                llm_config,
-                infer_fn=judge_infer_fn,
-                initial_state=case.initial_state,
-                final_state=case.reference_state,
-                tools=list(tools.values()),
-            )
-            if cache_path is not None:
-                cache_path.write_text(json.dumps({
-                    "fingerprint": fingerprint,
-                    "verifier": verifier,
-                    "calibration": calibration,
-                }, ensure_ascii=False, indent=2), encoding="utf-8")
-        if verifier_output is not None:
-            verifier_output.parent.mkdir(parents=True, exist_ok=True)
-            verifier_output.write_text(json.dumps({
-                "source_run": case.source_run.name,
-                "task_id": case.task.get("task_id"),
-                "environment_id": case.task.get("environment_id"),
-                "verifier": verifier,
-                "calibration": calibration,
-                "cache_hit": verifier_cache_hit,
-            }, ensure_ascii=False, indent=2), encoding="utf-8")
+    verifier_config = dict(llm_config.get("verifier", {}))
+    # Verifier defaults come from .codex, independent of the solver API model.
+    answer, calls, agent_error = "", [], None
     run_agent = agent_run_fn or (lambda prompt, cwd, config, call_trace: _run_agent(
         prompt, cwd, config, call_trace, llm_config,
     ))
@@ -231,13 +154,19 @@ def evaluate_case(
                 "timeout": tool_timeout_seconds,
                 "memory_limit": tool_max_memory_bytes,
                 "write_limit": tool_max_write_bytes,
-            "tools": list(tools.values()),
-            "environment": case.environment,
+                "tools": list(tools.values()),
+                "environment": case.environment,
             }, ensure_ascii=False), encoding="utf-8")
-            answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
-            if not answer:
-                raise ValueError("评测 Agent 未提交最终答案")
-            calls = _read_trace(trace)
+            try:
+                answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
+                if not answer:
+                    raise ValueError("评测 Agent 未提交最终答案")
+            except Exception as error:
+                agent_error = f"{type(error).__name__}: {error}"
+            finally:
+                calls = _read_trace(trace)
+        if agent_error:
+            break
         unavailable = (
             not calls
             and _workspace_signature(workspace) == source_signature
@@ -249,68 +178,43 @@ def evaluate_case(
         if not unavailable:
             break
         if agent_attempt == agent_attempts:
-            raise RuntimeError(f"评测 Agent 基础设施连续 {agent_attempts} 次返回 503 且未执行工具调用")
+            agent_error = f"评测 Agent 基础设施连续 {agent_attempts} 次返回 503 且未执行工具调用"
 
     if _workspace_signature(case.initial_state) != source_signature:
         raise ValueError("来源初态在评测期间被修改")
     changes = _workspace_changes(source_signature, _workspace_signature(workspace))
+    state_error = None
     if case.environment.get('schema_version') == '2.0':
         from .tool_graph.state_runtime import snapshot_state, state_diff
-        changes = state_diff(snapshot_state(case.initial_state, case.environment), snapshot_state(workspace, case.environment))
-    verifier_error = None
-    verifier_tool_calls: list[dict[str, Any]] = []
-    if verifier is not None:
-        actual_evidence = build_evidence(case.initial_state, workspace, calls, answer, tool_result_max_bytes, environment=case.environment)
         try:
-            requirement_results = run_verifier(
-                verifier,
-                actual_evidence,
-                semantic_infer_fn=judge_infer_fn,
-                llm_config=llm_config,
-                task_text=str(case.task.get("task_text") or ""),
-                initial_state=case.initial_state,
-                final_state=workspace,
-                tools=list(tools.values()),
-            )
-            evaluation = aggregate_results(verifier["requirements"], requirement_results)
-            verifier_tool_calls = actual_evidence.get("verifier_calls", [])
+            changes = state_diff(snapshot_state(case.initial_state, case.environment), snapshot_state(workspace, case.environment))
         except Exception as error:
-            verifier_error = f"{type(error).__name__}: {error}"
-            evaluation = {
-                "outcome": "indeterminate",
-                "passed": False,
-                "attribution": "verifier",
-                "requirements": [],
-            }
-        judge_response = json.dumps(evaluation, ensure_ascii=False)
-    else:
-        judge_response = judge_infer_fn(
-            _judge_prompt(case.task, case.environment, answer, calls, changes, tool_result_max_bytes),
-            llm_config=llm_config,
-        ).text
-        evaluation = parse_json_object(judge_response)
-        _validate_evaluation(evaluation)
+            # A corrupted final database is evidence to investigate, not a reason to skip judging.
+            state_error = f"{type(error).__name__}: {error}"
+    verifier_dir = (verifier_output.with_suffix("") if verifier_output else workspace.parent / (workspace.name + ".verifier"))
+    verifier_error = None
+    try:
+        evaluation = verifier_run_fn(
+            run_dir=verifier_dir, config=verifier_config,
+            task=case.task, environment=case.environment,
+            initial_state=case.initial_state, actual_state=workspace,
+            calls=calls, answer=answer,
+            execution={"error": agent_error, "attempts": agent_attempt, "state_inspection_error": state_error},
+            reference_state=case.reference_state, reference_calls=case.reference_calls,
+            reference_answer=case.task.get("reference", {}).get("answer", ""),
+        )
+    except VerificationError as error:
+        verifier_error = str(error)
+        evaluation = {"outcome": "verification_error", "summary": str(error), "requirements": []}
+    if _workspace_signature(case.initial_state) != source_signature:
+        raise ValueError("来源初态在验证期间被修改")
     return {
-        "source_run": case.source_run.name,
-        "task_id": case.task.get("task_id"),
-        "environment_id": case.task.get("environment_id"),
-        "task_text": case.task.get("task_text"),
-        "workspace": str(workspace),
-        "agent_response": answer,
-        "agent_attempts": agent_attempt,
-        "tool_calls": calls,
-        "verifier_tool_calls": verifier_tool_calls,
-        "workspace_changes": changes,
-        "agent_answer": answer,
-        "reference_answer": case.task.get("reference", {}).get("answer"),
-        "judge_response": judge_response,
-        "evaluation": evaluation,
-        "outcome": evaluation.get("outcome", "pass" if evaluation.get("passed") else "fail"),
-        "attribution": evaluation.get("attribution"),
-        "verifier": verifier,
-        "calibration": calibration,
-        "verifier_attempts": verifier_attempts,
-        "verifier_cache_hit": verifier_cache_hit,
+        "source_run": case.source_run.name, "task_id": case.task.get("task_id"),
+        "environment_id": case.task.get("environment_id"), "task_text": case.task.get("task_text"),
+        "workspace": str(workspace), "agent_response": answer, "agent_answer": answer,
+        "agent_attempts": agent_attempt, "agent_error": agent_error, "tool_calls": calls,
+        "workspace_changes": changes, "evaluation": evaluation,
+        "outcome": evaluation["outcome"], "verifier_directory": str(verifier_dir),
         "error": verifier_error,
     }
 
@@ -350,36 +254,6 @@ def _read_trace(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _judge_prompt(
-    task: dict[str, Any],
-    environment: dict[str, Any],
-    answer: str,
-    calls: list[dict[str, Any]],
-    changes: list[dict[str, str]],
-    result_limit: int,
-) -> str:
-    return json.dumps({
-        "role": "你是严格的任务结果评审。比较实际回答与参考答案的语义，不要求措辞相同。",
-        "criteria": [
-            "实际回答是否正确、完整地回应任务目标",
-            "实际回答中的事实是否得到真实工具结果支持",
-            "实际工具调用是否完成任务要求的状态变化或交付物",
-            "依据 environment_resources 和 workspace_changes 检查环境只读限制与任务要求的状态变化；"
-            "允许修改的资源不代表必须修改，任务未触发的条件分支不要求执行",
-            "参考答案是核对依据，不是必须逐字匹配的唯一表述",
-        ],
-        "task": task.get("task_text"),
-        "environment_resources": environment.get("record_sets", []) + environment.get("filesystem_scopes", []),
-        "workspace_changes": changes,
-        "actual_tool_calls": _bounded_calls(calls, result_limit),
-        "actual_answer": answer,
-        "reference_answer": task.get("reference", {}).get("answer"),
-        "response_contract": {
-            "passed": "boolean",
-            "score": "0 到 100 的整数",
-            "analysis": "具体说明一致之处、遗漏或错误",
-        },
-    }, ensure_ascii=False)
 
 
 def _workspace_changes(
@@ -398,15 +272,6 @@ def _workspace_changes(
     ]
 
 
-def _validate_evaluation(value: dict[str, Any]) -> None:
-    if set(value) != {"passed", "score", "analysis"}:
-        raise ValueError("评审结果必须只包含 passed、score、analysis")
-    if not isinstance(value["passed"], bool):
-        raise ValueError("passed 必须是 boolean")
-    if type(value["score"]) is not int or not 0 <= value["score"] <= 100:
-        raise ValueError("score 必须是 0 到 100 的整数")
-    if not isinstance(value["analysis"], str) or not value["analysis"].strip():
-        raise ValueError("analysis 必须是非空字符串")
 
 
 def run_evaluation(
@@ -433,16 +298,15 @@ def run_evaluation(
     verifier_dir.mkdir()
     task_result_dir = run_dir / "task_results"
     task_result_dir.mkdir()
-    verifier_cache = output_root.expanduser().resolve() / "verifier_cache"
 
     def run(case: EvalCase) -> dict[str, Any]:
         filename = f"{case.source_run.name}__{case.task['task_id']}"
         workspace = run_dir / "workspaces" / filename
-        verifier_log_dir = run_dir / "verifier_logs" / filename
-        verifier_log_dir.mkdir(parents=True)
+        solver_log_dir = run_dir / "solver_llm_logs" / filename
+        solver_log_dir.mkdir(parents=True)
         started = time.perf_counter()
         try:
-            with capture_calls("task_eval.verifier", lambda record: append_llm_call(verifier_log_dir, record)):
+            with capture_calls("task_eval.execution", lambda record: append_llm_call(solver_log_dir, record)):
                 result = evaluate_case(
                     case,
                     workspace,
@@ -452,20 +316,17 @@ def run_evaluation(
                     tool_timeout_seconds=int(execution_config.get("tool_timeout_seconds", 300)),
                     tool_max_memory_bytes=int(execution_config.get("tool_max_memory_bytes", 2 * 1024 * 1024 * 1024)),
                     tool_max_write_bytes=int(execution_config.get("tool_max_write_bytes", 256 * 1024 * 1024)),
-                    tool_result_max_bytes=int(execution_config.get("tool_result_max_bytes", 65536)),
                     verifier_output=verifier_dir / f"{filename}.json",
-                    verifier_cache=verifier_cache,
                 )
         except Exception as error:
-            verifier_error = isinstance(error, VerifierPreparationError)
+            verifier_error = isinstance(error, VerificationError)
             result = {
                 "source_run": case.source_run.name,
                 "task_id": case.task.get("task_id"),
                 "environment_id": case.task.get("environment_id"),
                 "task_text": case.task.get("task_text"),
-                "outcome": "indeterminate" if verifier_error else "infrastructure_error",
+                "outcome": "verification_error" if verifier_error else "infrastructure_error",
                 "attribution": "verifier" if verifier_error else "infrastructure",
-                "verifier_attempts": error.attempts if verifier_error else None,
                 "error": f"{type(error).__name__}: {error}",
             }
         result["duration_seconds"] = time.perf_counter() - started
@@ -495,12 +356,13 @@ def _result_counts(results: list[dict[str, Any]]) -> dict[str, int]:
         "passed_count": sum(outcome == "pass" for outcome in outcomes),
         "failed_count": sum(outcome == "fail" for outcome in outcomes),
         "indeterminate_count": sum(outcome == "indeterminate" for outcome in outcomes),
+        "verification_error_count": sum(outcome == "verification_error" for outcome in outcomes),
         "infrastructure_error_count": sum(outcome == "infrastructure_error" for outcome in outcomes),
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="让模型真实执行已生成任务并与参考答案核对")
+    parser = argparse.ArgumentParser(description="让模型执行已生成任务，再由 Codex 按任务文本独立验收")
     parser.add_argument("--input-root", type=Path, default=DEFAULT_INPUT_ROOT)
     parser.add_argument("--output-root", type=Path, default=Path("runs/task_eval"))
     parser.add_argument("--config", type=Path, default=Path("config/tool_graph.yaml"))
