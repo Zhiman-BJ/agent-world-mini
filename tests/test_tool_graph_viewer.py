@@ -107,12 +107,12 @@ def write_run(root: Path, name: str, *, status: str = "completed") -> Path:
     (intermediate / "step_1_bundle.json").write_text(json.dumps({
         "environment": environment,
         "_step": "step_1_graph_build",
-        "tool_graph": [edge],
+        "tool_graph": {"edges": [edge], "prerequisites": [{"to_tool": "inspect_item", "any_of": [{"all_of": ["list_items"], "reason": "Identifier is produced by listing."}]}]},
     }), encoding="utf-8")
     (intermediate / "step_5_bundle.json").write_text(json.dumps({
         "environment": environment,
         "_step": "step_5_task_validate",
-        "tool_graph": [edge],
+        "tool_graph": {"edges": [edge], "prerequisites": [{"to_tool": "inspect_item", "any_of": [{"all_of": ["list_items"], "reason": "Identifier is produced by listing."}]}]},
         "tasks": [candidate],
     }), encoding="utf-8")
     return run_dir
@@ -155,9 +155,9 @@ class ToolGraphViewerExportTest(unittest.TestCase):
             self.assertIn("state.cy.nodes().not(connected)", html)
             self.assertIn('id="inspector-splitter"', html)
             self.assertIn("function setupSplitter", html)
-            self.assertIn("线越粗，直接依赖越强", html)
-            self.assertIn("weight 2 条件依赖", html)
-            self.assertIn("weight 1 辅助依赖", html)
+            self.assertIn("A → B：A 完成后可直接调用 B；线越粗，关系越强", html)
+            self.assertIn("weight 2 明确工作流转移", html)
+            self.assertIn("weight 1 具体弱关系", html)
             self.assertIn("黑色箭头 = 候选链调用顺序", html)
             self.assertIn("绿色底轨 = 已执行成功", html)
             self.assertIn("红色底轨 = 失败及后续步骤", html)
@@ -277,7 +277,28 @@ class ToolGraphViewerExportTest(unittest.TestCase):
             exported = json.loads(payload)[0]
             self.assertEqual(exported["stage"], "step_1_graph_build")
             self.assertEqual(exported["counts"]["edges"], 1)
+            self.assertEqual(exported["prerequisites"][0]["to_tool"], "inspect_item")
             self.assertEqual(exported["tasks"], [])
+
+    def test_exports_legacy_array_graph_without_prerequisites(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = write_run(root, "legacy", status="running")
+            bundle = run_dir / "intermediate/step_1_bundle.json"
+            source = json.loads(bundle.read_text(encoding="utf-8"))
+            source["tool_graph"] = source["tool_graph"]["edges"]
+            bundle.write_text(json.dumps(source), encoding="utf-8")
+            output = root / "legacy.html"
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), str(bundle), "--output", str(output)],
+                cwd=ROOT, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = output.read_text(encoding="utf-8").split(
+                '<script id="run-data" type="application/json">', 1
+            )[1].split("</script>", 1)[0]
+            self.assertEqual(json.loads(payload)[0]["prerequisites"], [])
 
     def test_exports_unvalidated_candidates_from_an_intermediate_bundle_as_pending(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

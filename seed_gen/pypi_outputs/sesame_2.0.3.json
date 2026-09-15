@@ -1,0 +1,1310 @@
+[
+  {
+    "global_id": "pypi_sesame_5",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/usnistgov/sesame",
+          "https://sesame.readthedocs.io/en/latest/"
+        ],
+        "name": "sesame",
+        "version": "2.0.3",
+        "index": 5
+      },
+      "description": "Sesame 是用于半导体材料和器件的一维、二维漂移扩散与泊松方程求解器，提供器件网格与材料构建、掺杂及缺陷设置、光生载流子和复合过程建模，以及电势、载流子浓度、电流和电流电压特性分析，并附带可选图形界面。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 4,
+        "function": 16,
+        "class_func": 34,
+        "all_func": 50
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Builder",
+        "type": "class",
+        "module": "sesame.builder",
+        "input": "",
+        "description": "A system discretized on a mesh.  This type discretizes a system on a mesh provided by the user, and takes care of all normalizations. The temperature of the system is specified when an instance is created. The default is 300 K.  Parameters ---------- xpts, ypts, zpts: numpy arrays of floats Mesh with original dimensions. input_length: string Reference unit for lengths. Acceptable entries are 'cm' for centimeters and 'm' for meters. T: float Temperature for the simulation.  Attributes ---------- xpts, ypts, zpts: numpy arrays of floats Mesh with original dimensions. dx, dy, dz: numpy arrays of floats Dimensionless lattice constants in the x, y, z directions. nx, ny: integers Number of lattice nodes in the x, y directions. Nc, Nv: numpy arrays of floats Dimensionless effective densities of states of the conduction and valence bands. Eg: numpy array of floats Dimensionless band gap. ni: numpy array of floats Dimensionless intrinsic density. mu_e, mu_h: numpy arrays of floats Dimensionless mobilities of electron and holes. tau_e, tau_h: numpy arrays of floats Dimensionless bulk lifetime for electrons and holes. n1, p1: numpy arrays of floats Dimensionless equilibrium densities of electrons and holes at the bulk trap state. bl: numpy array of floats Electron affinity. g: numpy array of floats Dimensionless generation for each site of the system. This is defined only if a generation profile was provided when building the system. gtot: float Dimensionless integral of the generation rate. defects_list: list of named tuples List of named tuples containing the characteristics of the defects in the order they were added to the system. The field names are sites, location, dos, energy, sigma_e, sigma_h, transition, perp_dl.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "xpts": {
+                "type": "",
+                "description": ""
+              },
+              "ypts": {
+                "type": "",
+                "description": ""
+              },
+              "input_length": {
+                "type": "",
+                "description": ""
+              },
+              "T": {
+                "type": "",
+                "description": ""
+              },
+              "periodic": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, xpts, ypts = np.zeros(1), input_length = 'cm', T = 300, periodic = True",
+            "ori_description": ""
+          },
+          {
+            "name": "add_material",
+            "description": "Add a material to the system.",
+            "input": {
+              "self": null,
+              "mat": {
+                "type": "dictionary",
+                "description": "Contains the material parameters Keys are Nc (Nv): conduction (valence) effective densities of states [cm\\ :sup:`-3`], Eg: band gap [:math:`\\mathrm{eV}`], epsilon: material's permitivitty, mu_e (mu_h): electron (hole) mobility [m\\ :sup:`2`/(V s)], tau_e (tau_h): electron (hole) bulk lifetime [s], Et: energy level of the bulk recombination centers [eV], affinity: electron affinity [eV], B: radiation recombination constant [cm\\ :sup:`3`/s], Cn (Cp): Auger recombination constant for electrons (holes) [cm\\ :sup:`6`/s], mass_e (mass_h): effective mass of electrons (holes). All parameters can be scalars or callable functions similar to the location argument."
+              },
+              "location": {
+                "type": "Boolean function",
+                "description": "Definition of the region containing the material. This function must take a tuple of real world coordinates (e.g. (x, y)) as parameter, and return True (False) if the lattice node is inside (outside) the region."
+              }
+            },
+            "output": null,
+            "ori_input": "self, mat, location = lambda pos: True",
+            "ori_description": "Add a material to the system.  Parameters ---------- mat: dictionary Contains the material parameters Keys are Nc (Nv): conduction (valence) effective densities of states [cm\\ :sup:`-3`], Eg: band gap [:math:`\\mathrm{eV}`], epsilon: material's permitivitty, mu_e (mu_h): electron (hole) mobility [m\\ :sup:`2`/(V s)], tau_e (tau_h): electron (hole) bulk lifetime [s], Et: energy level of the bulk recombination centers [eV], affinity: electron affinity [eV], B: radiation recombination constant [cm\\ :sup:`3`/s], Cn (Cp): Auger recombination constant for electrons (holes) [cm\\ :sup:`6`/s], mass_e (mass_h): effective mass of electrons (holes). All parameters can be scalars or callable functions similar to the location argument. location: Boolean function Definition of the region containing the material. This function must take a tuple of real world coordinates (e.g. (x, y)) as parameter, and return True (False) if the lattice node is inside (outside) the region."
+          },
+          {
+            "name": "add_defects",
+            "description": "Add additional charges (for a grain boundary for instance) to the total charge of the system. These charges are distributed on a line.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "float or list of two array_like coordinates [(x1, y1), (x2, y2)]",
+                "description": "Coordinate(s) in [cm] of a point defect or the two end points of a line defect."
+              },
+              "N": {
+                "type": "float or function",
+                "description": "Defect density of states [cm\\ :sup:`-2` ]. Provide a float when the defect density of states is a delta function, or a function returning a float for a continuum. This function should take a single energy argument in [eV]."
+              },
+              "sigma_e": {
+                "type": "float",
+                "description": "Electron capture cross section [cm\\ :sup:`2`]."
+              },
+              "sigma_h": {
+                "type": "float (optional)",
+                "description": "Hole capture cross section [cm\\ :sup:`2`]. If not given, the same value as the electron capture cross section will be used."
+              },
+              "E": {
+                "type": "float",
+                "description": "Energy level of a single state defined with respect to the intrinsic Fermi level [eV]. Set to `None` for a continuum of states (default)."
+              },
+              "transition": {
+                "type": "tuple",
+                "description": "Charge transition occurring at the energy level E. The tuple (p, q) represents a defect with transition p/q (level empty to level occupied). Default is (1,-1)."
+              }
+            },
+            "output": null,
+            "ori_input": "self, location, N, sigma_e, sigma_h = None, E = None, transition = (1, -1)",
+            "ori_description": "Add additional charges (for a grain boundary for instance) to the total charge of the system. These charges are distributed on a line.  Parameters ---------- location: float or list of two array_like coordinates [(x1, y1), (x2, y2)] Coordinate(s) in [cm] of a point defect or the two end points of a line defect. N: float or function Defect density of states [cm\\ :sup:`-2` ]. Provide a float when the defect density of states is a delta function, or a function returning a float for a continuum. This function should take a single energy argument in [eV]. sigma_e: float Electron capture cross section [cm\\ :sup:`2`]. sigma_h: float (optional) Hole capture cross section [cm\\ :sup:`2`]. If not given, the same value as the electron capture cross section will be used. E: float Energy level of a single state defined with respect to the intrinsic Fermi level [eV]. Set to `None` for a continuum of states (default). transition: tuple Charge transition occurring at the energy level E. The tuple (p, q) represents a defect with transition p/q (level empty to level occupied). Default is (1,-1)."
+          },
+          {
+            "name": "doping_profile",
+            "description": "",
+            "input": {
+              "self": null,
+              "density": {
+                "type": "",
+                "description": ""
+              },
+              "location": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, density, location",
+            "ori_description": ""
+          },
+          {
+            "name": "add_donor",
+            "description": "Add donor dopants to the system.",
+            "input": {
+              "self": null,
+              "density": {
+                "type": "float",
+                "description": "Doping density [cm\\ :sup:`-3`]."
+              },
+              "location": {
+                "type": "Boolean function",
+                "description": "Definition of the region containing the doping. This function must take a tuple of real world coordinates (e.g. (x, y)) as parameters, and return True (False) if the lattice node is inside (outside) the region."
+              }
+            },
+            "output": null,
+            "ori_input": "self, density, location = lambda pos: True",
+            "ori_description": "Add donor dopants to the system.  Parameters ---------- density: float Doping density [cm\\ :sup:`-3`]. location: Boolean function Definition of the region containing the doping. This function must take a tuple of real world coordinates (e.g. (x, y)) as parameters, and return True (False) if the lattice node is inside (outside) the region."
+          },
+          {
+            "name": "add_acceptor",
+            "description": "Add acceptor dopants to the system.",
+            "input": {
+              "self": null,
+              "density": {
+                "type": "float",
+                "description": "Doping density [cm\\ :sup:`-3`]."
+              },
+              "location": {
+                "type": "Boolean function",
+                "description": "Definition of the region containing the doping. This function must take a tuple of real world coordinates (e.g. (x, y)) as parameters, and return True (False) if the lattice node is inside (outside) the region."
+              }
+            },
+            "output": null,
+            "ori_input": "self, density, location = lambda pos: True",
+            "ori_description": "Add acceptor dopants to the system.  Parameters ---------- density: float Doping density [cm\\ :sup:`-3`]. location: Boolean function Definition of the region containing the doping. This function must take a tuple of real world coordinates (e.g. (x, y)) as parameters, and return True (False) if the lattice node is inside (outside) the region."
+          },
+          {
+            "name": "generation",
+            "description": "Distribution of generated carriers.",
+            "input": {
+              "self": null,
+              "f": {
+                "type": "function",
+                "description": "Generation rate [cm\\ :sup:`-3`]."
+              },
+              "args": {
+                "type": "tuple",
+                "description": "Additional arguments to be passed to the function."
+              }
+            },
+            "output": null,
+            "ori_input": "self, f, args = []",
+            "ori_description": "Distribution of generated carriers.  Parameters ---------- f: function Generation rate [cm\\ :sup:`-3`]. args: tuple Additional arguments to be passed to the function."
+          },
+          {
+            "name": "contact_S",
+            "description": "Create the lists of recombination velocities that define the charge collection at the contacts out of equilibrium.",
+            "input": {
+              "self": null,
+              "Scn_left": {
+                "type": "float",
+                "description": "Surface recombination velocity for electrons at the left contact [cm/s]."
+              },
+              "Scp_left": {
+                "type": "float",
+                "description": "Surface recombination velocity for holes at the left contact [cm/s]."
+              },
+              "Scn_right": {
+                "type": "float",
+                "description": "Surface recombination velocity for electrons at the right contact [cm/s]."
+              },
+              "Scp_right": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, Scn_left, Scp_left, Scn_right, Scp_right",
+            "ori_description": "Create the lists of recombination velocities that define the charge collection at the contacts out of equilibrium.  Parameters ---------- Scn_left: float Surface recombination velocity for electrons at the left contact [cm/s]. Scp_left: float Surface recombination velocity for holes at the left contact [cm/s]. Scn_right: float Surface recombination velocity for electrons at the right contact [cm/s]. Scn_right: float Surface recombination velocity for electrons at the right contact [cm/s]."
+          },
+          {
+            "name": "contact_type",
+            "description": "Define the boundary conditions for the contacts at thermal equilibrium. 'Ohmic' or 'Schottky' impose a value of the electrostatic potential, 'Neutral' imposes a zero potential derivative.",
+            "input": {
+              "self": null,
+              "left_contact": {
+                "type": "string",
+                "description": "Boundary conditions for the contact at x=0."
+              },
+              "right_contact": {
+                "type": "string",
+                "description": "Boundary conditions for the contact at x=L."
+              },
+              "left_wf": {
+                "type": "float",
+                "description": "Work function for a Schottky contact at x=0."
+              },
+              "right_wf": {
+                "type": "float",
+                "description": "Work function for a Schottky contact at x=L."
+              }
+            },
+            "output": null,
+            "ori_input": "self, left_contact, right_contact, left_wf = None, right_wf = None",
+            "ori_description": "Define the boundary conditions for the contacts at thermal equilibrium. 'Ohmic' or 'Schottky' impose a value of the electrostatic potential, 'Neutral' imposes a zero potential derivative.  Parameters ---------- left_contact: string Boundary conditions for the contact at x=0. right_contact: string Boundary conditions for the contact at x=L. left_wf: float Work function for a Schottky contact at x=0. right_wf: float Work function for a Schottky contact at x=L.  Notes ----- Schottky contacts require work functions. If no values are given, an error will be raised."
+          }
+        ]
+      },
+      {
+        "name": "Scaling",
+        "type": "class",
+        "module": "sesame.builder",
+        "input": "",
+        "description": "An object defining the scalings of the drift-diffusion-Poisson equation. The temperature of the system and the reference unit for lengths are specified when an instance is created. The default unit for length is cm, and the default temperature is 300 K.  Parameters ---------- input_length: string Reference unit for lengths. Acceptable entries are 'cm' for centimeters and 'm' for meters. T: float Temperature for the simulation.  Attributes ---------- denisty: float Density scale taken equal to 10\\ :sup:`19` cm\\ :sup:`-3`. energy: float Energy scale. mobility: float Mobility scale taken equal to 1 cm\\ :sup:`2`/(V.s). time: float Time scale. length: float Length scale. generation: float Scale of generation and recombination rates. velocity: float Velocity scale. current: float Electrical current density scale.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "input_length": {
+                "type": "",
+                "description": ""
+              },
+              "T": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_length = 'cm', T = 300",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Solver",
+        "type": "class",
+        "module": "sesame.solvers",
+        "input": "",
+        "description": "An object that creates an interface for the equilibrium and nonequilibrium solvers of Sesame, and stores the equilibrium electrostatic potential once computed.  Parameters ---------- use_mumps: boolean Flag for the use of the MUMPS library if available. The flag is set to True by default. If the MUMPS library is absent, the flag has no effect.  Attributes ---------- equilibrium: numpy array of floats Electrostatic potential computed at thermal equilibrium.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "use_mumps": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, use_mumps = True",
+            "ori_description": ""
+          },
+          {
+            "name": "make_guess",
+            "description": "",
+            "input": {
+              "self": null,
+              "system": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, system",
+            "ori_description": ""
+          },
+          {
+            "name": "solve",
+            "description": "Solve the drift diffusion Poisson equation on a given discretized system out of equilibrium. If the equilibrium electrostatic potential is not yet computed, the routine will compute it and save it for further computations.",
+            "input": {
+              "self": null,
+              "system": {
+                "type": "Builder",
+                "description": "The discretized system."
+              },
+              "compute": {
+                "type": "string",
+                "description": "Set to 'all' to solve the full drift-diffusion-Poisson equations, or to 'Poisson' to only solve the Poisson equation. Default is set to 'all'."
+              },
+              "guess": {
+                "type": "dictionary of numpy arrays of floats",
+                "description": "Contains the one-dimensional arrays of the initial guesses for the electron quasi-Fermi level, the hole quasi-Fermi level and the electrostatic potential. Keys should be 'efn', 'efp' and 'v'."
+              },
+              "tol": {
+                "type": "float",
+                "description": "Accepted error made by the Newton-Raphson scheme."
+              },
+              "periodic_bcs": {
+                "type": "boolean",
+                "description": "Defines the choice of boundary conditions in the y-direction. True (False) corresponds to periodic (abrupt) boundary conditions."
+              },
+              "maxiter": {
+                "type": "integer",
+                "description": "Maximum number of steps taken by the Newton-Raphson scheme."
+              },
+              "verbose": {
+                "type": "boolean",
+                "description": "The solver returns the step number and the associated error at every step if set to True (default)."
+              },
+              "htp": {
+                "type": "integer",
+                "description": "Number of homotopic Newton loops to perform."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dictionary with  numpy arrays of floats",
+                "description": "Dictionary containing the one-dimensional arrays of the solution. The keys are the same as the ones for the guess. An exception is raised if no solution could be found."
+              }
+            },
+            "ori_input": "self, system, compute = 'all', guess = None, tol = 1e-06, periodic_bcs = True, maxiter = 300, verbose = True, htp = 1",
+            "ori_description": "Solve the drift diffusion Poisson equation on a given discretized system out of equilibrium. If the equilibrium electrostatic potential is not yet computed, the routine will compute it and save it for further computations.  Parameters ---------- system: Builder The discretized system. compute: string Set to 'all' to solve the full drift-diffusion-Poisson equations, or to 'Poisson' to only solve the Poisson equation. Default is set to 'all'. guess: dictionary of numpy arrays of floats Contains the one-dimensional arrays of the initial guesses for the electron quasi-Fermi level, the hole quasi-Fermi level and the electrostatic potential. Keys should be 'efn', 'efp' and 'v'. tol: float Accepted error made by the Newton-Raphson scheme. periodic_bcs: boolean Defines the choice of boundary conditions in the y-direction. True (False) corresponds to periodic (abrupt) boundary conditions. maxiter: integer Maximum number of steps taken by the Newton-Raphson scheme. verbose: boolean The solver returns the step number and the associated error at every step if set to True (default). htp: integer Number of homotopic Newton loops to perform.  Returns -------  solution: dictionary with numpy arrays of floats Dictionary containing the one-dimensional arrays of the solution. The keys are the same as the ones for the guess. An exception is raised if no solution could be found."
+          },
+          {
+            "name": "IVcurve",
+            "description": "Solve the Drift Diffusion Poisson equations for the voltages provided. The results are stored in files with ``.npz`` format by default (See below for saving in Matlab format). The steady state current is computed at the end of the voltage loop and returned. Note that the potential is always applied on the right contact.",
+            "input": {
+              "self": null,
+              "system": {
+                "type": "Builder",
+                "description": "The discretized system."
+              },
+              "voltages": {
+                "type": "array-like",
+                "description": "List of voltages for which the current should be computed."
+              },
+              "file_name": {
+                "type": "string",
+                "description": "Name of the file to write the data to. The file name will be appended the index of the voltage list, e.g. ``file_name_0.npz``."
+              },
+              "guess": {
+                "type": "dictionary of numpy arrays of floats (optional)",
+                "description": "Starting point of the solver. Keys of the dictionary must be 'efn', 'efp', 'v' for the electron and quasi-Fermi levels, and the electrostatic potential respectively."
+              },
+              "tol": {
+                "type": "float",
+                "description": "Accepted error made by the Newton-Raphson scheme."
+              },
+              "periodic_bcs": {
+                "type": "boolean",
+                "description": "Defines the choice of boundary conditions in the y-direction. True (False) corresponds to periodic (abrupt) boundary conditions."
+              },
+              "maxiter": {
+                "type": "integer",
+                "description": "Maximum number of steps taken by the Newton-Raphson scheme."
+              },
+              "verbose": {
+                "type": "boolean",
+                "description": "The solver returns the step number and the associated error at every step, and this function prints the current applied voltage if set to True (default)."
+              },
+              "htp": {
+                "type": "integer",
+                "description": "Number of homotopic Newton loops to perform."
+              },
+              "fmt": {
+                "type": "string",
+                "description": "Format string for the data files. Use ``mat`` to save the data in a Matlab format (version 5 and above)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": "Steady state current computed for each voltage value."
+              }
+            },
+            "ori_input": "self, system, voltages, file_name, guess = None, tol = 1e-06, periodic_bcs = True, maxiter = 300, verbose = True, htp = 1, fmt = 'npz'",
+            "ori_description": "Solve the Drift Diffusion Poisson equations for the voltages provided. The results are stored in files with ``.npz`` format by default (See below for saving in Matlab format). The steady state current is computed at the end of the voltage loop and returned. Note that the potential is always applied on the right contact.  Parameters ---------- system: Builder The discretized system. voltages: array-like List of voltages for which the current should be computed. file_name: string Name of the file to write the data to. The file name will be appended the index of the voltage list, e.g. ``file_name_0.npz``. guess: dictionary of numpy arrays of floats (optional) Starting point of the solver. Keys of the dictionary must be 'efn', 'efp', 'v' for the electron and quasi-Fermi levels, and the electrostatic potential respectively. tol: float Accepted error made by the Newton-Raphson scheme. periodic_bcs: boolean Defines the choice of boundary conditions in the y-direction. True (False) corresponds to periodic (abrupt) boundary conditions. maxiter: integer Maximum number of steps taken by the Newton-Raphson scheme. verbose: boolean The solver returns the step number and the associated error at every step, and this function prints the current applied voltage if set to True (default). htp: integer Number of homotopic Newton loops to perform. fmt: string Format string for the data files. Use ``mat`` to save the data in a Matlab format (version 5 and above).  Returns ------- J: numpy array of floats Steady state current computed for each voltage value.  Notes ----- The data files can be loaded and used as follows:  >>> results = np.load('file.npz') >>> efn = results['efn'] >>> efp = results['efp'] >>> v = results['v']"
+          }
+        ]
+      },
+      {
+        "name": "Analyzer",
+        "type": "class",
+        "module": "sesame.analyzer",
+        "input": "",
+        "description": "Object that simplifies the extraction of physical data (densities, currents, recombination) across the system.  Parameters ----------  sys: Builder A discretized system. data: dictionary Dictionary containing 1D arrays of electron and hole quasi-Fermi levels and the electrostatic potential across the system. Keys must be 'efn', 'efp', and/or 'v'.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "sys": {
+                "type": "",
+                "description": ""
+              },
+              "data": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sys, data",
+            "ori_description": ""
+          },
+          {
+            "name": "line",
+            "description": "Compute the path and sites between two points.",
+            "input": {
+              "system": {
+                "type": "Builder",
+                "description": "The discretized system."
+              },
+              "p1": {
+                "type": "array-like (x, y)",
+                "description": "Two points defining a line."
+              },
+              "p2": {
+                "type": "array-like (x, y)",
+                "description": "Two points defining a line."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "s, sites",
+                "description": "numpay arrays Curvilinear abscissa and sites of the line."
+              }
+            },
+            "ori_input": "system, p1, p2",
+            "ori_description": "Compute the path and sites between two points.  Parameters ---------- system: Builder The discretized system. p1, p2: array-like (x, y) Two points defining a line.  Returns ------- s, sites: numpay arrays Curvilinear abscissa and sites of the line.  Notes ----- This method can be used with an instance of the Analyzer():  >>> az = sesame.Analyzer(sys, res) >>> X, sites = az.line(sys, p1, p2)  or without it:  >>> X, sites = sesame.Analyzer.line(sys, p1, p2)"
+          },
+          {
+            "name": "band_diagram",
+            "description": "Compute the band diagram between two points defining a line. Display a plot if fig is None.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute a band diagram."
+              },
+              "fig": {
+                "type": "Maplotlib figure",
+                "description": "A plot is added to it if given. If not given, a new one is created and displayed."
+              }
+            },
+            "output": null,
+            "ori_input": "self, location, fig = None",
+            "ori_description": "Compute the band diagram between two points defining a line. Display a plot if fig is None.  Parameters ---------- location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute a band diagram.  fig: Maplotlib figure A plot is added to it if given. If not given, a new one is created and displayed."
+          },
+          {
+            "name": "electron_density",
+            "description": "Compute the electron density across the system or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute the electron density."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": ""
+              }
+            },
+            "ori_input": "self, location = None",
+            "ori_description": "Compute the electron density across the system or on a line defined by two points.  Parameters ---------- location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute the electron density.  Returns ------- n: numpy array of floats  See also -------- hole_density"
+          },
+          {
+            "name": "hole_density",
+            "description": "Compute the hole density across the system or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute the hole density."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": ""
+              }
+            },
+            "ori_input": "self, location = None",
+            "ori_description": "Compute the hole density across the system or on a line defined by two points.  Parameters ---------- location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute the hole density.  Returns ------- p: numpy array of floats  See also -------- electron_density"
+          },
+          {
+            "name": "bulk_srh_rr",
+            "description": "Compute the bulk Shockley-Read-Hall recombination across the system or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "TUple of two points defining a line over which to compute the recombination."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array",
+                "description": "An array with the values of recombination."
+              }
+            },
+            "ori_input": "self, location = None",
+            "ori_description": "Compute the bulk Shockley-Read-Hall recombination across the system or on a line defined by two points.  Parameters ---------- location: array-like ((x1,y1), (x2,y2)) TUple of two points defining a line over which to compute the recombination.  Returns ------- r: numpy array An array with the values of recombination."
+          },
+          {
+            "name": "auger_rr",
+            "description": "Compute the Auger recombination across the system or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute the recombination."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array",
+                "description": "An array with the values of recombination."
+              }
+            },
+            "ori_input": "self, location = None",
+            "ori_description": "Compute the Auger recombination across the system or on a line defined by two points.  Parameters ---------- location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute the recombination.  Returns ------- r: numpy array An array with the values of recombination."
+          },
+          {
+            "name": "radiative_rr",
+            "description": "Compute the radiative recombination across the system or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute the recombination."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array",
+                "description": "An array with the values of recombination."
+              }
+            },
+            "ori_input": "self, location = None",
+            "ori_description": "Compute the radiative recombination across the system or on a line defined by two points.  Parameters ---------- location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute the recombination.  Returns ------- r: numpy array An array with the values of recombination."
+          },
+          {
+            "name": "defect_rr",
+            "description": "Compute the recombination for all sites of a defect (2D and 3D).",
+            "input": {
+              "self": null,
+              "defect": {
+                "type": "named tuple",
+                "description": "Container with the properties of a defect. The expected field names of the named tuple are sites, location, dos, energy, sigma_e, sigma_h, transition, perp_dl."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": "An array with the values of recombination at each sites."
+              }
+            },
+            "ori_input": "self, defect",
+            "ori_description": "Compute the recombination for all sites of a defect (2D and 3D).  Parameters ---------- defect: named tuple Container with the properties of a defect. The expected field names of the named tuple are sites, location, dos, energy, sigma_e, sigma_h, transition, perp_dl.  Returns ------- r: numpy array of floats An array with the values of recombination at each sites."
+          },
+          {
+            "name": "total_rr",
+            "description": "Compute the sum of all the recombination sources for all sites of the system.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": "An array with the values of the total recombination at each sites."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Compute the sum of all the recombination sources for all sites of the system.  Returns ------- r: numpy array of floats An array with the values of the total recombination at each sites."
+          },
+          {
+            "name": "electron_current",
+            "description": "Compute the electron current either by component (x or y) across the entire system, or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "component": {
+                "type": "string",
+                "description": "Current direction ``'x'`` or ``'y'``. By default returns all currents in the x-direction."
+              },
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute the electron current."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": ""
+              }
+            },
+            "ori_input": "self, component = 'x', location = None",
+            "ori_description": "Compute the electron current either by component (x or y) across the entire system, or on a line defined by two points.  Parameters ---------- component: string Current direction ``'x'`` or ``'y'``. By default returns all currents in the x-direction. location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute the electron current.  Returns ------- jn: numpy array of floats"
+          },
+          {
+            "name": "hole_current",
+            "description": "Compute the hole current either by component (x or y) across the entire system, or on a line defined by two points.",
+            "input": {
+              "self": null,
+              "component": {
+                "type": "string",
+                "description": "Current direction ``'x'`` or ``'y'``. By default returns all currents in the x-direction."
+              },
+              "location": {
+                "type": "array-like ((x1,y1), (x2,y2))",
+                "description": "Tuple of two points defining a line over which to compute the hole current."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "numpy array of floats",
+                "description": ""
+              }
+            },
+            "ori_input": "self, component = 'x', location = None",
+            "ori_description": "Compute the hole current either by component (x or y) across the entire system, or on a line defined by two points.  Parameters ---------- component: string Current direction ``'x'`` or ``'y'``. By default returns all currents in the x-direction. location: array-like ((x1,y1), (x2,y2)) Tuple of two points defining a line over which to compute the hole current.  Returns ------- jp: numpy array of floats"
+          },
+          {
+            "name": "electron_current_map",
+            "description": "Compute a 2D map of the electron current.",
+            "input": {
+              "self": null,
+              "cmap": {
+                "type": "Matplotlib color map",
+                "description": "Color map used for the plot."
+              },
+              "scale": {
+                "type": "float",
+                "description": "Scale to apply to the axes of the plot."
+              }
+            },
+            "output": null,
+            "ori_input": "self, cmap = 'gnuplot', scale = 10000.0",
+            "ori_description": "Compute a 2D map of the electron current.  Parameters ---------- cmap: Matplotlib color map Color map used for the plot. scale: float Scale to apply to the axes of the plot."
+          },
+          {
+            "name": "hole_current_map",
+            "description": "Compute a 2D map of the hole current of a 2D system.",
+            "input": {
+              "self": null,
+              "cmap": {
+                "type": "Matplotlib color map",
+                "description": "Color map used for the plot."
+              },
+              "scale": {
+                "type": "float",
+                "description": "Scale to apply to the axes of the plot."
+              }
+            },
+            "output": null,
+            "ori_input": "self, cmap = 'gnuplot', scale = 10000.0",
+            "ori_description": "Compute a 2D map of the hole current of a 2D system.  Parameters ---------- cmap: Matplotlib color map Color map used for the plot. scale: float Scale to apply to the axes of the plot."
+          },
+          {
+            "name": "integrated_bulk_srh_recombination",
+            "description": "Integrate the bulk Shockley-Read-Hall recombination over an entire system.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "The integrated bulk recombination."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Integrate the bulk Shockley-Read-Hall recombination over an entire system.  Returns ------- JR: float The integrated bulk recombination.  Warnings -------- Not implemented in 3D."
+          },
+          {
+            "name": "integrated_auger_recombination",
+            "description": "Integrate the Auger recombination over an entire system.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "The integrated Auger recombination."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Integrate the Auger recombination over an entire system.  Returns ------- JR: float The integrated Auger recombination.  Warnings -------- Not implemented in 3D."
+          },
+          {
+            "name": "integrated_radiative_recombination",
+            "description": "Integrate the radiative recombination over an entire system.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "The integrated radiative recombination."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Integrate the radiative recombination over an entire system.  Returns ------- JR: float The integrated radiative recombination.  Warnings -------- Not implemented in 3D."
+          },
+          {
+            "name": "integrated_recombination",
+            "description": "",
+            "input": {
+              "self": null,
+              "mec": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mec",
+            "ori_description": ""
+          },
+          {
+            "name": "integrated_defect_recombination",
+            "description": "Integrate the recombination along a defect in 2D.",
+            "input": {
+              "self": null,
+              "defect": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "The recombination integrated along the line of the defect."
+              }
+            },
+            "ori_input": "self, defect",
+            "ori_description": "Integrate the recombination along a defect in 2D.  Returns ------- JD: float The recombination integrated along the line of the defect.  Warnings -------- Not implemented in 3D."
+          },
+          {
+            "name": "full_current",
+            "description": "Compute the steady state current in 1D and 2D.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "The integrated full steady state current."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Compute the steady state current in 1D and 2D.  Returns ------- J: float The integrated full steady state current."
+          }
+        ]
+      },
+      {
+        "name": "get_n",
+        "type": "function",
+        "module": "sesame.observables",
+        "description": "Compute the electron density on the given sites.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "efn": {
+            "type": "numpy array of floats",
+            "description": "Values of the electron quasi-Fermi level."
+          },
+          "v": {
+            "type": "numpy array of floats",
+            "description": "Values of the electrostatic potential."
+          },
+          "sites": {
+            "type": "list of integers",
+            "description": "The sites where the electron density should be computed."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "numpy array",
+            "description": ""
+          }
+        },
+        "ori_input": "sys, efn, v, sites",
+        "ori_description": "Compute the electron density on the given sites.  Parameters ---------- sys: Builder The discretized system. efn: numpy array of floats Values of the electron quasi-Fermi level. v: numpy array of floats Values of the electrostatic potential. sites: list of integers The sites where the electron density should be computed.  Returns ------- n: numpy array"
+      },
+      {
+        "name": "get_p",
+        "type": "function",
+        "module": "sesame.observables",
+        "description": "Compute the hole density on the given sites.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "efp": {
+            "type": "numpy array of floats",
+            "description": "Values of the hole quasi-Fermi level."
+          },
+          "v": {
+            "type": "numpy array of floats",
+            "description": "Values of the electrostatic potential."
+          },
+          "sites": {
+            "type": "list of integers",
+            "description": "The sites where the hole density should be computed."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "numpy array",
+            "description": ""
+          }
+        },
+        "ori_input": "sys, efp, v, sites",
+        "ori_description": "Compute the hole density on the given sites.  Parameters ---------- sys: Builder The discretized system. efp: numpy array of floats Values of the hole quasi-Fermi level. v: numpy array of floats Values of the electrostatic potential. sites: list of integers The sites where the hole density should be computed.  Returns ------- p: numpy array"
+      },
+      {
+        "name": "get_jn",
+        "type": "function",
+        "module": "sesame.observables",
+        "description": "Compute the electron current between sites ``site_i`` and ``sites_ip1``.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "efn": {
+            "type": "numpy array of floats",
+            "description": "Values of the electron quasi-Fermi level for the entire system (as given by the drift diffusion Poisson solver)."
+          },
+          "v": {
+            "type": "numpy array of floats",
+            "description": "Values of the electrostatic potential for the entire system (as given by the drift diffusion Poisson solver)."
+          },
+          "sites_i": {
+            "type": "list of integers",
+            "description": "Indices of the sites the current is coming from."
+          },
+          "sites_ip1": {
+            "type": "list of integers",
+            "description": "Indices of the sites the current is going to."
+          },
+          "dl": {
+            "type": "numpy arrays of floats",
+            "description": "Lattice distances between sites ``sites_i`` and sites ``sites_ip1``."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "numpy array of floats",
+            "description": ""
+          }
+        },
+        "ori_input": "sys, efn, v, sites_i, sites_ip1, dl",
+        "ori_description": "Compute the electron current between sites ``site_i`` and ``sites_ip1``.  Parameters ---------- sys: Builder The discretized system. efn: numpy array of floats Values of the electron quasi-Fermi level for the entire system (as given by the drift diffusion Poisson solver). v: numpy array of floats Values of the electrostatic potential for the entire system (as given by the drift diffusion Poisson solver). sites_i: list of integers Indices of the sites the current is coming from. sites_ip1: list of integers Indices of the sites the current is going to. dl: numpy arrays of floats Lattice distances between sites ``sites_i`` and sites ``sites_ip1``.  Returns ------- jn: numpy array of floats"
+      },
+      {
+        "name": "get_jp",
+        "type": "function",
+        "module": "sesame.observables",
+        "description": "Compute the hole current between sites ``site_i`` and ``sites_ip1``.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "efp": {
+            "type": "numpy array of floats",
+            "description": "Values of the hole quasi-Fermi level for the entire system (as given by the drift diffusion Poisson solver)."
+          },
+          "v": {
+            "type": "numpy array of floats",
+            "description": "Values of the electrostatic potential for the entire system (as given by the drift diffusion Poisson solver)."
+          },
+          "sites_i": {
+            "type": "list of integers",
+            "description": "Indices of the sites the current is coming from."
+          },
+          "sites_ip1": {
+            "type": "list of integers",
+            "description": "Indices of the sites the current is going to."
+          },
+          "dl": {
+            "type": "numpy arrays of floats",
+            "description": "Lattice distances between sites ``sites_i`` and sites ``sites_ip1``."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "numpy array of floats",
+            "description": ""
+          }
+        },
+        "ori_input": "sys, efp, v, sites_i, sites_ip1, dl",
+        "ori_description": "Compute the hole current between sites ``site_i`` and ``sites_ip1``.  Parameters ---------- sys: Builder The discretized system. efp: numpy array of floats Values of the hole quasi-Fermi level for the entire system (as given by the drift diffusion Poisson solver). v: numpy array of floats Values of the electrostatic potential for the entire system (as given by the drift diffusion Poisson solver). sites_i: list of integers Indices of the sites the current is coming from. sites_ip1: list of integers Indices of the sites the current is going to. dl: numpy arrays of floats Lattice distances between sites ``sites_i`` and sites ``sites_ip1``.  Returns ------- jp: numpy array of floats"
+      },
+      {
+        "name": "get_bulk_rr",
+        "type": "function",
+        "module": "sesame.observables",
+        "description": "",
+        "input": {
+          "sys": {
+            "type": "",
+            "description": ""
+          },
+          "n": {
+            "type": "",
+            "description": ""
+          },
+          "p": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "sys, n, p",
+        "ori_description": ""
+      },
+      {
+        "name": "save_sim",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "Utility function that saves a system together with simulation results.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "result": {
+            "type": "dictionary",
+            "description": "Dictionary of solution, containing 'v', 'efn', 'efp'"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Name of outputfile"
+          },
+          "fmt": {
+            "type": "string",
+            "description": "Format of output file, set to 'mat' for matlab files. With the default numpy format, the Builder object is saved directly."
+          }
+        },
+        "output": null,
+        "ori_input": "sys, result, filename, fmt = 'npy'",
+        "ori_description": "Utility function that saves a system together with simulation results.  Parameters ---------- sys: Builder The discretized system. result: dictionary Dictionary of solution, containing 'v', 'efn', 'efp' filename: string Name of outputfile fmt: string Format of output file, set to 'mat' for matlab files. With the default numpy format, the Builder object is saved directly."
+      },
+      {
+        "name": "load_sim",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "Utility function that loads a system together with simulation results.",
+        "input": {
+          "filename": {
+            "type": "string",
+            "description": "Name of inputfile"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "Builder object",
+            "description": "A discritized system. result: dictionary Dictionary containing 1D arrays of electron and hole quasi-Fermi levels and the electrostatic potential across the system. Keys are 'efn', 'efp', and/or 'v'."
+          }
+        },
+        "ori_input": "filename",
+        "ori_description": "Utility function that loads a system together with simulation results.  Parameters ---------- filename: string Name of inputfile  Returns ------- system: Builder object A discritized system. result: dictionary Dictionary containing 1D arrays of electron and hole quasi-Fermi levels and the electrostatic potential across the system. Keys are 'efn', 'efp', and/or 'v'."
+      },
+      {
+        "name": "get_indices",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "",
+        "input": {
+          "sys": {
+            "type": "",
+            "description": ""
+          },
+          "p": {
+            "type": "",
+            "description": ""
+          },
+          "site": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "sys, p, site = False",
+        "ori_description": ""
+      },
+      {
+        "name": "get_xyz_from_s",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "",
+        "input": {
+          "sys": {
+            "type": "",
+            "description": ""
+          },
+          "site": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "sys, site",
+        "ori_description": ""
+      },
+      {
+        "name": "get_dl",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "",
+        "input": {
+          "sys": {
+            "type": "",
+            "description": ""
+          },
+          "sites": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "sys, sites",
+        "ori_description": ""
+      },
+      {
+        "name": "get_point_defects_sites",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "",
+        "input": {
+          "system": {
+            "type": "",
+            "description": ""
+          },
+          "location": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "system, location",
+        "ori_description": ""
+      },
+      {
+        "name": "get_line_defects_sites",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "",
+        "input": {
+          "system": {
+            "type": "",
+            "description": ""
+          },
+          "location": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "system, location",
+        "ori_description": ""
+      },
+      {
+        "name": "check_equal_sim_settings",
+        "type": "function",
+        "module": "sesame.utils",
+        "description": "",
+        "input": {
+          "system1": {
+            "type": "",
+            "description": ""
+          },
+          "system2": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "system1, system2",
+        "ori_description": ""
+      },
+      {
+        "name": "plot_grid",
+        "type": "function",
+        "module": "sesame.plotter",
+        "description": "Plot the grid of a 2D system.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "fig": {
+            "type": "Maplotlib figure",
+            "description": "A plot is added to it if given. If not given, a new one is created and a figure is displayed."
+          }
+        },
+        "output": null,
+        "ori_input": "sys, fig = None",
+        "ori_description": "Plot the grid of a 2D system.  Parameters ---------- sys: Builder The discretized system. fig: Maplotlib figure A plot is added to it if given. If not given, a new one is created and a figure is displayed."
+      },
+      {
+        "name": "plot_line_defects",
+        "type": "function",
+        "module": "sesame.plotter",
+        "description": "Plot the sites containing additional charges located on lines in 2D. The length scale of the graph is 1 micrometer by default.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "ls": {
+            "type": "string",
+            "description": "Line style of the plotted paths."
+          },
+          "fig": {
+            "type": "Maplotlib figure",
+            "description": "A plot is added to it if given. If not given, a new one is created and a figure is displayed."
+          }
+        },
+        "output": null,
+        "ori_input": "sys, ls = '-o', fig = None",
+        "ori_description": "Plot the sites containing additional charges located on lines in 2D. The length scale of the graph is 1 micrometer by default.  Parameters ---------- sys: Builder The discretized system. ls: string Line style of the plotted paths. fig: Maplotlib figure A plot is added to it if given. If not given, a new one is created and a figure is displayed."
+      },
+      {
+        "name": "plot",
+        "type": "function",
+        "module": "sesame.plotter",
+        "description": "Plot a 2D map of a parameter (like mobility) across the system.",
+        "input": {
+          "sys": {
+            "type": "Builder",
+            "description": "The discretized system."
+          },
+          "data": {
+            "type": "numpy array",
+            "description": "One-dimensional array of data with size equal to the size of the system."
+          },
+          "cmap": {
+            "type": "string",
+            "description": "Name of the colormap used by Matplolib."
+          },
+          "alpha": {
+            "type": "float",
+            "description": "Transparency of the colormap."
+          },
+          "fig": {
+            "type": "Maplotlib figure",
+            "description": "A plot is added to it if given. If not given, a new one is created and displayed."
+          },
+          "title": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "sys, data, cmap = 'gnuplot', alpha = 1, fig = None, title = ''",
+        "ori_description": "Plot a 2D map of a parameter (like mobility) across the system.  Parameters ----------  sys: Builder The discretized system. data: numpy array One-dimensional array of data with size equal to the size of the system. cmap: string Name of the colormap used by Matplolib. alpha: float Transparency of the colormap. fig: Maplotlib figure A plot is added to it if given. If not given, a new one is created and displayed."
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/usnistgov/sesame",
+        "documentation": "https://sesame.readthedocs.io/en/latest/",
+        "pypi": "",
+        "pypi_version": "",
+        "tag": "2.0.3",
+        "commit": "639b43515321e261b3ae7e0ae0d60b0f71556933",
+        "release_published_at": "2019-04-25T22:32:09Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "此处为 usnistgov/sesame 半导体求解器；PyPI 的 sesame 0.3.3 是 mafrosis/sesame 加密工具，故不填写该同名 PyPI 链接。source=pypi 沿用用户指定的 Python 包种子分类，不表示已确认 PyPI 分发。",
+          "采用 GitHub Release 标签 2.0.3；标签内 sesame/_version.py 仍为 2.0，保留实际发布标签。",
+          "索引包含 sesame.ui 源码；未安装 GUI 或运行数值求解。"
+        ],
+        "release_url": "https://github.com/usnistgov/sesame/releases/tag/2.0.3",
+        "release_api": "https://api.github.com/repos/usnistgov/sesame/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/sesame",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "sesame"
+        ],
+        "source_files": [
+          "sesame/__init__.py",
+          "sesame/_version.py",
+          "sesame/analyzer.py",
+          "sesame/builder.py",
+          "sesame/defects.py",
+          "sesame/getF.py",
+          "sesame/getFandJ_eq.py",
+          "sesame/jacobian.py",
+          "sesame/mumps/__init__.py",
+          "sesame/observables.py",
+          "sesame/plotter.py",
+          "sesame/solvers.py",
+          "sesame/ui/__init__.py",
+          "sesame/ui/analysis_tab.py",
+          "sesame/ui/common.py",
+          "sesame/ui/mainwindow.py",
+          "sesame/ui/onesun_data.py",
+          "sesame/ui/plotbox.py",
+          "sesame/ui/sim.py",
+          "sesame/ui/simulation_tab.py",
+          "sesame/ui/system_tab.py",
+          "sesame/utils.py"
+        ],
+        "source_file_sha256": {
+          "sesame/__init__.py": "25fb2e1e52e9277ed91ef1592be0f701934685110b67015fbfe10c907b6a842f",
+          "sesame/_version.py": "65da64ecb5992e99c146717508c8e462501828ae0d4673f00b5551928d099a24",
+          "sesame/analyzer.py": "51fbb42649d25b04e3f6bd1207de59b4a8b90f864fc85c3995b81a59e8868eec",
+          "sesame/builder.py": "736c9980a778098f70dd4cc39418b1e7ee0108784bcb8863ca92b8e1989db5fa",
+          "sesame/defects.py": "a72b089e99c7d0c1fea55743ac85900e8455ba0809e89fb76b5dd1e48482015f",
+          "sesame/getF.py": "30cefc9ab2b0d236b87d962830430a7d8f2c2a2dd12cb2f41aedd3eb3e8ba5d9",
+          "sesame/getFandJ_eq.py": "3dc7cec5dc14d817221e06531e52957deca7a03e1a35af9f0c714b752cd0bd95",
+          "sesame/jacobian.py": "7f2da95059f2bb664f1bd3307ac26b5d8fe55118d0d13bbba7bab4689701ce6e",
+          "sesame/mumps/__init__.py": "d3e6932927f2d688032b012909da8ee5a3261fc718266db771991d79d5e33512",
+          "sesame/observables.py": "7a5cf4ade2790f61ad729ee006ebc05f9a4c16ac863f668f68cf72b69ae379ea",
+          "sesame/plotter.py": "f82bc04dd811ed51da656245762e50de22ebdb4b14eaefa792255532aa4cc4c0",
+          "sesame/solvers.py": "e767d432b31cf44f48124ac00404644d69504d1a3cb963341309090b870f37b0",
+          "sesame/ui/__init__.py": "e5b022464e16845eabada67baa2ae64de005bb536030d24ab37e204194a1bac8",
+          "sesame/ui/analysis_tab.py": "fe3b92befae34532efcfeac8f932d8b6df68ad7e0496c2010b68ad2bda810869",
+          "sesame/ui/common.py": "ec57db1037191fe231aa7c18de6220385b5a31ec2cfbd8c9e484b00f81bbd360",
+          "sesame/ui/mainwindow.py": "fa6b0d99ce70f30121de8174400055e49e6a27f7e7d2a39271accaf70f396d9c",
+          "sesame/ui/onesun_data.py": "20fc8b242b0e13bce8119b51958baa4979687a6599957500941a978b6f607e75",
+          "sesame/ui/plotbox.py": "b3db7396cf4aca2cdd0ce6904d1fec159487136f7a7782b60b822a8b09b4f224",
+          "sesame/ui/sim.py": "aece3e4c797ab76198b45bb6c96e77c2d5a9ac65d47a1f93c512ac72c5cce725",
+          "sesame/ui/simulation_tab.py": "ad7c77ad2da590683413d51a3c57a9bdc6ead3ba38a446c8e6221e5e452cf335",
+          "sesame/ui/system_tab.py": "ebb8140dccd50b568c328ddc40b026d575582055b1e18f39ef6fad158e9b6ffa",
+          "sesame/utils.py": "e5c535cbbf72e942c445a4eac9e72fd17ae1117561d918fd80a4b41b5d767007"
+        },
+        "source_version": "2.0.3",
+        "source_commit": "639b43515321e261b3ae7e0ae0d60b0f71556933",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "sesame_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/sesame_2.0.3.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/sesame_2.0.3.json",
+        "source_sha256": "35d1b5ed52ca4aec44a725493a970d35bf657fb78352bf58843cb0c51c67f2e8",
+        "profile_sha256": "cde587c38afd37d9765bbe314c220584f043e9f9ce8d18c28a3e0bbbb51fe9f1",
+        "boundary": "小型一维/二维器件构建、缩放、漂移扩散求解、载流子/复合/电流分析、结果保存与必要绘图。排除 Qt GUI、MUMPS 包装、异常类和雅可比/残差装配。少量几何工具用于定位缺陷及校验网格；图形验证需无界面后端。仅静态筛选，数值求解和旧版依赖兼容性未验证。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 56,
+        "selected_tool_count": 20,
+        "selected_class_count": 4,
+        "selected_function_count": 16,
+        "selected_method_count": 34,
+        "selected_all_func": 50,
+        "missing_description_count": 14,
+        "excluded_tool_count": 36,
+        "capability_count": 6
+      }
+    }
+  }
+]

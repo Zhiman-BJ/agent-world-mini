@@ -1,0 +1,3694 @@
+[
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_01_02_2",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://pymatgen.org/",
+        "name": "SC-01.01-02",
+        "index": 2
+      },
+      "description": "这是一个“材料数据治理与候选筛选”业务环境，服务于材料数据工程师、计算材料研究员。现实目标是把来自不同归档的组成、结构和性质记录规范化，识别同一材料、不同计算协议和冲突性质。环境围绕同一工作上下文中的多来源材料记录、CIF/POSCAR/JSON 结构、计算方法元数据组织数据，支持依次完成解析组成与结构、标准化晶胞和单位、执行结构匹配与近重复聚类、保留不同协议并标注冲突。最终形成规范化材料记录、重复组和冲突组、来源血缘，并按以下规则验收：规范化前后化学计量保持一致；重复判定可由结构匹配参数复现；不同计算协议不被错误合并。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "materials_data_and_screening",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "把来自不同归档的组成、结构和性质记录规范化，识别同一材料、不同计算协议和冲突性质。",
+        "input": {
+          "required_business_inputs": [
+            "多来源材料记录",
+            "CIF/POSCAR/JSON 结构",
+            "计算方法元数据"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "规范化材料记录",
+            "重复组和冲突组",
+            "来源血缘"
+          ],
+          "acceptance": "规范化前后化学计量保持一致；重复判定可由结构匹配参数复现；不同计算协议不被错误合并。"
+        },
+        "solution_path": [
+          "解析组成与结构",
+          "标准化晶胞和单位",
+          "执行结构匹配与近重复聚类",
+          "保留不同协议并标注冲突"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.01-02",
+        "l1_id": "01",
+        "l2_id": "01.01",
+        "roles": [
+          "材料数据工程师",
+          "计算材料研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-PYMATGEN",
+            "kind": "official_documentation",
+            "title": "pymatgen",
+            "url": "https://pymatgen.org/",
+            "support": "记录晶体结构、组成、相图和主流第一性原理输入输出的 Python 对象与分析能力。"
+          },
+          {
+            "id": "WF-MAT-MP-API",
+            "kind": "official_documentation",
+            "title": "Materials Project API: Getting Started",
+            "url": "https://docs.materialsproject.org/downloading-data/using-the-api/getting-started",
+            "support": "说明如何按材料标识和性质查询 Materials Project 的结构化材料数据。"
+          },
+          {
+            "id": "WF-MAT-NOMAD-API",
+            "kind": "official_documentation",
+            "title": "NOMAD API",
+            "url": "https://docs.nomad-lab.eu/tutorial/access_api.html",
+            "support": "提供计算材料归档的条目、材料和原始文件程序化访问方式。"
+          }
+        ],
+        "verification": "规范化前后化学计量保持一致；重复判定可由结构匹配参数复现；不同计算协议不被错误合并。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "多数据库材料记录、真实结构和来源血缘丰富，规范化与冲突处理能形成多步任务。"
+        }
+      },
+      "python_tool_candidates": [
+        "pymatgen:结构匹配和格式处理",
+        "pandas:记录对齐"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的多来源材料记录、CIF/POSCAR/JSON 结构、计算方法元数据，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的规范化材料记录、重复组和冲突组、来源血缘，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：规范化前后化学计量保持一致；重复判定可由结构匹配参数复现；不同计算协议不被错误合并。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_02_01_4",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://spglib.readthedocs.io/en/stable/",
+        "name": "SC-01.02-01",
+        "index": 4
+      },
+      "description": "这是一个“晶体学、对称性与结构工程”业务环境，服务于计算材料研究员、晶体学研究员。现实目标是标准化一批实验或计算结构，识别空间群、等价位点以及弛豫或扰动前后的对称性变化。环境围绕同一工作上下文中的CIF/POSCAR 结构、长度和角度容差、结构版本关系组织数据，支持依次完成解析并检查晶格和占位、计算对称性数据集、生成 primitive/conventional 标准结构、匹配版本并解释对称性变化。最终形成标准结构、空间群和等价位点、结构版本差异报告，并按以下规则验收：标准化结构保持组成；对称操作能映射等价位点；容差敏感性被记录。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "crystallography_and_structure_engineering",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "标准化一批实验或计算结构，识别空间群、等价位点以及弛豫或扰动前后的对称性变化。",
+        "input": {
+          "required_business_inputs": [
+            "CIF/POSCAR 结构",
+            "长度和角度容差",
+            "结构版本关系"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "标准结构",
+            "空间群和等价位点",
+            "结构版本差异报告"
+          ],
+          "acceptance": "标准化结构保持组成；对称操作能映射等价位点；容差敏感性被记录。"
+        },
+        "solution_path": [
+          "解析并检查晶格和占位",
+          "计算对称性数据集",
+          "生成 primitive/conventional 标准结构",
+          "匹配版本并解释对称性变化"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.02-01",
+        "l1_id": "01",
+        "l2_id": "01.02",
+        "roles": [
+          "计算材料研究员",
+          "晶体学研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-SPGLIB",
+            "kind": "official_documentation",
+            "title": "Spglib",
+            "url": "https://spglib.readthedocs.io/en/stable/",
+            "support": "说明晶体对称性搜索、标准化晶胞和等价原子的确定性计算能力。"
+          },
+          {
+            "id": "WF-MAT-PYMATGEN",
+            "kind": "official_documentation",
+            "title": "pymatgen",
+            "url": "https://pymatgen.org/",
+            "support": "记录晶体结构、组成、相图和主流第一性原理输入输出的 Python 对象与分析能力。"
+          }
+        ],
+        "verification": "标准化结构保持组成；对称操作能映射等价位点；容差敏感性被记录。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "moderate",
+          "reason": "结构文件容易取得，对称性、标准化和版本差异有确定性验收。"
+        }
+      },
+      "python_tool_candidates": [
+        "spglib:对称性计算",
+        "pymatgen:结构解析和匹配"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的CIF/POSCAR 结构、长度和角度容差、结构版本关系，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的标准结构、空间群和等价位点、结构版本差异报告，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：标准化结构保持组成；对称操作能映射等价位点；容差敏感性被记录。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_03_01_6",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://materialsproject.github.io/atomate2/user/running-workflows.html",
+        "name": "SC-01.03-01",
+        "index": 6
+      },
+      "description": "这是一个“第一性原理计算与工作流”业务环境，服务于计算材料研究员、HPC 工作流工程师。现实目标是为一批候选材料建立共享协议的结构弛豫、静态和能带计算依赖图，并维护输入输出引用。环境围绕同一工作上下文中的候选晶体结构、计算 Maker 配置、资源与存储配置组织数据，支持依次完成校验结构和计算设置、创建 relax 到 static/bands 的依赖、写入材料和作业元数据、提交并保存 TaskDocument。最终形成Job/Flow 图、阶段输入目录、作业状态与结果文档，并按以下规则验收：每个下游节点引用正确上游结构；材料、Job UUID 和目录可追溯；阶段设置满足统一协议。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "first_principles_calculation_workflows",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "为一批候选材料建立共享协议的结构弛豫、静态和能带计算依赖图，并维护输入输出引用。",
+        "input": {
+          "required_business_inputs": [
+            "候选晶体结构",
+            "计算 Maker 配置",
+            "资源与存储配置"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "Job/Flow 图",
+            "阶段输入目录",
+            "作业状态与结果文档"
+          ],
+          "acceptance": "每个下游节点引用正确上游结构；材料、Job UUID 和目录可追溯；阶段设置满足统一协议。"
+        },
+        "solution_path": [
+          "校验结构和计算设置",
+          "创建 relax 到 static/bands 的依赖",
+          "写入材料和作业元数据",
+          "提交并保存 TaskDocument"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.03-01",
+        "l1_id": "01",
+        "l2_id": "01.03",
+        "roles": [
+          "计算材料研究员",
+          "HPC 工作流工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-ATOMATE2",
+            "kind": "official_workflow",
+            "title": "atomate2 Running Workflows",
+            "url": "https://materialsproject.github.io/atomate2/user/running-workflows.html",
+            "support": "说明 Maker、Job、Flow、job store 和执行管理器组成的计算材料工作流。"
+          },
+          {
+            "id": "WF-MAT-JOBFLOW",
+            "kind": "official_documentation",
+            "title": "jobflow",
+            "url": "https://materialsproject.github.io/jobflow/",
+            "support": "提供具有输出引用、依赖和持久化结果的 Python Job/Flow 模型。"
+          },
+          {
+            "id": "WF-MAT-PV-PROJECT",
+            "kind": "real_project",
+            "title": "PV_paper photovoltaic calculations",
+            "url": "https://github.com/mattheww98/PV_paper",
+            "support": "真实光伏研究项目保存材料结构、atomate2 工作流脚本和多阶段 VASP 计算结果。"
+          }
+        ],
+        "verification": "每个下游节点引用正确上游结构；材料、Job UUID 和目录可追溯；阶段设置满足统一协议。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "真实 atomate2 项目可支撑从结构到多阶段计算、状态和血缘的完整工作流。"
+        }
+      },
+      "python_tool_candidates": [
+        "atomate2:计算 Makers",
+        "jobflow:依赖和状态",
+        "pymatgen:结构与结果"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的候选晶体结构、计算 Maker 配置、资源与存储配置，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的Job/Flow 图、阶段输入目录、作业状态与结果文档，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：每个下游节点引用正确上游结构；材料、Job UUID 和目录可追溯；阶段设置满足统一协议。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_03_03_8",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://materialsproject.github.io/custodian/",
+        "name": "SC-01.03-03",
+        "index": 8
+      },
+      "description": "这是一个“第一性原理计算与工作流”业务环境，服务于HPC 工作流工程师、计算材料研究员。现实目标是根据计算输出、错误处理记录和依赖图定位失败原因，只恢复受影响的作业分支。环境围绕同一工作上下文中的VASP 输入输出目录、custodian 记录、Job/Flow 状态组织数据，支持依次完成检查必需文件和收敛状态、归类电子、离子、资源或输入错误、审计已实施修正、复用合格上游并重启最小分支。最终形成失败诊断、修正记录、恢复作业集合，并按以下规则验收：每个恢复作业都有明确失败证据；已成功节点不被重复运行；修复后状态和结果引用完整。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "first_principles_calculation_workflows",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "根据计算输出、错误处理记录和依赖图定位失败原因，只恢复受影响的作业分支。",
+        "input": {
+          "required_business_inputs": [
+            "VASP 输入输出目录",
+            "custodian 记录",
+            "Job/Flow 状态"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "失败诊断",
+            "修正记录",
+            "恢复作业集合"
+          ],
+          "acceptance": "每个恢复作业都有明确失败证据；已成功节点不被重复运行；修复后状态和结果引用完整。"
+        },
+        "solution_path": [
+          "检查必需文件和收敛状态",
+          "归类电子、离子、资源或输入错误",
+          "审计已实施修正",
+          "复用合格上游并重启最小分支"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.03-03",
+        "l1_id": "01",
+        "l2_id": "01.03",
+        "roles": [
+          "HPC 工作流工程师",
+          "计算材料研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-CUSTODIAN",
+            "kind": "official_documentation",
+            "title": "custodian",
+            "url": "https://materialsproject.github.io/custodian/",
+            "support": "提供计算任务运行、错误检测、修正和重启记录机制。"
+          },
+          {
+            "id": "WF-MAT-JOBFLOW",
+            "kind": "official_documentation",
+            "title": "jobflow",
+            "url": "https://materialsproject.github.io/jobflow/",
+            "support": "提供具有输出引用、依赖和持久化结果的 Python Job/Flow 模型。"
+          },
+          {
+            "id": "WF-MAT-ATOMATE2",
+            "kind": "official_workflow",
+            "title": "atomate2 Running Workflows",
+            "url": "https://materialsproject.github.io/atomate2/user/running-workflows.html",
+            "support": "说明 Maker、Job、Flow、job store 和执行管理器组成的计算材料工作流。"
+          }
+        ],
+        "verification": "每个恢复作业都有明确失败证据；已成功节点不被重复运行；修复后状态和结果引用完整。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "失败日志、修正记录和 Job 依赖适合复杂诊断及增量恢复任务。"
+        }
+      },
+      "python_tool_candidates": [
+        "custodian:错误处理",
+        "jobflow:依赖和恢复",
+        "atomate2:计算节点"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的VASP 输入输出目录、custodian 记录、Job/Flow 状态，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的失败诊断、修正记录、恢复作业集合，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：每个恢复作业都有明确失败证据；已成功节点不被重复运行；修复后状态和结果引用完整。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_04_03_11",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://doped.readthedocs.io/en/latest/",
+        "name": "SC-01.04-03",
+        "index": 11
+      },
+      "description": "这是一个“半导体点缺陷与掺杂”业务环境，服务于缺陷物理研究员、材料研发工程师。现实目标是把体相、多缺陷多电荷态、介电、带边和竞争相数据组合为形成能、跃迁能级及平衡载流子浓度。环境围绕同一工作上下文中的体相和缺陷计算结果、LOCPOT/介电数据、竞争相能量、电子 DOS、温度与生长条件组织数据，支持依次完成审计计算协议和电荷一致性、执行有限尺寸修正、构建化学势稳定区和形成能图、自洽求解费米能级与浓度。最终形成修正后缺陷条目、跃迁能级、费米能级和缺陷/载流子浓度、掺杂限制，并按以下规则验收：缺陷与体相使用兼容协议；电荷守恒；化学势满足相稳定约束；浓度解满足电中性。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "defects_and_doping",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "把体相、多缺陷多电荷态、介电、带边和竞争相数据组合为形成能、跃迁能级及平衡载流子浓度。",
+        "input": {
+          "required_business_inputs": [
+            "体相和缺陷计算结果",
+            "LOCPOT/介电数据",
+            "竞争相能量",
+            "电子 DOS",
+            "温度与生长条件"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "修正后缺陷条目",
+            "跃迁能级",
+            "费米能级和缺陷/载流子浓度",
+            "掺杂限制"
+          ],
+          "acceptance": "缺陷与体相使用兼容协议；电荷守恒；化学势满足相稳定约束；浓度解满足电中性。"
+        },
+        "solution_path": [
+          "审计计算协议和电荷一致性",
+          "执行有限尺寸修正",
+          "构建化学势稳定区和形成能图",
+          "自洽求解费米能级与浓度"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.04-03",
+        "l1_id": "01",
+        "l2_id": "01.04",
+        "roles": [
+          "缺陷物理研究员",
+          "材料研发工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-DOPED",
+            "kind": "official_workflow",
+            "title": "doped",
+            "url": "https://doped.readthedocs.io/en/latest/",
+            "support": "覆盖缺陷生成、VASP 输入、计算解析、有限尺寸修正、化学势和缺陷热力学。"
+          },
+          {
+            "id": "WF-MAT-PYSCFERMI",
+            "kind": "real_project",
+            "title": "py-sc-fermi",
+            "url": "https://github.com/bjmorgan/py-sc-fermi",
+            "support": "实现缺陷和载流子浓度耦合下的自洽费米能级求解。"
+          },
+          {
+            "id": "WF-MAT-RUN-DEFECTS",
+            "kind": "real_project",
+            "title": "Database-scale charged defects workflow",
+            "url": "https://github.com/jmmshn/run_defects",
+            "support": "公开数据库级带电缺陷计算的 atomate2、jobflow 与缺陷分析代码。"
+          }
+        ],
+        "verification": "缺陷与体相使用兼容协议；电荷守恒；化学势满足相稳定约束；浓度解满足电中性。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "moderate",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "缺陷、修正、化学势和电中性求解构成专业且可验证的长工作流。"
+        }
+      },
+      "python_tool_candidates": [
+        "doped:修正和热力学",
+        "py-sc-fermi:电中性求解",
+        "pymatgen:相图和 DOS"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的体相和缺陷计算结果、LOCPOT/介电数据、竞争相能量、电子 DOS、温度与生长条件，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的修正后缺陷条目、跃迁能级、费米能级和缺陷/载流子浓度、掺杂限制，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：缺陷与体相使用兼容协议；电荷守恒；化学势满足相稳定约束；浓度解满足电中性。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_05_01_12",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://phonopy.github.io/phonopy/workflow.html",
+        "name": "SC-01.05-01",
+        "index": 12
+      },
+      "description": "这是一个“晶格动力学、热输运与扩散”业务环境，服务于计算材料研究员、热物性研究员。现实目标是由位移超胞和原子力构建二阶力常数，检查半导体的动力学稳定性并计算声子谱和热力学量。环境围绕同一工作上下文中的平衡晶体结构、位移超胞、逐位移原子力组织数据，支持依次完成生成对称约化位移、核对每个超胞的力、拟合和对称化力常数、计算色散、DOS 和热力学量。最终形成二阶力常数、声子谱和 DOS、虚频与稳定性报告，并按以下规则验收：位移与力一一对应；声学支满足平移约束；虚频结论记录 q 点和数值容差。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "lattice_thermal_and_diffusion",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "由位移超胞和原子力构建二阶力常数，检查半导体的动力学稳定性并计算声子谱和热力学量。",
+        "input": {
+          "required_business_inputs": [
+            "平衡晶体结构",
+            "位移超胞",
+            "逐位移原子力"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "二阶力常数",
+            "声子谱和 DOS",
+            "虚频与稳定性报告"
+          ],
+          "acceptance": "位移与力一一对应；声学支满足平移约束；虚频结论记录 q 点和数值容差。"
+        },
+        "solution_path": [
+          "生成对称约化位移",
+          "核对每个超胞的力",
+          "拟合和对称化力常数",
+          "计算色散、DOS 和热力学量"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.05-01",
+        "l1_id": "01",
+        "l2_id": "01.05",
+        "roles": [
+          "计算材料研究员",
+          "热物性研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-PHONOPY",
+            "kind": "official_workflow",
+            "title": "Phonopy workflow",
+            "url": "https://phonopy.github.io/phonopy/workflow.html",
+            "support": "描述生成位移超胞、收集力、构建力常数并计算声子性质的完整步骤。"
+          },
+          {
+            "id": "WF-MAT-PYMATGEN",
+            "kind": "official_documentation",
+            "title": "pymatgen",
+            "url": "https://pymatgen.org/",
+            "support": "记录晶体结构、组成、相图和主流第一性原理输入输出的 Python 对象与分析能力。"
+          }
+        ],
+        "verification": "位移与力一一对应；声学支满足平移约束；虚频结论记录 q 点和数值容差。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "位移、力、力常数和声子结果关系明确，公开范例和机械验收均充分。"
+        }
+      },
+      "python_tool_candidates": [
+        "phonopy:位移、力常数和声子",
+        "pymatgen/ASE:结构与力数据"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的平衡晶体结构、位移超胞、逐位移原子力，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的二阶力常数、声子谱和 DOS、虚频与稳定性报告，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：位移与力一一对应；声学支满足平移约束；虚频结论记录 q 点和数值容差。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_06_01_15",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://smtg-bham.github.io/sumo/sumo-bandplot.html",
+        "name": "SC-01.06-01",
+        "index": 15
+      },
+      "description": "这是一个“电子、光学与载流子性质”业务环境，服务于电子结构研究员、器件物理研究员。现实目标是从同一材料的能带和 DOS 计算中确定带隙、带边、轨道贡献和适合输运建模的有效质量。环境围绕同一工作上下文中的vasprun.xml/procar/KPOINTS、能带和 DOS 对象、费米能级与路径标签组织数据，支持依次完成核对结构和计算设置、识别直接/间接带隙和带边 k 点、分析轨道投影、选择带边拟合窗口并计算有效质量。最终形成带隙和带边、能带/DOS 图及数据、方向相关有效质量和拟合质量，并按以下规则验收：bands 与 DOS 属于同一结构和方法；能量参考一致；有效质量拟合窗口和残差可审计。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "electronic_optical_and_carrier_properties",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从同一材料的能带和 DOS 计算中确定带隙、带边、轨道贡献和适合输运建模的有效质量。",
+        "input": {
+          "required_business_inputs": [
+            "vasprun.xml/procar/KPOINTS",
+            "能带和 DOS 对象",
+            "费米能级与路径标签"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "带隙和带边",
+            "能带/DOS 图及数据",
+            "方向相关有效质量和拟合质量"
+          ],
+          "acceptance": "bands 与 DOS 属于同一结构和方法；能量参考一致；有效质量拟合窗口和残差可审计。"
+        },
+        "solution_path": [
+          "核对结构和计算设置",
+          "识别直接/间接带隙和带边 k 点",
+          "分析轨道投影",
+          "选择带边拟合窗口并计算有效质量"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.06-01",
+        "l1_id": "01",
+        "l2_id": "01.06",
+        "roles": [
+          "电子结构研究员",
+          "器件物理研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-SUMO",
+            "kind": "official_workflow",
+            "title": "sumo band structure plotting and analysis",
+            "url": "https://smtg-bham.github.io/sumo/sumo-bandplot.html",
+            "support": "说明从 VASP 结果提取、对齐和展示能带及轨道投影的工作方式。"
+          },
+          {
+            "id": "WF-MAT-EFFMASS",
+            "kind": "real_project",
+            "title": "effmass",
+            "url": "https://github.com/lucydot/effmass",
+            "support": "提供从电子能带数据计算多种有效质量并检查拟合区间的实现。"
+          },
+          {
+            "id": "WF-MAT-PYMATGEN",
+            "kind": "official_documentation",
+            "title": "pymatgen",
+            "url": "https://pymatgen.org/",
+            "support": "记录晶体结构、组成、相图和主流第一性原理输入输出的 Python 对象与分析能力。"
+          }
+        ],
+        "verification": "bands 与 DOS 属于同一结构和方法；能量参考一致；有效质量拟合窗口和残差可审计。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "真实 VASP 电子结构文件丰富，可联合完成带边、投影和有效质量分析。"
+        }
+      },
+      "python_tool_candidates": [
+        "sumo:能带和 DOS",
+        "effmass:有效质量",
+        "pymatgen:解析"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的vasprun.xml/procar/KPOINTS、能带和 DOS 对象、费米能级与路径标签，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的带隙和带边、能带/DOS 图及数据、方向相关有效质量和拟合质量，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：bands 与 DOS 属于同一结构和方法；能量参考一致；有效质量拟合窗口和残差可审计。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_01_06_02_16",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://hackingmaterials.lbl.gov/amset/using/",
+        "name": "SC-01.06-02",
+        "index": 16
+      },
+      "description": "这是一个“电子、光学与载流子性质”业务环境，服务于输运物理研究员、材料研发工程师。现实目标是利用插值能带和材料参数计算不同温度、载流子浓度下的散射率、迁移率和电导。环境围绕同一工作上下文中的均匀能带网格、晶体结构、介电、弹性和形变势参数、温度和掺杂范围组织数据，支持依次完成审计能带和材料参数兼容性、插值电子态、分别计算散射机制、求解输运并比较主导机制。最终形成迁移率和电导张量、分机制散射率、温度/浓度扫描，并按以下规则验收：输入参数单位和结构一致；总散射率与分机制关系正确；结果随采样密度收敛。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "materials_research_and_computational_discovery",
+        "level2": "electronic_optical_and_carrier_properties",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "利用插值能带和材料参数计算不同温度、载流子浓度下的散射率、迁移率和电导。",
+        "input": {
+          "required_business_inputs": [
+            "均匀能带网格",
+            "晶体结构",
+            "介电、弹性和形变势参数",
+            "温度和掺杂范围"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "迁移率和电导张量",
+            "分机制散射率",
+            "温度/浓度扫描"
+          ],
+          "acceptance": "输入参数单位和结构一致；总散射率与分机制关系正确；结果随采样密度收敛。"
+        },
+        "solution_path": [
+          "审计能带和材料参数兼容性",
+          "插值电子态",
+          "分别计算散射机制",
+          "求解输运并比较主导机制"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-01.06-02",
+        "l1_id": "01",
+        "l2_id": "01.06",
+        "roles": [
+          "输运物理研究员",
+          "材料研发工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MAT-AMSET",
+            "kind": "official_workflow",
+            "title": "AMSET getting started",
+            "url": "https://hackingmaterials.lbl.gov/amset/using/",
+            "support": "说明以能带、结构和材料参数为输入计算散射率、迁移率和电导输运。"
+          },
+          {
+            "id": "WF-MAT-PYMATGEN",
+            "kind": "official_documentation",
+            "title": "pymatgen",
+            "url": "https://pymatgen.org/",
+            "support": "记录晶体结构、组成、相图和主流第一性原理输入输出的 Python 对象与分析能力。"
+          }
+        ],
+        "verification": "输入参数单位和结构一致；总散射率与分机制关系正确；结果随采样密度收敛。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "moderate",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "AMSET 提供明确输入输出和散射分解，可形成参数审计及输运扫描。"
+        }
+      },
+      "python_tool_candidates": [
+        "amset:输运计算",
+        "pymatgen:结构和能带"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的均匀能带网格、晶体结构、介电、弹性和形变势参数、温度和掺杂范围，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的迁移率和电导张量、分机制散射率、温度/浓度扫描，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：输入参数单位和结构一致；总散射率与分机制关系正确；结果随采样密度收敛。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_02_03_01_23",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://devsim.org/",
+        "name": "SC-02.03-01",
+        "index": 23
+      },
+      "description": "这是一个“半导体器件 TCAD”业务环境，服务于器件仿真工程师。现实目标是建立 PN 二极管网格、掺杂、接触和漂移扩散方程，比较 DC I-V、瞬态和小信号响应。环境围绕同一工作上下文中的器件几何和网格、掺杂与材料参数、接触和偏压序列组织数据，支持依次完成建立区域和掺杂、设置 Poisson/连续性方程和接触、逐偏压延续求解、运行瞬态或 AC 并提取指标。最终形成电势和载流子分布、I-V 曲线、瞬态/AC 响应，并按以下规则验收：网格和方程残差收敛；电流连续；零偏与边界条件合理；不同步长结果一致。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "process_technology_and_device_engineering",
+        "level2": "semiconductor_device_tcad",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "建立 PN 二极管网格、掺杂、接触和漂移扩散方程，比较 DC I-V、瞬态和小信号响应。",
+        "input": {
+          "required_business_inputs": [
+            "器件几何和网格",
+            "掺杂与材料参数",
+            "接触和偏压序列"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "电势和载流子分布",
+            "I-V 曲线",
+            "瞬态/AC 响应"
+          ],
+          "acceptance": "网格和方程残差收敛；电流连续；零偏与边界条件合理；不同步长结果一致。"
+        },
+        "solution_path": [
+          "建立区域和掺杂",
+          "设置 Poisson/连续性方程和接触",
+          "逐偏压延续求解",
+          "运行瞬态或 AC 并提取指标"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-02.03-01",
+        "l1_id": "02",
+        "l2_id": "02.03",
+        "roles": [
+          "器件仿真工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DEV-DEVSIM",
+            "kind": "official_documentation",
+            "title": "DEVSIM TCAD Semiconductor Device Simulator",
+            "url": "https://devsim.org/",
+            "support": "提供由 Python 控制的半导体器件网格、方程、接触、求解和结果访问接口。"
+          },
+          {
+            "id": "WF-DEV-DEVSIM-EXAMPLES",
+            "kind": "official_examples",
+            "title": "DEVSIM examples",
+            "url": "https://github.com/devsim/devsim/tree/main/examples",
+            "support": "包含二极管一维/二维/三维、瞬态、小信号 AC、MOS 迁移率和 Gmsh 网格案例。"
+          }
+        ],
+        "verification": "网格和方程残差收敛；电流连续；零偏与边界条件合理；不同步长结果一致。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "DEVSIM 官方二极管示例直接覆盖网格、方程、DC、AC 和瞬态。"
+        }
+      },
+      "python_tool_candidates": [
+        "devsim:器件方程和求解",
+        "numpy:结果检查"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的器件几何和网格、掺杂与材料参数、接触和偏压序列，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的电势和载流子分布、I-V 曲线、瞬态/AC 响应，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：网格和方程残差收敛；电流连续；零偏与边界条件合理；不同步长结果一致。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_02_03_02_24",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/devsim/devsim/tree/main/examples",
+        "name": "SC-02.03-02",
+        "index": 24
+      },
+      "description": "这是一个“半导体器件 TCAD”业务环境，服务于器件仿真工程师、器件物理工程师。现实目标是建立二维 MOS 结构，局部细化界面网格，并比较不同迁移率模型对电荷和电流的影响。环境围绕同一工作上下文中的MOS 几何和材料区域、掺杂与氧化层参数、迁移率模型、栅漏偏压组织数据，支持依次完成生成并标记半导体/氧化层网格、设置界面和接触条件、先求静电再启用载流子方程、扫描偏压和迁移率模型。最终形成网格与区域、表面势和载流子分布、模型间 I-V 差异，并按以下规则验收：界面网格达到目标密度；电势和电荷连续条件满足；模型比较使用相同器件和偏压。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "process_technology_and_device_engineering",
+        "level2": "semiconductor_device_tcad",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "建立二维 MOS 结构，局部细化界面网格，并比较不同迁移率模型对电荷和电流的影响。",
+        "input": {
+          "required_business_inputs": [
+            "MOS 几何和材料区域",
+            "掺杂与氧化层参数",
+            "迁移率模型",
+            "栅漏偏压"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "网格与区域",
+            "表面势和载流子分布",
+            "模型间 I-V 差异"
+          ],
+          "acceptance": "界面网格达到目标密度；电势和电荷连续条件满足；模型比较使用相同器件和偏压。"
+        },
+        "solution_path": [
+          "生成并标记半导体/氧化层网格",
+          "设置界面和接触条件",
+          "先求静电再启用载流子方程",
+          "扫描偏压和迁移率模型"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-02.03-02",
+        "l1_id": "02",
+        "l2_id": "02.03",
+        "roles": [
+          "器件仿真工程师",
+          "器件物理工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DEV-DEVSIM-EXAMPLES",
+            "kind": "official_examples",
+            "title": "DEVSIM examples",
+            "url": "https://github.com/devsim/devsim/tree/main/examples",
+            "support": "包含二极管一维/二维/三维、瞬态、小信号 AC、MOS 迁移率和 Gmsh 网格案例。"
+          },
+          {
+            "id": "WF-DEV-GMSH",
+            "kind": "official_documentation",
+            "title": "Gmsh",
+            "url": "https://pypi.org/project/gmsh/",
+            "support": "提供几何、物理分组、局部网格尺寸和 Python API 驱动的有限元网格生成。"
+          }
+        ],
+        "verification": "界面网格达到目标密度；电势和电荷连续条件满足；模型比较使用相同器件和偏压。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "MOS 网格、界面和迁移率模型组合能支撑模型比较与局部修订。"
+        }
+      },
+      "python_tool_candidates": [
+        "devsim:器件求解",
+        "gmsh:网格",
+        "meshio:格式交接"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的MOS 几何和材料区域、掺杂与氧化层参数、迁移率模型、栅漏偏压，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的网格与区域、表面势和载流子分布、模型间 I-V 差异，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：界面网格达到目标密度；电势和电荷连续条件满足；模型比较使用相同器件和偏压。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_02_03_03_25",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://pypi.org/project/gmsh/",
+        "name": "SC-02.03-03",
+        "index": 25
+      },
+      "description": "这是一个“半导体器件 TCAD”业务环境，服务于TCAD 工程师。现实目标是根据结区、界面和高场区域局部加密网格，比较求解误差、收敛性与运行成本。环境围绕同一工作上下文中的器件几何、区域和边界标签、多组网格、参考求解结果组织数据，支持依次完成生成粗网格基线、按物理区域和误差指标加密、在相同模型下重复求解、比较关键输出并选择网格。最终形成网格版本、关键量收敛曲线、推荐网格策略，并按以下规则验收：边界和材料标签在转换中保留；关键量随网格收敛；推荐网格满足精度和规模约束。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "process_technology_and_device_engineering",
+        "level2": "semiconductor_device_tcad",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "根据结区、界面和高场区域局部加密网格，比较求解误差、收敛性与运行成本。",
+        "input": {
+          "required_business_inputs": [
+            "器件几何",
+            "区域和边界标签",
+            "多组网格",
+            "参考求解结果"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "网格版本",
+            "关键量收敛曲线",
+            "推荐网格策略"
+          ],
+          "acceptance": "边界和材料标签在转换中保留；关键量随网格收敛；推荐网格满足精度和规模约束。"
+        },
+        "solution_path": [
+          "生成粗网格基线",
+          "按物理区域和误差指标加密",
+          "在相同模型下重复求解",
+          "比较关键输出并选择网格"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-02.03-03",
+        "l1_id": "02",
+        "l2_id": "02.03",
+        "roles": [
+          "TCAD 工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DEV-GMSH",
+            "kind": "official_documentation",
+            "title": "Gmsh",
+            "url": "https://pypi.org/project/gmsh/",
+            "support": "提供几何、物理分组、局部网格尺寸和 Python API 驱动的有限元网格生成。"
+          },
+          {
+            "id": "WF-DEV-MESHIO",
+            "kind": "real_project",
+            "title": "meshio",
+            "url": "https://github.com/nschloe/meshio",
+            "support": "在多种网格格式之间转换点、单元和场数据，支持求解器间的数据交接。"
+          },
+          {
+            "id": "WF-DEV-SKFINITE",
+            "kind": "official_documentation",
+            "title": "scikit-fem",
+            "url": "https://scikit-fem.readthedocs.io/en/latest/",
+            "support": "提供 Python 有限元离散、边界条件、组装、求解与误差评估案例。"
+          },
+          {
+            "id": "WF-DEV-DEVSIM-EXAMPLES",
+            "kind": "official_examples",
+            "title": "DEVSIM examples",
+            "url": "https://github.com/devsim/devsim/tree/main/examples",
+            "support": "包含二极管一维/二维/三维、瞬态、小信号 AC、MOS 迁移率和 Gmsh 网格案例。"
+          }
+        ],
+        "verification": "边界和材料标签在转换中保留；关键量随网格收敛；推荐网格满足精度和规模约束。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "网格生成、格式交接、重复求解和收敛判定形成完整验证闭环。"
+        }
+      },
+      "python_tool_candidates": [
+        "gmsh:网格生成",
+        "meshio:格式转换",
+        "devsim/scikit-fem:求解"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的器件几何、区域和边界标签、多组网格、参考求解结果，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的网格版本、关键量收敛曲线、推荐网格策略，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：边界和材料标签在转换中保留；关键量随网格收敛；推荐网格满足精度和规模约束。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_02_04_01_26",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://lmfit.github.io/lmfit-py/",
+        "name": "SC-02.04-01",
+        "index": 26
+      },
+      "description": "这是一个“紧凑模型与参数提取”业务环境，服务于器件建模工程师、模型验证工程师。现实目标是从多偏压、多温度 I-V 数据拟合紧凑模型参数，控制参数边界并验证未参与拟合的数据。环境围绕同一工作上下文中的器件尺寸和批次信息、I-V 曲线、模型方程和参数初值、训练/验证条件组织数据，支持依次完成清洗并按器件条件分组、定义物理边界和共享参数、分阶段或联合拟合、在保留条件上验证残差和趋势。最终形成参数集、逐曲线残差、适用范围和验证报告，并按以下规则验收：参数满足物理边界；训练和验证数据分离；原始曲线可由参数重现且残差无系统偏差。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "process_technology_and_device_engineering",
+        "level2": "compact_models_and_parameter_extraction",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从多偏压、多温度 I-V 数据拟合紧凑模型参数，控制参数边界并验证未参与拟合的数据。",
+        "input": {
+          "required_business_inputs": [
+            "器件尺寸和批次信息",
+            "I-V 曲线",
+            "模型方程和参数初值",
+            "训练/验证条件"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "参数集",
+            "逐曲线残差",
+            "适用范围和验证报告"
+          ],
+          "acceptance": "参数满足物理边界；训练和验证数据分离；原始曲线可由参数重现且残差无系统偏差。"
+        },
+        "solution_path": [
+          "清洗并按器件条件分组",
+          "定义物理边界和共享参数",
+          "分阶段或联合拟合",
+          "在保留条件上验证残差和趋势"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-02.04-01",
+        "l1_id": "02",
+        "l2_id": "02.04",
+        "roles": [
+          "器件建模工程师",
+          "模型验证工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DEV-LMFIT",
+            "kind": "official_documentation",
+            "title": "lmfit",
+            "url": "https://lmfit.github.io/lmfit-py/",
+            "support": "提供带边界和约束的非线性最小二乘拟合、参数不确定度与残差诊断。"
+          },
+          {
+            "id": "AUTH-IRDS-MORE-MOORE",
+            "kind": "authority",
+            "title": "More Moore",
+            "url": "https://irds.ieee.org/irds-more-moore/",
+            "support": "界定主流逻辑与存储器件在物理、电学、可靠性和高产量制造方面的技术要求。"
+          },
+          {
+            "id": "AUTH-NIST-METROLOGY",
+            "kind": "authority",
+            "title": "CHIPS Metrology Program",
+            "url": "https://www.nist.gov/chips/research-development-programs/metrology-program",
+            "support": "提供半导体材料、器件、制造和封装测量科学与标准化方向。"
+          }
+        ],
+        "verification": "参数满足物理边界；训练和验证数据分离；原始曲线可由参数重现且残差无系统偏差。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "moderate",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "多条件曲线、物理约束、保留验证和残差诊断适合复杂参数拟合。"
+        }
+      },
+      "python_tool_candidates": [
+        "lmfit:约束拟合",
+        "numpy/pandas:曲线处理"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的器件尺寸和批次信息、I-V 曲线、模型方程和参数初值、训练/验证条件，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的参数集、逐曲线残差、适用范围和验证报告，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：参数满足物理边界；训练和验证数据分离；原始曲线可由参数重现且残差无系统偏差。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_02_05_01_28",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://docs.solcore.solar/en/master/",
+        "name": "SC-02.05-01",
+        "index": 28
+      },
+      "description": "这是一个“光电、功率与新型器件”业务环境，服务于光伏器件研究员。现实目标是从层结构和材料参数建立多结太阳能电池模型，计算光生载流子、I-V 和外量子效率并比较结构方案。环境围绕同一工作上下文中的层厚和材料、光谱和光学常数、结和复合参数、温度与偏压组织数据，支持依次完成构建层栈和光学模型、计算吸收与光生率、求解结电流并组合多结器件、比较 I-V、效率和 EQE。最终形成吸收和光生率、I-V/EQE、效率分解和结构比较，并按以下规则验收：层栈、光谱和单位一致；电流连续；短路电流与 EQE 积分相互校验。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "process_technology_and_device_engineering",
+        "level2": "optoelectronic_power_and_emerging_devices",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从层结构和材料参数建立多结太阳能电池模型，计算光生载流子、I-V 和外量子效率并比较结构方案。",
+        "input": {
+          "required_business_inputs": [
+            "层厚和材料",
+            "光谱和光学常数",
+            "结和复合参数",
+            "温度与偏压"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "吸收和光生率",
+            "I-V/EQE",
+            "效率分解和结构比较"
+          ],
+          "acceptance": "层栈、光谱和单位一致；电流连续；短路电流与 EQE 积分相互校验。"
+        },
+        "solution_path": [
+          "构建层栈和光学模型",
+          "计算吸收与光生率",
+          "求解结电流并组合多结器件",
+          "比较 I-V、效率和 EQE"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-02.05-01",
+        "l1_id": "02",
+        "l2_id": "02.05",
+        "roles": [
+          "光伏器件研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DEV-SOLCORE",
+            "kind": "official_workflow",
+            "title": "Solcore documentation",
+            "url": "https://docs.solcore.solar/en/master/",
+            "support": "覆盖太阳能电池材料、光学、结、量子阱、IV 和量子效率建模。"
+          },
+          {
+            "id": "WF-DEV-SESAME",
+            "kind": "official_workflow",
+            "title": "Sesame documentation",
+            "url": "https://sesame.readthedocs.io/en/latest/",
+            "support": "提供二维半导体器件和太阳能电池的漂移扩散建模、缺陷与电流分析。"
+          }
+        ],
+        "verification": "层栈、光谱和单位一致；电流连续；短路电流与 EQE 积分相互校验。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "Solcore/Sesame 提供太阳能电池层栈、光学、漂移扩散和 I-V/EQE 的完整路径。"
+        }
+      },
+      "python_tool_candidates": [
+        "solcore:多结和光学",
+        "sesame:漂移扩散对照"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的层厚和材料、光谱和光学常数、结和复合参数、温度与偏压，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的吸收和光生率、I-V/EQE、效率分解和结构比较，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：层栈、光谱和单位一致；电流连续；短路电流与 EQE 积分相互校验。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_03_02_01_32",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://pyspice.fabrice-salvaire.fr/releases/v1.6/",
+        "name": "SC-03.02-01",
+        "index": 32
+      },
+      "description": "这是一个“模拟与混合信号设计”业务环境，服务于模拟 IC 设计工程师。现实目标是在器件模型和工艺角约束下修改偏置及器件尺寸，使放大器满足增益、带宽、相位裕度和功耗规格。环境围绕同一工作上下文中的晶体管级 SPICE 网表、模型库与工艺角、设计变量和性能规格组织数据，支持依次完成运行工作点并检查器件区域、运行 AC 和瞬态基线、修改尺寸与偏置并批量仿真、筛选同时满足全部规格的候选。最终形成网表修订、工作点和频率响应、规格检查与候选参数，并按以下规则验收：网表可解析且连通；器件工作区正确；增益、带宽、稳定性和功耗由仿真结果重算。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "circuit_and_system_design",
+        "level2": "analog_and_mixed_signal_design",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "在器件模型和工艺角约束下修改偏置及器件尺寸，使放大器满足增益、带宽、相位裕度和功耗规格。",
+        "input": {
+          "required_business_inputs": [
+            "晶体管级 SPICE 网表",
+            "模型库与工艺角",
+            "设计变量和性能规格"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "网表修订",
+            "工作点和频率响应",
+            "规格检查与候选参数"
+          ],
+          "acceptance": "网表可解析且连通；器件工作区正确；增益、带宽、稳定性和功耗由仿真结果重算。"
+        },
+        "solution_path": [
+          "运行工作点并检查器件区域",
+          "运行 AC 和瞬态基线",
+          "修改尺寸与偏置并批量仿真",
+          "筛选同时满足全部规格的候选"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-03.02-01",
+        "l1_id": "03",
+        "l2_id": "03.02",
+        "roles": [
+          "模拟 IC 设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-CIR-PYSPICE",
+            "kind": "official_documentation",
+            "title": "PySpice",
+            "url": "https://pyspice.fabrice-salvaire.fr/releases/v1.6/",
+            "support": "从 Python 构建 SPICE 电路并运行工作点、DC、AC、瞬态和灵敏度分析。"
+          },
+          {
+            "id": "WF-CIR-SPICELIB",
+            "kind": "official_documentation",
+            "title": "spicelib",
+            "url": "https://spicelib.readthedocs.io/en/latest/",
+            "support": "支持编辑 SPICE 网表、批量仿真、参数步进和读取仿真输出。"
+          },
+          {
+            "id": "WF-CIR-NGSPICE",
+            "kind": "official_documentation",
+            "title": "ngspice documentation",
+            "url": "https://ngspice.sourceforge.io/docs.html",
+            "support": "提供开放 SPICE 求解器的电路分析类型、模型和批处理接口依据。"
+          }
+        ],
+        "verification": "网表可解析且连通；器件工作区正确；增益、带宽、稳定性和功耗由仿真结果重算。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "开放网表和模型可直接支持工作点、AC、瞬态和多规格调参。"
+        }
+      },
+      "python_tool_candidates": [
+        "spicelib:网表修改和批量仿真",
+        "PySpice:电路与结果",
+        "ngspice:求解"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的晶体管级 SPICE 网表、模型库与工艺角、设计变量和性能规格，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的网表修订、工作点和频率响应、规格检查与候选参数，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：网表可解析且连通；器件工作区正确；增益、带宽、稳定性和功耗由仿真结果重算。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_03_02_02_33",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://spicelib.readthedocs.io/en/latest/",
+        "name": "SC-03.02-02",
+        "index": 33
+      },
+      "description": "这是一个“模拟与混合信号设计”业务环境，服务于模拟 IC 设计工程师、产品工程师。现实目标是在工艺、供电、温度和失配变化下批量仿真电路，定位限制规格良率的器件和条件。环境围绕同一工作上下文中的参数化网表、PVT 角和统计模型、规格与测量表达式组织数据，支持依次完成生成角落与随机样本矩阵、并行运行仿真、提取每次运行的规格指标、计算通过率并分析敏感变量。最终形成运行清单、规格分布和通过率、最差角与敏感度，并按以下规则验收：每个结果关联完整随机种子和模型角；失败运行不被当作通过；通过率可由逐样本指标重算。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "circuit_and_system_design",
+        "level2": "analog_and_mixed_signal_design",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "在工艺、供电、温度和失配变化下批量仿真电路，定位限制规格良率的器件和条件。",
+        "input": {
+          "required_business_inputs": [
+            "参数化网表",
+            "PVT 角和统计模型",
+            "规格与测量表达式"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "运行清单",
+            "规格分布和通过率",
+            "最差角与敏感度"
+          ],
+          "acceptance": "每个结果关联完整随机种子和模型角；失败运行不被当作通过；通过率可由逐样本指标重算。"
+        },
+        "solution_path": [
+          "生成角落与随机样本矩阵",
+          "并行运行仿真",
+          "提取每次运行的规格指标",
+          "计算通过率并分析敏感变量"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-03.02-02",
+        "l1_id": "03",
+        "l2_id": "03.02",
+        "roles": [
+          "模拟 IC 设计工程师",
+          "产品工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-CIR-SPICELIB",
+            "kind": "official_documentation",
+            "title": "spicelib",
+            "url": "https://spicelib.readthedocs.io/en/latest/",
+            "support": "支持编辑 SPICE 网表、批量仿真、参数步进和读取仿真输出。"
+          },
+          {
+            "id": "WF-CIR-NGSPICE",
+            "kind": "official_documentation",
+            "title": "ngspice documentation",
+            "url": "https://ngspice.sourceforge.io/docs.html",
+            "support": "提供开放 SPICE 求解器的电路分析类型、模型和批处理接口依据。"
+          },
+          {
+            "id": "WF-DEV-LMFIT",
+            "kind": "official_documentation",
+            "title": "lmfit",
+            "url": "https://lmfit.github.io/lmfit-py/",
+            "support": "提供带边界和约束的非线性最小二乘拟合、参数不确定度与残差诊断。"
+          }
+        ],
+        "verification": "每个结果关联完整随机种子和模型角；失败运行不被当作通过；通过率可由逐样本指标重算。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "PVT 与蒙特卡洛运行天然包含批量状态、失败处理和统计验收。"
+        }
+      },
+      "python_tool_candidates": [
+        "spicelib:仿真调度",
+        "numpy/scipy:采样和统计",
+        "ngspice:求解"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的参数化网表、PVT 角和统计模型、规格与测量表达式，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的运行清单、规格分布和通过率、最差角与敏感度，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：每个结果关联完整随机种子和模型角；失败运行不被当作通过；通过率可由逐样本指标重算。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_03_03_01_35",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://scikit-rf.readthedocs.io/en/latest/",
+        "name": "SC-03.03-01",
+        "index": 35
+      },
+      "description": "这是一个“射频与微波设计”业务环境，服务于射频测试工程师、射频设计工程师。现实目标是使用校准标准和夹具数据校正测量，将器件参考面去嵌到目标端口并保留不确定性和频率覆盖。环境围绕同一工作上下文中的Touchstone 测量、校准标准、夹具或 2x-thru 网络、端口和频率定义组织数据，支持依次完成检查端口、单位和频率网格、建立并应用校准、执行夹具去嵌、比较校准前后与质量指标。最终形成校准/去嵌后的网络、误差项和质量指标、处理审计，并按以下规则验收：标准和 DUT 端口定义一致；频率插值受控；校准验证件误差和被动性等检查通过。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "circuit_and_system_design",
+        "level2": "rf_and_microwave_design",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "使用校准标准和夹具数据校正测量，将器件参考面去嵌到目标端口并保留不确定性和频率覆盖。",
+        "input": {
+          "required_business_inputs": [
+            "Touchstone 测量",
+            "校准标准",
+            "夹具或 2x-thru 网络",
+            "端口和频率定义"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "校准/去嵌后的网络",
+            "误差项和质量指标",
+            "处理审计"
+          ],
+          "acceptance": "标准和 DUT 端口定义一致；频率插值受控；校准验证件误差和被动性等检查通过。"
+        },
+        "solution_path": [
+          "检查端口、单位和频率网格",
+          "建立并应用校准",
+          "执行夹具去嵌",
+          "比较校准前后与质量指标"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-03.03-01",
+        "l1_id": "03",
+        "l2_id": "03.03",
+        "roles": [
+          "射频测试工程师",
+          "射频设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-CIR-SKRF",
+            "kind": "official_workflow",
+            "title": "scikit-rf documentation",
+            "url": "https://scikit-rf.readthedocs.io/en/latest/",
+            "support": "覆盖 Touchstone 网络、端口、级联、校准、去嵌和射频指标分析。"
+          },
+          {
+            "id": "AUTH-NIST-METROLOGY",
+            "kind": "authority",
+            "title": "CHIPS Metrology Program",
+            "url": "https://www.nist.gov/chips/research-development-programs/metrology-program",
+            "support": "提供半导体材料、器件、制造和封装测量科学与标准化方向。"
+          }
+        ],
+        "verification": "标准和 DUT 端口定义一致；频率插值受控；校准验证件误差和被动性等检查通过。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "公开 Touchstone 与 scikit-rf 校准对象可支撑参考面、误差项和质量检查。"
+        }
+      },
+      "python_tool_candidates": [
+        "scikit-rf:校准、去嵌和网络运算"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的Touchstone 测量、校准标准、夹具或 2x-thru 网络、端口和频率定义，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的校准/去嵌后的网络、误差项和质量指标、处理审计，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：标准和 DUT 端口定义一致；频率插值受控；校准验证件误差和被动性等检查通过。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_03_03_02_36",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://scikit-rf.readthedocs.io/en/latest/",
+        "name": "SC-03.03-02",
+        "index": 36
+      },
+      "description": "这是一个“射频与微波设计”业务环境，服务于射频设计工程师。现实目标是把器件、传输线和匹配网络的 S 参数级联，比较候选拓扑的增益、回损、稳定性和带宽。环境围绕同一工作上下文中的多个 Touchstone 网络、端口连接关系、系统频段和指标组织数据，支持依次完成统一阻抗、端口和频率网格、按连接关系级联网络、计算增益、回损和稳定性、筛选满足频带指标的组合。最终形成级联系统网络、频带指标、候选组合与失败原因，并按以下规则验收：连接维度和端口映射正确；阻抗重整化可追溯；指标直接由输出网络重算。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "circuit_and_system_design",
+        "level2": "rf_and_microwave_design",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "把器件、传输线和匹配网络的 S 参数级联，比较候选拓扑的增益、回损、稳定性和带宽。",
+        "input": {
+          "required_business_inputs": [
+            "多个 Touchstone 网络",
+            "端口连接关系",
+            "系统频段和指标"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "级联系统网络",
+            "频带指标",
+            "候选组合与失败原因"
+          ],
+          "acceptance": "连接维度和端口映射正确；阻抗重整化可追溯；指标直接由输出网络重算。"
+        },
+        "solution_path": [
+          "统一阻抗、端口和频率网格",
+          "按连接关系级联网络",
+          "计算增益、回损和稳定性",
+          "筛选满足频带指标的组合"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-03.03-02",
+        "l1_id": "03",
+        "l2_id": "03.03",
+        "roles": [
+          "射频设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-CIR-SKRF",
+            "kind": "official_workflow",
+            "title": "scikit-rf documentation",
+            "url": "https://scikit-rf.readthedocs.io/en/latest/",
+            "support": "覆盖 Touchstone 网络、端口、级联、校准、去嵌和射频指标分析。"
+          }
+        ],
+        "verification": "连接维度和端口映射正确；阻抗重整化可追溯；指标直接由输出网络重算。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "moderate",
+          "reason": "多网络端口映射、阻抗统一和级联指标均可机械验证。"
+        }
+      },
+      "python_tool_candidates": [
+        "scikit-rf:级联、重整化和网络指标"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的多个 Touchstone 网络、端口连接关系、系统频段和指标，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的级联系统网络、频带指标、候选组合与失败原因，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：连接维度和端口映射正确；阻抗重整化可追溯；指标直接由输出网络重算。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_03_04_02_39",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://gdsfactory.github.io/gdsfactory/",
+        "name": "SC-03.04-02",
+        "index": 39
+      },
+      "description": "这是一个“光子电路设计”业务环境，服务于硅光版图工程师、光子电路设计工程师。现实目标是从参数化光子组件生成版图和网表，检查端口、路由、层和仿真模型是否一致。环境围绕同一工作上下文中的光子 PCell 参数、组件模型库、连接关系和工艺层组织数据，支持依次完成实例化组件和端口、按约束生成波导路由、提取网表并映射 S 矩阵模型、比较版图连通性和模型端口。最终形成光子 GDS、提取网表、端口和模型一致性报告，并按以下规则验收：所有逻辑连接都有物理路由；端口名称、方向和模型维度匹配；版图通过基础几何检查。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "circuit_and_system_design",
+        "level2": "photonic_circuit_design",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从参数化光子组件生成版图和网表，检查端口、路由、层和仿真模型是否一致。",
+        "input": {
+          "required_business_inputs": [
+            "光子 PCell 参数",
+            "组件模型库",
+            "连接关系和工艺层"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "光子 GDS",
+            "提取网表",
+            "端口和模型一致性报告"
+          ],
+          "acceptance": "所有逻辑连接都有物理路由；端口名称、方向和模型维度匹配；版图通过基础几何检查。"
+        },
+        "solution_path": [
+          "实例化组件和端口",
+          "按约束生成波导路由",
+          "提取网表并映射 S 矩阵模型",
+          "比较版图连通性和模型端口"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-03.04-02",
+        "l1_id": "03",
+        "l2_id": "03.04",
+        "roles": [
+          "硅光版图工程师",
+          "光子电路设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-LAY-GDSFACTORY",
+            "kind": "official_workflow",
+            "title": "GDSFactory",
+            "url": "https://gdsfactory.github.io/gdsfactory/",
+            "support": "提供 Python PCell、端口、放置、路由、网表和 GDS 生成流程。"
+          },
+          {
+            "id": "WF-CIR-SAX",
+            "kind": "real_project",
+            "title": "SAX",
+            "url": "https://github.com/flaport/sax",
+            "support": "使用 Python/JAX 的散射矩阵模型组合和优化光子电路。"
+          }
+        ],
+        "verification": "所有逻辑连接都有物理路由；端口名称、方向和模型维度匹配；版图通过基础几何检查。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "同一光子设计可连接 PCell、端口路由、提取网表和 S 矩阵模型。"
+        }
+      },
+      "python_tool_candidates": [
+        "gdsfactory:光子 PCell 和路由",
+        "SAX:电路模型"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的光子 PCell 参数、组件模型库、连接关系和工艺层，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的光子 GDS、提取网表、端口和模型一致性报告，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：所有逻辑连接都有物理路由；端口名称、方向和模型维度匹配；版图通过基础几何检查。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_03_05_01_40",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://fusesoc.readthedocs.io/en/stable/",
+        "name": "SC-03.05-01",
+        "index": 40
+      },
+      "description": "这是一个“IP 复用与设计配置”业务环境，服务于SoC 集成工程师、EDA 流程工程师。现实目标是从 core 描述解析 IP 依赖、fileset、参数和 target，为仿真、lint 与综合生成可复现构建。环境围绕同一工作上下文中的CAPI2 core 文件、IP 仓库、target、参数和工具选择组织数据，支持依次完成解析 core 和依赖、选择 fileset 和参数、生成工具后端任务、执行并保存锁定后的依赖图。最终形成依赖图、工具命令和构建目录、逐 target 状态，并按以下规则验收：依赖无环且版本明确；源文件顺序完整；相同锁定配置可重建相同后端输入。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "circuit_and_system_design",
+        "level2": "ip_reuse_and_design_configuration",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从 core 描述解析 IP 依赖、fileset、参数和 target，为仿真、lint 与综合生成可复现构建。",
+        "input": {
+          "required_business_inputs": [
+            "CAPI2 core 文件",
+            "IP 仓库",
+            "target、参数和工具选择"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "依赖图",
+            "工具命令和构建目录",
+            "逐 target 状态"
+          ],
+          "acceptance": "依赖无环且版本明确；源文件顺序完整；相同锁定配置可重建相同后端输入。"
+        },
+        "solution_path": [
+          "解析 core 和依赖",
+          "选择 fileset 和参数",
+          "生成工具后端任务",
+          "执行并保存锁定后的依赖图"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-03.05-01",
+        "l1_id": "03",
+        "l2_id": "03.05",
+        "roles": [
+          "SoC 集成工程师",
+          "EDA 流程工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-CIR-FUSESOC",
+            "kind": "official_workflow",
+            "title": "FuseSoC documentation",
+            "url": "https://fusesoc.readthedocs.io/en/stable/",
+            "support": "说明硬件 IP core 描述、依赖解析、参数和构建 target 管理。"
+          },
+          {
+            "id": "WF-CIR-EDALIZE",
+            "kind": "official_workflow",
+            "title": "Edalize documentation",
+            "url": "https://edalize.readthedocs.io/en/latest/",
+            "support": "将统一的文件、参数和工具选项映射到不同 EDA 后端。"
+          }
+        ],
+        "verification": "依赖无环且版本明确；源文件顺序完整；相同锁定配置可重建相同后端输入。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "真实开源 IP 可形成依赖解析、参数化和多 EDA target 构建任务。"
+        }
+      },
+      "python_tool_candidates": [
+        "FuseSoC:core 和依赖",
+        "Edalize:EDA 后端"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的CAPI2 core 文件、IP 仓库、target、参数和工具选择，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的依赖图、工具命令和构建目录、逐 target 状态，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：依赖无环且版本明确；源文件顺序完整；相同锁定配置可重建相同后端输入。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_04_01_01_42",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/PyHDI/Pyverilog",
+        "name": "SC-04.01-01",
+        "index": 42
+      },
+      "description": "这是一个“RTL 设计与静态分析”业务环境，服务于RTL 设计工程师、设计审核工程师。现实目标是解析 Verilog 模块和数据流，识别端口不一致、位宽截断、未驱动信号、组合环和锁存器风险。环境围绕同一工作上下文中的Verilog RTL、顶层和参数、lint 规则或预期接口组织数据，支持依次完成解析 AST 和模块层级、建立信号定义使用和数据流、执行结构规则、把问题定位到模块、信号和源码位置。最终形成模块接口清单、数据流关系、带定位的静态问题，并按以下规则验收：解析覆盖全部源文件和宏参数；每个问题可由 AST 事实重现；修复后重新分析不产生同类问题。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "digital_implementation_and_verification",
+        "level2": "rtl_design_and_static_analysis",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "解析 Verilog 模块和数据流，识别端口不一致、位宽截断、未驱动信号、组合环和锁存器风险。",
+        "input": {
+          "required_business_inputs": [
+            "Verilog RTL",
+            "顶层和参数",
+            "lint 规则或预期接口"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "模块接口清单",
+            "数据流关系",
+            "带定位的静态问题"
+          ],
+          "acceptance": "解析覆盖全部源文件和宏参数；每个问题可由 AST 事实重现；修复后重新分析不产生同类问题。"
+        },
+        "solution_path": [
+          "解析 AST 和模块层级",
+          "建立信号定义使用和数据流",
+          "执行结构规则",
+          "把问题定位到模块、信号和源码位置"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-04.01-01",
+        "l1_id": "04",
+        "l2_id": "04.01",
+        "roles": [
+          "RTL 设计工程师",
+          "设计审核工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DIG-PYVERILOG",
+            "kind": "real_project",
+            "title": "Pyverilog",
+            "url": "https://github.com/PyHDI/Pyverilog",
+            "support": "提供 Verilog AST、数据流、控制流分析和代码生成。"
+          },
+          {
+            "id": "AUTH-ACCELLERA-WG",
+            "kind": "authority",
+            "title": "Accellera Working Groups",
+            "url": "https://www.accellera.org/activities/working-groups",
+            "support": "覆盖 UVM、SystemC、IP-XACT、Portable Stimulus、CDC、功能安全等设计与验证标准工作域。"
+          }
+        ],
+        "verification": "解析覆盖全部源文件和宏参数；每个问题可由 AST 事实重现；修复后重新分析不产生同类问题。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "moderate",
+          "reason": "RTL/AST 数据充足，接口、数据流和静态问题有源码级定位。"
+        }
+      },
+      "python_tool_candidates": [
+        "Pyverilog:AST 和数据流",
+        "networkx:依赖和环检测"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的Verilog RTL、顶层和参数、lint 规则或预期接口，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的模块接口清单、数据流关系、带定位的静态问题，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：解析覆盖全部源文件和宏参数；每个问题可由 AST 事实重现；修复后重新分析不产生同类问题。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_04_02_01_44",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://docs.cocotb.org/en/stable/",
+        "name": "SC-04.02-01",
+        "index": 44
+      },
+      "description": "这是一个“功能仿真与验证”业务环境，服务于数字验证工程师、RTL 设计工程师。现实目标是从失败测试、随机种子、日志和 VCD 中重现错误，定位首个行为偏离及其上游信号。环境围绕同一工作上下文中的DUT 和 cocotb 测试、失败随机种子、仿真日志与 VCD、预期行为组织数据，支持依次完成按原配置重放失败、对齐关键事务和信号时间线、找到首个预期/实际差异、最小化刺激并验证修复。最终形成最小失败用例、首个偏离和信号因果链、修复后回归结果，并按以下规则验收：原失败可确定重放；最小用例仍触发同一问题；修复通过目标测试且不破坏相关回归。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "digital_implementation_and_verification",
+        "level2": "functional_verification",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从失败测试、随机种子、日志和 VCD 中重现错误，定位首个行为偏离及其上游信号。",
+        "input": {
+          "required_business_inputs": [
+            "DUT 和 cocotb 测试",
+            "失败随机种子",
+            "仿真日志与 VCD",
+            "预期行为"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "最小失败用例",
+            "首个偏离和信号因果链",
+            "修复后回归结果"
+          ],
+          "acceptance": "原失败可确定重放；最小用例仍触发同一问题；修复通过目标测试且不破坏相关回归。"
+        },
+        "solution_path": [
+          "按原配置重放失败",
+          "对齐关键事务和信号时间线",
+          "找到首个预期/实际差异",
+          "最小化刺激并验证修复"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-04.02-01",
+        "l1_id": "04",
+        "l2_id": "04.02",
+        "roles": [
+          "数字验证工程师",
+          "RTL 设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DIG-COCOTB",
+            "kind": "official_workflow",
+            "title": "cocotb documentation",
+            "url": "https://docs.cocotb.org/en/stable/",
+            "support": "提供以 Python coroutine 驱动 HDL 仿真器、访问 DUT、运行测试和回归的流程。"
+          },
+          {
+            "id": "WF-DIG-VCDVCD",
+            "kind": "real_project",
+            "title": "vcdvcd",
+            "url": "https://github.com/cirosantilli/vcdvcd",
+            "support": "解析 VCD 信号层级、时间和值变化，适合失败波形定位和比较。"
+          }
+        ],
+        "verification": "原失败可确定重放；最小用例仍触发同一问题；修复通过目标测试且不破坏相关回归。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "失败测试、随机种子、日志、VCD 和修复回归组成高质量调试环境。"
+        }
+      },
+      "python_tool_candidates": [
+        "cocotb:仿真和测试",
+        "vcdvcd:波形查询",
+        "pytest:回归"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的DUT 和 cocotb 测试、失败随机种子、仿真日志与 VCD、预期行为，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的最小失败用例、首个偏离和信号因果链、修复后回归结果，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：原失败可确定重放；最小用例仍触发同一问题；修复通过目标测试且不破坏相关回归。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_04_02_02_45",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://pyuvm.github.io/pyuvm/",
+        "name": "SC-04.02-02",
+        "index": 45
+      },
+      "description": "这是一个“功能仿真与验证”业务环境，服务于验证平台工程师。现实目标是为事务型 DUT 建立可复用 sequence、driver、monitor、reference model 和 scoreboard，并覆盖正常及错误行为。环境围绕同一工作上下文中的DUT 接口、事务定义、协议和功能规格、已有测试向量组织数据，支持依次完成定义事务和 sequence、实现驱动与被动监视、连接参考模型和 scoreboard、运行分层测试并采集覆盖。最终形成pyuvm 验证组件、事务日志、比较失败和覆盖结果，并按以下规则验收：monitor 不依赖 driver 内部状态；scoreboard 对每项观测都有期望；故意注入错误能够被检测。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "digital_implementation_and_verification",
+        "level2": "functional_verification",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "为事务型 DUT 建立可复用 sequence、driver、monitor、reference model 和 scoreboard，并覆盖正常及错误行为。",
+        "input": {
+          "required_business_inputs": [
+            "DUT 接口",
+            "事务定义",
+            "协议和功能规格",
+            "已有测试向量"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "pyuvm 验证组件",
+            "事务日志",
+            "比较失败和覆盖结果"
+          ],
+          "acceptance": "monitor 不依赖 driver 内部状态；scoreboard 对每项观测都有期望；故意注入错误能够被检测。"
+        },
+        "solution_path": [
+          "定义事务和 sequence",
+          "实现驱动与被动监视",
+          "连接参考模型和 scoreboard",
+          "运行分层测试并采集覆盖"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-04.02-02",
+        "l1_id": "04",
+        "l2_id": "04.02",
+        "roles": [
+          "验证平台工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DIG-PYUVM",
+            "kind": "official_workflow",
+            "title": "pyuvm",
+            "url": "https://pyuvm.github.io/pyuvm/",
+            "support": "在 Python 中实现 UVM 的 sequence、driver、monitor、scoreboard 和 phase。"
+          },
+          {
+            "id": "WF-DIG-COCOTB",
+            "kind": "official_workflow",
+            "title": "cocotb documentation",
+            "url": "https://docs.cocotb.org/en/stable/",
+            "support": "提供以 Python coroutine 驱动 HDL 仿真器、访问 DUT、运行测试和回归的流程。"
+          },
+          {
+            "id": "AUTH-ACCELLERA-WG",
+            "kind": "authority",
+            "title": "Accellera Working Groups",
+            "url": "https://www.accellera.org/activities/working-groups",
+            "support": "覆盖 UVM、SystemC、IP-XACT、Portable Stimulus、CDC、功能安全等设计与验证标准工作域。"
+          }
+        ],
+        "verification": "monitor 不依赖 driver 内部状态；scoreboard 对每项观测都有期望；故意注入错误能够被检测。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "driver/monitor/reference/scoreboard 的职责关系适合多工具调用和注错验证。"
+        }
+      },
+      "python_tool_candidates": [
+        "pyuvm:验证架构",
+        "cocotb:仿真访问"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的DUT 接口、事务定义、协议和功能规格、已有测试向量，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的pyuvm 验证组件、事务日志、比较失败和覆盖结果，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：monitor 不依赖 driver 内部状态；scoreboard 对每项观测都有期望；故意注入错误能够被检测。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_04_03_01_47",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/alexforencich/cocotbext-axi",
+        "name": "SC-04.03-01",
+        "index": 47
+      },
+      "description": "这是一个“协议与接口验证”业务环境，服务于SoC 验证工程师。现实目标是验证 AXI/AXI Stream 接口在多种 burst、地址边界、背压和错误响应下的数据与握手正确性。环境围绕同一工作上下文中的AXI DUT、地址映射、事务约束、时钟和复位设置组织数据，支持依次完成配置 AXI master/slave/RAM 模型、生成读写和 stream 事务、注入暂停、背压和错误、用 monitor/scoreboard 比较顺序、数据和响应。最终形成事务级测试、总线 trace、协议失败和覆盖结果，并按以下规则验收：每个请求有匹配响应；burst 不越过禁止边界；背压期间握手与数据稳定规则满足；错误响应被预期捕获。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "digital_implementation_and_verification",
+        "level2": "protocol_and_interface_verification",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "验证 AXI/AXI Stream 接口在多种 burst、地址边界、背压和错误响应下的数据与握手正确性。",
+        "input": {
+          "required_business_inputs": [
+            "AXI DUT",
+            "地址映射",
+            "事务约束",
+            "时钟和复位设置"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "事务级测试",
+            "总线 trace",
+            "协议失败和覆盖结果"
+          ],
+          "acceptance": "每个请求有匹配响应；burst 不越过禁止边界；背压期间握手与数据稳定规则满足；错误响应被预期捕获。"
+        },
+        "solution_path": [
+          "配置 AXI master/slave/RAM 模型",
+          "生成读写和 stream 事务",
+          "注入暂停、背压和错误",
+          "用 monitor/scoreboard 比较顺序、数据和响应"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-04.03-01",
+        "l1_id": "04",
+        "l2_id": "04.03",
+        "roles": [
+          "SoC 验证工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DIG-COCOTB-AXI",
+            "kind": "real_project",
+            "title": "cocotbext-axi",
+            "url": "https://github.com/alexforencich/cocotbext-axi",
+            "support": "提供 AXI、AXI Stream 和 RAM 的 cocotb driver、monitor、transaction 与测试实例。"
+          },
+          {
+            "id": "WF-DIG-COCOTB",
+            "kind": "official_workflow",
+            "title": "cocotb documentation",
+            "url": "https://docs.cocotb.org/en/stable/",
+            "support": "提供以 Python coroutine 驱动 HDL 仿真器、访问 DUT、运行测试和回归的流程。"
+          }
+        ],
+        "verification": "每个请求有匹配响应；burst 不越过禁止边界；背压期间握手与数据稳定规则满足；错误响应被预期捕获。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "cocotbext-axi 提供真实事务模型和丰富协议边界条件。"
+        }
+      },
+      "python_tool_candidates": [
+        "cocotbext-axi:AXI 模型",
+        "cocotb:测试运行"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的AXI DUT、地址映射、事务约束、时钟和复位设置，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的事务级测试、总线 trace、协议失败和覆盖结果，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：每个请求有匹配响应；burst 不越过禁止边界；背压期间握手与数据稳定规则满足；错误响应被预期捕获。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_04_04_01_49",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://yosyshq.readthedocs.io/projects/sby/en/latest/",
+        "name": "SC-04.04-01",
+        "index": 49
+      },
+      "description": "这是一个“形式验证、等价检查与 CDC/RDC”业务环境，服务于形式验证工程师、RTL 设计工程师。现实目标是对仲裁器、FIFO 或控制器的互斥、边界和顺序属性运行有界/归纳证明，并分析失败反例。环境围绕同一工作上下文中的RTL 和形式 harness、assume/assert/cover 属性、时钟复位约束、SBY 配置组织数据，支持依次完成检查环境假设和不可达约束、运行证明与 cover 任务、解析失败 trace、修正设计或属性并重新证明。最终形成证明状态、反例波形、属性或 RTL 修订，并按以下规则验收：证明命令和引擎可重放；假设不把目标行为排除；修复后属性通过且 cover 仍可达。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "digital_implementation_and_verification",
+        "level2": "formal_equivalence_and_cdc",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "对仲裁器、FIFO 或控制器的互斥、边界和顺序属性运行有界/归纳证明，并分析失败反例。",
+        "input": {
+          "required_business_inputs": [
+            "RTL 和形式 harness",
+            "assume/assert/cover 属性",
+            "时钟复位约束",
+            "SBY 配置"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "证明状态",
+            "反例波形",
+            "属性或 RTL 修订"
+          ],
+          "acceptance": "证明命令和引擎可重放；假设不把目标行为排除；修复后属性通过且 cover 仍可达。"
+        },
+        "solution_path": [
+          "检查环境假设和不可达约束",
+          "运行证明与 cover 任务",
+          "解析失败 trace",
+          "修正设计或属性并重新证明"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-04.04-01",
+        "l1_id": "04",
+        "l2_id": "04.04",
+        "roles": [
+          "形式验证工程师",
+          "RTL 设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DIG-SBY",
+            "kind": "official_workflow",
+            "title": "SymbiYosys documentation",
+            "url": "https://yosyshq.readthedocs.io/projects/sby/en/latest/",
+            "support": "描述形式任务配置、证明/覆盖模式、引擎执行和反例产物。"
+          },
+          {
+            "id": "AUTH-ACCELLERA-WG",
+            "kind": "authority",
+            "title": "Accellera Working Groups",
+            "url": "https://www.accellera.org/activities/working-groups",
+            "support": "覆盖 UVM、SystemC、IP-XACT、Portable Stimulus、CDC、功能安全等设计与验证标准工作域。"
+          }
+        ],
+        "verification": "证明命令和引擎可重放；假设不把目标行为排除；修复后属性通过且 cover 仍可达。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "形式证明和反例是强验证环境，并支持属性、约束和 RTL 的迭代修复。"
+        }
+      },
+      "python_tool_candidates": [
+        "sby/yosys:形式后端",
+        "Python:任务配置和反例解析",
+        "vcdvcd:trace 分析"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的RTL 和形式 harness、assume/assert/cover 属性、时钟复位约束、SBY 配置，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的证明状态、反例波形、属性或 RTL 修订，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：证明命令和引擎可重放；假设不把目标行为排除；修复后属性通过且 cover 仍可达。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_04_06_03_55",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://librelane.readthedocs.io/en/latest/",
+        "name": "SC-04.06-03",
+        "index": 55
+      },
+      "description": "这是一个“物理设计与布局布线”业务环境，服务于EDA 流程工程师、物理设计工程师。现实目标是根据开放 RTL-to-GDS 流程的配置、阶段日志、指标和产物定位失败，只重跑受影响阶段及下游。环境围绕同一工作上下文中的LibreLane/SiliconCompiler 运行目录、流程配置、日志、指标和阶段依赖组织数据，支持依次完成识别首个失败或质量退化阶段、检查阶段输入、工具错误和配置差异、形成最小修复、从最近有效检查点重跑并比较指标。最终形成根因和证据、配置或设计修订、增量重跑结果，并按以下规则验收：上游成功产物保持哈希不变；失败在修复前可重现；重跑产物通过阶段门且 QoR 未意外退化。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "digital_implementation_and_verification",
+        "level2": "physical_design_and_pnr",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "根据开放 RTL-to-GDS 流程的配置、阶段日志、指标和产物定位失败，只重跑受影响阶段及下游。",
+        "input": {
+          "required_business_inputs": [
+            "LibreLane/SiliconCompiler 运行目录",
+            "流程配置",
+            "日志、指标和阶段依赖"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "根因和证据",
+            "配置或设计修订",
+            "增量重跑结果"
+          ],
+          "acceptance": "上游成功产物保持哈希不变；失败在修复前可重现；重跑产物通过阶段门且 QoR 未意外退化。"
+        },
+        "solution_path": [
+          "识别首个失败或质量退化阶段",
+          "检查阶段输入、工具错误和配置差异",
+          "形成最小修复",
+          "从最近有效检查点重跑并比较指标"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-04.06-03",
+        "l1_id": "04",
+        "l2_id": "04.06",
+        "roles": [
+          "EDA 流程工程师",
+          "物理设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-DIG-LIBRELANE",
+            "kind": "official_workflow",
+            "title": "LibreLane documentation",
+            "url": "https://librelane.readthedocs.io/en/latest/",
+            "support": "定义开放 RTL-to-GDS 流程的步骤、配置、阶段产物和错误诊断。"
+          },
+          {
+            "id": "WF-DIG-SILICONCOMPILER",
+            "kind": "official_workflow",
+            "title": "SiliconCompiler documentation",
+            "url": "https://docs.siliconcompiler.com/en/stable/",
+            "support": "提供 Python 驱动的硬件构建图、工具任务、输入输出和指标收集。"
+          },
+          {
+            "id": "WF-DIG-OPENROAD",
+            "kind": "official_workflow",
+            "title": "OpenROAD documentation",
+            "url": "https://openroad.readthedocs.io/en/latest/",
+            "support": "覆盖 floorplan、placement、CTS、routing、时序和物理设计数据库操作。"
+          }
+        ],
+        "verification": "上游成功产物保持哈希不变；失败在修复前可重现；重跑产物通过阶段门且 QoR 未意外退化。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "开放 RTL-to-GDS 流程保留阶段图、日志、指标和检查点，适合复杂恢复任务。"
+        }
+      },
+      "python_tool_candidates": [
+        "LibreLane/SiliconCompiler:流程",
+        "Python:日志和指标分析"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的LibreLane/SiliconCompiler 运行目录、流程配置、日志、指标和阶段依赖，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的根因和证据、配置或设计修订、增量重跑结果，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：上游成功产物保持哈希不变；失败在修复前可重现；重跑产物通过阶段门且 QoR 未意外退化。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_05_02_01_58",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://www.klayout.de/doc-qt5/manual/drc_basic.html",
+        "name": "SC-05.02-01",
+        "index": 58
+      },
+      "description": "这是一个“版图完整性与 DRC”业务环境，服务于版图工程师、物理验证工程师。现实目标是使用匹配的开放 PDK 规则检查 GDS，定位宽度、间距、包围等违规并修改局部几何后回归。环境围绕同一工作上下文中的IHP/SKY130 GDS、layer map 和 DRC deck、规则配置组织数据，支持依次完成核对 PDK 版本和单位、运行规则 deck 并解析 marker、映射到 cell/layer/shape、修改候选并用同一 deck 回归。最终形成DRC 运行和 marker、修复版图、违规前后差异，并按以下规则验收：规则版本不变；目标违规减少；没有新增高严重度违规；非目标几何和层级保持一致。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "layout_mask_and_signoff",
+        "level2": "layout_integrity_and_drc",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "使用匹配的开放 PDK 规则检查 GDS，定位宽度、间距、包围等违规并修改局部几何后回归。",
+        "input": {
+          "required_business_inputs": [
+            "IHP/SKY130 GDS",
+            "layer map 和 DRC deck",
+            "规则配置"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "DRC 运行和 marker",
+            "修复版图",
+            "违规前后差异"
+          ],
+          "acceptance": "规则版本不变；目标违规减少；没有新增高严重度违规；非目标几何和层级保持一致。"
+        },
+        "solution_path": [
+          "核对 PDK 版本和单位",
+          "运行规则 deck 并解析 marker",
+          "映射到 cell/layer/shape",
+          "修改候选并用同一 deck 回归"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-05.02-01",
+        "l1_id": "05",
+        "l2_id": "05.02",
+        "roles": [
+          "版图工程师",
+          "物理验证工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-LAY-KLAYOUT-DRC",
+            "kind": "official_workflow",
+            "title": "KLayout DRC",
+            "url": "https://www.klayout.de/doc-qt5/manual/drc_basic.html",
+            "support": "说明图层选择、Region 运算、宽度/间距等规则和 marker 数据库输出。"
+          },
+          {
+            "id": "WF-LAY-IHP-PDK",
+            "kind": "real_project",
+            "title": "IHP Open Source PDK",
+            "url": "https://github.com/IHP-GmbH/IHP-Open-PDK",
+            "support": "真实 130 nm BiCMOS PDK，包含工艺层、器件、模型、KLayout DRC/LVS 和 QA 版图。"
+          },
+          {
+            "id": "WF-LAY-GDSTK",
+            "kind": "official_documentation",
+            "title": "gdstk",
+            "url": "https://heitzmann.github.io/gdstk/",
+            "support": "提供 GDS/OASIS 单元、引用、多边形、路径、布尔和写回操作。"
+          }
+        ],
+        "verification": "规则版本不变；目标违规减少；没有新增高严重度违规；非目标几何和层级保持一致。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "开放 PDK、真实 GDS、官方 DRC deck 和 marker 能构成检查、修复、回归闭环。"
+        }
+      },
+      "python_tool_candidates": [
+        "KLayout Python API:DRC 和 marker",
+        "gdstk:局部几何修改"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的IHP/SKY130 GDS、layer map 和 DRC deck、规则配置，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的DRC 运行和 marker、修复版图、违规前后差异，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：规则版本不变；目标违规减少；没有新增高严重度违规；非目标几何和层级保持一致。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_05_03_01_60",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://www.klayout.de/doc-qt5/manual/lvs.html",
+        "name": "SC-05.03-01",
+        "index": 60
+      },
+      "description": "这是一个“LVS、电路提取与寄生参数”业务环境，服务于物理验证工程师、模拟版图工程师。现实目标是使用 PDK 提取规则从版图获得器件和网络，与原理图网表比较并定位短路、开路和器件参数不匹配。环境围绕同一工作上下文中的GDS/OASIS、原理图 SPICE 网表、PDK layer map 和 LVS deck组织数据，支持依次完成提取导体、连接和器件、规范化器件与网络名称、运行网表比较、把 mismatch 映射回版图和原理图。最终形成提取网表、LVS 状态、可定位 mismatch，并按以下规则验收：提取使用匹配 PDK；比较层级与 black-box 规则明确；修复后网表同构且器件参数在容差内。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "layout_mask_and_signoff",
+        "level2": "lvs_extraction_and_parasitics",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "使用 PDK 提取规则从版图获得器件和网络，与原理图网表比较并定位短路、开路和器件参数不匹配。",
+        "input": {
+          "required_business_inputs": [
+            "GDS/OASIS",
+            "原理图 SPICE 网表",
+            "PDK layer map 和 LVS deck"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "提取网表",
+            "LVS 状态",
+            "可定位 mismatch"
+          ],
+          "acceptance": "提取使用匹配 PDK；比较层级与 black-box 规则明确；修复后网表同构且器件参数在容差内。"
+        },
+        "solution_path": [
+          "提取导体、连接和器件",
+          "规范化器件与网络名称",
+          "运行网表比较",
+          "把 mismatch 映射回版图和原理图"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-05.03-01",
+        "l1_id": "05",
+        "l2_id": "05.03",
+        "roles": [
+          "物理验证工程师",
+          "模拟版图工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-LAY-KLAYOUT-LVS",
+            "kind": "official_workflow",
+            "title": "KLayout LVS",
+            "url": "https://www.klayout.de/doc-qt5/manual/lvs.html",
+            "support": "说明版图器件/网络提取、网表比较和 mismatch 报告流程。"
+          },
+          {
+            "id": "WF-LAY-IHP-PDK",
+            "kind": "real_project",
+            "title": "IHP Open Source PDK",
+            "url": "https://github.com/IHP-GmbH/IHP-Open-PDK",
+            "support": "真实 130 nm BiCMOS PDK，包含工艺层、器件、模型、KLayout DRC/LVS 和 QA 版图。"
+          }
+        ],
+        "verification": "提取使用匹配 PDK；比较层级与 black-box 规则明确；修复后网表同构且器件参数在容差内。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "IHP PDK 同时提供版图、网表和 LVS 规则，可验证开短路及器件匹配。"
+        }
+      },
+      "python_tool_candidates": [
+        "KLayout Python API:LVS 和网表",
+        "networkx:网络差异辅助"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的GDS/OASIS、原理图 SPICE 网表、PDK layer map 和 LVS deck，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的提取网表、LVS 状态、可定位 mismatch，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：提取使用匹配 PDK；比较层级与 black-box 规则明确；修复后网表同构且器件参数在容差内。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_05_04_01_62",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/efabless/volare",
+        "name": "SC-05.04-01",
+        "index": 62
+      },
+      "description": "这是一个“PDK 与技术配置管理”业务环境，服务于设计使能工程师、EDA 流程工程师。现实目标是下载和锁定指定开放 PDK 版本，检查工艺层、模型、标准单元、规则 deck 与工具配置来自同一发布。环境围绕同一工作上下文中的PDK 标识和版本、设计流程配置、本地缓存和工具版本组织数据，支持依次完成解析 PDK 发布和依赖、下载并校验内容、启用指定版本、审计流程中的路径和版本混用。最终形成锁定 PDK、文件和版本 manifest、兼容性问题，并按以下规则验收：内容哈希与发布一致；工具路径只指向选定版本；DRC/LVS/模型和标准单元版本可追溯。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "layout_mask_and_signoff",
+        "level2": "pdk_and_technology_management",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "下载和锁定指定开放 PDK 版本，检查工艺层、模型、标准单元、规则 deck 与工具配置来自同一发布。",
+        "input": {
+          "required_business_inputs": [
+            "PDK 标识和版本",
+            "设计流程配置",
+            "本地缓存和工具版本"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "锁定 PDK",
+            "文件和版本 manifest",
+            "兼容性问题"
+          ],
+          "acceptance": "内容哈希与发布一致；工具路径只指向选定版本；DRC/LVS/模型和标准单元版本可追溯。"
+        },
+        "solution_path": [
+          "解析 PDK 发布和依赖",
+          "下载并校验内容",
+          "启用指定版本",
+          "审计流程中的路径和版本混用"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-05.04-01",
+        "l1_id": "05",
+        "l2_id": "05.04",
+        "roles": [
+          "设计使能工程师",
+          "EDA 流程工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-LAY-VOLARE",
+            "kind": "real_project",
+            "title": "Volare",
+            "url": "https://github.com/efabless/volare",
+            "support": "提供开放 PDK 版本下载、启用、缓存和版本锁定管理。"
+          },
+          {
+            "id": "WF-LAY-SKY130",
+            "kind": "real_project",
+            "title": "SkyWater SKY130 PDK",
+            "url": "https://skywater-pdk.readthedocs.io/en/main/",
+            "support": "公开工艺设计规则、器件库、模型和版图数据。"
+          },
+          {
+            "id": "WF-LAY-IHP-PDK",
+            "kind": "real_project",
+            "title": "IHP Open Source PDK",
+            "url": "https://github.com/IHP-GmbH/IHP-Open-PDK",
+            "support": "真实 130 nm BiCMOS PDK，包含工艺层、器件、模型、KLayout DRC/LVS 和 QA 版图。"
+          }
+        ],
+        "verification": "内容哈希与发布一致；工具路径只指向选定版本；DRC/LVS/模型和标准单元版本可追溯。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "moderate",
+          "reason": "开放 PDK 版本和文件可公开下载，哈希、路径和规则版本均可检查。"
+        }
+      },
+      "python_tool_candidates": [
+        "volare:PDK 版本管理",
+        "Python:manifest 和路径审计"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的PDK 标识和版本、设计流程配置、本地缓存和工具版本，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的锁定 PDK、文件和版本 manifest、兼容性问题，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：内容哈希与发布一致；工具路径只指向选定版本；DRC/LVS/模型和标准单元版本可追溯。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_05_05_01_64",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/efabless/caravel",
+        "name": "SC-05.05-01",
+        "index": 64
+      },
+      "description": "这是一个“掩模数据准备与流片交付”业务环境，服务于流片接口工程师、芯片设计工程师。现实目标是根据开放 MPW 模板检查用户项目的顶层、边界、必需层、接口、元数据和版图一致性，并修复可控问题。环境围绕同一工作上下文中的Caravel 用户项目、GDS/LEF/Verilog、项目 metadata、precheck 规则组织数据，支持依次完成验证目录和必需文件、检查顶层尺寸、边界和接口、运行结构与版图预检查、修复后重跑并生成交付清单。最终形成预检查报告、修复后的项目文件、可提交交付包，并按以下规则验收：官方 precheck 在锁定版本下通过；GDS/LEF/Verilog 顶层和端口一致；修改有完整差异记录。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "layout_mask_and_signoff",
+        "level2": "mask_data_and_tapeout",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "根据开放 MPW 模板检查用户项目的顶层、边界、必需层、接口、元数据和版图一致性，并修复可控问题。",
+        "input": {
+          "required_business_inputs": [
+            "Caravel 用户项目",
+            "GDS/LEF/Verilog",
+            "项目 metadata",
+            "precheck 规则"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "预检查报告",
+            "修复后的项目文件",
+            "可提交交付包"
+          ],
+          "acceptance": "官方 precheck 在锁定版本下通过；GDS/LEF/Verilog 顶层和端口一致；修改有完整差异记录。"
+        },
+        "solution_path": [
+          "验证目录和必需文件",
+          "检查顶层尺寸、边界和接口",
+          "运行结构与版图预检查",
+          "修复后重跑并生成交付清单"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-05.05-01",
+        "l1_id": "05",
+        "l2_id": "05.05",
+        "roles": [
+          "流片接口工程师",
+          "芯片设计工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-LAY-CARAVEL",
+            "kind": "real_project",
+            "title": "Caravel user project template",
+            "url": "https://github.com/efabless/caravel",
+            "support": "提供开放 MPW SoC 外壳、用户区接口、版图和流片交付结构。"
+          },
+          {
+            "id": "WF-LAY-MPW-PRECHECK",
+            "kind": "real_project",
+            "title": "MPW precheck",
+            "url": "https://github.com/efabless/mpw_precheck",
+            "support": "公开 MPW 提交前的结构、边界、层和一致性检查流程。"
+          },
+          {
+            "id": "WF-LAY-SKY130",
+            "kind": "real_project",
+            "title": "SkyWater SKY130 PDK",
+            "url": "https://skywater-pdk.readthedocs.io/en/main/",
+            "support": "公开工艺设计规则、器件库、模型和版图数据。"
+          }
+        ],
+        "verification": "官方 precheck 在锁定版本下通过；GDS/LEF/Verilog 顶层和端口一致；修改有完整差异记录。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "Caravel 与 MPW precheck 提供真实提交结构和自动验收器。"
+        }
+      },
+      "python_tool_candidates": [
+        "mpw_precheck:检查器",
+        "KLayout:版图验证",
+        "Python:manifest 和一致性"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的Caravel 用户项目、GDS/LEF/Verilog、项目 metadata、precheck 规则，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的预检查报告、修复后的项目文件、可提交交付包，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：官方 precheck 在锁定版本下通过；GDS/LEF/Verilog 顶层和端口一致；修改有完整差异记录。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_06_02_01_68",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://irds.ieee.org/irds-factory-integration/",
+        "name": "SC-06.02-01",
+        "index": 68
+      },
+      "description": "这是一个“WIP、派工与产能”业务环境，服务于生产控制工程师、工业工程师。现实目标是在设备组、资格、批处理、优先级和维护约束下模拟 lot 流动，比较派工规则对周期时间和在制品的影响。环境围绕同一工作上下文中的route 和加工时间、设备组及资格、lot 到达和优先级、批处理与维护约束组织数据，支持依次完成建立 lot、queue 和 tool resource、实现设备资格及批处理规则、运行基线和候选派工策略、比较周期时间、等待和利用率。最终形成离散事件日志、WIP 和队列时间序列、派工策略比较，并按以下规则验收：lot 严格按 route 推进；设备容量与资格不被违反；完成量和在制品满足流量守恒。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "fab_operations_and_equipment",
+        "level2": "wip_dispatch_and_capacity",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "在设备组、资格、批处理、优先级和维护约束下模拟 lot 流动，比较派工规则对周期时间和在制品的影响。",
+        "input": {
+          "required_business_inputs": [
+            "route 和加工时间",
+            "设备组及资格",
+            "lot 到达和优先级",
+            "批处理与维护约束"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "离散事件日志",
+            "WIP 和队列时间序列",
+            "派工策略比较"
+          ],
+          "acceptance": "lot 严格按 route 推进；设备容量与资格不被违反；完成量和在制品满足流量守恒。"
+        },
+        "solution_path": [
+          "建立 lot、queue 和 tool resource",
+          "实现设备资格及批处理规则",
+          "运行基线和候选派工策略",
+          "比较周期时间、等待和利用率"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-06.02-01",
+        "l1_id": "06",
+        "l2_id": "06.02",
+        "roles": [
+          "生产控制工程师",
+          "工业工程师"
+        ],
+        "evidence": [
+          {
+            "id": "AUTH-IRDS-FACTORY",
+            "kind": "authority",
+            "title": "Factory Integration",
+            "url": "https://irds.ieee.org/irds-factory-integration/",
+            "support": "覆盖高产量微电子制造中的工厂系统、前后段生产、设施、生产率、成本与良率集成。"
+          },
+          {
+            "id": "WF-FAB-SIMPY",
+            "kind": "official_documentation",
+            "title": "SimPy",
+            "url": "https://simpy.readthedocs.io/en/latest/",
+            "support": "提供资源、队列、事件和时间推进的离散事件仿真，可表达晶圆厂 WIP 与设备约束。"
+          }
+        ],
+        "verification": "lot 严格按 route 推进；设备容量与资格不被违反；完成量和在制品满足流量守恒。",
+        "selection": {
+          "business_evidence": "moderate",
+          "data_availability": "moderate",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "真实工厂数据不公开，但路线、设备和事件约束可由明确离散事件模型忠实表达。"
+        }
+      },
+      "python_tool_candidates": [
+        "SimPy:离散事件仿真",
+        "pandas:事件和 KPI"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的route 和加工时间、设备组及资格、lot 到达和优先级、批处理与维护约束，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的离散事件日志、WIP 和队列时间序列、派工策略比较，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：lot 严格按 route 推进；设备容量与资格不被违反；完成量和在制品满足流量守恒。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_06_03_01_70",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://secsgem.readthedocs.io/en/latest/",
+        "name": "SC-06.03-01",
+        "index": 70
+      },
+      "description": "这是一个“设备自动化与 SECS/GEM”业务环境，服务于设备自动化工程师、设备工程师。现实目标是构建可离线运行的 GEM 设备会话，查询状态变量、启停采集事件并验证设备状态转换。环境围绕同一工作上下文中的设备 GEM 能力定义、状态变量和事件表、通信与状态机配置组织数据，支持依次完成建立 host/equipment 会话、完成通信和 online 建立、查询变量并配置 event report、触发状态变化并检查上报。最终形成SECS 消息日志、变量快照、事件和状态时间线，并按以下规则验收：请求/响应 system bytes 匹配；状态转换符合定义；启用的事件产生预期 report，禁用事件不产生。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "fab_operations_and_equipment",
+        "level2": "equipment_automation_and_secs_gem",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "构建可离线运行的 GEM 设备会话，查询状态变量、启停采集事件并验证设备状态转换。",
+        "input": {
+          "required_business_inputs": [
+            "设备 GEM 能力定义",
+            "状态变量和事件表",
+            "通信与状态机配置"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "SECS 消息日志",
+            "变量快照",
+            "事件和状态时间线"
+          ],
+          "acceptance": "请求/响应 system bytes 匹配；状态转换符合定义；启用的事件产生预期 report，禁用事件不产生。"
+        },
+        "solution_path": [
+          "建立 host/equipment 会话",
+          "完成通信和 online 建立",
+          "查询变量并配置 event report",
+          "触发状态变化并检查上报"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-06.03-01",
+        "l1_id": "06",
+        "l2_id": "06.03",
+        "roles": [
+          "设备自动化工程师",
+          "设备工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-FAB-SECSGEM",
+            "kind": "official_documentation",
+            "title": "secsgem",
+            "url": "https://secsgem.readthedocs.io/en/latest/",
+            "support": "实现 SEMI E5/E30 等 SECS/GEM 通信、状态变量、事件、报警和远程命令模型。"
+          },
+          {
+            "id": "AUTH-SEMI-COMMITTEES",
+            "kind": "authority",
+            "title": "SEMI Standards Committees",
+            "url": "https://www.semi.org/en/standards/standards-committees",
+            "support": "提供材料、设备自动化、信息与控制、载具接口、封装、测试和可追溯等制造标准领域。"
+          }
+        ],
+        "verification": "请求/响应 system bytes 匹配；状态转换符合定义；启用的事件产生预期 report，禁用事件不产生。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "secsgem 可建立离线 host/equipment 双端和协议级消息验收，不依赖真实设备。"
+        }
+      },
+      "python_tool_candidates": [
+        "secsgem:GEM host/equipment 和消息"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的设备 GEM 能力定义、状态变量和事件表、通信与状态机配置，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的SECS 消息日志、变量快照、事件和状态时间线，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：请求/响应 system bytes 匹配；状态转换符合定义；启用的事件产生预期 report，禁用事件不产生。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_07_02_01_78",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://hyperspy.org/hyperspy-doc/current/",
+        "name": "SC-07.02-01",
+        "index": 78
+      },
+      "description": "这是一个“显微成像与材料表征”业务环境，服务于材料表征工程师、TEM 分析研究员。现实目标是处理多维 STEM 谱像，执行漂移/能量校准、背景扣除、成分拟合和空间映射并保留不确定度。环境围绕同一工作上下文中的原始谱像和元数据、能量/空间校准、参考谱或峰模型组织数据，支持依次完成载入并检查轴与元数据、校正漂移和噪声、拟合背景与谱峰或分解成分、生成成分图并关联原图位置。最终形成校准谱像、成分/因子图、拟合残差和区域统计，并按以下规则验收：轴单位和校准被保留；重构与原数据残差可检查；成分图像素和原始坐标一一对应。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "metrology_inspection_and_process_control",
+        "level2": "microscopy_and_material_characterization",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "处理多维 STEM 谱像，执行漂移/能量校准、背景扣除、成分拟合和空间映射并保留不确定度。",
+        "input": {
+          "required_business_inputs": [
+            "原始谱像和元数据",
+            "能量/空间校准",
+            "参考谱或峰模型"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "校准谱像",
+            "成分/因子图",
+            "拟合残差和区域统计"
+          ],
+          "acceptance": "轴单位和校准被保留；重构与原数据残差可检查；成分图像素和原始坐标一一对应。"
+        },
+        "solution_path": [
+          "载入并检查轴与元数据",
+          "校正漂移和噪声",
+          "拟合背景与谱峰或分解成分",
+          "生成成分图并关联原图位置"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-07.02-01",
+        "l1_id": "07",
+        "l2_id": "07.02",
+        "roles": [
+          "材料表征工程师",
+          "TEM 分析研究员"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MET-HYPERSPY",
+            "kind": "official_workflow",
+            "title": "HyperSpy",
+            "url": "https://hyperspy.org/hyperspy-doc/current/",
+            "support": "处理多维电子显微图像和谱学数据，支持校准、分解、拟合和映射。"
+          },
+          {
+            "id": "AUTH-NIST-METROLOGY",
+            "kind": "authority",
+            "title": "CHIPS Metrology Program",
+            "url": "https://www.nist.gov/chips/research-development-programs/metrology-program",
+            "support": "提供半导体材料、器件、制造和封装测量科学与标准化方向。"
+          }
+        ],
+        "verification": "轴单位和校准被保留；重构与原数据残差可检查；成分图像素和原始坐标一一对应。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "公开谱像和 HyperSpy 数据模型可支持校准、拟合、映射和残差检查。"
+        }
+      },
+      "python_tool_candidates": [
+        "HyperSpy:谱像和模型",
+        "numpy:质量检查"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的原始谱像和元数据、能量/空间校准、参考谱或峰模型，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的校准谱像、成分/因子图、拟合残差和区域统计，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：轴单位和校准被保留；重构与原数据残差可检查；成分图像素和原始坐标一一对应。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_07_04_01_82",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://archive.ics.uci.edu/dataset/179/secom",
+        "name": "SC-07.04-01",
+        "index": 82
+      },
+      "description": "这是一个“SPC、FDC 与虚拟量测”业务环境，服务于FDC 工程师、工艺工程师。现实目标是从半导体制造传感变量和产品标签中处理缺失、筛选有效变量并识别异常 run 及主要贡献。环境围绕同一工作上下文中的UCI SECOM 传感变量、时间戳、pass/fail 标签组织数据，支持依次完成审计缺失和常量变量、按训练范围拟合预处理、建立多变量异常或分类基线、解释异常样本和稳定性。最终形成清洗后的 run 数据、异常/失败预测、贡献变量和验证指标，并按以下规则验收：测试数据不参与预处理拟合；类别不平衡被明确处理；结果可由固定折分和随机种子重放。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "metrology_inspection_and_process_control",
+        "level2": "spc_fdc_and_virtual_metrology",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从半导体制造传感变量和产品标签中处理缺失、筛选有效变量并识别异常 run 及主要贡献。",
+        "input": {
+          "required_business_inputs": [
+            "UCI SECOM 传感变量",
+            "时间戳",
+            "pass/fail 标签"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "清洗后的 run 数据",
+            "异常/失败预测",
+            "贡献变量和验证指标"
+          ],
+          "acceptance": "测试数据不参与预处理拟合；类别不平衡被明确处理；结果可由固定折分和随机种子重放。"
+        },
+        "solution_path": [
+          "审计缺失和常量变量",
+          "按训练范围拟合预处理",
+          "建立多变量异常或分类基线",
+          "解释异常样本和稳定性"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-07.04-01",
+        "l1_id": "07",
+        "l2_id": "07.04",
+        "roles": [
+          "FDC 工程师",
+          "工艺工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-FAB-SECOM",
+            "kind": "public_dataset",
+            "title": "UCI SECOM",
+            "url": "https://archive.ics.uci.edu/dataset/179/secom",
+            "support": "公开来自半导体制造过程的匿名传感变量、时间戳和合格/不合格标签。"
+          },
+          {
+            "id": "WF-MET-NIST-CONTROL",
+            "kind": "authoritative_method",
+            "title": "NIST process monitoring and control",
+            "url": "https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc3.htm",
+            "support": "提供控制图、过程监控和异常判定的统计方法。"
+          }
+        ],
+        "verification": "测试数据不参与预处理拟合；类别不平衡被明确处理；结果可由固定折分和随机种子重放。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "UCI SECOM 是真实半导体制造数据，可直接支持缺失处理、异常检测和解释。"
+        }
+      },
+      "python_tool_candidates": [
+        "pandas:清洗",
+        "scikit-learn:异常和分类",
+        "statsmodels:过程统计"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的UCI SECOM 传感变量、时间戳、pass/fail 标签，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的清洗后的 run 数据、异常/失败预测、贡献变量和验证指标，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：测试数据不参与预处理拟合；类别不平衡被明确处理；结果可由固定折分和随机种子重放。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_07_05_01_84",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/Junliangwangdhu/WaferMap",
+        "name": "SC-07.05-01",
+        "index": 84
+      },
+      "description": "这是一个“晶圆空间图形与工艺关联”业务环境，服务于良率工程师、缺陷工程师。现实目标是从 die 级通过/失败图识别中心、边缘、环、局部、刮痕等图形，并检索相似历史晶圆。环境围绕同一工作上下文中的WM-811K wafer maps、die 坐标和状态、图形标签组织数据，支持依次完成规范化晶圆方向和有效 die mask、计算空间/形态特征或训练分类器、评估类别和置信度、按嵌入或特征检索相似 wafer。最终形成图形类别和置信度、空间特征、相似晶圆列表，并按以下规则验收：训练测试按 wafer 分离；旋转/尺寸处理规则固定；相似结果保留距离并可回看原图。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "metrology_inspection_and_process_control",
+        "level2": "wafer_pattern_and_process_correlation",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从 die 级通过/失败图识别中心、边缘、环、局部、刮痕等图形，并检索相似历史晶圆。",
+        "input": {
+          "required_business_inputs": [
+            "WM-811K wafer maps",
+            "die 坐标和状态",
+            "图形标签"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "图形类别和置信度",
+            "空间特征",
+            "相似晶圆列表"
+          ],
+          "acceptance": "训练测试按 wafer 分离；旋转/尺寸处理规则固定；相似结果保留距离并可回看原图。"
+        },
+        "solution_path": [
+          "规范化晶圆方向和有效 die mask",
+          "计算空间/形态特征或训练分类器",
+          "评估类别和置信度",
+          "按嵌入或特征检索相似 wafer"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-07.05-01",
+        "l1_id": "07",
+        "l2_id": "07.05",
+        "roles": [
+          "良率工程师",
+          "缺陷工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-MET-WM811K",
+            "kind": "public_dataset",
+            "title": "WM-811K wafer map dataset",
+            "url": "https://github.com/Junliangwangdhu/WaferMap",
+            "support": "公开大规模晶圆图及已标注的中心、边缘、环、刮痕等缺陷图形。"
+          },
+          {
+            "id": "AUTH-IRDS-YIELD",
+            "kind": "authority",
+            "title": "Yield Enhancement",
+            "url": "https://irds.ieee.org/irds-yield-enhancement/",
+            "support": "覆盖晶圆和后段制造中缺陷、污染、工艺波动、设计问题与功能/可靠性良率之间的关系。"
+          },
+          {
+            "id": "WF-MET-SKIMAGE",
+            "kind": "official_documentation",
+            "title": "scikit-image",
+            "url": "https://scikit-image.org/docs/stable/",
+            "support": "提供图像校正、分割、形态学、测量和特征提取基础能力。"
+          }
+        ],
+        "verification": "训练测试按 wafer 分离；旋转/尺寸处理规则固定；相似结果保留距离并可回看原图。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "WM-811K 规模大、标签明确，支持空间处理、分类、置信度和相似晶圆检索。"
+        }
+      },
+      "python_tool_candidates": [
+        "scikit-image:形态特征",
+        "scikit-learn/PyTorch:分类与检索"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的WM-811K wafer maps、die 坐标和状态、图形标签，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的图形类别和置信度、空间特征、相似晶圆列表，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：训练测试按 wafer 分离；旋转/尺寸处理规则固定；相似结果保留距离并可回看原图。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_08_02_01_87",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://docs.openems.de/",
+        "name": "SC-08.02-01",
+        "index": 87
+      },
+      "description": "这是一个“信号、电源、热与机械完整性”业务环境，服务于封装 SI/PI 工程师。现实目标是从封装互连几何或测量网络分析插损、回损、串扰和电源阻抗，并比较去嵌或结构修改。环境围绕同一工作上下文中的封装/互连几何、材料和端口、Touchstone 网络、频带与阻抗目标组织数据，支持依次完成检查端口和参考阻抗、运行或载入全波结果、计算链路和 PDN 指标、比较结构、via 或去嵌候选。最终形成S/Z 参数、SI/PI 指标、频率热点和结构比较，并按以下规则验收：网络满足端口和频率一致性；被动性/因果性受检；候选指标由同一参考面和条件计算。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "packaging_and_heterogeneous_integration",
+        "level2": "signal_power_thermal_and_mechanical_integrity",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "从封装互连几何或测量网络分析插损、回损、串扰和电源阻抗，并比较去嵌或结构修改。",
+        "input": {
+          "required_business_inputs": [
+            "封装/互连几何",
+            "材料和端口",
+            "Touchstone 网络",
+            "频带与阻抗目标"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "S/Z 参数",
+            "SI/PI 指标",
+            "频率热点和结构比较"
+          ],
+          "acceptance": "网络满足端口和频率一致性；被动性/因果性受检；候选指标由同一参考面和条件计算。"
+        },
+        "solution_path": [
+          "检查端口和参考阻抗",
+          "运行或载入全波结果",
+          "计算链路和 PDN 指标",
+          "比较结构、via 或去嵌候选"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-08.02-01",
+        "l1_id": "08",
+        "l2_id": "08.02",
+        "roles": [
+          "封装 SI/PI 工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-PKG-OPENEMS",
+            "kind": "official_workflow",
+            "title": "openEMS Python interface",
+            "url": "https://docs.openems.de/",
+            "support": "提供 Python 驱动的三维电磁模型、端口、网格、求解和场/网络结果。"
+          },
+          {
+            "id": "WF-CIR-SKRF",
+            "kind": "official_workflow",
+            "title": "scikit-rf documentation",
+            "url": "https://scikit-rf.readthedocs.io/en/latest/",
+            "support": "覆盖 Touchstone 网络、端口、级联、校准、去嵌和射频指标分析。"
+          },
+          {
+            "id": "WF-PKG-HIR",
+            "kind": "authoritative_roadmap",
+            "title": "Heterogeneous Integration Roadmap",
+            "url": "https://eps.ieee.org/technology/heterogeneous-integration-roadmap/",
+            "support": "IEEE EPS 路线图覆盖芯粒、互连、基板、热机械、电气和装联等异质集成问题。"
+          }
+        ],
+        "verification": "网络满足端口和频率一致性；被动性/因果性受检；候选指标由同一参考面和条件计算。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "moderate",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "公开电磁模型和 Touchstone 数据可支持封装端口、求解、网络检查和结构比较。"
+        }
+      },
+      "python_tool_candidates": [
+        "openEMS Python API:电磁求解",
+        "scikit-rf:网络与指标"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的封装/互连几何、材料和端口、Touchstone 网络、频带与阻抗目标，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的S/Z 参数、SI/PI 指标、频率热点和结构比较，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：网络满足端口和频率一致性；被动性/因果性受检；候选指标由同一参考面和条件计算。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_09_01_01_90",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://microsoft.github.io/Qcodes/",
+        "name": "SC-09.01-01",
+        "index": 90
+      },
+      "description": "这是一个“器件特性与实验室测量”业务环境，服务于器件表征工程师、实验室测试工程师。现实目标是配置虚拟 SMU/LCR 和温控仪器，执行受限扫压、记录异常并保存可追溯的 I-V/C-V 数据集。环境围绕同一工作上下文中的DUT 和连接配置、仪器参数与安全限值、偏压/频率/温度计划组织数据，支持依次完成检查仪器和 DUT 状态、设置 compliance 和扫点、按温度执行测量并监控异常、保存参数、读数、时间和状态。最终形成测量运行记录、I-V/C-V 数据集、中止和异常事件，并按以下规则验收：虚拟仪器强制安全限值；每个读数关联设定值和时间；中止时保留已完成数据且设备回到安全状态。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "test_product_and_yield_engineering",
+        "level2": "characterization_and_lab_measurement",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "配置虚拟 SMU/LCR 和温控仪器，执行受限扫压、记录异常并保存可追溯的 I-V/C-V 数据集。",
+        "input": {
+          "required_business_inputs": [
+            "DUT 和连接配置",
+            "仪器参数与安全限值",
+            "偏压/频率/温度计划"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "测量运行记录",
+            "I-V/C-V 数据集",
+            "中止和异常事件"
+          ],
+          "acceptance": "虚拟仪器强制安全限值；每个读数关联设定值和时间；中止时保留已完成数据且设备回到安全状态。"
+        },
+        "solution_path": [
+          "检查仪器和 DUT 状态",
+          "设置 compliance 和扫点",
+          "按温度执行测量并监控异常",
+          "保存参数、读数、时间和状态"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-09.01-01",
+        "l1_id": "09",
+        "l2_id": "09.01",
+        "roles": [
+          "器件表征工程师",
+          "实验室测试工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-TEST-QCODES",
+            "kind": "official_workflow",
+            "title": "QCoDeS",
+            "url": "https://microsoft.github.io/Qcodes/",
+            "support": "提供仪器参数、测量循环、实验和数据集管理。"
+          },
+          {
+            "id": "WF-TEST-PYMEASURE",
+            "kind": "official_workflow",
+            "title": "PyMeasure",
+            "url": "https://pymeasure.readthedocs.io/en/latest/",
+            "support": "提供仪器驱动、Procedure、参数、结果和实验队列。"
+          },
+          {
+            "id": "AUTH-NIST-METROLOGY",
+            "kind": "authority",
+            "title": "CHIPS Metrology Program",
+            "url": "https://www.nist.gov/chips/research-development-programs/metrology-program",
+            "support": "提供半导体材料、器件、制造和封装测量科学与标准化方向。"
+          }
+        ],
+        "verification": "虚拟仪器强制安全限值；每个读数关联设定值和时间；中止时保留已完成数据且设备回到安全状态。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "QCoDeS/PyMeasure 支持真实仪器语义，并可通过虚拟仪器安全地构建状态化实验环境。"
+        }
+      },
+      "python_tool_candidates": [
+        "QCoDeS/PyMeasure:仪器、扫描和数据集"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的DUT 和连接配置、仪器参数与安全限值、偏压/频率/温度计划，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的测量运行记录、I-V/C-V 数据集、中止和异常事件，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：虚拟仪器强制安全限值；每个读数关联设定值和时间；中止时保留已完成数据且设备回到安全状态。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_09_02_01_91",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/Semi-ATE/STDF",
+        "name": "SC-09.02-01",
+        "index": 91
+      },
+      "description": "这是一个“ATE、晶圆测试、成品测试与 STDF”业务环境，服务于测试产品工程师、良率工程师。现实目标是解析 STDF V4 测试文件，重建 lot、wafer、site、part、test 和 bin 关系并报告缺失或矛盾记录。环境围绕同一工作上下文中的STDF 文件、测试程序和 limit 元数据、wafer/lot 标识组织数据，支持依次完成逐记录解析并保留顺序、建立头、wafer、part 和 test 生命周期、关联 site、坐标和 bin、检查计数、限值和结束记录。最终形成结构化 STDF 记录、实体关系、完整性和矛盾问题，并按以下规则验收：part/test 计数与汇总记录核对；每个结果归属有效 part/site；无法解析的记录不被静默丢弃。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "test_product_and_yield_engineering",
+        "level2": "ate_cp_ft_and_stdf",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "解析 STDF V4 测试文件，重建 lot、wafer、site、part、test 和 bin 关系并报告缺失或矛盾记录。",
+        "input": {
+          "required_business_inputs": [
+            "STDF 文件",
+            "测试程序和 limit 元数据",
+            "wafer/lot 标识"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "结构化 STDF 记录",
+            "实体关系",
+            "完整性和矛盾问题"
+          ],
+          "acceptance": "part/test 计数与汇总记录核对；每个结果归属有效 part/site；无法解析的记录不被静默丢弃。"
+        },
+        "solution_path": [
+          "逐记录解析并保留顺序",
+          "建立头、wafer、part 和 test 生命周期",
+          "关联 site、坐标和 bin",
+          "检查计数、限值和结束记录"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-09.02-01",
+        "l1_id": "09",
+        "l2_id": "09.02",
+        "roles": [
+          "测试产品工程师",
+          "良率工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-TEST-STDF",
+            "kind": "real_project",
+            "title": "Semi-ATE STDF",
+            "url": "https://github.com/Semi-ATE/STDF",
+            "support": "提供 STDF V4 记录读取、写入和字段访问，可处理半导体 ATE 测试数据。"
+          },
+          {
+            "id": "AUTH-SEMI-COMMITTEES",
+            "kind": "authority",
+            "title": "SEMI Standards Committees",
+            "url": "https://www.semi.org/en/standards/standards-committees",
+            "support": "提供材料、设备自动化、信息与控制、载具接口、封装、测试和可追溯等制造标准领域。"
+          }
+        ],
+        "verification": "part/test 计数与汇总记录核对；每个结果归属有效 part/site；无法解析的记录不被静默丢弃。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "STDF 具有丰富记录生命周期、实体关系和汇总一致性检查。"
+        }
+      },
+      "python_tool_candidates": [
+        "Semi-ATE-STDF:读取写入",
+        "pandas:实体和统计"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的STDF 文件、测试程序和 limit 元数据、wafer/lot 标识，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的结构化 STDF 记录、实体关系、完整性和矛盾问题，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：part/test 计数与汇总记录核对；每个结果归属有效 part/site；无法解析的记录不被静默丢弃。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_09_05_01_96",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://github.com/google/openhtf",
+        "name": "SC-09.05-01",
+        "index": 96
+      },
+      "description": "这是一个“测试程序、覆盖与成本优化”业务环境，服务于测试开发工程师、产品工程师。现实目标是在虚拟 DUT 上调整测试 phase、测量限值和顺序，缩短测试时间同时保留故障检测和安全处置。环境围绕同一工作上下文中的OpenHTF test plan、虚拟 DUT plugs、measurement/limit、历史执行记录组织数据，支持依次完成重放基线测试和故障样本、分析 phase 时间与冗余测量、调整顺序、条件跳转或限值、对正常和故障样本回归。最终形成测试计划修订、测试时间前后比较、检测覆盖和误判变化，并按以下规则验收：所有已知故障仍被捕获；安全/初始化/清理 phase 不被跳过；时间由逐 phase 记录重算。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "test_product_and_yield_engineering",
+        "level2": "test_program_and_cost_optimization",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "在虚拟 DUT 上调整测试 phase、测量限值和顺序，缩短测试时间同时保留故障检测和安全处置。",
+        "input": {
+          "required_business_inputs": [
+            "OpenHTF test plan",
+            "虚拟 DUT plugs",
+            "measurement/limit",
+            "历史执行记录"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "测试计划修订",
+            "测试时间前后比较",
+            "检测覆盖和误判变化"
+          ],
+          "acceptance": "所有已知故障仍被捕获；安全/初始化/清理 phase 不被跳过；时间由逐 phase 记录重算。"
+        },
+        "solution_path": [
+          "重放基线测试和故障样本",
+          "分析 phase 时间与冗余测量",
+          "调整顺序、条件跳转或限值",
+          "对正常和故障样本回归"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-09.05-01",
+        "l1_id": "09",
+        "l2_id": "09.05",
+        "roles": [
+          "测试开发工程师",
+          "产品工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-TEST-OPENHTF",
+            "kind": "real_project",
+            "title": "OpenHTF",
+            "url": "https://github.com/google/openhtf",
+            "support": "提供硬件测试 phase、plug、measurement、limit 和测试记录框架。"
+          },
+          {
+            "id": "AUTH-JEDEC-COMMITTEES",
+            "kind": "authority",
+            "title": "JEDEC Committees",
+            "url": "https://www.jedec.org/committees",
+            "support": "覆盖固态器件与组件的特性、测试、质量、可靠性和封装标准。"
+          }
+        ],
+        "verification": "所有已知故障仍被捕获；安全/初始化/清理 phase 不被跳过；时间由逐 phase 记录重算。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "OpenHTF 提供 phase、plug、measurement、limit 和测试记录，可用虚拟 DUT 做回归。"
+        }
+      },
+      "python_tool_candidates": [
+        "OpenHTF:测试 phase、plug 和 measurement",
+        "pandas:运行比较"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的OpenHTF test plan、虚拟 DUT plugs、measurement/limit、历史执行记录，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的测试计划修订、测试时间前后比较、检测覆盖和误判变化，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：所有已知故障仍被捕获；安全/初始化/清理 phase 不被跳过；时间由逐 phase 记录重算。"
+      ]
+    }
+  },
+  {
+    "global_id": "semiconductor_scenario_catalog_sc_10_02_01_98",
+    "schema_version": "1.0",
+    "environment": {
+      "basic_info": {
+        "source": "semiconductor_scenario_catalog",
+        "url": "https://www.itl.nist.gov/div898/handbook/apr/apr.htm",
+        "name": "SC-10.02-01",
+        "index": 98
+      },
+      "description": "这是一个“寿命、退化与可靠性建模”业务环境，服务于可靠性工程师。现实目标是对多应力条件下包含右删失的寿命数据比较分布和加速模型，预测使用条件寿命并量化不确定性。环境围绕同一工作上下文中的失效/删失时间、温度、电压或电流应力、样本批次、使用条件组织数据，支持依次完成审计失效定义和删失、拟合候选寿命分布、建立 Arrhenius/Eyring/逆幂加速关系、诊断模型并外推使用寿命。最终形成分布和加速参数、概率图与残差、使用寿命和置信区间，并按以下规则验收：删失进入似然；模型选择有诊断依据；外推范围和置信区间明确；结果能由原始样本重算。Python 包和外部求解器只是实现手段，可以在不改变业务对象、数据关系和验收语义的前提下替换。",
+      "domain": {
+        "level1": "reliability_quality_and_failure_analysis",
+        "level2": "lifetime_and_degradation_modeling",
+        "level3": null
+      }
+    },
+    "init_ref_tools": [],
+    "init_ref_tasks": [
+      {
+        "description": "对多应力条件下包含右删失的寿命数据比较分布和加速模型，预测使用条件寿命并量化不确定性。",
+        "input": {
+          "required_business_inputs": [
+            "失效/删失时间",
+            "温度、电压或电流应力",
+            "样本批次",
+            "使用条件"
+          ],
+          "shared_context": "输入必须来自同一项目、器件、设计、批次或其他可证明一致的工作上下文。"
+        },
+        "output": {
+          "expected_results": [
+            "分布和加速参数",
+            "概率图与残差",
+            "使用寿命和置信区间"
+          ],
+          "acceptance": "删失进入似然；模型选择有诊断依据；外推范围和置信区间明确；结果能由原始样本重算。"
+        },
+        "solution_path": [
+          "审计失效定义和删失",
+          "拟合候选寿命分布",
+          "建立 Arrhenius/Eyring/逆幂加速关系",
+          "诊断模型并外推使用寿命"
+        ]
+      }
+    ],
+    "others": {
+      "scenario_catalog": {
+        "scenario_id": "SC-10.02-01",
+        "l1_id": "10",
+        "l2_id": "10.02",
+        "roles": [
+          "可靠性工程师"
+        ],
+        "evidence": [
+          {
+            "id": "WF-REL-NIST",
+            "kind": "authoritative_method",
+            "title": "NIST Reliability Handbook",
+            "url": "https://www.itl.nist.gov/div898/handbook/apr/apr.htm",
+            "support": "系统说明可靠性数据、寿命分布、加速模型、退化和试验设计。"
+          },
+          {
+            "id": "WF-REL-RELIABILITY",
+            "kind": "official_documentation",
+            "title": "reliability Python library",
+            "url": "https://reliability.readthedocs.io/en/latest/",
+            "support": "实现寿命分布拟合、概率图、失效模式和加速寿命模型。"
+          },
+          {
+            "id": "WF-REL-LIFELINES",
+            "kind": "official_documentation",
+            "title": "lifelines",
+            "url": "https://lifelines.readthedocs.io/en/latest/",
+            "support": "提供删失数据的生存曲线、回归和模型诊断。"
+          }
+        ],
+        "verification": "删失进入似然；模型选择有诊断依据；外推范围和置信区间明确；结果能由原始样本重算。",
+        "selection": {
+          "business_evidence": "strong",
+          "data_availability": "strong",
+          "python_executability": "strong",
+          "verification_strength": "strong",
+          "workflow_depth": "strong",
+          "reason": "NIST 方法和 Python 实现共同支持删失、分布、加速模型、诊断和不确定度验收。"
+        }
+      },
+      "python_tool_candidates": [
+        "reliability:寿命/加速模型",
+        "lifelines:生存分析"
+      ],
+      "data_directions": [
+        "优先取得同一现实项目或受控样例中的失效/删失时间、温度、电压或电流应力、样本批次、使用条件，保留其原始标识、版本、时间和来源关系。",
+        "取得或生成能够与输入逐项关联的分布和加速参数、概率图与残差、使用寿命和置信区间，使场景中的主要处理步骤和中间状态可以离线重放。",
+        "保留验证所需的原始值、配置、日志和前后版本；验收标准为：删失进入似然；模型选择有诊断依据；外推范围和置信区间明确；结果能由原始样本重算。"
+      ]
+    }
+  }
+]

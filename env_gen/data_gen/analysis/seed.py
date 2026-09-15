@@ -27,6 +27,40 @@ def canonical_json_sha256(value: object) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def is_python_package_seed(seed: dict[str, Any]) -> bool:
+    """Return whether a Seed is an extracted Python-package capability catalog."""
+
+    basic = seed.get("environment", {}).get("basic_info", {})
+    extraction = seed.get("others", {}).get("python_source_extraction")
+    return (
+        seed.get("schema_version") == "1.1"
+        and isinstance(basic, dict)
+        and basic.get("source") == "pypi"
+        and isinstance(extraction, dict)
+    )
+
+
+def reference_tool_label(seed: dict[str, Any], tool: dict[str, Any]) -> str:
+    """Use a stable qualified API name for Python-package reference tools."""
+
+    name = str(tool.get("name") or "").strip()
+    if not is_python_package_seed(seed):
+        return name
+    module = str(tool.get("module") or "").strip()
+    return f"{module}.{name}" if module and name else name
+
+
+def reference_tool_labels(seed: dict[str, Any]) -> set[str]:
+    """Return unique reference-tool labels using the Seed's native identity rules."""
+
+    return {
+        label
+        for item in seed.get("init_ref_tools", [])
+        if isinstance(item, dict)
+        and (label := reference_tool_label(seed, item))
+    }
+
+
 def _expected_global_id(seed: dict[str, Any]) -> str | None:
     basic = seed.get("environment", {}).get("basic_info", {})
     if not isinstance(basic, dict):
@@ -91,7 +125,7 @@ def load_selected_seed(
         )
 
     tool_names = [
-        item.get("name")
+        reference_tool_label(selected, item)
         for item in selected.get("init_ref_tools", [])
         if isinstance(item, dict)
     ]

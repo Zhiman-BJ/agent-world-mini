@@ -1,0 +1,5467 @@
+{
+  "profile_id": "atomate2_workflow_planning_v1",
+  "package": "atomate2",
+  "version": "v0.1.5",
+  "source_artifact": "seed_gen/pypi_outputs/atomate2_v0.1.5.json",
+  "profile_artifact": "seed_gen/pypi_selection_profiles/atomate2_v0.1.5.json",
+  "source_sha256": "53a8942528032a5ae17e640efaa47815ded9c7e9278e9e8b0ebeee37e23524db",
+  "profile_sha256": "d2913ab49f506b58658f83c156cbd4c5cb0001292286b0eb473717b167d6dd5e",
+  "boundary": "构建、定制、检查和序列化材料计算工作流，并使用小型 fixture 验证结构预处理与后处理；不声称在缺少 VASP、赝势、调度器及可选科学软件时执行真实材料模拟。",
+  "summary": {
+    "raw_tool_count": 734,
+    "selected_tool_count": 27,
+    "selected_class_count": 14,
+    "selected_function_count": 13,
+    "selected_method_count": 13,
+    "excluded_tool_count": 707,
+    "capability_count": 6
+  },
+  "exclusion_counts": {
+    "missing_description": 2,
+    "outside_curated_capability_boundary": 537,
+    "support_schema_or_test_surface": 158,
+    "support_type": 10
+  },
+  "capabilities": [
+    {
+      "id": "vasp_job_construction",
+      "description": "构建静态、弛豫和非自洽 VASP Job。",
+      "verification_tier": "construction_only",
+      "selected_symbol_count": 4,
+      "selected_method_count": 2,
+      "symbols": [
+        "atomate2.vasp.jobs.base.BaseVaspMaker",
+        "atomate2.vasp.jobs.core.StaticMaker",
+        "atomate2.vasp.jobs.core.RelaxMaker",
+        "atomate2.vasp.jobs.core.NonSCFMaker"
+      ]
+    },
+    {
+      "id": "core_flow_composition",
+      "description": "构建双弛豫、能带、弛豫加能带和光学工作流。",
+      "verification_tier": "construction_only",
+      "selected_symbol_count": 4,
+      "selected_method_count": 5,
+      "symbols": [
+        "atomate2.vasp.flows.core.DoubleRelaxMaker",
+        "atomate2.vasp.flows.core.BandStructureMaker",
+        "atomate2.vasp.flows.core.RelaxBandStructureMaker",
+        "atomate2.vasp.flows.core.OpticsMaker"
+      ]
+    },
+    {
+      "id": "property_workflow_catalog",
+      "description": "表示弹性、声子、状态方程、成键和磁有序等代表性材料性质工作流。",
+      "verification_tier": "construction_or_fixture_only",
+      "selected_symbol_count": 5,
+      "selected_method_count": 2,
+      "symbols": [
+        "atomate2.vasp.flows.elastic.ElasticMaker",
+        "atomate2.vasp.flows.phonons.PhononMaker",
+        "atomate2.vasp.flows.eos.EosMaker",
+        "atomate2.vasp.flows.lobster.VaspLobsterMaker",
+        "atomate2.common.flows.magnetism.MagneticOrderingsMaker"
+      ]
+    },
+    {
+      "id": "workflow_customization",
+      "description": "更新 VASP 输入、K 点、运行处理器和工作流元数据。",
+      "verification_tier": "deterministic_local",
+      "selected_symbol_count": 6,
+      "selected_method_count": 0,
+      "symbols": [
+        "atomate2.vasp.powerups.update_vasp_input_generators",
+        "atomate2.vasp.powerups.update_user_incar_settings",
+        "atomate2.vasp.powerups.update_user_kpoints_settings",
+        "atomate2.vasp.powerups.use_auto_ispin",
+        "atomate2.vasp.powerups.add_metadata_to_flow",
+        "atomate2.vasp.powerups.update_vasp_custodian_handlers"
+      ]
+    },
+    {
+      "id": "structure_preprocessing",
+      "description": "生成形变、缩放、标准胞和 NEB 插值结构等工作流输入。",
+      "verification_tier": "deterministic_local",
+      "selected_symbol_count": 7,
+      "selected_method_count": 0,
+      "symbols": [
+        "atomate2.common.jobs.elastic.generate_elastic_deformations",
+        "atomate2.common.jobs.eos.apply_strain_to_structure",
+        "atomate2.common.jobs.gruneisen.shrink_expand_structure",
+        "atomate2.common.jobs.utils.structure_to_primitive",
+        "atomate2.common.jobs.utils.structure_to_conventional",
+        "atomate2.common.jobs.phonons.get_supercell_size",
+        "atomate2.common.jobs.neb.get_images_from_endpoints"
+      ]
+    },
+    {
+      "id": "fixture_result_processing",
+      "description": "对固定的状态方程结果进行排序、拟合和求值。",
+      "verification_tier": "fixture_replay",
+      "selected_symbol_count": 1,
+      "selected_method_count": 4,
+      "symbols": [
+        "atomate2.common.jobs.eos.EOSPostProcessor"
+      ]
+    }
+  ],
+  "selected_symbols": [
+    {
+      "module": "atomate2.vasp.jobs.base",
+      "name": "BaseVaspMaker",
+      "type": "class",
+      "capability": "vasp_job_construction",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方工作流目录和教程中的基础 Job Maker；验证边界限定为 Job 构建和图结构检查。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "StaticMaker",
+      "type": "class",
+      "capability": "vasp_job_construction",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方工作流目录和教程中的基础 Job Maker；验证边界限定为 Job 构建和图结构检查。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "RelaxMaker",
+      "type": "class",
+      "capability": "vasp_job_construction",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方工作流目录和教程中的基础 Job Maker；验证边界限定为 Job 构建和图结构检查。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "NonSCFMaker",
+      "type": "class",
+      "capability": "vasp_job_construction",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方工作流目录和教程中的基础 Job Maker；验证边界限定为 Job 构建和图结构检查。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "DoubleRelaxMaker",
+      "type": "class",
+      "capability": "core_flow_composition",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "选择官方文档中最常见、能体现多 Job 依赖关系的核心 Flow Maker。",
+      "selected_method_count": 2
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "BandStructureMaker",
+      "type": "class",
+      "capability": "core_flow_composition",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "选择官方文档中最常见、能体现多 Job 依赖关系的核心 Flow Maker。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "RelaxBandStructureMaker",
+      "type": "class",
+      "capability": "core_flow_composition",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "选择官方文档中最常见、能体现多 Job 依赖关系的核心 Flow Maker。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "OpticsMaker",
+      "type": "class",
+      "capability": "core_flow_composition",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "选择官方文档中最常见、能体现多 Job 依赖关系的核心 Flow Maker。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.vasp.flows.elastic",
+      "name": "ElasticMaker",
+      "type": "class",
+      "capability": "property_workflow_catalog",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "official_docs"
+      ],
+      "reason": "按官方工作流类别各保留一个代表性 Maker，避免将同一性质的 HSE、GGA、Meta-GGA 和后端变体全部展开。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.flows.phonons",
+      "name": "PhononMaker",
+      "type": "class",
+      "capability": "property_workflow_catalog",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "official_docs"
+      ],
+      "reason": "按官方工作流类别各保留一个代表性 Maker，避免将同一性质的 HSE、GGA、Meta-GGA 和后端变体全部展开。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "EosMaker",
+      "type": "class",
+      "capability": "property_workflow_catalog",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "official_docs"
+      ],
+      "reason": "按官方工作流类别各保留一个代表性 Maker，避免将同一性质的 HSE、GGA、Meta-GGA 和后端变体全部展开。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.flows.lobster",
+      "name": "VaspLobsterMaker",
+      "type": "class",
+      "capability": "property_workflow_catalog",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "official_docs"
+      ],
+      "reason": "按官方工作流类别各保留一个代表性 Maker，避免将同一性质的 HSE、GGA、Meta-GGA 和后端变体全部展开。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.common.flows.magnetism",
+      "name": "MagneticOrderingsMaker",
+      "type": "class",
+      "capability": "property_workflow_catalog",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "official_docs"
+      ],
+      "reason": "按官方工作流类别各保留一个代表性 Maker，避免将同一性质的 HSE、GGA、Meta-GGA 和后端变体全部展开。",
+      "selected_method_count": 1
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "update_vasp_input_generators",
+      "type": "function",
+      "capability": "workflow_customization",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "update_user_incar_settings",
+      "type": "function",
+      "capability": "workflow_customization",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "update_user_kpoints_settings",
+      "type": "function",
+      "capability": "workflow_customization",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "use_auto_ispin",
+      "type": "function",
+      "capability": "workflow_customization",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "add_metadata_to_flow",
+      "type": "function",
+      "capability": "workflow_customization",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "update_vasp_custodian_handlers",
+      "type": "function",
+      "capability": "workflow_customization",
+      "score": 100,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local",
+        "official_docs",
+        "public_api"
+      ],
+      "reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.elastic",
+      "name": "generate_elastic_deformations",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.eos",
+      "name": "apply_strain_to_structure",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.gruneisen",
+      "name": "shrink_expand_structure",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.utils",
+      "name": "structure_to_primitive",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.utils",
+      "name": "structure_to_conventional",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.phonons",
+      "name": "get_supercell_size",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.neb",
+      "name": "get_images_from_endpoints",
+      "type": "function",
+      "capability": "structure_preprocessing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "selected_method_count": 0
+    },
+    {
+      "module": "atomate2.common.jobs.eos",
+      "name": "EOSPostProcessor",
+      "type": "class",
+      "capability": "fixture_result_processing",
+      "score": 55,
+      "evidence": [
+        "composable_io",
+        "core_capability",
+        "deterministic_local"
+      ],
+      "reason": "保留一个无需真实启动 VASP、可使用仓库 fixture 重放验证的代表性后处理类。",
+      "selected_method_count": 4
+    }
+  ],
+  "excluded_symbols": [
+    {
+      "module": "atomate2.abinit.files",
+      "name": "fname2ext",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.files",
+      "name": "out_to_in",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.files",
+      "name": "load_abinit_input",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.files",
+      "name": "write_abinit_input_set",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.flows.core",
+      "name": "BandStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.flows.core",
+      "name": "RelaxFlowMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.base",
+      "name": "JobSetupVars",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "missing_description"
+    },
+    {
+      "module": "atomate2.abinit.jobs.base",
+      "name": "setup_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.base",
+      "name": "BaseAbinitMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.core",
+      "name": "StaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.core",
+      "name": "LineNonSCFMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.core",
+      "name": "UniformNonSCFMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.core",
+      "name": "NonSCFMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.core",
+      "name": "NonSCFWfqMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.jobs.core",
+      "name": "RelaxMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.powerups",
+      "name": "update_maker_kwargs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.powerups",
+      "name": "update_user_abinit_settings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.powerups",
+      "name": "update_factory_kwargs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.powerups",
+      "name": "update_user_kpoints_settings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.powerups",
+      "name": "update_generator_attributes",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.run",
+      "name": "run_abinit",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.schemas.calculation",
+      "name": "TaskState",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.schemas.calculation",
+      "name": "AbinitObject",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.schemas.calculation",
+      "name": "CalculationOutput",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.schemas.calculation",
+      "name": "Calculation",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.schemas.task",
+      "name": "InputDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.schemas.task",
+      "name": "OutputDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.schemas.task",
+      "name": "AbinitTaskDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.abinit.sets.base",
+      "name": "AbinitInputSet",
+      "type": "class",
+      "available_method_count": 10,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.base",
+      "name": "as_pseudo_table",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.base",
+      "name": "AbinitInputGenerator",
+      "type": "class",
+      "available_method_count": 6,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "StaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "NonSCFSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "LineNonSCFSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "UniformNonSCFSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "NonScfWfqInputGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "DdkInputGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.sets.core",
+      "name": "RelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "ErrorCode",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "AbiAtomateError",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "AbinitRuntimeError",
+      "type": "class",
+      "available_method_count": 4,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "UnconvergedError",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "WalltimeError",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "InitializationError",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "RestartError",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "PostProcessError",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "RestartInfo",
+      "type": "class",
+      "available_method_count": 5,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "get_final_structure",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.common",
+      "name": "get_event_report",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.history",
+      "name": "JobHistory",
+      "type": "class",
+      "available_method_count": 20,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.history",
+      "name": "JobEvent",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.abinit.utils.settings",
+      "name": "get_abipy_manager",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.files",
+      "name": "copy_aims_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.files",
+      "name": "write_aims_input_set",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.files",
+      "name": "cleanup_aims_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.flows.anharmonicity",
+      "name": "AnharmonicityMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.flows.core",
+      "name": "DoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.flows.elastic",
+      "name": "ElasticMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.flows.eos",
+      "name": "AimsEosMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.flows.gw",
+      "name": "GWConvergenceMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.flows.phonons",
+      "name": "PhononMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.base",
+      "name": "BaseAimsMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.convergence",
+      "name": "ConvergenceMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.core",
+      "name": "StaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.core",
+      "name": "RelaxMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.core",
+      "name": "SocketIOStaticMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.core",
+      "name": "BandStructureMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.core",
+      "name": "GWMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.magnetism",
+      "name": "MagneticStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.magnetism",
+      "name": "MagneticRelaxMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.phonons",
+      "name": "PhononDisplacementMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.jobs.phonons",
+      "name": "PhononDisplacementMakerSocket",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.run",
+      "name": "run_aims",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.run",
+      "name": "should_stop_children",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.run",
+      "name": "run_aims_socket",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.schemas.calculation",
+      "name": "ensure_stress_full",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.calculation",
+      "name": "TaskState",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.calculation",
+      "name": "AimsObject",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.calculation",
+      "name": "CalculationOutput",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.calculation",
+      "name": "CalculationInput",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.calculation",
+      "name": "Calculation",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.task",
+      "name": "AnalysisDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.task",
+      "name": "InputDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.task",
+      "name": "OutputDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.task",
+      "name": "ConvergenceSummary",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.schemas.task",
+      "name": "AimsTaskDoc",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.aims.utils",
+      "name": "datetime_str",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.utils.bands",
+      "name": "prepare_band_input",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.aims.utils.common",
+      "name": "cwd",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.files",
+      "name": "copy_amset_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.files",
+      "name": "write_amset_settings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.jobs",
+      "name": "AmsetMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.run",
+      "name": "run_amset",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.run",
+      "name": "check_converged",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.run",
+      "name": "tensor_average",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.amset.schemas",
+      "name": "TransportData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.amset.schemas",
+      "name": "UsageStats",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.amset.schemas",
+      "name": "MeshData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.amset.schemas",
+      "name": "AmsetTaskDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "AseMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "AseRelaxMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "EmtRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "LennardJonesRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "LennardJonesStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "GFNxTBRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.jobs",
+      "name": "GFNxTBStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.md",
+      "name": "MDEnsemble",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.md",
+      "name": "DynamicsPresets",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.md",
+      "name": "AseMDMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.md",
+      "name": "LennardJonesMDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.md",
+      "name": "GFNxTBMDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.neb",
+      "name": "AseNebFromImagesMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.neb",
+      "name": "AseNebFromEndpointsMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.neb",
+      "name": "interpolate_endpoints_ase",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.neb",
+      "name": "EmtNebFromImagesMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "convert_stress_from_voigt_to_symm",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "AseResult",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "AseObject",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "AseBaseModel",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "IonicStep",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "OutputDoc",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "InputDoc",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "AseStructureTaskDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "AseMoleculeTaskDoc",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.schemas",
+      "name": "AseTaskDoc",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.ase.utils",
+      "name": "TrajectoryObserver",
+      "type": "class",
+      "available_method_count": 7,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.utils",
+      "name": "AseRelaxer",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.ase.utils",
+      "name": "AseNebInterface",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cli",
+      "name": "cli",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cli.dev",
+      "name": "dev",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cli.dev",
+      "name": "vasp_test_data",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cli.dev",
+      "name": "abinit_script_maker",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cli.dev",
+      "name": "abinit_generate_reference",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cli.dev",
+      "name": "abinit_test_data",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cli.dev",
+      "name": "save_abinit_maker",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.analysis.elastic",
+      "name": "get_default_strain_states",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.builders.magnetism",
+      "name": "MagneticOrderingsBuilder",
+      "type": "class",
+      "available_method_count": 5,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "copy_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "delete_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "rename_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "gzip_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "gunzip_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "find_and_filter_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "get_zfile",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.files",
+      "name": "gzip_output_folder",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.anharmonicity",
+      "name": "BaseAnharmonicityMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.approx_neb",
+      "name": "CommonApproxNebMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.approx_neb",
+      "name": "ApproxNebFromEndpointsMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.defect",
+      "name": "ConfigurationCoordinateMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.defect",
+      "name": "FormationEnergyMaker",
+      "type": "class",
+      "available_method_count": 4,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.elastic",
+      "name": "BaseElasticMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.electrode",
+      "name": "ElectrodeInsertionMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.eos",
+      "name": "CommonEosMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.gruneisen",
+      "name": "BaseGruneisenMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.mpmorph",
+      "name": "EquilibriumVolumeMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.mpmorph",
+      "name": "MPMorphMDMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.mpmorph",
+      "name": "FastQuenchMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.mpmorph",
+      "name": "SlowQuenchMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.phonons",
+      "name": "BasePhononMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.flows.qha",
+      "name": "CommonQhaMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "ImaginaryModeError",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_phonon_supercell",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_sigma_per_site",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_sigma_per_element",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "box_muller",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "displace_structure",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "build_dynmat",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_eigens",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_sigma_a_per_mode",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_forces",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "get_sigmas",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "calc_sigma_a",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "run_displacements",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.anharmonicity",
+      "name": "store_results",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "get_endpoints_and_relax",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "collate_results",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "get_images_and_relax",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "get_pathfinder_results",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "add_selective_dynamics_two_fixed_sites",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "get_working_ion_index",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "get_hop_distance_from_endpoints",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.approx_neb",
+      "name": "collate_images_single_hop",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "CCDInput",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "get_charged_structures",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "spawn_energy_curve_calcs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "get_ccd_documents",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "get_supercell_from_prv_calc",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "bulk_supercell_calculation",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "spawn_defect_q_jobs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "check_charge_state",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.defect",
+      "name": "get_defect_entry",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.elastic",
+      "name": "run_elastic_deformations",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.elastic",
+      "name": "fit_elastic_tensor",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "RelaxJobSummary",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_stable_inserted_results",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_computed_entries",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_structure_group_doc",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_insertion_electrode_doc",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_inserted_structures",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_relaxed_job_summaries",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.electrode",
+      "name": "get_min_energy_summary",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.eos",
+      "name": "PostProcessEosEnergy",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.eos",
+      "name": "PostProcessEosPressure",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.eos",
+      "name": "MPMorphPVPostProcess",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.eos",
+      "name": "MPMorphEVPostProcess",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.gruneisen",
+      "name": "run_phonon_jobs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.gruneisen",
+      "name": "compute_gruneisen_param",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.magnetism",
+      "name": "enumerate_magnetic_orderings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.magnetism",
+      "name": "run_ordering_calculations",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.magnetism",
+      "name": "postprocess_orderings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.mpmorph",
+      "name": "get_average_volume_from_mp_api",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.mpmorph",
+      "name": "get_average_volume_from_db_cached",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.mpmorph",
+      "name": "get_average_volume_from_mp",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.mpmorph",
+      "name": "get_average_volume_from_database",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.mpmorph",
+      "name": "get_random_packed_structure",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.neb",
+      "name": "NebInterpolation",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.phonons",
+      "name": "get_total_energy_per_cell",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.phonons",
+      "name": "generate_phonon_displacements",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.phonons",
+      "name": "generate_frequencies_eigenvectors",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.phonons",
+      "name": "run_phonon_displacements",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.qha",
+      "name": "get_supercell_size",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.qha",
+      "name": "get_phonon_jobs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.qha",
+      "name": "analyze_free_energy",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.transform",
+      "name": "Transformer",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.transform",
+      "name": "SQS",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.utils",
+      "name": "retrieve_structure_from_materials_project",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.jobs.utils",
+      "name": "remove_workflow_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.powerups",
+      "name": "add_metadata_to_flow",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.powerups",
+      "name": "update_custodian_handlers",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.schemas.anharmonicity",
+      "name": "AnharmonicityDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.cclib",
+      "name": "TaskDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.cclib",
+      "name": "cclib_calculate",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.defects",
+      "name": "FormationEnergyDiagramDocument",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.defects",
+      "name": "CCDDocument",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.defects",
+      "name": "sort_pos_dist",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.defects",
+      "name": "get_dQ",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.elastic",
+      "name": "DerivedProperties",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.elastic",
+      "name": "FittingData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.elastic",
+      "name": "ElasticTensorDocument",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.elastic",
+      "name": "ElasticWarnings",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.elastic",
+      "name": "ElasticDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.elastic",
+      "name": "expand_strains",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.gruneisen",
+      "name": "GruneisenInputDirs",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.gruneisen",
+      "name": "PhononRunsImaginaryModes",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.gruneisen",
+      "name": "GruneisenDerivedProperties",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.gruneisen",
+      "name": "GruneisenParameterDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.magnetism",
+      "name": "MagneticOrderingInput",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.magnetism",
+      "name": "MagneticOrderingRelaxation",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.magnetism",
+      "name": "MagneticOrderingOutput",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.magnetism",
+      "name": "MagneticOrderingsDocument",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "get_factor",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "PhononComputationalSettings",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "ThermalDisplacementData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "PhononUUIDs",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "ForceConstants",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "PhononJobDirs",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.phonons",
+      "name": "PhononBSDOSDoc",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.qha",
+      "name": "PhononQHADoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.transform",
+      "name": "SQSMethod",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.transform",
+      "name": "TransformTask",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.schemas.transform",
+      "name": "SQSTask",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.common.utils",
+      "name": "get_supercell_matrix",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.utils",
+      "name": "get_transformations",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.utils",
+      "name": "parse_custodian",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.utils",
+      "name": "parse_transformations",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.utils",
+      "name": "parse_additional_json",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.common.utils",
+      "name": "check_class_name",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.drones",
+      "name": "Cp2kDrone",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.files",
+      "name": "copy_cp2k_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.files",
+      "name": "get_largest_relax_extension",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.files",
+      "name": "write_cp2k_input_set",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.files",
+      "name": "cleanup_cp2k_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "DoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "BandStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "RelaxBandStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "HybridFlowMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "HybridStaticFlowMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "HybridRelaxFlowMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.flows.core",
+      "name": "HybridCellOptFlowMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.base",
+      "name": "cp2k_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.base",
+      "name": "BaseCp2kMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "StaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "RelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "CellOptMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "HybridStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "HybridRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "HybridCellOptMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "NonSCFMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "TransmuterMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.jobs.core",
+      "name": "MDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.powerups",
+      "name": "update_user_input_settings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.powerups",
+      "name": "update_user_kpoints_settings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.powerups",
+      "name": "add_metadata_to_flow",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.powerups",
+      "name": "update_cp2k_custodian_handlers",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.run",
+      "name": "JobType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.run",
+      "name": "run_cp2k",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.run",
+      "name": "should_stop_children",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types._generate",
+      "name": "get_enum_source",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "missing_description"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types._generate",
+      "name": "get_calc_type_key",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types.enums",
+      "name": "RunType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types.enums",
+      "name": "TaskType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types.enums",
+      "name": "CalcType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types.utils",
+      "name": "run_type",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types.utils",
+      "name": "task_type",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calc_types.utils",
+      "name": "calc_type",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calculation",
+      "name": "Status",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calculation",
+      "name": "Cp2kObject",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calculation",
+      "name": "CalculationInput",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calculation",
+      "name": "RunStatistics",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calculation",
+      "name": "CalculationOutput",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.calculation",
+      "name": "Calculation",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.task",
+      "name": "AnalysisSummary",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.task",
+      "name": "AtomicKind",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.task",
+      "name": "AtomicKindSummary",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.task",
+      "name": "InputSummary",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.task",
+      "name": "OutputSummary",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.schemas.task",
+      "name": "TaskDocument",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.cp2k.sets.base",
+      "name": "Cp2kInputSet",
+      "type": "class",
+      "available_method_count": 4,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.base",
+      "name": "Cp2kInputGenerator",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.base",
+      "name": "Cp2kAllElectronInputGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.base",
+      "name": "recursive_update",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "StaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "RelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "CellOptSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "HybridStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "HybridRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "HybridCellOptSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "NonSCFSetGenerator",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.cp2k.sets.core",
+      "name": "MDSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.approx_neb",
+      "name": "ForceFieldApproxNebFromEndpointsMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.elastic",
+      "name": "ElasticMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.eos",
+      "name": "ForceFieldEosMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.gruneisen",
+      "name": "GruneisenMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.mpmorph",
+      "name": "MPMorphMLFFMDMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.mpmorph",
+      "name": "SlowQuenchMLFFMDMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.mpmorph",
+      "name": "FastQuenchMLFFMDMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.phonons",
+      "name": "PhononMaker",
+      "type": "class",
+      "available_method_count": 4,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.qha",
+      "name": "ForceFieldQhaMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.qha",
+      "name": "CHGNetQhaMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.relax",
+      "name": "CHGNetVaspRelaxMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.flows.relax",
+      "name": "M3GNetVaspRelaxMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.jobs",
+      "name": "forcefield_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.jobs",
+      "name": "ForceFieldRelaxMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.jobs",
+      "name": "ForceFieldStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.md",
+      "name": "ForceFieldMDMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.neb",
+      "name": "ForceFieldNebFromImagesMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.neb",
+      "name": "ForceFieldNebFromEndpointsMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.schemas",
+      "name": "ForceFieldMeta",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.forcefields.schemas",
+      "name": "ForceFieldMoleculeTaskDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.forcefields.schemas",
+      "name": "ForceFieldTaskDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.forcefields.utils",
+      "name": "MLFF",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.utils",
+      "name": "ForceFieldMixin",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.forcefields.utils",
+      "name": "ase_calculator",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.forcefields.utils",
+      "name": "revert_default_dtype",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.files",
+      "name": "write_jdftx_input_set",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.adsorption",
+      "name": "SurfaceMinMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.adsorption",
+      "name": "MolMinMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.base",
+      "name": "jdftx_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.base",
+      "name": "BaseJdftxMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.base",
+      "name": "get_jdftx_task_document",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.core",
+      "name": "SinglePointMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.core",
+      "name": "IonicMinMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.jobs.core",
+      "name": "LatticeMinMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.run",
+      "name": "JobType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.run",
+      "name": "get_jdftx_cmd",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.run",
+      "name": "run_jdftx",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.run",
+      "name": "should_stop_children",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.calculation",
+      "name": "Convergence",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.calculation",
+      "name": "RunStatistics",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.calculation",
+      "name": "CalculationInput",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.calculation",
+      "name": "CalculationOutput",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.calculation",
+      "name": "Calculation",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.calculation",
+      "name": "joutstruct_to_struct",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.enums",
+      "name": "JDFTxStatus",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.enums",
+      "name": "CalcType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.enums",
+      "name": "TaskType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.enums",
+      "name": "SolvationType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.task",
+      "name": "CustodianDoc",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.schemas.task",
+      "name": "TaskDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.jdftx.sets.base",
+      "name": "JdftxInputGenerator",
+      "type": "class",
+      "available_method_count": 7,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.sets.base",
+      "name": "center_of_mass",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.sets.core",
+      "name": "SinglePointSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.sets.core",
+      "name": "IonicMinSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.sets.core",
+      "name": "LatticeMinSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.jdftx.sets.core",
+      "name": "BEASTSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.files",
+      "name": "write_lammps_input_set",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.files",
+      "name": "DumpConvertor",
+      "type": "class",
+      "available_method_count": 4,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.flows.core",
+      "name": "MeltQuenchThermalizeMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.base",
+      "name": "LammpsRunError",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_type"
+    },
+    {
+      "module": "atomate2.lammps.jobs.base",
+      "name": "lammps_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.base",
+      "name": "BaseLammpsMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.core",
+      "name": "LammpsNVTMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.core",
+      "name": "LammpsNPTMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.core",
+      "name": "LammpsNVEMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.core",
+      "name": "MinimizationMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.core",
+      "name": "LammpsNPzATMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.jobs.core",
+      "name": "CustomLammpsMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.run",
+      "name": "run_lammps",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.schemas.task",
+      "name": "LammpsTaskDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lammps.sets.core",
+      "name": "LammpsNVESet",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.sets.core",
+      "name": "LammpsNVTSet",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.sets.core",
+      "name": "LammpsNPTSet",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lammps.sets.core",
+      "name": "LammpsMinimizeSet",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lobster.files",
+      "name": "copy_lobster_files",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lobster.jobs",
+      "name": "LobsterMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lobster.run",
+      "name": "JobType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lobster.run",
+      "name": "run_lobster",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "zpath",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "LobsteroutModel",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "LobsterinModel",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "Bonding",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "Antibonding",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "BondsInfo",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "SiteInfo",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "Sites",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "CohpPlotData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "DictIons",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "DictBonds",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "CondensedBondingAnalysis",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "DosComparisons",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "ChargeComparisons",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "BandOverlapsComparisons",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "ChargeSpilling",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "CalcQualitySummary",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "StrongestBonds",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "LobsterTaskDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.lobster.schemas",
+      "name": "read_saved_json",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.openff",
+      "name": "openff_mol_as_monty_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff",
+      "name": "openff_topology_as_monty_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff",
+      "name": "openff_interchange_as_monty_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff",
+      "name": "openff_interchange_from_monty_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff",
+      "name": "openff_quantity_as_monty_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff",
+      "name": "openff_quantity_from_monty_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.core",
+      "name": "openff_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.core",
+      "name": "generate_interchange",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.schemas",
+      "name": "data_frame_validater",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.openff.schemas",
+      "name": "data_frame_serializer",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.openff.schemas",
+      "name": "SolventBenchmarkingDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.openff.schemas",
+      "name": "SolvationDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "create_mol_spec",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "create_mol_spec_list",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "merge_specs_by_name_and_smiles",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "calculate_elyte_composition",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "counts_from_masses",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "counts_from_box_size",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openff.utils",
+      "name": "create_mol_dicts",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.flows.core",
+      "name": "collect_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.flows.core",
+      "name": "OpenMMFlowMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.flows.dynamic",
+      "name": "default_should_continue",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.flows.dynamic",
+      "name": "ShouldContinueProtocol",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.flows.dynamic",
+      "name": "DynamicOpenMMFlowMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.interchange",
+      "name": "OpenMMInterchange",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.base",
+      "name": "openmm_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.base",
+      "name": "BaseOpenMMMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.core",
+      "name": "EnergyMinimizationMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.core",
+      "name": "NPTMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.core",
+      "name": "NVTMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.core",
+      "name": "TempChangeMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.generate",
+      "name": "XMLMoleculeFF",
+      "type": "class",
+      "available_method_count": 7,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.generate",
+      "name": "create_ff_from_xml",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.jobs.generate",
+      "name": "generate_openmm_interchange",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "download_opls_xml",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "generate_opls_xml",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "create_list_summing_to",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "increment_name",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "task_reports",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "openff_to_openmm_interchange",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "opls_lj",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.openmm.utils",
+      "name": "PymatgenTrajectoryReporter",
+      "type": "class",
+      "available_method_count": 4,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.drones",
+      "name": "QChemDrone",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.files",
+      "name": "copy_qchem_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.files",
+      "name": "get_largest_opt_extension",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.flows.core",
+      "name": "DoubleOptMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.flows.core",
+      "name": "FrequencyOptMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.flows.core",
+      "name": "FrequencyOptFlatteningMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.base",
+      "name": "qchem_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.base",
+      "name": "BaseQCMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.core",
+      "name": "SinglePointMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.core",
+      "name": "OptMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.core",
+      "name": "ForceMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.core",
+      "name": "TransitionStateMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.core",
+      "name": "FreqMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.jobs.core",
+      "name": "PESScanMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.run",
+      "name": "JobType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.run",
+      "name": "run_qchem",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.run",
+      "name": "should_stop_children",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.base",
+      "name": "QCInputSet",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.base",
+      "name": "QCInputGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.core",
+      "name": "SinglePointSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.core",
+      "name": "OptSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.core",
+      "name": "TransitionStateSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.core",
+      "name": "ForceSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.core",
+      "name": "FreqSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.qchem.sets.core",
+      "name": "PESScanSetGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.settings",
+      "name": "Atomate2Settings",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "torchsim_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "properties_to_calculation_output",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "get_calculation_output",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "process_trajectory_reporter_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "process_in_flight_autobatcher_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "process_binning_autobatcher_dict",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "pick_model",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "TorchSimOptimizeMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "TorchSimIntegrateMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.core",
+      "name": "TorchSimStaticMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.flows.elastic",
+      "name": "ElasticMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.flows.phonons",
+      "name": "PhononMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "TorchSimModelType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "ConvergenceFn",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "PropertyFn",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "TaskType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "TrajectoryReporterDetails",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "AutobatcherDetails",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "CalculationOutput",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "TorchSimCalculation",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.torchsim.schema",
+      "name": "TorchSimTaskDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.datetime",
+      "name": "datetime_str",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.file_client",
+      "name": "FileClient",
+      "type": "class",
+      "available_method_count": 17,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.file_client",
+      "name": "get_ssh_connection",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.file_client",
+      "name": "auto_fileclient",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.log",
+      "name": "initialize_logger",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.path",
+      "name": "get_uri",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.path",
+      "name": "strip_hostname",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.path",
+      "name": "find_recent_logfile",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.utils.testing.aims",
+      "name": "zpath",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.aims",
+      "name": "monkeypatch_aims",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.aims",
+      "name": "fake_run_aims",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.aims",
+      "name": "clear_aims_inputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.aims",
+      "name": "copy_aims_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.common",
+      "name": "get_job_uuid_name_map",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.lobster",
+      "name": "lobster_test_dir",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.lobster",
+      "name": "monkeypatch_lobster",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.lobster",
+      "name": "fake_run_lobster",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.lobster",
+      "name": "verify_inputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.lobster",
+      "name": "copy_lobster_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "zpath",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "monkeypatch_vasp",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "fake_run_vasp",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "TestData",
+      "type": "class",
+      "available_method_count": 6,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "VaspInputTestData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "VaspOutputTestData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.utils.testing.vasp",
+      "name": "VaspTestData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.builders.elastic",
+      "name": "ElasticBuilder",
+      "type": "class",
+      "available_method_count": 5,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.drones",
+      "name": "VaspDrone",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.files",
+      "name": "copy_vasp_outputs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.files",
+      "name": "get_largest_relax_extension",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.files",
+      "name": "write_vasp_input_set",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.adsorption",
+      "name": "AdsorptionMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.amset",
+      "name": "DeformationPotentialMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.amset",
+      "name": "VaspAmsetMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.amset",
+      "name": "HSEVaspAmsetMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.approx_neb",
+      "name": "ApproxNebMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.approx_neb",
+      "name": "ApproxNebSingleHopMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "UniformBandStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "LineModeBandStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "HSEBandStructureMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "HSEUniformBandStructureMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "HSELineModeBandStructureMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.core",
+      "name": "HSEOpticsMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.defect",
+      "name": "FormationEnergyMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.defect",
+      "name": "ConfigurationCoordinateMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.defect",
+      "name": "NonRadiativeMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.electrode",
+      "name": "ElectrodeInsertionMaker",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.elph",
+      "name": "ElectronPhononMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.elph",
+      "name": "HSEElectronPhononMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "EosDoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "MPLegacyEosDoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "MPLegacyEosMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "MPGGAEosDoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "MPGGAEosMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "MPMetaGGAEosDoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.eos",
+      "name": "MPMetaGGAEosMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.ferroelectric",
+      "name": "FerroelectricMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.gruneisen",
+      "name": "GruneisenMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.matpes",
+      "name": "MatPesStaticFlowMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.md",
+      "name": "MultiMDMaker",
+      "type": "class",
+      "available_method_count": 3,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MPGGADoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MPMetaGGADoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MPGGADoubleRelaxStaticMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MPMetaGGADoubleRelaxStaticMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MP24DoubleRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MP24DoubleRelaxStaticMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mp",
+      "name": "MPVaspLobsterMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mpmorph",
+      "name": "MPMorphVaspMDMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mpmorph",
+      "name": "MPMorphSlowQuenchVaspMDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mpmorph",
+      "name": "MPMorphFastQuenchVaspMDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.mvl",
+      "name": "MVLGWBandStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.flows.qha",
+      "name": "QhaMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "BulkRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "MolRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "MolStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "SlabRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "SlabStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "remove_adsorbate",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "generate_slab",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "generate_adslabs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "run_adslabs_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.adsorption",
+      "name": "adsorption_calculations",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "DenseUniformMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "StaticDeformationMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "HSEStaticDeformationMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "HSEDenseUniformMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "run_amset_deformations",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "calculate_deformation_potentials",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "calculate_polar_phonon_frequency",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.amset",
+      "name": "generate_wavefunction_coefficients",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.approx_neb",
+      "name": "ApproxNebHostRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.approx_neb",
+      "name": "ApproxNebImageRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.approx_neb",
+      "name": "get_charge_density",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.base",
+      "name": "vasp_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.base",
+      "name": "get_vasp_task_document",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "RelaxConstVolMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "TightRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "TightRelaxConstVolMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "TightConstVolRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "HSERelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "HSETightRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "HSEStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "HSEBSMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "DielectricMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "PolarizationMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.core",
+      "name": "TransmuterMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.defect",
+      "name": "calculate_finite_diff",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.elastic",
+      "name": "ElasticRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.elph",
+      "name": "SupercellElectronPhononDisplacedStructureMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.elph",
+      "name": "run_elph_displacements",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.elph",
+      "name": "calculate_electron_phonon_renormalisation",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "EosRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPLegacyEosRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPLegacyEosStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPGGAEosRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPGGAEosStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPMetaGGAEosPreRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPMetaGGAEosRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.eos",
+      "name": "MPMetaGGAEosStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.ferroelectric",
+      "name": "polarization_analysis",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.ferroelectric",
+      "name": "interpolate_structures",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.ferroelectric",
+      "name": "add_interpolation_flow",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.ferroelectric",
+      "name": "get_polarization_output",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.lobster",
+      "name": "LobsterStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.lobster",
+      "name": "get_basis_infos",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.lobster",
+      "name": "update_user_incar_settings_maker",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.lobster",
+      "name": "get_lobster_jobs",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.matpes",
+      "name": "MatPesGGAStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.matpes",
+      "name": "MatPesMetaGGAStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.md",
+      "name": "MDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.md",
+      "name": "md_output",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MPGGARelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MPGGAStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MPPreRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MPMetaGGARelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MPMetaGGAStaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MP24PreRelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MP24RelaxMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mp",
+      "name": "MP24StaticMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mpmorph",
+      "name": "BaseMPMorphMDMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mpmorph",
+      "name": "SlowQuenchVaspMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mpmorph",
+      "name": "FastQuenchVaspMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mvl",
+      "name": "MVLStaticMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mvl",
+      "name": "MVLNonSCFMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.mvl",
+      "name": "MVLGWMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.neb",
+      "name": "vasp_neb_job",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.neb",
+      "name": "collect_neb_output",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.neb",
+      "name": "NebFromImagesMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.neb",
+      "name": "NebFromEndpointsMaker",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.jobs.phonons",
+      "name": "PhononDisplacementMaker",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "update_user_potcar_settings",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.powerups",
+      "name": "update_user_potcar_functional",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.run",
+      "name": "JobType",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.run",
+      "name": "run_vasp",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.run",
+      "name": "should_stop_children",
+      "type": "function",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.run",
+      "name": "VaspNebFilesValidator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.schemas.adsorption",
+      "name": "AdsorptionDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.schemas.defect",
+      "name": "FiniteDifferenceDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.schemas.elph",
+      "name": "RawElectronicData",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.schemas.elph",
+      "name": "ElectronPhononRenormalisationDoc",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.schemas.ferroelectric",
+      "name": "PolarizationDocument",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.schemas.md",
+      "name": "MultiMDOutput",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "support_schema_or_test_surface"
+    },
+    {
+      "module": "atomate2.vasp.sets.approx_neb",
+      "name": "ApproxNebSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.base",
+      "name": "VaspInputGenerator",
+      "type": "class",
+      "available_method_count": 0,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "RelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "RelaxConstVolSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "TightRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "TightRelaxConstVolSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "StaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "NonSCFSetGenerator",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "HSERelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "HSETightRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "HSEStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "HSEBSSetGenerator",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "ElectronPhononSetGenerator",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "MDSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "LobsterTightStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.core",
+      "name": "NebSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.defect",
+      "name": "ChargeStateRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.defect",
+      "name": "ChargeStateStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.defect",
+      "name": "HSEChargeStateRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.defect",
+      "name": "HSEChargeStateStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "EosSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPLegacyEosRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 2,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPLegacyEosStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPGGAEosRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPGGAEosStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPMetaGGAEosStaticSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPMetaGGAEosRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.eos",
+      "name": "MPMetaGGAEosPreRelaxSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    },
+    {
+      "module": "atomate2.vasp.sets.mpmorph",
+      "name": "MPMorphMDSetGenerator",
+      "type": "class",
+      "available_method_count": 1,
+      "reason": "outside_curated_capability_boundary"
+    }
+  ]
+}

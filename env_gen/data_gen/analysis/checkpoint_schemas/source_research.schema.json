@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/source_research.schema.json",
+  "title": "DataGen Source Research",
+  "description": "Step 2 对现实环境的最低覆盖区域、开放扩展、来源和实际下载结论。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "seed_global_id",
+    "seed_sha256",
+    "summary",
+    "investigation_targets",
+    "sources",
+    "expansion_findings",
+    "task_file_formats",
+    "result"
+  ],
+  "properties": {
+    "schema_version": {"const": "3.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "summary": {"type": "string", "minLength": 80, "maxLength": 1600},
+    "investigation_targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/investigationTarget"}
+    },
+    "sources": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/source"}
+    },
+    "expansion_findings": {"$ref": "#/$defs/stringArray"},
+    "seed_tool_observations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/seedToolObservation"}
+    },
+    "task_file_formats": {"$ref": "#/$defs/stringArray"},
+    "result": {"enum": ["in_progress", "ready", "partial", "insufficient_data"]}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$"},
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "investigationTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "description",
+        "priority",
+        "related_entities",
+        "related_tools",
+        "related_tasks",
+        "expected_content_roles",
+        "expected_data",
+        "variation_dimensions",
+        "connection_keys",
+        "file_context",
+        "status",
+        "source_ids",
+        "gap"
+      ],
+      "properties": {
+        "target_id": {"$ref": "#/$defs/id"},
+        "description": {"type": "string", "minLength": 20},
+        "priority": {"enum": ["core", "supporting"]},
+        "related_entities": {"$ref": "#/$defs/stringArray"},
+        "related_tools": {"$ref": "#/$defs/stringArray"},
+        "related_tasks": {"$ref": "#/$defs/stringArray"},
+        "expected_content_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["structured_data", "domain_files", "semantic_evidence"]}
+        },
+        "expected_data": {"$ref": "#/$defs/stringArray", "minItems": 1},
+        "variation_dimensions": {"$ref": "#/$defs/stringArray", "minItems": 1},
+        "connection_keys": {"$ref": "#/$defs/stringArray"},
+        "file_context": {"$ref": "#/$defs/stringArray"},
+        "status": {"enum": ["pending", "covered", "partial", "unavailable"]},
+        "source_ids": {"$ref": "#/$defs/stringArray"},
+        "gap": {"type": ["string", "null"], "minLength": 1}
+      },
+      "anyOf": [
+        {"properties": {"related_entities": {"minItems": 1}}},
+        {"properties": {"related_tools": {"minItems": 1}}},
+        {"properties": {"related_tasks": {"minItems": 1}}}
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "name",
+        "source_type",
+        "content_roles",
+        "url",
+        "registered_urls",
+        "target_ids",
+        "collection_mode",
+        "collection_strategy",
+        "status",
+        "findings",
+        "limitations"
+      ],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string", "minLength": 1},
+        "source_type": {
+          "enum": ["api", "dataset", "repository", "file_collection", "documentation", "other"]
+        },
+        "content_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["structured_data", "domain_files", "semantic_evidence"]}
+        },
+        "url": {"type": "string", "format": "uri"},
+        "registered_urls": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "format": "uri"}
+        },
+        "target_ids": {"$ref": "#/$defs/stringArray", "minItems": 1},
+        "collection_mode": {
+          "enum": ["complete_source", "representative_sample", "semantic_evidence"]
+        },
+        "collection_strategy": {"type": "string", "minLength": 20},
+        "status": {
+          "enum": ["planned", "collecting", "complete", "blocked", "unavailable", "rejected"]
+        },
+        "findings": {"type": "string", "minLength": 1},
+        "limitations": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "seedToolObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_name",
+        "status",
+        "findings",
+        "source_ids",
+        "file_paths",
+        "limitations"
+      ],
+      "properties": {
+        "tool_name": {"type": "string", "minLength": 1},
+        "status": {
+          "enum": ["not_checked", "verified", "partial", "unavailable", "contract_drift"]
+        },
+        "findings": {"type": "string", "minLength": 10},
+        "source_ids": {"$ref": "#/$defs/stringArray"},
+        "file_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^raw/"}
+        },
+        "limitations": {"$ref": "#/$defs/stringArray"}
+      }
+    }
+  }
+}

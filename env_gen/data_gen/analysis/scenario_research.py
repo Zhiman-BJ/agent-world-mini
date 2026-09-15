@@ -9,6 +9,8 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from .seed import is_python_package_seed, reference_tool_labels
+
 
 @dataclass(frozen=True)
 class ScenarioResearchIssue:
@@ -44,6 +46,51 @@ def _duplicate_name_issues(
     )]
 
 
+def _source_reference_issues(
+    payload: dict[str, Any],
+) -> list[ScenarioResearchIssue]:
+    """Require every researched item to cite a registered external source."""
+
+    sources = payload.get("research_notes", {}).get("sources", [])
+    registered_urls = {
+        str(item.get("url") or "").strip()
+        for item in sources
+        if isinstance(item, dict) and str(item.get("url") or "").strip()
+    } if isinstance(sources, list) else set()
+    referenced_items: list[tuple[str, Any]] = [
+        ("$.environment.source_urls", payload.get("environment", {})),
+    ]
+    for collection in ("entities", "tools", "tasks"):
+        items = payload.get(collection, [])
+        if not isinstance(items, list):
+            continue
+        for index, item in enumerate(items):
+            referenced_items.append((f"$.{collection}[{index}].source_urls", item))
+
+    issues: list[ScenarioResearchIssue] = []
+    for path, item in referenced_items:
+        if not isinstance(item, dict):
+            continue
+        source_urls = item.get("source_urls", [])
+        if not isinstance(source_urls, list):
+            continue
+        unknown = sorted({
+            str(url).strip()
+            for url in source_urls
+            if isinstance(url, str)
+            and url.strip()
+            and url.strip() not in registered_urls
+        })
+        if unknown:
+            issues.append(ScenarioResearchIssue(
+                "unregistered_research_source",
+                path,
+                "引用的 URL 未登记在 research_notes.sources 中："
+                + ", ".join(unknown),
+            ))
+    return issues
+
+
 def validate_scenario_research_payload(
     payload: dict[str, Any],
     *,
@@ -76,23 +123,34 @@ def validate_scenario_research_payload(
 
     for collection in ("entities", "tools", "tasks"):
         issues.extend(_duplicate_name_issues(payload, collection))
+    issues.extend(_source_reference_issues(payload))
 
-    reference_tool_names = {
-        str(item.get("name") or "").strip()
-        for item in seed.get("init_ref_tools", [])
-        if isinstance(item, dict) and str(item.get("name") or "").strip()
-    }
+    reference_tool_names = reference_tool_labels(seed)
     researched_tool_names = {
         str(item.get("name") or "").strip()
         for item in payload.get("tools", [])
         if isinstance(item, dict)
     }
-    missing_tools = sorted(reference_tool_names - researched_tool_names)
+    if is_python_package_seed(seed):
+        unknown_tools = sorted(researched_tool_names - reference_tool_names)
+        if unknown_tools:
+            issues.append(ScenarioResearchIssue(
+                "unknown_python_package_tools",
+                "$.tools",
+                "这些工具不是 Seed 所列版本中的 module.name 能力："
+                + ", ".join(unknown_tools),
+            ))
+    missing_tools = (
+        []
+        if is_python_package_seed(seed)
+        else sorted(reference_tool_names - researched_tool_names)
+    )
     if missing_tools:
         issues.append(ScenarioResearchIssue(
             "missing_reference_tools",
             "$.tools",
-            "这些 Seed 参考工具没有使用原名称形成独立说明：" + ", ".join(missing_tools),
+            "这些 Seed 参考工具没有使用原名称形成独立说明："
+            + ", ".join(missing_tools),
         ))
 
     reference_task_count = sum(

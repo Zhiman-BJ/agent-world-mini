@@ -1,0 +1,84 @@
+[
+  {
+    "name": "devsim",
+    "index": 3,
+    "repository": "https://github.com/devsim/devsim",
+    "documentation": "https://devsim.net/",
+    "pypi": "https://pypi.org/project/devsim/",
+    "pypi_version": "2.11.0",
+    "tag": "v2.11.0.rc5",
+    "commit": "43b41ca845184c47e22b72d144db7e7db8509377",
+    "release_published_at": "2026-08-15T15:02:06Z",
+    "checked_on": "2026-09-10",
+    "github_prerelease": false,
+    "directory": "devsim",
+    "modules": ["python_packages", "umfpack"],
+    "description": "DEVSIM 是采用有限体积法的开源半导体器件仿真软件，通过 Python 接口定义网格、材料参数、物理模型和方程，支持一维、二维和三维器件的直流、交流及瞬态计算，并提供电路耦合、符号微分和仿真结果读写功能。",
+    "notes": [
+      "采用 GitHub releases/latest 返回的发布标签；标签含 rc5，但官方 prerelease=false，且该标签 CHANGES.md 对应 Version 2.11.0。保留实际标签，不改写成不存在的 v2.11.0 标签。",
+      "核心 API 从 src/pythonapi/CommandTable.cc 与 DevsimDoc.cc 提取；Python 辅助模块按 dist/bdist_wheel/setup.py 的安装布局加 devsim 前缀。",
+      "只克隆主仓库，未初始化构建用第三方子模块；未编译、安装或运行仿真。"
+    ]
+  },
+  {
+    "name": "nextnanopy",
+    "index": 4,
+    "repository": "https://github.com/nextnano-GmbH/nextnanopy",
+    "documentation": "https://www.nextnano.com/docu/nextnanopy/",
+    "pypi": "https://pypi.org/project/nextnanopy/",
+    "pypi_version": "1.3.1",
+    "tag": "v1.3.2",
+    "commit": "5da921ff29f9861596c0906aba37ede8da7daf60",
+    "release_published_at": "2026-09-10T14:18:12Z",
+    "checked_on": "2026-09-10",
+    "github_prerelease": false,
+    "directory": "nextnanopy",
+    "modules": ["nextnanopy"],
+    "description": "nextnanopy 是 nextnano 半导体纳米结构仿真软件的 Python 接口工具包，用于读取和修改输入文件、管理仿真配置、批量执行与参数扫描，并读取、分析和绘制计算输出。它可组织 nextnano 软件的自动化研究流程，实际仿真需要相应的 nextnano 程序及许可。",
+    "notes": [
+      "GitHub 最新 Release 为 v1.3.2，标签内 pyproject.toml 版本为 1.3.2；核查时 PyPI 最新版本仍为 1.3.1。",
+      "未安装或执行 nextnano 仿真程序。"
+    ]
+  },
+  {
+    "name": "sesame",
+    "index": 5,
+    "repository": "https://github.com/usnistgov/sesame",
+    "documentation": "https://sesame.readthedocs.io/en/latest/",
+    "pypi": "",
+    "pypi_version": "",
+    "tag": "2.0.3",
+    "commit": "639b43515321e261b3ae7e0ae0d60b0f71556933",
+    "release_published_at": "2019-04-25T22:32:09Z",
+    "checked_on": "2026-09-10",
+    "github_prerelease": false,
+    "directory": "sesame",
+    "modules": ["sesame"],
+    "description": "Sesame 是用于半导体材料和器件的一维、二维漂移扩散与泊松方程求解器，提供器件网格与材料构建、掺杂及缺陷设置、光生载流子和复合过程建模，以及电势、载流子浓度、电流和电流电压特性分析，并附带可选图形界面。",
+    "notes": [
+      "此处为 usnistgov/sesame 半导体求解器；PyPI 的 sesame 0.3.3 是 mafrosis/sesame 加密工具，故不填写该同名 PyPI 链接。source=pypi 沿用用户指定的 Python 包种子分类，不表示已确认 PyPI 分发。",
+      "采用 GitHub Release 标签 2.0.3；标签内 sesame/_version.py 仍为 2.0，保留实际发布标签。",
+      "索引包含 sesame.ui 源码；未安装 GUI 或运行数值求解。"
+    ]
+  },
+  {
+    "name": "solcore",
+    "index": 6,
+    "repository": "https://github.com/qpv-research-group/solcore5",
+    "documentation": "https://solcore5.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/solcore/",
+    "pypi_version": "5.10.1",
+    "tag": "v5.10.1",
+    "commit": "2df20db12c0059d784aad445cd2f1872b8189708",
+    "release_published_at": "2025-07-03T08:24:15Z",
+    "checked_on": "2026-09-10",
+    "github_prerelease": false,
+    "directory": "solcore",
+    "modules": ["solcore"],
+    "description": "Solcore 是面向太阳能电池和半导体材料的多尺度 Python 建模库，提供材料参数、单位换算、光源、层状结构及结结构定义，并结合光学吸收、量子阱、详细平衡、耗尽近似和漂移扩散模型，计算单结及多结太阳能电池的量子效率和电流电压特性。",
+    "notes": [
+      "采用 GitHub Release v5.10.1，与 PyPI 5.10.1 一致。官方 Read the Docs latest 页面显示 5.10.1；旧 docs.solcore.solar/en/master/ 页面仍显示 5.7.7，故使用前者。",
+      "索引范围为 solcore 包内 Python 源文件；外部依赖、Fortran 扩展内部符号和运行时动态创建的类型不在 AST 索引中。"
+    ]
+  }
+]

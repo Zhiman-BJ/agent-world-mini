@@ -1,0 +1,160 @@
+{
+  "profile_id": "atomate2_workflow_planning_v1",
+  "package": "atomate2",
+  "version": "v0.1.5",
+  "source_sha256": "53a8942528032a5ae17e640efaa47815ded9c7e9278e9e8b0ebeee37e23524db",
+  "boundary": "构建、定制、检查和序列化材料计算工作流，并使用小型 fixture 验证结构预处理与后处理；不声称在缺少 VASP、赝势、调度器及可选科学软件时执行真实材料模拟。",
+  "capabilities": [
+    {
+      "id": "vasp_job_construction",
+      "description": "构建静态、弛豫和非自洽 VASP Job。",
+      "selection_reason": "官方工作流目录和教程中的基础 Job Maker；验证边界限定为 Job 构建和图结构检查。",
+      "verification_tier": "construction_only",
+      "evidence": ["public_api", "official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "atomate2.vasp.jobs.base",
+          "name": "BaseVaspMaker",
+          "type": "class",
+          "methods": ["make"]
+        },
+        {
+          "module": "atomate2.vasp.jobs.core",
+          "name": "StaticMaker",
+          "type": "class",
+          "methods": []
+        },
+        {
+          "module": "atomate2.vasp.jobs.core",
+          "name": "RelaxMaker",
+          "type": "class",
+          "methods": []
+        },
+        {
+          "module": "atomate2.vasp.jobs.core",
+          "name": "NonSCFMaker",
+          "type": "class",
+          "methods": ["make"]
+        }
+      ]
+    },
+    {
+      "id": "core_flow_composition",
+      "description": "构建双弛豫、能带、弛豫加能带和光学工作流。",
+      "selection_reason": "选择官方文档中最常见、能体现多 Job 依赖关系的核心 Flow Maker。",
+      "verification_tier": "construction_only",
+      "evidence": ["public_api", "official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "atomate2.vasp.flows.core",
+          "name": "DoubleRelaxMaker",
+          "type": "class",
+          "methods": ["make", "from_relax_maker"]
+        },
+        {
+          "module": "atomate2.vasp.flows.core",
+          "name": "BandStructureMaker",
+          "type": "class",
+          "methods": ["make"]
+        },
+        {
+          "module": "atomate2.vasp.flows.core",
+          "name": "RelaxBandStructureMaker",
+          "type": "class",
+          "methods": ["make"]
+        },
+        {
+          "module": "atomate2.vasp.flows.core",
+          "name": "OpticsMaker",
+          "type": "class",
+          "methods": ["make"]
+        }
+      ]
+    },
+    {
+      "id": "property_workflow_catalog",
+      "description": "表示弹性、声子、状态方程、成键和磁有序等代表性材料性质工作流。",
+      "selection_reason": "按官方工作流类别各保留一个代表性 Maker，避免将同一性质的 HSE、GGA、Meta-GGA 和后端变体全部展开。",
+      "verification_tier": "construction_or_fixture_only",
+      "evidence": ["official_docs", "core_capability", "composable_io"],
+      "symbols": [
+        {
+          "module": "atomate2.vasp.flows.elastic",
+          "name": "ElasticMaker",
+          "type": "class",
+          "methods": []
+        },
+        {
+          "module": "atomate2.vasp.flows.phonons",
+          "name": "PhononMaker",
+          "type": "class",
+          "methods": []
+        },
+        {
+          "module": "atomate2.vasp.flows.eos",
+          "name": "EosMaker",
+          "type": "class",
+          "methods": []
+        },
+        {
+          "module": "atomate2.vasp.flows.lobster",
+          "name": "VaspLobsterMaker",
+          "type": "class",
+          "methods": ["make"]
+        },
+        {
+          "module": "atomate2.common.flows.magnetism",
+          "name": "MagneticOrderingsMaker",
+          "type": "class",
+          "methods": ["make"]
+        }
+      ]
+    },
+    {
+      "id": "workflow_customization",
+      "description": "更新 VASP 输入、K 点、运行处理器和工作流元数据。",
+      "selection_reason": "官方文档推荐使用 powerup 返回修改后的 Maker 或 Flow，适合形成无原地修改的可组合工具。",
+      "verification_tier": "deterministic_local",
+      "evidence": ["public_api", "official_docs", "core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {"module": "atomate2.vasp.powerups", "name": "update_vasp_input_generators", "type": "function"},
+        {"module": "atomate2.vasp.powerups", "name": "update_user_incar_settings", "type": "function"},
+        {"module": "atomate2.vasp.powerups", "name": "update_user_kpoints_settings", "type": "function"},
+        {"module": "atomate2.vasp.powerups", "name": "use_auto_ispin", "type": "function"},
+        {"module": "atomate2.vasp.powerups", "name": "add_metadata_to_flow", "type": "function"},
+        {"module": "atomate2.vasp.powerups", "name": "update_vasp_custodian_handlers", "type": "function"}
+      ]
+    },
+    {
+      "id": "structure_preprocessing",
+      "description": "生成形变、缩放、标准胞和 NEB 插值结构等工作流输入。",
+      "selection_reason": "这些函数以 Structure 或小型数值参数为主要输入，能在不运行外部计算程序时形成并验证任务链。",
+      "verification_tier": "deterministic_local",
+      "evidence": ["core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {"module": "atomate2.common.jobs.elastic", "name": "generate_elastic_deformations", "type": "function"},
+        {"module": "atomate2.common.jobs.eos", "name": "apply_strain_to_structure", "type": "function"},
+        {"module": "atomate2.common.jobs.gruneisen", "name": "shrink_expand_structure", "type": "function"},
+        {"module": "atomate2.common.jobs.utils", "name": "structure_to_primitive", "type": "function"},
+        {"module": "atomate2.common.jobs.utils", "name": "structure_to_conventional", "type": "function"},
+        {"module": "atomate2.common.jobs.phonons", "name": "get_supercell_size", "type": "function"},
+        {"module": "atomate2.common.jobs.neb", "name": "get_images_from_endpoints", "type": "function"}
+      ]
+    },
+    {
+      "id": "fixture_result_processing",
+      "description": "对固定的状态方程结果进行排序、拟合和求值。",
+      "selection_reason": "保留一个无需真实启动 VASP、可使用仓库 fixture 重放验证的代表性后处理类。",
+      "verification_tier": "fixture_replay",
+      "evidence": ["core_capability", "deterministic_local", "composable_io"],
+      "symbols": [
+        {
+          "module": "atomate2.common.jobs.eos",
+          "name": "EOSPostProcessor",
+          "type": "class",
+          "methods": ["sort_by_quantity", "eval", "fit", "make"]
+        }
+      ]
+    }
+  ]
+}

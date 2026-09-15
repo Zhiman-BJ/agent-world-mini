@@ -1,0 +1,2029 @@
+[
+  {
+    "global_id": "pypi_gmsh_9",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://gitlab.onelab.info/gmsh/gmsh",
+          "https://pypi.org/project/gmsh/",
+          "https://gmsh.info/doc/texinfo/"
+        ],
+        "name": "gmsh",
+        "version": "gmsh_4_15_2",
+        "index": 9
+      },
+      "description": "Gmsh 是具有几何建模、二维及三维有限元网格生成和前后处理功能的开源工具，其 Python API 可构建几何实体、定义物理分组、设置网格尺寸、生成并查询节点和单元，以及读写网格文件。本次作为网格生成后端整理；用于 DEVSIM 时需匹配 MSH 格式及器件区域、接触和界面标签。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 0,
+        "function": 75,
+        "class_func": 0,
+        "all_func": 75
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "initialize",
+        "description": "Initialize the Gmsh API. This must be called before any call to the other functions in the API. If `argc' and `argv' (or just `argv' in Python or Julia) are provided, they will be handled in the same way as the command line arguments in the Gmsh app. If `readConfigFiles' is set, read system Gmsh configuration files (gmshrc and gmsh-options). If `run' is set, run in the same way as the Gmsh app, either interactively or in batch mode depending on the command line arguments. If `run' is not set, initializing the API sets the options \"General.AbortOnError\" to 2 and \"General.Terminal\" to 1.",
+        "input": {
+          "argv": {
+            "type": "command line arguments",
+            "description": ""
+          },
+          "readConfigFiles": {
+            "type": "boolean",
+            "description": ""
+          },
+          "run": {
+            "type": "boolean",
+            "description": ""
+          },
+          "interruptible": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "argv = [], readConfigFiles = True, run = False, interruptible = True",
+        "ori_description": "gmsh.initialize(argv=[], readConfigFiles=True, run=False)  Initialize the Gmsh API. This must be called before any call to the other functions in the API. If `argc' and `argv' (or just `argv' in Python or Julia) are provided, they will be handled in the same way as the command line arguments in the Gmsh app. If `readConfigFiles' is set, read system Gmsh configuration files (gmshrc and gmsh-options). If `run' is set, run in the same way as the Gmsh app, either interactively or in batch mode depending on the command line arguments. If `run' is not set, initializing the API sets the options \"General.AbortOnError\" to 2 and \"General.Terminal\" to 1.  Types: - `argv': command line arguments - `readConfigFiles': boolean - `run': boolean",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "isInitialized",
+        "description": "Return 1 if the Gmsh API is initialized, and 0 if not.",
+        "input": {},
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "",
+        "ori_description": "gmsh.isInitialized()  Return 1 if the Gmsh API is initialized, and 0 if not.  Return an integer.",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "finalize",
+        "description": "Finalize the Gmsh API. This must be called when you are done using the Gmsh API.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "gmsh.finalize()  Finalize the Gmsh API. This must be called when you are done using the Gmsh API.",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "open",
+        "description": "Open a file. Equivalent to the `File->Open' menu in the Gmsh app. Handling of the file depends on its extension and/or its contents: opening a file with model data will create a new model.",
+        "input": {
+          "fileName": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fileName",
+        "ori_description": "gmsh.open(fileName)  Open a file. Equivalent to the `File->Open' menu in the Gmsh app. Handling of the file depends on its extension and/or its contents: opening a file with model data will create a new model.  Types: - `fileName': string",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "merge",
+        "description": "Merge a file. Equivalent to the `File->Merge' menu in the Gmsh app. Handling of the file depends on its extension and/or its contents. Merging a file with model data will add the data to the current model.",
+        "input": {
+          "fileName": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fileName",
+        "ori_description": "gmsh.merge(fileName)  Merge a file. Equivalent to the `File->Merge' menu in the Gmsh app. Handling of the file depends on its extension and/or its contents. Merging a file with model data will add the data to the current model.  Types: - `fileName': string",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "write",
+        "description": "Write a file. The export format is determined by the file extension.",
+        "input": {
+          "fileName": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fileName",
+        "ori_description": "gmsh.write(fileName)  Write a file. The export format is determined by the file extension.  Types: - `fileName': string",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "clear",
+        "description": "Clear all loaded models and post-processing data, and add a new empty model.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "gmsh.clear()  Clear all loaded models and post-processing data, and add a new empty model.",
+        "type": "function",
+        "module": "gmsh"
+      },
+      {
+        "name": "setNumber",
+        "description": "Set a numerical option to `value'. `name' is of the form \"Category.Option\" or \"Category[num].Option\". Available categories and options are listed in the \"Gmsh options\" chapter of the Gmsh reference manual (https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-options).",
+        "input": {
+          "name": {
+            "type": "string",
+            "description": ""
+          },
+          "value": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "name, value",
+        "ori_description": "gmsh.option.setNumber(name, value)  Set a numerical option to `value'. `name' is of the form \"Category.Option\" or \"Category[num].Option\". Available categories and options are listed in the \"Gmsh options\" chapter of the Gmsh reference manual (https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-options).  Types: - `name': string - `value': double",
+        "type": "function",
+        "module": "gmsh.option"
+      },
+      {
+        "name": "getNumber",
+        "description": "Get the `value' of a numerical option. `name' is of the form \"Category.Option\" or \"Category[num].Option\". Available categories and options are listed in the \"Gmsh options\" chapter of the Gmsh reference manual (https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-options).",
+        "input": {
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": {
+          "value": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "ori_input": "name",
+        "ori_description": "gmsh.option.getNumber(name)  Get the `value' of a numerical option. `name' is of the form \"Category.Option\" or \"Category[num].Option\". Available categories and options are listed in the \"Gmsh options\" chapter of the Gmsh reference manual (https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-options).  Return `value'.  Types: - `name': string - `value': double",
+        "type": "function",
+        "module": "gmsh.option"
+      },
+      {
+        "name": "add",
+        "description": "Add a new model, with name `name', and set it as the current model.",
+        "input": {
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "name",
+        "ori_description": "gmsh.model.add(name)  Add a new model, with name `name', and set it as the current model.  Types: - `name': string",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "remove",
+        "description": "Remove the current model.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "gmsh.model.remove()  Remove the current model.",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "list",
+        "description": "List the names of all models.",
+        "input": {},
+        "output": {
+          "names": {
+            "type": "vector of strings",
+            "description": ""
+          }
+        },
+        "ori_input": "",
+        "ori_description": "gmsh.model.list()  List the names of all models.  Return `names'.  Types: - `names': vector of strings",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getCurrent",
+        "description": "Get the name of the current model.",
+        "input": {},
+        "output": {
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "ori_input": "",
+        "ori_description": "gmsh.model.getCurrent()  Get the name of the current model.  Return `name'.  Types: - `name': string",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "setCurrent",
+        "description": "Set the current model to the model with name `name'. If several models have the same name, select the one that was added first.",
+        "input": {
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "name",
+        "ori_description": "gmsh.model.setCurrent(name)  Set the current model to the model with name `name'. If several models have the same name, select the one that was added first.  Types: - `name': string",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getEntities",
+        "description": "Get all the entities in the current model. A model entity is represented by two integers: its dimension (dim == 0, 1, 2 or 3) and its tag (its unique, strictly positive identifier). If `dim' is >= 0, return only the entities of the specified dimension (e.g. points if `dim' == 0). The entities are returned as a vector of (dim, tag) pairs.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dim = -1",
+        "ori_description": "gmsh.model.getEntities(dim=-1)  Get all the entities in the current model. A model entity is represented by two integers: its dimension (dim == 0, 1, 2 or 3) and its tag (its unique, strictly positive identifier). If `dim' is >= 0, return only the entities of the specified dimension (e.g. points if `dim' == 0). The entities are returned as a vector of (dim, tag) pairs.  Return `dimTags'.  Types: - `dimTags': vector of pairs of integers - `dim': integer",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getPhysicalGroups",
+        "description": "Get the physical groups in the current model. The physical groups are returned as a vector of (dim, tag) pairs. If `dim' is >= 0, return only the groups of the specified dimension (e.g. physical points if `dim' == 0).",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dim = -1",
+        "ori_description": "gmsh.model.getPhysicalGroups(dim=-1)  Get the physical groups in the current model. The physical groups are returned as a vector of (dim, tag) pairs. If `dim' is >= 0, return only the groups of the specified dimension (e.g. physical points if `dim' == 0).  Return `dimTags'.  Types: - `dimTags': vector of pairs of integers - `dim': integer",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "addPhysicalGroup",
+        "description": "Add a physical group of dimension `dim', grouping the model entities with tags `tags'. Return the tag of the physical group, equal to `tag' if `tag' is positive, or a new tag if `tag' < 0. Set the name of the physical group if `name' is not empty.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tags": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tags, tag = -1, name = ''",
+        "ori_description": "gmsh.model.addPhysicalGroup(dim, tags, tag=-1, name=\"\")  Add a physical group of dimension `dim', grouping the model entities with tags `tags'. Return the tag of the physical group, equal to `tag' if `tag' is positive, or a new tag if `tag' < 0. Set the name of the physical group if `name' is not empty.  Return an integer.  Types: - `dim': integer - `tags': vector of integers - `tag': integer - `name': string",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "setPhysicalName",
+        "description": "Set the name of the physical group of dimension `dim' and tag `tag'.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dim, tag, name",
+        "ori_description": "gmsh.model.setPhysicalName(dim, tag, name)  Set the name of the physical group of dimension `dim' and tag `tag'.  Types: - `dim': integer - `tag': integer - `name': string",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getPhysicalName",
+        "description": "Get the name of the physical group of dimension `dim' and tag `tag'.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "name": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.getPhysicalName(dim, tag)  Get the name of the physical group of dimension `dim' and tag `tag'.  Return `name'.  Types: - `dim': integer - `tag': integer - `name': string",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getEntitiesForPhysicalGroup",
+        "description": "Get the tags of the model entities making up the physical group of dimension `dim' and tag `tag'.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "tags": {
+            "type": "vector of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.getEntitiesForPhysicalGroup(dim, tag)  Get the tags of the model entities making up the physical group of dimension `dim' and tag `tag'.  Return `tags'.  Types: - `dim': integer - `tag': integer - `tags': vector of integers",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getPhysicalGroupsForEntity",
+        "description": "Get the tags of the physical groups (if any) to which the model entity of dimension `dim' and tag `tag' belongs.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "physicalTags": {
+            "type": "vector of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.getPhysicalGroupsForEntity(dim, tag)  Get the tags of the physical groups (if any) to which the model entity of dimension `dim' and tag `tag' belongs.  Return `physicalTags'.  Types: - `dim': integer - `tag': integer - `physicalTags': vector of integers",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getBoundary",
+        "description": "Get the boundary of the model entities `dimTags', given as a vector of (dim, tag) pairs. Return in `outDimTags' the boundary of the individual entities (if `combined' is false) or the boundary of the combined geometrical shape formed by all input entities (if `combined' is true). Return tags multiplied by the sign of the boundary entity if `oriented' is true. Apply the boundary operator recursively down to dimension 0 (i.e. to points) if `recursive' is true.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "combined": {
+            "type": "boolean",
+            "description": ""
+          },
+          "oriented": {
+            "type": "boolean",
+            "description": ""
+          },
+          "recursive": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dimTags, combined = True, oriented = False, recursive = False",
+        "ori_description": "gmsh.model.getBoundary(dimTags, combined=True, oriented=False, recursive=False)  Get the boundary of the model entities `dimTags', given as a vector of (dim, tag) pairs. Return in `outDimTags' the boundary of the individual entities (if `combined' is false) or the boundary of the combined geometrical shape formed by all input entities (if `combined' is true). Return tags multiplied by the sign of the boundary entity if `oriented' is true. Apply the boundary operator recursively down to dimension 0 (i.e. to points) if `recursive' is true.  Return `outDimTags'.  Types: - `dimTags': vector of pairs of integers - `outDimTags': vector of pairs of integers - `combined': boolean - `oriented': boolean - `recursive': boolean",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getBoundingBox",
+        "description": "Get the bounding box (`xmin', `ymin', `zmin'), (`xmax', `ymax', `zmax') of the model entity of dimension `dim' and tag `tag'. If `dim' and `tag' are negative, get the bounding box of the whole model.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "xmin": {
+            "type": "double",
+            "description": ""
+          },
+          "ymin": {
+            "type": "double",
+            "description": ""
+          },
+          "zmin": {
+            "type": "double",
+            "description": ""
+          },
+          "xmax": {
+            "type": "double",
+            "description": ""
+          },
+          "ymax": {
+            "type": "double",
+            "description": ""
+          },
+          "zmax": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.getBoundingBox(dim, tag)  Get the bounding box (`xmin', `ymin', `zmin'), (`xmax', `ymax', `zmax') of the model entity of dimension `dim' and tag `tag'. If `dim' and `tag' are negative, get the bounding box of the whole model.  Return `xmin', `ymin', `zmin', `xmax', `ymax', `zmax'.  Types: - `dim': integer - `tag': integer - `xmin': double - `ymin': double - `zmin': double - `xmax': double - `ymax': double - `zmax': double",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "getDimension",
+        "description": "Return the geometrical dimension of the current model.",
+        "input": {},
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "",
+        "ori_description": "gmsh.model.getDimension()  Return the geometrical dimension of the current model.  Return an integer.",
+        "type": "function",
+        "module": "gmsh.model"
+      },
+      {
+        "name": "addPoint",
+        "description": "Add a geometrical point in the OpenCASCADE CAD representation, at coordinates (`x', `y', `z'). If `meshSize' is > 0, add a meshing constraint at that point. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the point. (Note that the point will be added in the current model only after `synchronize' is called. This behavior holds for all the entities added in the occ module.)",
+        "input": {
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          },
+          "meshSize": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "x, y, z, meshSize = 0.0, tag = -1",
+        "ori_description": "gmsh.model.occ.addPoint(x, y, z, meshSize=0., tag=-1)  Add a geometrical point in the OpenCASCADE CAD representation, at coordinates (`x', `y', `z'). If `meshSize' is > 0, add a meshing constraint at that point. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the point. (Note that the point will be added in the current model only after `synchronize' is called. This behavior holds for all the entities added in the occ module.)  Return an integer.  Types: - `x': double - `y': double - `z': double - `meshSize': double - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addLine",
+        "description": "Add a straight line segment in the OpenCASCADE CAD representation, between the two points with tags `startTag' and `endTag'. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the line.",
+        "input": {
+          "startTag": {
+            "type": "integer",
+            "description": ""
+          },
+          "endTag": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "startTag, endTag, tag = -1",
+        "ori_description": "gmsh.model.occ.addLine(startTag, endTag, tag=-1)  Add a straight line segment in the OpenCASCADE CAD representation, between the two points with tags `startTag' and `endTag'. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the line.  Return an integer.  Types: - `startTag': integer - `endTag': integer - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addCurveLoop",
+        "description": "Add a curve loop (a closed wire) in the OpenCASCADE CAD representation, formed by the curves `curveTags'. `curveTags' should contain tags of curves forming a closed loop. Negative tags can be specified for compatibility with the built-in kernel, but are simply ignored: the wire is oriented according to the orientation of its first curve. Note that an OpenCASCADE curve loop can be made of curves that share geometrically identical (but topologically different) points. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the curve loop.",
+        "input": {
+          "curveTags": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "curveTags, tag = -1",
+        "ori_description": "gmsh.model.occ.addCurveLoop(curveTags, tag=-1)  Add a curve loop (a closed wire) in the OpenCASCADE CAD representation, formed by the curves `curveTags'. `curveTags' should contain tags of curves forming a closed loop. Negative tags can be specified for compatibility with the built-in kernel, but are simply ignored: the wire is oriented according to the orientation of its first curve. Note that an OpenCASCADE curve loop can be made of curves that share geometrically identical (but topologically different) points. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the curve loop.  Return an integer.  Types: - `curveTags': vector of integers - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addPlaneSurface",
+        "description": "Add a plane surface in the OpenCASCADE CAD representation, defined by one or more curve loops (or closed wires) `wireTags'. The first curve loop defines the exterior contour; additional curve loop define holes. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the surface.",
+        "input": {
+          "wireTags": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "wireTags, tag = -1",
+        "ori_description": "gmsh.model.occ.addPlaneSurface(wireTags, tag=-1)  Add a plane surface in the OpenCASCADE CAD representation, defined by one or more curve loops (or closed wires) `wireTags'. The first curve loop defines the exterior contour; additional curve loop define holes. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the surface.  Return an integer.  Types: - `wireTags': vector of integers - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addRectangle",
+        "description": "Add a rectangle in the OpenCASCADE CAD representation, with lower left corner at (`x', `y', `z') and upper right corner at (`x' + `dx', `y' + `dy', `z'). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Round the corners if `roundedRadius' is nonzero. Return the tag of the rectangle.",
+        "input": {
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          },
+          "dx": {
+            "type": "double",
+            "description": ""
+          },
+          "dy": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "roundedRadius": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "x, y, z, dx, dy, tag = -1, roundedRadius = 0.0",
+        "ori_description": "gmsh.model.occ.addRectangle(x, y, z, dx, dy, tag=-1, roundedRadius=0.)  Add a rectangle in the OpenCASCADE CAD representation, with lower left corner at (`x', `y', `z') and upper right corner at (`x' + `dx', `y' + `dy', `z'). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Round the corners if `roundedRadius' is nonzero. Return the tag of the rectangle.  Return an integer.  Types: - `x': double - `y': double - `z': double - `dx': double - `dy': double - `tag': integer - `roundedRadius': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addDisk",
+        "description": "Add a disk in the OpenCASCADE CAD representation, with center (`xc', `yc', `zc') and radius `rx' along the x-axis and `ry' along the y-axis (`rx' >= `ry'). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. If a vector `zAxis' of size 3 is provided, use it as the normal to the disk (z-axis). If a vector `xAxis' of size 3 is provided in addition to `zAxis', use it to define the x-axis. Return the tag of the disk.",
+        "input": {
+          "xc": {
+            "type": "double",
+            "description": ""
+          },
+          "yc": {
+            "type": "double",
+            "description": ""
+          },
+          "zc": {
+            "type": "double",
+            "description": ""
+          },
+          "rx": {
+            "type": "double",
+            "description": ""
+          },
+          "ry": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "zAxis": {
+            "type": "vector of doubles",
+            "description": ""
+          },
+          "xAxis": {
+            "type": "vector of doubles",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "xc, yc, zc, rx, ry, tag = -1, zAxis = [], xAxis = []",
+        "ori_description": "gmsh.model.occ.addDisk(xc, yc, zc, rx, ry, tag=-1, zAxis=[], xAxis=[])  Add a disk in the OpenCASCADE CAD representation, with center (`xc', `yc', `zc') and radius `rx' along the x-axis and `ry' along the y-axis (`rx' >= `ry'). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. If a vector `zAxis' of size 3 is provided, use it as the normal to the disk (z-axis). If a vector `xAxis' of size 3 is provided in addition to `zAxis', use it to define the x-axis. Return the tag of the disk.  Return an integer.  Types: - `xc': double - `yc': double - `zc': double - `rx': double - `ry': double - `tag': integer - `zAxis': vector of doubles - `xAxis': vector of doubles",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addBox",
+        "description": "Add a parallelepipedic box in the OpenCASCADE CAD representation, defined by a point (`x', `y', `z') and the extents along the x-, y- and z-axes. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the box.",
+        "input": {
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          },
+          "dx": {
+            "type": "double",
+            "description": ""
+          },
+          "dy": {
+            "type": "double",
+            "description": ""
+          },
+          "dz": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "x, y, z, dx, dy, dz, tag = -1",
+        "ori_description": "gmsh.model.occ.addBox(x, y, z, dx, dy, dz, tag=-1)  Add a parallelepipedic box in the OpenCASCADE CAD representation, defined by a point (`x', `y', `z') and the extents along the x-, y- and z-axes. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the box.  Return an integer.  Types: - `x': double - `y': double - `z': double - `dx': double - `dy': double - `dz': double - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addSphere",
+        "description": "Add a sphere of center (`xc', `yc', `zc') and radius `r' in the OpenCASCADE CAD representation. The optional `angle1' and `angle2' arguments define the polar angle opening (from -Pi/2 to Pi/2). The optional `angle3' argument defines the azimuthal opening (from 0 to 2*Pi). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the sphere.",
+        "input": {
+          "xc": {
+            "type": "double",
+            "description": ""
+          },
+          "yc": {
+            "type": "double",
+            "description": ""
+          },
+          "zc": {
+            "type": "double",
+            "description": ""
+          },
+          "radius": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "angle1": {
+            "type": "double",
+            "description": ""
+          },
+          "angle2": {
+            "type": "double",
+            "description": ""
+          },
+          "angle3": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "xc, yc, zc, radius, tag = -1, angle1 = -pi / 2, angle2 = pi / 2, angle3 = 2 * pi",
+        "ori_description": "gmsh.model.occ.addSphere(xc, yc, zc, radius, tag=-1, angle1=-pi/2, angle2=pi/2, angle3=2*pi)  Add a sphere of center (`xc', `yc', `zc') and radius `r' in the OpenCASCADE CAD representation. The optional `angle1' and `angle2' arguments define the polar angle opening (from -Pi/2 to Pi/2). The optional `angle3' argument defines the azimuthal opening (from 0 to 2*Pi). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the sphere.  Return an integer.  Types: - `xc': double - `yc': double - `zc': double - `radius': double - `tag': integer - `angle1': double - `angle2': double - `angle3': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addCylinder",
+        "description": "Add a cylinder in the OpenCASCADE CAD representation, defined by the center (`x', `y', `z') of its first circular face, the 3 components (`dx', `dy', `dz') of the vector defining its axis and its radius `r'. The optional `angle' argument defines the angular opening (from 0 to 2*Pi). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the cylinder.",
+        "input": {
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          },
+          "dx": {
+            "type": "double",
+            "description": ""
+          },
+          "dy": {
+            "type": "double",
+            "description": ""
+          },
+          "dz": {
+            "type": "double",
+            "description": ""
+          },
+          "r": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "angle": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "x, y, z, dx, dy, dz, r, tag = -1, angle = 2 * pi",
+        "ori_description": "gmsh.model.occ.addCylinder(x, y, z, dx, dy, dz, r, tag=-1, angle=2*pi)  Add a cylinder in the OpenCASCADE CAD representation, defined by the center (`x', `y', `z') of its first circular face, the 3 components (`dx', `dy', `dz') of the vector defining its axis and its radius `r'. The optional `angle' argument defines the angular opening (from 0 to 2*Pi). If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the cylinder.  Return an integer.  Types: - `x': double - `y': double - `z': double - `dx': double - `dy': double - `dz': double - `r': double - `tag': integer - `angle': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "extrude",
+        "description": "Extrude the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation, using a translation along (`dx', `dy', `dz'). Return extruded entities in `outDimTags'. If the `numElements' vector is not empty, also extrude the mesh: the entries in `numElements' give the number of elements in each layer. If the `height' vector is not empty, it provides the (cumulative) height of the different layers, normalized to 1. If `recombine' is set, recombine the mesh in the layers.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "dx": {
+            "type": "double",
+            "description": ""
+          },
+          "dy": {
+            "type": "double",
+            "description": ""
+          },
+          "dz": {
+            "type": "double",
+            "description": ""
+          },
+          "numElements": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "heights": {
+            "type": "vector of doubles",
+            "description": ""
+          },
+          "recombine": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dimTags, dx, dy, dz, numElements = [], heights = [], recombine = False",
+        "ori_description": "gmsh.model.occ.extrude(dimTags, dx, dy, dz, numElements=[], heights=[], recombine=False)  Extrude the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation, using a translation along (`dx', `dy', `dz'). Return extruded entities in `outDimTags'. If the `numElements' vector is not empty, also extrude the mesh: the entries in `numElements' give the number of elements in each layer. If the `height' vector is not empty, it provides the (cumulative) height of the different layers, normalized to 1. If `recombine' is set, recombine the mesh in the layers.  Return `outDimTags'.  Types: - `dimTags': vector of pairs of integers - `dx': double - `dy': double - `dz': double - `outDimTags': vector of pairs of integers - `numElements': vector of integers - `heights': vector of doubles - `recombine': boolean",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "fuse",
+        "description": "Compute the boolean union (the fusion) of the entities `objectDimTags' and `toolDimTags' (vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.",
+        "input": {
+          "objectDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "toolDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "removeObject": {
+            "type": "boolean",
+            "description": ""
+          },
+          "removeTool": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "outDimTagsMap": {
+            "type": "vector of vectors of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "objectDimTags, toolDimTags, tag = -1, removeObject = True, removeTool = True",
+        "ori_description": "gmsh.model.occ.fuse(objectDimTags, toolDimTags, tag=-1, removeObject=True, removeTool=True)  Compute the boolean union (the fusion) of the entities `objectDimTags' and `toolDimTags' (vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.  Return `outDimTags', `outDimTagsMap'.  Types: - `objectDimTags': vector of pairs of integers - `toolDimTags': vector of pairs of integers - `outDimTags': vector of pairs of integers - `outDimTagsMap': vector of vectors of pairs of integers - `tag': integer - `removeObject': boolean - `removeTool': boolean",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "cut",
+        "description": "Compute the boolean difference between the entities `objectDimTags' and `toolDimTags' (given as vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.",
+        "input": {
+          "objectDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "toolDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "removeObject": {
+            "type": "boolean",
+            "description": ""
+          },
+          "removeTool": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "outDimTagsMap": {
+            "type": "vector of vectors of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "objectDimTags, toolDimTags, tag = -1, removeObject = True, removeTool = True",
+        "ori_description": "gmsh.model.occ.cut(objectDimTags, toolDimTags, tag=-1, removeObject=True, removeTool=True)  Compute the boolean difference between the entities `objectDimTags' and `toolDimTags' (given as vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.  Return `outDimTags', `outDimTagsMap'.  Types: - `objectDimTags': vector of pairs of integers - `toolDimTags': vector of pairs of integers - `outDimTags': vector of pairs of integers - `outDimTagsMap': vector of vectors of pairs of integers - `tag': integer - `removeObject': boolean - `removeTool': boolean",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "intersect",
+        "description": "Compute the boolean intersection (the common parts) of the entities `objectDimTags' and `toolDimTags' (vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.",
+        "input": {
+          "objectDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "toolDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "removeObject": {
+            "type": "boolean",
+            "description": ""
+          },
+          "removeTool": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "outDimTagsMap": {
+            "type": "vector of vectors of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "objectDimTags, toolDimTags, tag = -1, removeObject = True, removeTool = True",
+        "ori_description": "gmsh.model.occ.intersect(objectDimTags, toolDimTags, tag=-1, removeObject=True, removeTool=True)  Compute the boolean intersection (the common parts) of the entities `objectDimTags' and `toolDimTags' (vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.  Return `outDimTags', `outDimTagsMap'.  Types: - `objectDimTags': vector of pairs of integers - `toolDimTags': vector of pairs of integers - `outDimTags': vector of pairs of integers - `outDimTagsMap': vector of vectors of pairs of integers - `tag': integer - `removeObject': boolean - `removeTool': boolean",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "fragment",
+        "description": "Compute the boolean fragments (general fuse) resulting from the intersection of the entities `objectDimTags' and `toolDimTags' (given as vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation, making all interfaces conformal. When applied to entities of different dimensions, the lower dimensional entities will be automatically embedded in the higher dimensional entities if they are not on their boundary. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.",
+        "input": {
+          "objectDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "toolDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "removeObject": {
+            "type": "boolean",
+            "description": ""
+          },
+          "removeTool": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "outDimTagsMap": {
+            "type": "vector of vectors of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "objectDimTags, toolDimTags, tag = -1, removeObject = True, removeTool = True",
+        "ori_description": "gmsh.model.occ.fragment(objectDimTags, toolDimTags, tag=-1, removeObject=True, removeTool=True)  Compute the boolean fragments (general fuse) resulting from the intersection of the entities `objectDimTags' and `toolDimTags' (given as vectors of (dim, tag) pairs) in the OpenCASCADE CAD representation, making all interfaces conformal. When applied to entities of different dimensions, the lower dimensional entities will be automatically embedded in the higher dimensional entities if they are not on their boundary. Return the resulting entities in `outDimTags', and the correspondance between input and resulting entities in `outDimTagsMap'. If `tag' is positive, try to set the tag explicitly (only valid if the boolean operation results in a single entity). Remove the object if `removeObject' is set. Remove the tool if `removeTool' is set.  Return `outDimTags', `outDimTagsMap'.  Types: - `objectDimTags': vector of pairs of integers - `toolDimTags': vector of pairs of integers - `outDimTags': vector of pairs of integers - `outDimTagsMap': vector of vectors of pairs of integers - `tag': integer - `removeObject': boolean - `removeTool': boolean",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "translate",
+        "description": "Translate the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation along (`dx', `dy', `dz').",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "dx": {
+            "type": "double",
+            "description": ""
+          },
+          "dy": {
+            "type": "double",
+            "description": ""
+          },
+          "dz": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dimTags, dx, dy, dz",
+        "ori_description": "gmsh.model.occ.translate(dimTags, dx, dy, dz)  Translate the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation along (`dx', `dy', `dz').  Types: - `dimTags': vector of pairs of integers - `dx': double - `dy': double - `dz': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "rotate",
+        "description": "Rotate the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation by `angle' radians around the axis of revolution defined by the point (`x', `y', `z') and the direction (`ax', `ay', `az').",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          },
+          "ax": {
+            "type": "double",
+            "description": ""
+          },
+          "ay": {
+            "type": "double",
+            "description": ""
+          },
+          "az": {
+            "type": "double",
+            "description": ""
+          },
+          "angle": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dimTags, x, y, z, ax, ay, az, angle",
+        "ori_description": "gmsh.model.occ.rotate(dimTags, x, y, z, ax, ay, az, angle)  Rotate the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation by `angle' radians around the axis of revolution defined by the point (`x', `y', `z') and the direction (`ax', `ay', `az').  Types: - `dimTags': vector of pairs of integers - `x': double - `y': double - `z': double - `ax': double - `ay': double - `az': double - `angle': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "copy",
+        "description": "Copy the entities `dimTags' in the OpenCASCADE CAD representation; the new entities are returned in `outDimTags'.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "output": {
+          "outDimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dimTags",
+        "ori_description": "gmsh.model.occ.copy(dimTags)  Copy the entities `dimTags' in the OpenCASCADE CAD representation; the new entities are returned in `outDimTags'.  Return `outDimTags'.  Types: - `dimTags': vector of pairs of integers - `outDimTags': vector of pairs of integers",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "remove",
+        "description": "Remove the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation, provided that they are not on the boundary of higher-dimensional entities. If `recursive' is true, remove all the entities on their boundaries, down to dimension 0.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "recursive": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dimTags, recursive = False",
+        "ori_description": "gmsh.model.occ.remove(dimTags, recursive=False)  Remove the entities `dimTags' (given as a vector of (dim, tag) pairs) in the OpenCASCADE CAD representation, provided that they are not on the boundary of higher-dimensional entities. If `recursive' is true, remove all the entities on their boundaries, down to dimension 0.  Types: - `dimTags': vector of pairs of integers - `recursive': boolean",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "synchronize",
+        "description": "Synchronize the OpenCASCADE CAD representation with the current Gmsh model. This can be called at any time, but since it involves a non trivial amount of processing, the number of synchronization points should normally be minimized. Without synchronization the entities in the OpenCASCADE CAD representation are not available to any function outside of the OpenCASCADE CAD kernel functions.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "gmsh.model.occ.synchronize()  Synchronize the OpenCASCADE CAD representation with the current Gmsh model. This can be called at any time, but since it involves a non trivial amount of processing, the number of synchronization points should normally be minimized. Without synchronization the entities in the OpenCASCADE CAD representation are not available to any function outside of the OpenCASCADE CAD kernel functions.",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "getEntities",
+        "description": "Get all the OpenCASCADE entities. If `dim' is >= 0, return only the entities of the specified dimension (e.g. points if `dim' == 0). The entities are returned as a vector of (dim, tag) pairs.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dim = -1",
+        "ori_description": "gmsh.model.occ.getEntities(dim=-1)  Get all the OpenCASCADE entities. If `dim' is >= 0, return only the entities of the specified dimension (e.g. points if `dim' == 0). The entities are returned as a vector of (dim, tag) pairs.  Return `dimTags'.  Types: - `dimTags': vector of pairs of integers - `dim': integer",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "getMass",
+        "description": "Get the mass of the OpenCASCADE entity of dimension `dim' and tag `tag'. If no density is attached to the entity (the default), the value corresponds respectively to the length, area and volume for `dim' = 1, 2 and 3.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "mass": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.occ.getMass(dim, tag)  Get the mass of the OpenCASCADE entity of dimension `dim' and tag `tag'. If no density is attached to the entity (the default), the value corresponds respectively to the length, area and volume for `dim' = 1, 2 and 3.  Return `mass'.  Types: - `dim': integer - `tag': integer - `mass': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "getCenterOfMass",
+        "description": "Get the center of mass of the OpenCASCADE entity of dimension `dim' and tag `tag'.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.occ.getCenterOfMass(dim, tag)  Get the center of mass of the OpenCASCADE entity of dimension `dim' and tag `tag'.  Return `x', `y', `z'.  Types: - `dim': integer - `tag': integer - `x': double - `y': double - `z': double",
+        "type": "function",
+        "module": "gmsh.model.occ"
+      },
+      {
+        "name": "addPoint",
+        "description": "Add a geometrical point in the built-in CAD representation, at coordinates (`x', `y', `z'). If `meshSize' is > 0, add a meshing constraint at that point. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the point. (Note that the point will be added in the current model only after `synchronize' is called. This behavior holds for all the entities added in the geo module.)",
+        "input": {
+          "x": {
+            "type": "double",
+            "description": ""
+          },
+          "y": {
+            "type": "double",
+            "description": ""
+          },
+          "z": {
+            "type": "double",
+            "description": ""
+          },
+          "meshSize": {
+            "type": "double",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "x, y, z, meshSize = 0.0, tag = -1",
+        "ori_description": "gmsh.model.geo.addPoint(x, y, z, meshSize=0., tag=-1)  Add a geometrical point in the built-in CAD representation, at coordinates (`x', `y', `z'). If `meshSize' is > 0, add a meshing constraint at that point. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the point. (Note that the point will be added in the current model only after `synchronize' is called. This behavior holds for all the entities added in the geo module.)  Return an integer.  Types: - `x': double - `y': double - `z': double - `meshSize': double - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.geo"
+      },
+      {
+        "name": "addLine",
+        "description": "Add a straight line segment in the built-in CAD representation, between the two points with tags `startTag' and `endTag'. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the line.",
+        "input": {
+          "startTag": {
+            "type": "integer",
+            "description": ""
+          },
+          "endTag": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "startTag, endTag, tag = -1",
+        "ori_description": "gmsh.model.geo.addLine(startTag, endTag, tag=-1)  Add a straight line segment in the built-in CAD representation, between the two points with tags `startTag' and `endTag'. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the line.  Return an integer.  Types: - `startTag': integer - `endTag': integer - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.geo"
+      },
+      {
+        "name": "addCurveLoop",
+        "description": "Add a curve loop (a closed wire) in the built-in CAD representation, formed by the curves `curveTags'. `curveTags' should contain (signed) tags of model entities of dimension 1 forming a closed loop: a negative tag signifies that the underlying curve is considered with reversed orientation. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. If `reorient' is set, automatically reorient the curves if necessary. Return the tag of the curve loop.",
+        "input": {
+          "curveTags": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "reorient": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "curveTags, tag = -1, reorient = False",
+        "ori_description": "gmsh.model.geo.addCurveLoop(curveTags, tag=-1, reorient=False)  Add a curve loop (a closed wire) in the built-in CAD representation, formed by the curves `curveTags'. `curveTags' should contain (signed) tags of model entities of dimension 1 forming a closed loop: a negative tag signifies that the underlying curve is considered with reversed orientation. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. If `reorient' is set, automatically reorient the curves if necessary. Return the tag of the curve loop.  Return an integer.  Types: - `curveTags': vector of integers - `tag': integer - `reorient': boolean",
+        "type": "function",
+        "module": "gmsh.model.geo"
+      },
+      {
+        "name": "addPlaneSurface",
+        "description": "Add a plane surface in the built-in CAD representation, defined by one or more curve loops `wireTags'. The first curve loop defines the exterior contour; additional curve loop define holes. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the surface.",
+        "input": {
+          "wireTags": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "wireTags, tag = -1",
+        "ori_description": "gmsh.model.geo.addPlaneSurface(wireTags, tag=-1)  Add a plane surface in the built-in CAD representation, defined by one or more curve loops `wireTags'. The first curve loop defines the exterior contour; additional curve loop define holes. If `tag' is positive, set the tag explicitly; otherwise a new tag is selected automatically. Return the tag of the surface.  Return an integer.  Types: - `wireTags': vector of integers - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.geo"
+      },
+      {
+        "name": "synchronize",
+        "description": "Synchronize the built-in CAD representation with the current Gmsh model. This can be called at any time, but since it involves a non trivial amount of processing, the number of synchronization points should normally be minimized. Without synchronization the entities in the built-in CAD representation are not available to any function outside of the built-in CAD kernel functions.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "gmsh.model.geo.synchronize()  Synchronize the built-in CAD representation with the current Gmsh model. This can be called at any time, but since it involves a non trivial amount of processing, the number of synchronization points should normally be minimized. Without synchronization the entities in the built-in CAD representation are not available to any function outside of the built-in CAD kernel functions.",
+        "type": "function",
+        "module": "gmsh.model.geo"
+      },
+      {
+        "name": "generate",
+        "description": "Generate a mesh of the current model, up to dimension `dim' (0, 1, 2 or 3).",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dim = 3",
+        "ori_description": "gmsh.model.mesh.generate(dim=3)  Generate a mesh of the current model, up to dimension `dim' (0, 1, 2 or 3).  Types: - `dim': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "clear",
+        "description": "Clear the mesh, i.e. delete all the nodes and elements, for the entities `dimTags', given as a vector of (dim, tag) pairs. If `dimTags' is empty, clear the whole mesh. Note that the mesh of an entity can only be cleared if this entity is not on the boundary of another entity with a non-empty mesh.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dimTags = []",
+        "ori_description": "gmsh.model.mesh.clear(dimTags=[])  Clear the mesh, i.e. delete all the nodes and elements, for the entities `dimTags', given as a vector of (dim, tag) pairs. If `dimTags' is empty, clear the whole mesh. Note that the mesh of an entity can only be cleared if this entity is not on the boundary of another entity with a non-empty mesh.  Types: - `dimTags': vector of pairs of integers",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "setSize",
+        "description": "Set a mesh size constraint on the model entities `dimTags', given as a vector of (dim, tag) pairs. Currently only entities of dimension 0 (points) are handled.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          },
+          "size": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dimTags, size",
+        "ori_description": "gmsh.model.mesh.setSize(dimTags, size)  Set a mesh size constraint on the model entities `dimTags', given as a vector of (dim, tag) pairs. Currently only entities of dimension 0 (points) are handled.  Types: - `dimTags': vector of pairs of integers - `size': double",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getSizes",
+        "description": "Get the mesh size constraints (if any) associated with the model entities `dimTags', given as a vector of (dim, tag) pairs. A zero entry in the output `sizes' vector indicates that no size constraint is specified on the corresponding entity.",
+        "input": {
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "output": {
+          "sizes": {
+            "type": "vector of doubles",
+            "description": ""
+          }
+        },
+        "ori_input": "dimTags",
+        "ori_description": "gmsh.model.mesh.getSizes(dimTags)  Get the mesh size constraints (if any) associated with the model entities `dimTags', given as a vector of (dim, tag) pairs. A zero entry in the output `sizes' vector indicates that no size constraint is specified on the corresponding entity.  Return `sizes'.  Types: - `dimTags': vector of pairs of integers - `sizes': vector of doubles",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "refine",
+        "description": "Refine the mesh of the current model by uniformly splitting the elements. This resets any high-order elements to order 1.",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": "gmsh.model.mesh.refine()  Refine the mesh of the current model by uniformly splitting the elements. This resets any high-order elements to order 1.",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "optimize",
+        "description": "Optimize the mesh of the current model using `method' (empty for default tetrahedral mesh optimizer, \"Netgen\" for Netgen optimizer, \"HighOrder\" for direct high-order mesh optimizer, \"HighOrderElastic\" for high-order elastic smoother, \"HighOrderFastCurving\" for fast curving algorithm, \"Laplace2D\" for Laplace smoothing, \"Relocate2D\" and \"Relocate3D\" for node relocation, \"QuadQuasiStructured\" for quad mesh optimization, \"UntangleMeshGeometry\" for untangling). If `force' is set apply the optimization also to discrete entities. If `dimTags' (given as a vector of (dim, tag) pairs) is given, only apply the optimizer to the given entities.",
+        "input": {
+          "method": {
+            "type": "string",
+            "description": ""
+          },
+          "force": {
+            "type": "boolean",
+            "description": ""
+          },
+          "niter": {
+            "type": "integer",
+            "description": ""
+          },
+          "dimTags": {
+            "type": "vector of pairs of integers",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "method = '', force = False, niter = 1, dimTags = []",
+        "ori_description": "gmsh.model.mesh.optimize(method=\"\", force=False, niter=1, dimTags=[])  Optimize the mesh of the current model using `method' (empty for default tetrahedral mesh optimizer, \"Netgen\" for Netgen optimizer, \"HighOrder\" for direct high-order mesh optimizer, \"HighOrderElastic\" for high-order elastic smoother, \"HighOrderFastCurving\" for fast curving algorithm, \"Laplace2D\" for Laplace smoothing, \"Relocate2D\" and \"Relocate3D\" for node relocation, \"QuadQuasiStructured\" for quad mesh optimization, \"UntangleMeshGeometry\" for untangling). If `force' is set apply the optimization also to discrete entities. If `dimTags' (given as a vector of (dim, tag) pairs) is given, only apply the optimizer to the given entities.  Types: - `method': string - `force': boolean - `niter': integer - `dimTags': vector of pairs of integers",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getNodes",
+        "description": "Get the nodes classified on the entity of dimension `dim' and tag `tag'. If `tag' < 0, get the nodes for all entities of dimension `dim'. If `dim' and `tag' are negative, get all the nodes in the mesh. `nodeTags' contains the node tags (their unique, strictly positive identification numbers). `coord' is a vector of length 3 times the length of `nodeTags' that contains the x, y, z coordinates of the nodes, concatenated: [n1x, n1y, n1z, n2x, ...]. If `dim' >= 0 and `returnParamtricCoord' is set, `parametricCoord' contains the parametric coordinates ([u1, u2, ...] or [u1, v1, u2, ...]) of the nodes, if available. The length of `parametricCoord' can be 0 or `dim' times the length of `nodeTags'. If `includeBoundary' is set, also return the nodes classified on the boundary of the entity (which will be reparametrized on the entity if `dim' >= 0 in order to compute their parametric coordinates).",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "includeBoundary": {
+            "type": "boolean",
+            "description": ""
+          },
+          "returnParametricCoord": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "output": {
+          "nodeTags": {
+            "type": "vector of sizes",
+            "description": ""
+          },
+          "coord": {
+            "type": "vector of doubles",
+            "description": ""
+          },
+          "parametricCoord": {
+            "type": "vector of doubles",
+            "description": ""
+          }
+        },
+        "ori_input": "dim = -1, tag = -1, includeBoundary = False, returnParametricCoord = True",
+        "ori_description": "gmsh.model.mesh.getNodes(dim=-1, tag=-1, includeBoundary=False, returnParametricCoord=True)  Get the nodes classified on the entity of dimension `dim' and tag `tag'. If `tag' < 0, get the nodes for all entities of dimension `dim'. If `dim' and `tag' are negative, get all the nodes in the mesh. `nodeTags' contains the node tags (their unique, strictly positive identification numbers). `coord' is a vector of length 3 times the length of `nodeTags' that contains the x, y, z coordinates of the nodes, concatenated: [n1x, n1y, n1z, n2x, ...]. If `dim' >= 0 and `returnParamtricCoord' is set, `parametricCoord' contains the parametric coordinates ([u1, u2, ...] or [u1, v1, u2, ...]) of the nodes, if available. The length of `parametricCoord' can be 0 or `dim' times the length of `nodeTags'. If `includeBoundary' is set, also return the nodes classified on the boundary of the entity (which will be reparametrized on the entity if `dim' >= 0 in order to compute their parametric coordinates).  Return `nodeTags', `coord', `parametricCoord'.  Types: - `nodeTags': vector of sizes - `coord': vector of doubles - `parametricCoord': vector of doubles - `dim': integer - `tag': integer - `includeBoundary': boolean - `returnParametricCoord': boolean",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getNode",
+        "description": "Get the coordinates and the parametric coordinates (if any) of the node with tag `tag', as well as the dimension `dim' and tag `tag' of the entity on which the node is classified. This function relies on an internal cache (a vector in case of dense node numbering, a map otherwise); for large meshes accessing nodes in bulk is often preferable.",
+        "input": {
+          "nodeTag": {
+            "type": "size",
+            "description": ""
+          }
+        },
+        "output": {
+          "coord": {
+            "type": "vector of doubles",
+            "description": ""
+          },
+          "parametricCoord": {
+            "type": "vector of doubles",
+            "description": ""
+          },
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "nodeTag",
+        "ori_description": "gmsh.model.mesh.getNode(nodeTag)  Get the coordinates and the parametric coordinates (if any) of the node with tag `tag', as well as the dimension `dim' and tag `tag' of the entity on which the node is classified. This function relies on an internal cache (a vector in case of dense node numbering, a map otherwise); for large meshes accessing nodes in bulk is often preferable.  Return `coord', `parametricCoord', `dim', `tag'.  Types: - `nodeTag': size - `coord': vector of doubles - `parametricCoord': vector of doubles - `dim': integer - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getElements",
+        "description": "Get the elements classified on the entity of dimension `dim' and tag `tag'. If `tag' < 0, get the elements for all entities of dimension `dim'. If `dim' and `tag' are negative, get all the elements in the mesh. `elementTypes' contains the MSH types of the elements (e.g. `2' for 3-node triangles: see `getElementProperties' to obtain the properties for a given element type). `elementTags' is a vector of the same length as `elementTypes'; each entry is a vector containing the tags (unique, strictly positive identifiers) of the elements of the corresponding type. `nodeTags' is also a vector of the same length as `elementTypes'; each entry is a vector of length equal to the number of elements of the given type times the number N of nodes for this type of element, that contains the node tags of all the elements of the given type, concatenated: [e1n1, e1n2, ..., e1nN, e2n1, ...].",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "elementTypes": {
+            "type": "vector of integers",
+            "description": ""
+          },
+          "elementTags": {
+            "type": "vector of vectors of sizes",
+            "description": ""
+          },
+          "nodeTags": {
+            "type": "vector of vectors of sizes",
+            "description": ""
+          }
+        },
+        "ori_input": "dim = -1, tag = -1",
+        "ori_description": "gmsh.model.mesh.getElements(dim=-1, tag=-1)  Get the elements classified on the entity of dimension `dim' and tag `tag'. If `tag' < 0, get the elements for all entities of dimension `dim'. If `dim' and `tag' are negative, get all the elements in the mesh. `elementTypes' contains the MSH types of the elements (e.g. `2' for 3-node triangles: see `getElementProperties' to obtain the properties for a given element type). `elementTags' is a vector of the same length as `elementTypes'; each entry is a vector containing the tags (unique, strictly positive identifiers) of the elements of the corresponding type. `nodeTags' is also a vector of the same length as `elementTypes'; each entry is a vector of length equal to the number of elements of the given type times the number N of nodes for this type of element, that contains the node tags of all the elements of the given type, concatenated: [e1n1, e1n2, ..., e1nN, e2n1, ...].  Return `elementTypes', `elementTags', `nodeTags'.  Types: - `elementTypes': vector of integers - `elementTags': vector of vectors of sizes - `nodeTags': vector of vectors of sizes - `dim': integer - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getElement",
+        "description": "Get the type and node tags of the element with tag `elementTag', as well as the dimension `dim' and tag `tag' of the entity on which the element is classified. This function relies on an internal cache (a vector in case of dense element numbering, a map otherwise); for large meshes accessing elements in bulk is often preferable.",
+        "input": {
+          "elementTag": {
+            "type": "size",
+            "description": ""
+          }
+        },
+        "output": {
+          "elementType": {
+            "type": "integer",
+            "description": ""
+          },
+          "nodeTags": {
+            "type": "vector of sizes",
+            "description": ""
+          },
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "elementTag",
+        "ori_description": "gmsh.model.mesh.getElement(elementTag)  Get the type and node tags of the element with tag `elementTag', as well as the dimension `dim' and tag `tag' of the entity on which the element is classified. This function relies on an internal cache (a vector in case of dense element numbering, a map otherwise); for large meshes accessing elements in bulk is often preferable.  Return `elementType', `nodeTags', `dim', `tag'.  Types: - `elementTag': size - `elementType': integer - `nodeTags': vector of sizes - `dim': integer - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getElementTypes",
+        "description": "Get the types of elements in the entity of dimension `dim' and tag `tag'. If `tag' < 0, get the types for all entities of dimension `dim'. If `dim' and `tag' are negative, get all the types in the mesh.",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "elementTypes": {
+            "type": "vector of integers",
+            "description": ""
+          }
+        },
+        "ori_input": "dim = -1, tag = -1",
+        "ori_description": "gmsh.model.mesh.getElementTypes(dim=-1, tag=-1)  Get the types of elements in the entity of dimension `dim' and tag `tag'. If `tag' < 0, get the types for all entities of dimension `dim'. If `dim' and `tag' are negative, get all the types in the mesh.  Return `elementTypes'.  Types: - `elementTypes': vector of integers - `dim': integer - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getElementProperties",
+        "description": "Get the properties of an element of type `elementType': its name (`elementName'), dimension (`dim'), order (`order'), number of nodes (`numNodes'), local coordinates of the nodes in the reference element (`localNodeCoord' vector, of length `dim' times `numNodes') and number of primary (first order) nodes (`numPrimaryNodes').",
+        "input": {
+          "elementType": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "elementName": {
+            "type": "string",
+            "description": ""
+          },
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "order": {
+            "type": "integer",
+            "description": ""
+          },
+          "numNodes": {
+            "type": "integer",
+            "description": ""
+          },
+          "localNodeCoord": {
+            "type": "vector of doubles",
+            "description": ""
+          },
+          "numPrimaryNodes": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "elementType",
+        "ori_description": "gmsh.model.mesh.getElementProperties(elementType)  Get the properties of an element of type `elementType': its name (`elementName'), dimension (`dim'), order (`order'), number of nodes (`numNodes'), local coordinates of the nodes in the reference element (`localNodeCoord' vector, of length `dim' times `numNodes') and number of primary (first order) nodes (`numPrimaryNodes').  Return `elementName', `dim', `order', `numNodes', `localNodeCoord', `numPrimaryNodes'.  Types: - `elementType': integer - `elementName': string - `dim': integer - `order': integer - `numNodes': integer - `localNodeCoord': vector of doubles - `numPrimaryNodes': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getElementQualities",
+        "description": "Get the quality `elementQualities' of the elements with tags `elementTags'. `qualityType' is the requested quality measure: \"minDetJac\" and \"maxDetJac\" for the adaptively computed minimal and maximal Jacobian determinant, \"minSJ\" for the sampled minimal scaled jacobien, \"minSICN\" for the sampled minimal signed inverted condition number, \"minSIGE\" for the sampled signed inverted gradient error, \"gamma\" for the ratio of the inscribed to circumcribed sphere radius, \"innerRadius\" for the inner radius, \"outerRadius\" for the outerRadius, \"minIsotropy\" for the minimum isotropy measure, \"angleShape\" for the angle shape measure, \"minEdge\" for the minimum straight edge length, \"maxEdge\" for the maximum straight edge length, \"volume\" for the volume. If `numTasks' > 1, only compute and return the part of the data indexed by `task' (for C++ only; output vector must be preallocated).",
+        "input": {
+          "elementTags": {
+            "type": "vector of sizes",
+            "description": ""
+          },
+          "qualityName": {
+            "type": "string",
+            "description": ""
+          },
+          "task": {
+            "type": "size",
+            "description": ""
+          },
+          "numTasks": {
+            "type": "size",
+            "description": ""
+          }
+        },
+        "output": {
+          "elementsQuality": {
+            "type": "vector of doubles",
+            "description": ""
+          }
+        },
+        "ori_input": "elementTags, qualityName = 'minSICN', task = 0, numTasks = 1",
+        "ori_description": "gmsh.model.mesh.getElementQualities(elementTags, qualityName=\"minSICN\", task=0, numTasks=1)  Get the quality `elementQualities' of the elements with tags `elementTags'. `qualityType' is the requested quality measure: \"minDetJac\" and \"maxDetJac\" for the adaptively computed minimal and maximal Jacobian determinant, \"minSJ\" for the sampled minimal scaled jacobien, \"minSICN\" for the sampled minimal signed inverted condition number, \"minSIGE\" for the sampled signed inverted gradient error, \"gamma\" for the ratio of the inscribed to circumcribed sphere radius, \"innerRadius\" for the inner radius, \"outerRadius\" for the outerRadius, \"minIsotropy\" for the minimum isotropy measure, \"angleShape\" for the angle shape measure, \"minEdge\" for the minimum straight edge length, \"maxEdge\" for the maximum straight edge length, \"volume\" for the volume. If `numTasks' > 1, only compute and return the part of the data indexed by `task' (for C++ only; output vector must be preallocated).  Return `elementsQuality'.  Types: - `elementTags': vector of sizes - `elementsQuality': vector of doubles - `qualityName': string - `task': size - `numTasks': size",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "setOrder",
+        "description": "Change the order of the elements in the mesh of the current model to `order'.",
+        "input": {
+          "order": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "order",
+        "ori_description": "gmsh.model.mesh.setOrder(order)  Change the order of the elements in the mesh of the current model to `order'.  Types: - `order': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "getNodesForPhysicalGroup",
+        "description": "Get the nodes from all the elements belonging to the physical group of dimension `dim' and tag `tag'. `nodeTags' contains the node tags; `coord' is a vector of length 3 times the length of `nodeTags' that contains the x, y, z coordinates of the nodes, concatenated: [n1x, n1y, n1z, n2x, ...].",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "nodeTags": {
+            "type": "vector of sizes",
+            "description": ""
+          },
+          "coord": {
+            "type": "vector of doubles",
+            "description": ""
+          }
+        },
+        "ori_input": "dim, tag",
+        "ori_description": "gmsh.model.mesh.getNodesForPhysicalGroup(dim, tag)  Get the nodes from all the elements belonging to the physical group of dimension `dim' and tag `tag'. `nodeTags' contains the node tags; `coord' is a vector of length 3 times the length of `nodeTags' that contains the x, y, z coordinates of the nodes, concatenated: [n1x, n1y, n1z, n2x, ...].  Return `nodeTags', `coord'.  Types: - `dim': integer - `tag': integer - `nodeTags': vector of sizes - `coord': vector of doubles",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "setTransfiniteCurve",
+        "description": "Set a transfinite meshing constraint on the curve `tag', with `numNodes' nodes distributed according to `meshType' and `coef'. Currently supported types are \"Progression\" (geometrical progression with power `coef'), \"Bump\" (refinement toward both extremities of the curve) and \"Beta\" (beta law).",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "numNodes": {
+            "type": "integer",
+            "description": ""
+          },
+          "meshType": {
+            "type": "string",
+            "description": ""
+          },
+          "coef": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag, numNodes, meshType = 'Progression', coef = 1.0",
+        "ori_description": "gmsh.model.mesh.setTransfiniteCurve(tag, numNodes, meshType=\"Progression\", coef=1.)  Set a transfinite meshing constraint on the curve `tag', with `numNodes' nodes distributed according to `meshType' and `coef'. Currently supported types are \"Progression\" (geometrical progression with power `coef'), \"Bump\" (refinement toward both extremities of the curve) and \"Beta\" (beta law).  Types: - `tag': integer - `numNodes': integer - `meshType': string - `coef': double",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "setTransfiniteSurface",
+        "description": "Set a transfinite meshing constraint on the surface `tag'. `arrangement' describes the arrangement of the triangles when the surface is not flagged as recombined: currently supported values are \"Left\", \"Right\", \"AlternateLeft\" and \"AlternateRight\". `cornerTags' can be used to specify the (3 or 4) corners of the transfinite interpolation explicitly; specifying the corners explicitly is mandatory if the surface has more that 3 or 4 points on its boundary.",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "arrangement": {
+            "type": "string",
+            "description": ""
+          },
+          "cornerTags": {
+            "type": "vector of integers",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag, arrangement = 'Left', cornerTags = []",
+        "ori_description": "gmsh.model.mesh.setTransfiniteSurface(tag, arrangement=\"Left\", cornerTags=[])  Set a transfinite meshing constraint on the surface `tag'. `arrangement' describes the arrangement of the triangles when the surface is not flagged as recombined: currently supported values are \"Left\", \"Right\", \"AlternateLeft\" and \"AlternateRight\". `cornerTags' can be used to specify the (3 or 4) corners of the transfinite interpolation explicitly; specifying the corners explicitly is mandatory if the surface has more that 3 or 4 points on its boundary.  Types: - `tag': integer - `arrangement': string - `cornerTags': vector of integers",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "setRecombine",
+        "description": "Set a recombination meshing constraint on the model entity of dimension `dim' and tag `tag'. Currently only entities of dimension 2 (to recombine triangles into quadrangles) are supported; `angle' specifies the threshold angle for the simple recombination algorithm..",
+        "input": {
+          "dim": {
+            "type": "integer",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "angle": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dim, tag, angle = 45.0",
+        "ori_description": "gmsh.model.mesh.setRecombine(dim, tag, angle=45.)  Set a recombination meshing constraint on the model entity of dimension `dim' and tag `tag'. Currently only entities of dimension 2 (to recombine triangles into quadrangles) are supported; `angle' specifies the threshold angle for the simple recombination algorithm..  Types: - `dim': integer - `tag': integer - `angle': double",
+        "type": "function",
+        "module": "gmsh.model.mesh"
+      },
+      {
+        "name": "add",
+        "description": "Add a new mesh size field of type `fieldType'. If `tag' is positive, assign the tag explicitly; otherwise a new tag is assigned automatically. Return the field tag. Available field types are listed in the \"Gmsh mesh size fields\" chapter of the Gmsh reference manual (https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-mesh-size-fields).",
+        "input": {
+          "fieldType": {
+            "type": "string",
+            "description": ""
+          },
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "ori_input": "fieldType, tag = -1",
+        "ori_description": "gmsh.model.mesh.field.add(fieldType, tag=-1)  Add a new mesh size field of type `fieldType'. If `tag' is positive, assign the tag explicitly; otherwise a new tag is assigned automatically. Return the field tag. Available field types are listed in the \"Gmsh mesh size fields\" chapter of the Gmsh reference manual (https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-mesh-size-fields).  Return an integer.  Types: - `fieldType': string - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh.field"
+      },
+      {
+        "name": "setNumber",
+        "description": "Set the numerical option `option' to value `value' for field `tag'.",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "option": {
+            "type": "string",
+            "description": ""
+          },
+          "value": {
+            "type": "double",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag, option, value",
+        "ori_description": "gmsh.model.mesh.field.setNumber(tag, option, value)  Set the numerical option `option' to value `value' for field `tag'.  Types: - `tag': integer - `option': string - `value': double",
+        "type": "function",
+        "module": "gmsh.model.mesh.field"
+      },
+      {
+        "name": "setNumbers",
+        "description": "Set the numerical list option `option' to value `values' for field `tag'.",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "option": {
+            "type": "string",
+            "description": ""
+          },
+          "values": {
+            "type": "vector of doubles",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag, option, values",
+        "ori_description": "gmsh.model.mesh.field.setNumbers(tag, option, values)  Set the numerical list option `option' to value `values' for field `tag'.  Types: - `tag': integer - `option': string - `values': vector of doubles",
+        "type": "function",
+        "module": "gmsh.model.mesh.field"
+      },
+      {
+        "name": "setString",
+        "description": "Set the string option `option' to value `value' for field `tag'.",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          },
+          "option": {
+            "type": "string",
+            "description": ""
+          },
+          "value": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag, option, value",
+        "ori_description": "gmsh.model.mesh.field.setString(tag, option, value)  Set the string option `option' to value `value' for field `tag'.  Types: - `tag': integer - `option': string - `value': string",
+        "type": "function",
+        "module": "gmsh.model.mesh.field"
+      },
+      {
+        "name": "setAsBackgroundMesh",
+        "description": "Set the field `tag' as the background mesh size field.",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag",
+        "ori_description": "gmsh.model.mesh.field.setAsBackgroundMesh(tag)  Set the field `tag' as the background mesh size field.  Types: - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh.field"
+      },
+      {
+        "name": "remove",
+        "description": "Remove the field with tag `tag'.",
+        "input": {
+          "tag": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "tag",
+        "ori_description": "gmsh.model.mesh.field.remove(tag)  Remove the field with tag `tag'.  Types: - `tag': integer",
+        "type": "function",
+        "module": "gmsh.model.mesh.field"
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://gitlab.onelab.info/gmsh/gmsh",
+        "documentation": "https://gmsh.info/doc/texinfo/",
+        "pypi": "https://pypi.org/project/gmsh/",
+        "pypi_version": "4.15.2",
+        "tag": "gmsh_4_15_2",
+        "commit": "657c8e915f60405e6cad0c8ec7faf812bfff1a60",
+        "release_published_at": "2026-03-24",
+        "checked_on": "2026-09-10",
+        "github_prerelease": null,
+        "notes": [
+          "官网明确标注 Current stable release 4.15.2, 24 March 2026，与 CHANGELOG.txt 和 PyPI 一致；源码由官方 GitLab 精确标签克隆。",
+          "api/gmsh.py 是官方生成绑定。model/mesh/occ 等嵌套静态类按命名空间展开为函数，避免遗漏核心网格 API；不把容器计作用户建模类。"
+        ],
+        "release_url": "https://gmsh.info/",
+        "release_api": "",
+        "selection_rule": "Official gmsh.info stable release announcement, CHANGELOG.txt, PyPI version and exact GitLab release tag agree; not a GitHub project.",
+        "source_directory": "seed_pypi_raw/gmsh",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_generated_python_binding",
+        "requested_modules": [
+          "gmsh"
+        ],
+        "source_files": [
+          "api/gmsh.py"
+        ],
+        "source_file_sha256": {
+          "api/gmsh.py": "f4b0935cebde899750293d87a643090e5ea33c9b18d249267f507db68a0e01c3"
+        },
+        "source_version": "gmsh_4_15_2",
+        "source_commit": "657c8e915f60405e6cad0c8ec7faf812bfff1a60",
+        "native_function_count": 377,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false,
+        "namespace_policy": "Gmsh staticmethod containers are API namespaces, recursively flattened as gmsh.model.mesh etc.; not instantiable tool classes. Snake-case aliases are excluded.",
+        "docstring_adapter": "Generated Types fields supply types; Return fields supply named outputs; undocumented parameter/output descriptions stay empty."
+      },
+      "python_api_selection": {
+        "profile_id": "gmsh_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/gmsh_gmsh_4_15_2.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/gmsh_gmsh_4_15_2.json",
+        "source_sha256": "5caf54cd98a6f95c0d2400a6e3507aa248dc464d50b44b2d90a01366453685c6",
+        "profile_sha256": "81aee2ae27dd25b7ad1f47f20cc706ab6ea204df71914738e12804cde26c7a84",
+        "boundary": "无界面的几何构建、物理分组、网格尺寸场、生成、节点/单元查询与保存。优先 OCC 内核，补充基本 geo 线面入口；排除 GUI、ONELAB、插件与底层有限元基函数接口。静态命名空间按函数计数。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 377,
+        "selected_tool_count": 75,
+        "selected_class_count": 0,
+        "selected_function_count": 75,
+        "selected_method_count": 0,
+        "selected_all_func": 75,
+        "missing_description_count": 0,
+        "excluded_tool_count": 302,
+        "capability_count": 3
+      }
+    }
+  }
+]

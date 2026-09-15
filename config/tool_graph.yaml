@@ -1,21 +1,21 @@
 paths:
-  environment_dir: ../artifacts/mcp_test3/bugagent
+  environment_dir: ../artifacts/toolgen-reality-openalex-run
   schema_dir: ../schemas
   output_root: ../runs/taskgen
 
 llm:
-  # API 账户余额不足时改用本机已登录的 Codex CLI；阶段 prompt 和返回契约不变。
-  backend: codex
+  # 普通阶段使用 API；Step 3 合并审查与执行，使用工具隔离的 Codex CLI。
+  backend: api
   model: gpt-5.6-terra
-  # 仅 backend=api 时使用；backend=codex 时沿用本机 Codex 配置，此项无效。
-  base_url: https://api-slb.micuapi.ai/v1
-  # 仅 backend=api 时使用；backend=codex 时使用本机 Codex 登录状态，此项无效。
-  api_key_env: LLM_API_KEY
-  timeout_seconds: 180
-  # Codex CLI 双路完整提示实测可并行；保留 4 路作为正式运行值。
+  # review、管线和评测使用独立配置，不影响当前对话。
+  codex_home: ~/.codex-task-eval
+  # API 后端使用同一服务及独立 auth.json；密钥不进入配置或运行产物。
+  base_url: http://47.237.200.112:8080/v1
+  api_key_file: ~/.codex-task-eval/auth.json
+  timeout_seconds: 600
+  # 模型请求并发数。
   max_concurrency: 4
-  # 给足额度，绝不让输出截断打断流水线：截断会使整阶段失败，而本流水线无断点续跑。
-  # 实测 bugagent 单目标真实回复仅约 133 token，因此这个上限的成本可忽略。
+  # API 返回长度上限；实际用量以调用结果为准。
   # 仅 backend=api 时使用；Codex CLI 没有该参数，backend=codex 时此项无效。
   max_tokens: 81920
 graph: {}
@@ -23,16 +23,15 @@ planning:
   # 初始试验值；实现后依据三个正式环境的有效率和候选质量调整。
   sample_count: 10000
   keep_top_count: 10
-  # 禁止修改。上一轮实测：设为 8 时 finstat 某轮只能凑出 9 条候选（不足
-  # keep_top_count），当时改成 2 来凑满 10 条。这里明确选择保持 8 —— 宁可候选
-  # 少于 10 条，也不要用 2 步短链充数。Step 2 已有回退：若全部观测链都短于 8，
-  # 则只让长度等于 longest_observed_length 的链参加排名，因此不会一条都没有。
-  min_chain_length: 8
-  max_chain_length: 15
+  # 自然采样后筛选整个链的长度，不在上限强制停止，不使用越界链兜底。
+  min_chain_length: 12
+  max_chain_length: 30
+  termination_tau: 0.4
+  length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
-  # 先筛选 20 条进行两轮 LLM 处理，逻辑评分后选最多 10 条进入 Step 3。
-  review_count: 20
+  # 初选 30 条生成核心目标，整批语义去重后全部送 Step 3；执行后最多保留 10 条。
+  review_count: 30
   edge_sampling_probabilities:
     "1": 0.2
     "2": 0.3
@@ -40,6 +39,7 @@ planning:
   diversity_lambda: 10
 execution:
   max_concurrency: 4
+  agent_max_tool_calls: 100
   retry_count: 3
   tool_result_max_bytes: 65536
   # 工具可能包含慢速扫描；仍由子进程提供可强制终止的硬上限。

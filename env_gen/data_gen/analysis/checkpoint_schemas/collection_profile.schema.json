@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/internal/data-gen/collection_profile.schema.json",
+  "title": "Step 2 file cards and subject coverage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "seed_global_id", "seed_sha256", "summary", "file_cards", "coverage", "metrics", "gaps", "decision"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "seed_global_id": {"type": "string", "minLength": 1},
+    "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "summary": {"type": "string", "minLength": 10},
+    "file_cards": {"type": "array", "items": {"$ref": "#/$defs/card"}},
+    "coverage": {"type": "array", "items": {"$ref": "#/$defs/coverage"}},
+    "metrics": {"type": "object"},
+    "gaps": {"type": "array", "items": {"type": "object"}},
+    "decision": {"enum": ["ready", "partial", "insufficient_data"]}
+  },
+  "$defs": {
+    "stringArray": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "subjectType": {"enum": ["entity", "tool", "task"]},
+    "cardSubject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_type", "subject_name", "status", "reason"],
+      "properties": {
+        "subject_type": {"$ref": "#/$defs/subjectType"},
+        "subject_name": {"type": "string", "minLength": 1},
+        "status": {"enum": ["supported", "partial"]},
+        "reason": {"type": "string", "minLength": 5}
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "source_id", "url", "sha256", "bytes", "format", "record_count", "file_count", "role", "name", "summary", "subjects", "prepared_paths", "limitations"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^raw/.+"},
+        "source_id": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "format": {"type": "string", "minLength": 1},
+        "record_count": {"type": ["integer", "null"], "minimum": 0},
+        "file_count": {"type": "integer", "minimum": 1},
+        "role": {"enum": ["business_records", "task_domain_files", "semantic_evidence"]},
+        "name": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 10},
+        "subjects": {"type": "array", "items": {"$ref": "#/$defs/cardSubject"}},
+        "prepared_paths": {"$ref": "#/$defs/stringArray"},
+        "limitations": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_type", "subject_name", "origins", "status", "basis", "reason", "path"],
+      "properties": {
+        "subject_type": {"$ref": "#/$defs/subjectType"},
+        "subject_name": {"type": "string", "minLength": 1},
+        "origins": {"$ref": "#/$defs/stringArray"},
+        "status": {"enum": ["supported", "partial", "missing", "not_required"]},
+        "basis": {"enum": ["business_records", "task_domain_files", "none"]},
+        "reason": {"type": "string", "minLength": 5},
+        "path": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

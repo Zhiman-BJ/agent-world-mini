@@ -17,6 +17,17 @@
       "minLength": 1,
       "description": "说明工具做什么、何时使用、关键限制和主要副作用。不得包含 Python 代码、内部路径或测试细节。"
     },
+    "usageConditions": {
+      "type": "object",
+      "required": ["targetResources", "targetObjects", "preconditions", "sideEffects"],
+      "properties": {
+        "targetResources": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "targetObjects": {"type": "array", "items": {"type": "object", "required": ["objectType", "identifiedBy"], "properties": {"objectType": {"type": "string"}, "identifiedBy": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false}, "minItems": 1},
+        "preconditions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "sideEffects": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
     "inputSchema": {
       "$ref": "#/$defs/inputSchema"
     },

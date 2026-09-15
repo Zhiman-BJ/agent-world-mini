@@ -131,14 +131,16 @@ llm:
 
 planning:
   sample_count: 10000
-  review_count: 20
+  review_count: 30
   keep_top_count: 10
-  min_chain_length: 8
-  max_chain_length: 15
+  min_chain_length: 12
+  max_chain_length: 30
+  termination_tau: 0.4
+  length_reward_alpha: 1.0
   max_tool_visits: 2
   random_seed: 42
   edge_sampling_probabilities: {"1": 0.2, "2": 0.3, "3": 0.5}
-  diversity_lambda: 0.3
+  diversity_lambda: 10
 
 execution:
   max_concurrency: 4
@@ -215,12 +217,13 @@ validate_tasks
 
 文件：`step_1_graph_build.py`
 
-阶段针对每个目标工具 `B`，让 LLM 审查其余每个工具 `A` 是否可能是 `B` 的直接
-前置调用。模型必须覆盖全部候选并明确返回：
+阶段针对每个目标工具 `B`，用两轮 LLM 调用审查其余每个工具 `A`：第一轮只提取
+直接性、是否需要中间工具、数据/状态交接等事实，第二轮再分类边并汇总历史前置。
+模型必须覆盖全部候选并明确返回：
 
-* `weight=3`：强依赖，缺少前置产物或状态时调用不能成立；
-* `weight=2`：条件依赖，在明确场景下需要，但并非所有调用都需要；
-* `weight=1`：辅助性直接关联，产物可被后续直接消费，但不是成功前提；
+* `weight=3`：强直接关系；
+* `weight=2`：明确的直接工作流转移；
+* `weight=1`：有具体公开契约依据的弱直接关系；
 * `weight=0`：已审查并判断无依赖，不进入图，但用于完整性检查。
 
 `A -> B` 只表示直接前置关系，不保存传递闭包。若 `A -> B`、`B -> C`，不会因为
@@ -240,40 +243,77 @@ Schema 投影，不能看到 `tools[].internal` 或 workspace 状态。输出只
 }
 ```
 
-阶段最后对边做工具名、权重、理由、自环和重复边校验，并稳定排序。
+`weight` 不再承担硬前置语义。`tool_graph.prerequisites` 以目标级 `any_of/all_of`
+组合表达调用目标前必须已执行的工具历史。阶段最后对两轮完整性、边与 prerequisite
+做本地校验，并稳定排序。
 
 ### Step 2：采样、审查并筛选工具链
 
 文件：`step_2_chain_sample.py`
 
-阶段不执行工具，也不读写 workspace。处理顺序是：
+初态探索统一由 review 的 Codex 在每条链的独立副本中完成。处理顺序是：
 
 ```text
 带权随机游走
   -> 原始链去重
-  -> 质量与相似度筛选，最多 review_count（默认 20）
-  -> LLM 链逻辑审查
-  -> LLM 逻辑性评分
+  -> 整链长度过滤，质量与相似度筛选，最多 review_count（默认 30）
+  -> LLM 为原始链生成并冻结 objective
+  -> 批量 objective 去重，保留代表目标
+  -> Codex 在独立初态副本中探索，按 objective 补全、审查并给最终方案评分
+  -> review 后链去重
+  -> 同逻辑分内按 review 后结构再平衡
   -> 最多 keep_top_count（默认 10）条
 ```
 
 采样规则：
 
-1. 起点是没有任何 `weight=3` 入边的工具；
+1. 起点是没有 prerequisite 历史约束的工具；
 2. 后继按配置中的 `edge_sampling_probabilities` 重新归一化采样，权重和概率分开；
 3. 单条链中的工具访问次数不能超过 `max_tool_visits`；
-4. 到达最大长度或没有合法后继时自然结束，不人为拼接边；
-5. 完整有序链去重，记录尝试数、唯一链数和观察到的最长链；
-6. 通过共享有向边比例计算相似度，用 `diversity_lambda` 惩罚与已选链过于相似的
-   候选，尽量保留不同起点和不同调用关系。
+4. 后继的任一 `all_of` 方案必须已被链历史满足；达到最短长度后，每步以
+   `termination_tau / (termination_tau + 合法后继数)` 随机终止；没有合法后继也结束。
+   不在最大长度强制停止，工具访问次数上限保证采样有限；
+5. 采样 `sample_count` 次后对完整有序链去重，只保留 `[min_chain_length, max_chain_length]`
+   内的整条链，再评分。没有合格链则报错，不截短长链、不用短链兜底；
+6. 初选基础分为 `平均边权 + length_reward_alpha * ln(调用次数)`。
+   相似度为工具集合交集大小除以较小集合大小，忽略顺序和重复次数。
+   每轮选择 `基础分 - diversity_lambda * 与已选链的最大相似度` 最高的链，直到选满
+   `review_count` 或候选耗尽。初选分不归一化；默认长度奖励系数 1、相似度系数 10。
+   review 后的终选仍沿用逻辑分优先、同分内按原有边权总和和有向边相似度选择。
 
-链审查默认保留原链。只有发现明确逻辑问题时才允许调整；优先使用图中已有边，
-但在公开工具契约或环境规则提供充分依据时允许加入图中没有的直接边。不确定时
-保持原链。审查返回完整链和理由，不返回补丁。
+不再单独规划全局初态查询或生成摘要。objective 只依据公开环境、工具契约和候选链生成，
+不能把未观察的初态当作已知事实。review 按目标探索并在 reason 中传递观察、证据范围与匹配判断，
+供执行、转写和最终校验使用；未覆盖状态仍然未知。
 
-随后由独立 LLM 给链打 `0–5` 的逻辑性分数，判断它是否能形成自然、连贯、可验证的
-业务目标，而不是机械拼接无关工具。最终候选包含 `chain`、原始边权总分、审查结果、
-逻辑分数和 `sampling_report`。
+目标生成只返回非空 `objective`，不审查、不拒绝、不改链；调用或格式失败记为生成错误。
+objective 只提炼用户关心的核心结果，保留链中特有的对象、关系或业务问题，不是完整任务文本或操作清单。
+不为覆盖随机链的旁支拼接独立需求，也不以操作、格式或任意条件制造多样性。
+核心结果冻结后由 review 调整调用实现，不允许替换、泛化或缩小该结果。
+review 负责补足实现冻结目标的调用，原链够用则保留，否则增补、删除或重排，并尽量减少无关改动；
+只返回 `accepted`、`chain`、`reason`、`score`，不能替换目标。
+`reason` 说明初态、目标与调用链如何匹配，包括关键观察依据、当前适用要求、调用分工和不确定性，
+同时提供评分依据；作为 `review_guidance` 传给执行、初稿、反思、参考答案和最终校验。
+只有工具能力或可核实条件使目标无法实现时才拒绝，缺少调用、业务混合本身不构成拒绝理由。
+采样的长度范围和 `max_tool_visits` 不限制 review；review 后只要求链非空且工具名合法。
+review prompt 完整传入公开 inputSchema、outputSchema 和 usageConditions，不使用建图的紧凑 schema。
+同工具重复出现可能是处理不同对象或验证新状态，不能据此直接去重；按具体处理和验证用途判断贡献。
+无效输出不会回退到未审查的原始链。
+
+review 使用独立的 Codex 入口，不经过禁止工具调用的通用推理包装。它可用只读命令查询副本数据，
+仅收集调整链所需的信息，不执行整条链或业务写入。使用 Codex read-only sandbox，并核对副本与源初态签名；
+探索日志随该次模型调用保存为 `agent_log`，超时或副本变化会使该候选 review 失败。
+objective 并非任务终稿，不必苛求措辞，但必须遵守其最终目标、范围和实质约束，不得随意增删或改换要求。
+返回的链仍是逐项执行的固定序列，没有隐含循环或条件跳过；探索信息用于规划，实际执行仍通过公开工具取证。
+初态探索与具体目标和候选链相结合，由 review 统一负责。
+
+review 在探索和改链完成后，对最终方案打 `0–5` 分，不再单独调用评分模型。
+评分同时考虑任务价值、清晰度、调用贡献、输入可获得性和预计目标完成度；逐项对照需求、
+实际交付与完成证据，而不是把调用成功视为完成。初态已满足的要求可通过核实确认，无需强制写入。
+该分数保存在 `logic_score`，依据复用 `reason` 保存到 `logic_reason`；无效分数记为 review 错误。
+最终选择先按逻辑分从高到低，
+同分候选再按共享边相似度平衡 review 后的结构。最终候选包含 `chain`、`objective`、重算的
+边权总分、审查结果和逻辑分数；图外边按 0 分计。`sampling_report` 保留目标与审查决策、
+探索统计、review 保留/修改/拒绝/失败数、唯一链数及最终边覆盖。
 
 ### Step 3：在隔离 workspace 中真实执行
 
@@ -282,38 +322,41 @@ Schema 投影，不能看到 `tools[].internal` 或 workspace 状态。输出只
 对 Step 2 的每条候选链：
 
 1. 从环境源 `workspace/` 复制出任务专属的 `initial/` 和 `final/`；
-2. LLM 先根据公开环境和完整链形成一次内部任务意图；
-3. 按链顺序为当前工具生成参数，并用 `inputSchema` 校验；
+2. 直接使用 Step 2 的 `objective`，按链顺序为当前工具生成参数；
+3. 参数依据公开环境、目标、review 传递的观察和前序真实结果生成，并用 `inputSchema` 校验；
+   `review_guidance` 传递 review 的观察、链调整依据和调用分工，每次填参及重试均可见。
+   它不是新需求或已完成的证据，事实仍需通过本次查询核实；旧候选缺少说明时仍可执行。模型也可返回
+   `error` 说明当前依据不足，该判断会携带原因进入参数重试；
 4. 在独立子进程中运行 `tools[].internal.code`；
 5. 校验返回的成功分支和 `outputSchema`，把真实结果传给后续参数生成；
 6. 发生失败时按配置重试，工具失败会从干净的 initial workspace 重新执行整链；
-7. 记录成功或失败的完整 attempts，保持候选顺序。
+7. 记录成功或失败的完整 attempts，保持候选顺序和原始 `objective`。
 
 执行器提供并发、重试、工具硬超时、结果字节数、写入量和内存限制。超时必须终止
 整个进程组，避免工具遗留子进程。成功项保存相对本次运行目录的
 `initial_state` / `final_state` 路径；失败项保留错误和尝试记录，不伪造状态。
 
-### Step 4：生成任务文本、参考答案和资源约束
+### Step 4：生成任务文本、反思表达和参考答案
 
 文件：`step_4_task_compose.py`
 
-只处理 Step 3 成功的候选，按四轮 LLM 调用完成：
+只处理 Step 3 成功的候选，按三轮 LLM 调用完成：
 
-1. **任务文本**：从真实调用链和 observations 生成自然、明确、结果导向的目标；
+1. **任务文本**：结合 `objective`、review 匹配说明和真实轨迹生成自然、明确、结果导向的用户任务，始终产出候选，不作语义拒绝；
 2. **任务文本反思**：返回 `analyze`、`need_revision`、`task_text`。模型先分析文本
-   是否自然、是否包含边界清晰的目标、是否罗列了操作；`need_revision=false` 时
-   忽略返回的 `task_text`，保留草稿；为 `true` 时才采用非空优化文本；
-3. **参考答案**：根据真实 observations 描述执行实际完成的业务结果；
-4. **资源约束**：生成 `should_modify`、`can_modify`、`must_not_modify` 三个资源
-   ID 列表。
+   是否自然、是否保持目标和事实、必要信息是否充分；`need_revision=false` 时忽略返回的
+   `task_text`，为 `true` 时才采用不改变目标的非空优化文本；修订须保持对象选择、范围、数量约束和条件的语义，
+   不能从本次执行结果反推新需求，不能以完善任务为由扩充义务；反思失败时保留草稿并继续；
+3. **参考答案**：以最终任务为唯一需求基准，依据 review 的观察分析及真实结果回答全部适用要求；证据不足或未完成项如实写入答案，交给 Step 5 判断，不作语义拒绝。
 
-任务文本可以包含明确的业务要求，例如目标对象、评论内容、标题、日期或格式；但
-   不得暴露工具名、调用顺序、内部 ID、`resource_id`、运行目录、workspace 路径或
-   其他只有执行过程才知道的内容。文本应描述“要得到什么”，而不是“先调用什么”。
+各轮均接收 `llm_review.reason` 作为 `review_guidance`，理解目标、初态与调用链的匹配关系。
+任务初稿和反思接收 `objective`；参考答案只接收最终任务、执行结果和匹配说明，不再以 objective 单独验收。
+初稿接收全部公开工具，避免把本链工具误认为环境的全部能力；不提供工具内部代码。
 
-资源列表只能引用环境中已有的 `resource_id`，不能交叉重复；只读资源不能进入
-`should_modify` 或 `can_modify`。未列出的资源保持默认禁止修改。四轮中的任一轮
-失败都会在候选上写入 `compose_error`，不猜测缺失结果，也不继续该候选的后续轮次。
+统一原则定义在 `prompt_principles.py`：任务可以是一棵条件树，初态及后续状态变化决定适用路径，
+调用链完成该路径。任务不必描述调用顺序，链不必执行未触发的分支；条件不成立须有观察依据。
+review 的说明不是新需求或执行完成证明，实际结果优先。表达优化不能增加义务或掩盖执行缺口。
+不再生成任务级资源约束；环境权限与执行隔离不变。初稿或答案的运行/格式失败写入 `compose_error`，反思失败保留初稿。
 
 Step 4 输出仍是候选扩充字段，而不是正式 task：
 
@@ -321,11 +364,6 @@ Step 4 输出仍是候选扩充字段，而不是正式 task：
 {
     "task_text": str | None,
     "reference_answer": str | None,
-    "resource_constraints": {
-        "should_modify": list[str],
-        "can_modify": list[str],
-        "must_not_modify": list[str],
-    } | None,
     "compose_error": str | None,
 }
 ```
@@ -339,15 +377,16 @@ Step 5 是最后的只读门禁，不重放工具链、不修改 workspace、不
 
 1. 前序字段和执行成功状态检查；
 2. `tool_calls` 与 `chain` 顺序一致性检查；
-3. `task_text` 不得包含环境中的工具名或 `resource_id` 的确定性检查；
-4. 一次独立 LLM 语义审查：
-   * `chain_matches_task`：任务实质性交付要求是否由真实调用链支持；
-   * `task_has_required_information`：只看任务文本和公开环境时，完成任务所需的
-     不可自行发现信息是否齐全；
-5. 通过前序事实检查后，用 `task.schema.json` 收集全部结构错误。
+3. 一次独立 LLM 语义审查，以最终 `task_text` 为唯一需求基准：
+   * `execution_matches_task`：真实调用及已有状态是否满足任务当前适用的全部要求；
+   * `answer_matches_task`：参考答案是否准确、完整，结论范围是否受证据支持；
+   * `task_is_usable`：任务是否自然、逻辑清楚、信息充分且能够独立理解；
+4. 通过前序检查后，用 `task.schema.json` 收集全部结构错误。
 
-只有前序检查、两项 LLM 判断和 Schema 检查全部通过，候选的 `validation.passed`
-才为 `true`。失败项不删除，所有错误写入 `validation.errors`，方便追查生成问题。
+只有前序检查、三项 LLM 判断和 Schema 检查全部通过，候选的 `validation.passed`
+才为 `true`。语义审查接收 review 的初态观察与匹配说明和全部公开工具，未知状态不等于对象不存在。
+拒绝理由应指出具体任务要求、当前适用依据、实际证据和完成缺口，不能仅以缺少某类调用拒绝。
+执行或转写失败只保留根因，失败项不删除，原因写入 `validation.errors`。
 
 正式 `task` 的形状如下：
 
@@ -360,11 +399,6 @@ Step 5 是最后的只读门禁，不重放工具链、不修改 workspace、不
   "difficulty": {"tool_calls": 6},
   "initial_state": "tasks/task1/initial",
   "available_tools": [{"name": "...", "description": "..."}],
-  "resource_constraints": {
-    "should_modify": [],
-    "can_modify": [],
-    "must_not_modify": []
-  },
   "reference": {
     "tool_calls": [{"tool": "...", "arguments": {}}],
     "answer": "...",

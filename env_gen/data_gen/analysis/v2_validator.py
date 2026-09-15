@@ -4,16 +4,47 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sqlite3
+from dataclasses import dataclass, field
+from datetime import date, datetime, time
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import urlparse
+from uuid import UUID
 
 from jsonschema import Draft202012Validator, FormatChecker
 
 from .filesystem_scopes import structure_definition_issues, validate_scope_tree
-from .integration_materialization import environment_from_plan, validate_records
-from .integration_plan import field_definition_issues
-from .validator import ValidationIssue, ValidationReport
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    code: str
+    path: str
+    message: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"code": self.code, "path": self.path, "message": self.message}
+
+
+@dataclass
+class ValidationReport:
+    errors: list[ValidationIssue] = field(default_factory=list)
+    warnings: list[ValidationIssue] = field(default_factory=list)
+    statistics: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def valid(self) -> bool:
+        return not self.errors
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "errors": [item.to_dict() for item in self.errors],
+            "warnings": [item.to_dict() for item in self.warnings],
+            "statistics": self.statistics,
+        }
 
 
 _SQL_TYPES = {
@@ -25,6 +56,25 @@ _SQL_TYPES = {
     "array": "TEXT",
 }
 _RESERVED_IDS = {"raw", "derived", "output", "temp", "misc"}
+_COMMON_FIELD_KEYS = {"type", "description", "nullable"}
+_TYPE_KEYS = {
+    "string": {"format", "pattern", "minLength", "maxLength", "enum", "const"},
+    "integer": {
+        "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+        "enum", "const",
+    },
+    "number": {
+        "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+        "enum", "const",
+    },
+    "boolean": {"const"},
+    "object": {"properties", "required", "additionalProperties"},
+    "array": {"items", "minItems", "maxItems", "uniqueItems"},
+}
+_STRING_FORMATS = {
+    "date", "date-time", "time", "duration", "uri", "uuid", "email",
+    "hostname", "ipv4", "ipv6",
+}
 
 
 def _quote(value: str) -> str:
@@ -43,8 +93,354 @@ def _safe_relative(value: str) -> bool:
     return bool(value) and not path.is_absolute() and ".." not in path.parts and "\\" not in value
 
 
+def _field_definition_issues(
+    definition: dict[str, Any],
+    *,
+    path: str,
+    container_depth: int | None = None,
+    top_level: bool = True,
+) -> list[ValidationIssue]:
+    field_type = str(definition.get("type") or "")
+    if container_depth is None:
+        container_depth = 1 if field_type in {"object", "array"} else 0
+    allowed = _COMMON_FIELD_KEYS | _TYPE_KEYS.get(field_type, set())
+    if top_level and (
+        field_type == "string"
+        or (
+            field_type == "array"
+            and isinstance(definition.get("items"), dict)
+            and definition["items"].get("type") == "string"
+        )
+    ):
+        allowed.add("reference")
+    issues: list[ValidationIssue] = []
+    unknown = sorted(set(definition) - allowed)
+    if unknown:
+        issues.append(ValidationIssue(
+            "field_keyword_not_allowed", path,
+            f"{field_type} 字段包含不允许的参数：{unknown}",
+        ))
+    if "enum" in definition and "const" in definition:
+        issues.append(ValidationIssue(
+            "field_enum_const_conflict", path, "enum 和 const 不能同时出现",
+        ))
+    if field_type == "string":
+        format_name = definition.get("format")
+        if isinstance(format_name, str) and format_name not in _STRING_FORMATS:
+            issues.append(ValidationIssue(
+                "unsupported_string_format", f"{path}.format",
+                f"不支持的 string format：{format_name}",
+            ))
+        pattern = definition.get("pattern")
+        if isinstance(pattern, str):
+            try:
+                re.compile(pattern)
+            except re.error as error:
+                issues.append(ValidationIssue(
+                    "invalid_field_pattern", f"{path}.pattern", str(error),
+                ))
+        if (
+            isinstance(definition.get("minLength"), int)
+            and isinstance(definition.get("maxLength"), int)
+            and definition["minLength"] > definition["maxLength"]
+        ):
+            issues.append(ValidationIssue(
+                "invalid_string_length_bounds", path,
+                "minLength 不能大于 maxLength",
+            ))
+    if field_type in {"integer", "number"}:
+        lower = definition.get("exclusiveMinimum", definition.get("minimum"))
+        upper = definition.get("exclusiveMaximum", definition.get("maximum"))
+        if (
+            isinstance(lower, (int, float))
+            and isinstance(upper, (int, float))
+            and lower > upper
+        ):
+            issues.append(ValidationIssue(
+                "invalid_numeric_bounds", path, "数值下界不能大于上界",
+            ))
+    expected_python = {
+        "string": str,
+        "integer": int,
+        "number": (int, float),
+        "boolean": bool,
+        "object": dict,
+        "array": list,
+    }.get(field_type)
+    for keyword in ("enum", "const"):
+        values = definition.get(keyword)
+        candidates = values if keyword == "enum" and isinstance(values, list) else [values]
+        if keyword not in definition or expected_python is None:
+            continue
+        if any(
+            not isinstance(value, expected_python)
+            or (field_type in {"integer", "number"} and isinstance(value, bool))
+            for value in candidates
+        ):
+            issues.append(ValidationIssue(
+                "field_literal_type_mismatch", f"{path}.{keyword}",
+                f"{keyword} 成员必须符合 type={field_type}",
+            ))
+    if field_type == "object":
+        if definition.get("additionalProperties") is not False:
+            issues.append(ValidationIssue(
+                "object_must_be_closed", path,
+                "Object 必须声明 additionalProperties=false",
+            ))
+        properties = definition.get("properties")
+        required = definition.get("required")
+        if not isinstance(properties, dict) or not properties:
+            issues.append(ValidationIssue(
+                "object_without_properties", path, "Object 必须声明非空 properties",
+            ))
+        if not isinstance(required, list):
+            issues.append(ValidationIssue(
+                "object_without_required", path, "Object 必须声明 required 数组",
+            ))
+        if isinstance(properties, dict) and isinstance(required, list):
+            unknown_required = sorted(set(required) - set(properties))
+            if unknown_required:
+                issues.append(ValidationIssue(
+                    "object_unknown_required", f"{path}.required",
+                    f"required 引用了未知属性：{unknown_required}",
+                ))
+            for name, child in properties.items():
+                if not isinstance(child, dict):
+                    continue
+                child_type = str(child.get("type") or "")
+                next_depth = container_depth + (
+                    1 if child_type in {"object", "array"} else 0
+                )
+                if next_depth > 2:
+                    issues.append(ValidationIssue(
+                        "container_nesting_too_deep", f"{path}.properties.{name}",
+                        "Object/Array 容器嵌套最多两层",
+                    ))
+                issues.extend(_field_definition_issues(
+                    child,
+                    path=f"{path}.properties.{name}",
+                    container_depth=next_depth,
+                    top_level=False,
+                ))
+    elif field_type == "array":
+        items = definition.get("items")
+        if not isinstance(items, dict):
+            issues.append(ValidationIssue(
+                "array_without_items", path, "Array 必须声明 items",
+            ))
+        if (
+            isinstance(definition.get("minItems"), int)
+            and isinstance(definition.get("maxItems"), int)
+            and definition["minItems"] > definition["maxItems"]
+        ):
+            issues.append(ValidationIssue(
+                "invalid_array_length_bounds", path,
+                "minItems 不能大于 maxItems",
+            ))
+        if isinstance(items, dict):
+            child_type = str(items.get("type") or "")
+            next_depth = container_depth + (
+                1 if child_type in {"object", "array"} else 0
+            )
+            if next_depth > 2:
+                issues.append(ValidationIssue(
+                    "container_nesting_too_deep", f"{path}.items",
+                    "Object/Array 容器嵌套最多两层",
+                ))
+            issues.extend(_field_definition_issues(
+                items,
+                path=f"{path}.items",
+                container_depth=next_depth,
+                top_level=False,
+            ))
+    if not top_level and "reference" in definition:
+        issues.append(ValidationIssue(
+            "nested_file_reference", path, "嵌套字段不能声明文件 reference",
+        ))
+    return issues
+
+
+def _matches_string_format(value: str, format_name: str) -> bool:
+    try:
+        if format_name == "date":
+            date.fromisoformat(value)
+        elif format_name == "date-time":
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        elif format_name == "time":
+            time.fromisoformat(value.replace("Z", "+00:00"))
+        elif format_name == "uuid":
+            UUID(value)
+        elif format_name == "uri":
+            parsed = urlparse(value)
+            return bool(parsed.scheme and (parsed.netloc or parsed.path))
+        elif format_name == "email":
+            return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value))
+        elif format_name == "hostname":
+            return bool(re.fullmatch(
+                r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
+                r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?",
+                value,
+            ))
+        elif format_name in {"ipv4", "ipv6"}:
+            import ipaddress
+            address = ipaddress.ip_address(value)
+            return (
+                (format_name == "ipv4" and address.version == 4)
+                or (format_name == "ipv6" and address.version == 6)
+            )
+        elif format_name == "duration":
+            return bool(re.fullmatch(
+                r"P(?=\d|T\d)(?:\d+Y)?(?:\d+M)?(?:\d+D)?"
+                r"(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?",
+                value,
+            ))
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
+def _value_issues(
+    value: Any, definition: dict[str, Any], *, path: str,
+) -> list[str]:
+    if value is None:
+        return [] if definition.get("nullable") is True else [f"{path} 不允许 null"]
+    field_type = definition.get("type")
+    valid = (
+        (field_type == "string" and isinstance(value, str))
+        or (
+            field_type == "integer"
+            and isinstance(value, int)
+            and not isinstance(value, bool)
+        )
+        or (
+            field_type == "number"
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        )
+        or (field_type == "boolean" and isinstance(value, bool))
+        or (field_type == "object" and isinstance(value, dict))
+        or (field_type == "array" and isinstance(value, list))
+    )
+    if not valid:
+        return [f"{path} 应为 {field_type}，实际是 {type(value).__name__}"]
+    issues: list[str] = []
+    if field_type == "string":
+        if (
+            isinstance(definition.get("minLength"), int)
+            and len(value) < definition["minLength"]
+        ):
+            issues.append(f"{path} 长度小于 minLength")
+        if (
+            isinstance(definition.get("maxLength"), int)
+            and len(value) > definition["maxLength"]
+        ):
+            issues.append(f"{path} 长度大于 maxLength")
+        pattern = definition.get("pattern")
+        if isinstance(pattern, str):
+            try:
+                matches = re.search(pattern, value) is not None
+            except re.error as error:
+                issues.append(f"{path} 的 pattern 无效：{error}")
+            else:
+                if not matches:
+                    issues.append(f"{path} 不匹配 pattern")
+        format_name = definition.get("format")
+        if (
+            isinstance(format_name, str)
+            and not _matches_string_format(value, format_name)
+        ):
+            issues.append(f"{path} 不符合 format={format_name}")
+    if field_type in {"integer", "number"}:
+        if "minimum" in definition and value < definition["minimum"]:
+            issues.append(f"{path} 小于 minimum")
+        if "maximum" in definition and value > definition["maximum"]:
+            issues.append(f"{path} 大于 maximum")
+        if "exclusiveMinimum" in definition and value <= definition["exclusiveMinimum"]:
+            issues.append(f"{path} 不大于 exclusiveMinimum")
+        if "exclusiveMaximum" in definition and value >= definition["exclusiveMaximum"]:
+            issues.append(f"{path} 不小于 exclusiveMaximum")
+        multiple = definition.get("multipleOf")
+        if isinstance(multiple, (int, float)) and multiple > 0:
+            quotient = value / multiple
+            if not math.isclose(
+                quotient, round(quotient), rel_tol=1e-9, abs_tol=1e-9,
+            ):
+                issues.append(f"{path} 不满足 multipleOf")
+    if "enum" in definition and value not in definition["enum"]:
+        issues.append(f"{path} 不在 enum 中")
+    if "const" in definition and value != definition["const"]:
+        issues.append(f"{path} 不等于 const")
+    if field_type == "object":
+        properties = definition.get("properties", {})
+        required = set(definition.get("required", []))
+        missing = sorted(required - set(value))
+        if missing:
+            issues.append(f"{path} 缺少属性 {missing}")
+        unknown = sorted(set(value) - set(properties))
+        if unknown:
+            issues.append(f"{path} 包含未知属性 {unknown}")
+        for name, child in properties.items():
+            if name in value and isinstance(child, dict):
+                issues.extend(_value_issues(
+                    value[name], child, path=f"{path}.{name}",
+                ))
+    if field_type == "array":
+        if (
+            isinstance(definition.get("minItems"), int)
+            and len(value) < definition["minItems"]
+        ):
+            issues.append(f"{path} 元素数小于 minItems")
+        if (
+            isinstance(definition.get("maxItems"), int)
+            and len(value) > definition["maxItems"]
+        ):
+            issues.append(f"{path} 元素数大于 maxItems")
+        items = definition.get("items")
+        if isinstance(items, dict):
+            for index, item in enumerate(value):
+                issues.extend(_value_issues(item, items, path=f"{path}[{index}]"))
+        if definition.get("uniqueItems") is True:
+            serialized = [
+                json.dumps(item, sort_keys=True, ensure_ascii=False) for item in value
+            ]
+            if len(serialized) != len(set(serialized)):
+                issues.append(f"{path} 不满足 uniqueItems")
+    return issues
+
+
+def _record_value_issues(
+    records: list[dict[str, Any]], record_set: dict[str, Any],
+) -> list[str]:
+    fields = record_set.get("fields", {})
+    issues: list[str] = []
+    for index, record in enumerate(records):
+        unknown = sorted(set(record) - set(fields))
+        if unknown:
+            issues.append(f"record[{index}] 包含未声明字段 {unknown}")
+        for name, definition in fields.items():
+            if isinstance(definition, dict):
+                issues.extend(_value_issues(
+                    record.get(name), definition, path=f"record[{index}].{name}",
+                ))
+        if len(issues) >= 30:
+            break
+    key_fields = record_set.get("key_fields", [])
+    if key_fields:
+        seen: set[tuple[str, ...]] = set()
+        for index, record in enumerate(records):
+            key = tuple(
+                json.dumps(record.get(name), ensure_ascii=False, sort_keys=True)
+                for name in key_fields
+            )
+            if key in seen:
+                issues.append(f"record[{index}] 的 key_fields 重复")
+                break
+            seen.add(key)
+    return issues
+
+
 class V2EnvironmentPackageValidator:
-    """只依据环境契约、SQLite、Scope 文件树和集成计划判定。"""
+    """只依据环境契约、SQLite 和 Scope 文件树判定。"""
 
     def __init__(self, schema_path: Path) -> None:
         self.schema_path = schema_path.resolve()
@@ -73,8 +469,6 @@ class V2EnvironmentPackageValidator:
     def validate(
         self,
         package_root: Path,
-        *,
-        integration_plan: dict[str, Any] | None = None,
     ) -> ValidationReport:
         package_root = package_root.resolve()
         report = ValidationReport()
@@ -88,15 +482,6 @@ class V2EnvironmentPackageValidator:
             key=lambda item: tuple(str(value) for value in item.absolute_path),
         ):
             self._error(report, "environment_v2_schema", _pointer(error), error.message)
-        if integration_plan is not None:
-            expected = environment_from_plan(integration_plan)
-            if environment != expected:
-                self._error(
-                    report,
-                    "environment_not_derived_from_plan",
-                    "$.environment",
-                    "environment.json 与当前 integration_plan 的确定性导出结果不同",
-                )
         self._validate_semantics(environment, report)
         self._validate_state(package_root, environment, report)
         report.statistics.update({
@@ -137,7 +522,7 @@ class V2EnvironmentPackageValidator:
             for field_name, definition in fields.items():
                 if not isinstance(definition, dict):
                     continue
-                for issue in field_definition_issues(
+                for issue in _field_definition_issues(
                     definition,
                     path=f"$.environment.record_sets[{record_index}].fields.{field_name}",
                 ):
@@ -342,7 +727,7 @@ class V2EnvironmentPackageValidator:
                         if not expected:
                             self._error(report, "missing_file_reference", f"$.state.records.sqlite.{record_set_id}[{row_index}].{name}", f"Scope 路径不存在或类型错误：{relative}")
             records.append(record)
-        for message in validate_records(records, record_set):
+        for message in _record_value_issues(records, record_set):
             self._error(report, "invalid_record_value", f"$.state.records.sqlite.{record_set_id}", message)
         if not records:
             self._error(report, "empty_record_table", f"$.state.records.sqlite.{record_set_id}", "Record Set 不能为空")

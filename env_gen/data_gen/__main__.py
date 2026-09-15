@@ -11,7 +11,6 @@ from env_gen.data_gen.config import (
     DataGenConfig,
 )
 from env_gen.data_gen.run_pipeline import run_pipeline
-from utils.search_agent.codex import CodexAgentClient
 
 
 def main() -> None:
@@ -43,12 +42,6 @@ def main() -> None:
         help=f"调研 Agent 使用的模型（默认 {DEFAULT_RESEARCH_MODEL}）",
     )
     parser.add_argument("--timeout-seconds", type=int, default=4200)
-    parser.add_argument(
-        "--max-collection-rounds",
-        type=int,
-        default=4,
-        help="兼容参数；新管线分别使用来源探索和集成轮次策略",
-    )
     parser.add_argument("--max-repair-rounds", type=int, default=2)
     parser.add_argument(
         "--reasoning-effort",
@@ -63,20 +56,13 @@ def main() -> None:
         help="是否启用 Codex Web Search（默认启用，Step 1 场景研究需要）",
     )
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--allow-partial-integration",
+        action="store_true",
+        help="显式允许低于 Step 2 覆盖底线的数据生成限定能力环境",
+    )
     arguments = parser.parse_args()
 
-    agent = CodexAgentClient(
-        model=arguments.model,
-        timeout_seconds=arguments.timeout_seconds,
-        # OSS mount is root-owned in the production runner; bwrap cannot start
-        # its nested workspace sandbox there.  DataGen already confines output
-        # to a disposable staging directory and verifies frozen-file hashes.
-        sandbox="danger-full-access",
-        enable_web_search=arguments.enable_web_search,
-        network_access=True,
-        reasoning_effort=arguments.reasoning_effort,
-        disabled_mcp_servers=("openaiDeveloperDocs",),
-    )
     config = DataGenConfig(
         seed_path=arguments.seed_path,
         global_id=arguments.global_id,
@@ -88,11 +74,11 @@ def main() -> None:
         model=arguments.model,
         reasoning_effort=arguments.reasoning_effort,
         timeout_seconds=arguments.timeout_seconds,
-        max_collection_rounds=arguments.max_collection_rounds,
         max_repair_rounds=arguments.max_repair_rounds,
         enable_web_search=arguments.enable_web_search,
+        allow_partial_integration=arguments.allow_partial_integration,
     )
-    result = run_pipeline(config, agent=agent)
+    result = run_pipeline(config)
     print(
         json.dumps(
             {
@@ -103,17 +89,15 @@ def main() -> None:
                 "seed_global_id": result.seed_global_id,
                 "seed_sha256": result.seed_sha256,
                 "scenario_research": str(result.scenario_research_path),
-                "source_plan": str(result.source_plan_path),
+                "source_research": str(result.source_research_path),
                 "source_inventory": str(result.source_inventory_path),
-                "integration_plan": str(result.integration_plan_path),
-                "integration_profile": str(result.integration_profile_path),
-                "quality_profile": str(result.quality_profile_path),
+                "integration_receipt": str(result.integration_receipt_path),
                 "source_manifest": str(result.source_manifest_path),
                 "validation": str(result.validation_path),
                 "quality_tier": result.quality_tier,
                 "integration_tier": result.integration_tier,
                 "scenario_research_agent_calls": result.scenario_research_agent_calls,
-                "exploration_agent_calls": result.exploration_agent_calls,
+                "source_collection_agent_calls": result.source_collection_agent_calls,
                 "integration_agent_calls": result.integration_agent_calls,
                 "integration_assessment_runs": result.integration_assessment_runs,
                 "elapsed_seconds": round(result.elapsed_seconds, 3),

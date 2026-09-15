@@ -29,6 +29,29 @@ class FakeLLMClient:
 
 
 class ToolGraphLLMTest(unittest.TestCase):
+    def test_explicit_response_format_reaches_api_without_changing_defaults(self):
+        parameters = []
+
+        class Client(FakeLLMClient):
+            def complete_messages(self, messages, **kwargs):
+                parameters.append(kwargs)
+                return '{}', {}
+
+        with patch.object(llm, '_client', return_value=Client()):
+            llm.infer('Return JSON', llm_config={'response_format': {'type': 'json_object'}})
+            llm.infer('Return text')
+        self.assertEqual(parameters[0].get('response_format'), {'type': 'json_object'})
+        self.assertNotIn('response_format', parameters[1])
+
+    def test_api_forwards_reasoning_effort(self) -> None:
+        client = FakeLLMClient()
+        with (
+            patch.object(llm, "_client", return_value=client),
+            patch.object(client, "complete_messages", return_value=("ok", {})) as complete,
+        ):
+            llm.infer("test", llm_config={"reasoning_effort": "low"})
+        self.assertEqual(complete.call_args.kwargs["reasoning_effort"], "low")
+
     def test_infer_records_each_batch_call_with_current_step(self) -> None:
         records: list[dict[str, object]] = []
 
@@ -98,7 +121,10 @@ class ToolGraphLLMTest(unittest.TestCase):
         records: list[dict[str, object]] = []
 
         class FakeCodexClient:
+            last_kwargs = {}
+
             def __init__(self, **kwargs) -> None:
+                type(self).last_kwargs = kwargs
                 self.model = kwargs.get("model")
                 self.kwargs = kwargs
 
@@ -118,6 +144,7 @@ class ToolGraphLLMTest(unittest.TestCase):
                     "model": "test-codex",
                     "max_concurrency": 1,
                     "timeout_seconds": 30,
+                    "codex_home": "~/.codex-task-eval",
                 },
             )
 
@@ -132,6 +159,8 @@ class ToolGraphLLMTest(unittest.TestCase):
         self.assertTrue(all(record["backend"] == "codex" for record in records))
         self.assertTrue(all(record["usage"] == {} for record in records))
 
+        self.assertEqual(FakeCodexClient.last_kwargs["codex_home"], "~/.codex-task-eval")
+
     def test_parse_json_object_accepts_reasoning_wrapper_and_fence(self) -> None:
         self.assertEqual(
             llm.parse_json_object('<think>private reasoning</think>\n```json\n{"ok":true}\n```'),
@@ -139,6 +168,16 @@ class ToolGraphLLMTest(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             llm.parse_json_object('<think>x</think> [1, 2]')
+
+    def test_parse_json_object_closes_tail_only(self) -> None:
+        for text in ('{"answer":"完成', '{"answer":"完成"', '{"answer":"完成\\n'):
+            with self.subTest(text=text):
+                self.assertTrue(llm.parse_json_object(text)["answer"].startswith("完成"))
+        self.assertEqual(llm.parse_json_object('{"items":[{"text":"a } [ \\"b\\""'),
+                         {"items": [{"text": 'a } [ "b"'}]})
+        for text in ('{"a":', '{"a":tru', '{"a":1,', '{"a":[1}', '{"a":"abc' + '\\', '{"a":"\\u12'):
+            with self.subTest(text=text), self.assertRaises(llm.MalformedJSONError):
+                llm.parse_json_object(text)
 
     def test_infer_builds_multi_turn_messages_and_returns_metadata(self) -> None:
         client = FakeLLMClient()

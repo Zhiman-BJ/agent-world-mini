@@ -1,0 +1,429 @@
+{
+  "profile_id": "solcore_balanced_v1",
+  "package": "solcore",
+  "version": "v5.10.1",
+  "source_sha256": "b8208e231ba9a02b57592ee9e8ff236e9fdafcfb40d3eb1ad1c4f608d6f12936",
+  "target_all_func": {
+    "min": 50,
+    "max": 100
+  },
+  "boundary": "材料/单位、光源、层结结构、介电模型、传输矩阵光学、太阳能电池高层求解及代表量子阱操作。限定本地数据库和小型计算；solar_cell_solver 的 task/kind 需限制为已验收模型。排除下载/数据库写入、SPICE、SMARTS、RCWA/S4 外部程序及底层矩阵装配，PDD/量子后端须后续独立验证。",
+  "capabilities": [
+    {
+      "id": "units_and_materials",
+      "description": "单位转换、材料创建和光学参数读取",
+      "selection_reason": "保留 solcore 包级别名对应的定义类及材料基类；不重计别名、不写材料数据库。",
+      "verification_tier": "local_material_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [
+        "seed_pypi_raw/solcore/solcore/__init__.py"
+      ],
+      "symbols": [
+        {
+          "module": "solcore.units_system.units_system",
+          "name": "UnitsSystem",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "si",
+            "asUnit",
+            "siUnits",
+            "siUnitFromString",
+            "convert",
+            "eVnm",
+            "nmJ",
+            "mJ",
+            "nmHz",
+            "spectral_conversion_nm_ev",
+            "spectral_conversion_nm_hz",
+            "guess_dimension"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        },
+        {
+          "module": "solcore.material_system.material_system",
+          "name": "MaterialSystem",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "material"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        },
+        {
+          "module": "solcore.parameter_system.parameter_system",
+          "name": "ParameterSystem",
+          "type": "class",
+          "methods": [
+            "get_parameter"
+          ]
+        },
+        {
+          "module": "solcore.material_system.material_system",
+          "name": "BaseMaterial",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "get",
+            "alpha",
+            "alphaE",
+            "n_interpolated",
+            "k_interpolated"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        }
+      ]
+    },
+    {
+      "id": "layer_and_cell_structure",
+      "description": "层、结、多结太阳能电池及状态",
+      "selection_reason": "保留结构构造和宽度/层次修改入口，不展开内部属性分类辅助方法。",
+      "verification_tier": "local_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "solcore.structure",
+          "name": "Layer",
+          "type": "class",
+          "methods": [
+            "__init__"
+          ]
+        },
+        {
+          "module": "solcore.structure",
+          "name": "Junction",
+          "type": "class",
+          "methods": [
+            "__init__"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        },
+        {
+          "module": "solcore.structure",
+          "name": "TunnelJunction",
+          "type": "class",
+          "methods": [
+            "__init__"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        },
+        {
+          "module": "solcore.structure",
+          "name": "Structure",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "append",
+            "width",
+            "relative_widths"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        },
+        {
+          "module": "solcore.solar_cell",
+          "name": "SolarCell",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "append",
+            "append_multiple",
+            "update_junction"
+          ]
+        },
+        {
+          "module": "solcore.state",
+          "name": "State",
+          "type": "class",
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "illumination",
+      "description": "光源、参考太阳光谱和光谱单位",
+      "selection_reason": "使用固定标准光谱、黑体或自定义数组；转换结果可由单位关系和积分检查，排除 SMARTS 执行。",
+      "verification_tier": "local_spectral_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "solcore.light_source.light_source",
+          "name": "LightSource",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "spectrum"
+          ],
+          "missing_description_reason": "核心对象构造和材料数值查询在官方模块中直接定义；部分方法无独立 docstring，保留原空字段，后续使用类级说明与源码核对，不生成替代说明。"
+        },
+        {
+          "module": "solcore.light_source.light_source",
+          "name": "reference_spectra",
+          "type": "function"
+        },
+        {
+          "module": "solcore.light_source.light_source",
+          "name": "power_density_per_nm",
+          "type": "function"
+        },
+        {
+          "module": "solcore.light_source.light_source",
+          "name": "photon_flux_per_nm",
+          "type": "function"
+        },
+        {
+          "module": "solcore.light_source.light_source",
+          "name": "power_density_per_ev",
+          "type": "function"
+        },
+        {
+          "module": "solcore.light_source.light_source",
+          "name": "photon_flux_per_ev",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "dielectric_models",
+      "description": "常用介电函数与振子组合",
+      "selection_reason": "以少量常用振子覆盖绝缘介质和自由载流子模型，可合成 n/k 输入光学栈。",
+      "verification_tier": "numerical_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "solcore.absorption_calculator.dielectric_constant_models",
+          "name": "DielectricConstantModel",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "add_oscillator",
+            "remove_oscillator",
+            "dielectric_constants",
+            "n_and_k"
+          ]
+        },
+        {
+          "module": "solcore.absorption_calculator.dielectric_constant_models",
+          "name": "Lorentz",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "dielectric"
+          ]
+        },
+        {
+          "module": "solcore.absorption_calculator.dielectric_constant_models",
+          "name": "Drude",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "dielectric"
+          ]
+        },
+        {
+          "module": "solcore.absorption_calculator.dielectric_constant_models",
+          "name": "Cauchy",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "dielectric"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "thin_film_optics",
+      "description": "光学栈、RAT、椭偏及深度吸收",
+      "selection_reason": "采用高层传输矩阵及 Beer-Lambert 入口，避免几十个 Fresnel/矩阵中间函数；可检验 R+A+T 及厚度扫描。",
+      "verification_tier": "numerical_fixture_planned",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "solcore.absorption_calculator.transfer_matrix",
+          "name": "OptiStack",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "get_indices",
+            "get_widths",
+            "add_layers",
+            "remove_layer",
+            "swap_layers",
+            "set_widths"
+          ]
+        },
+        {
+          "module": "solcore.absorption_calculator.transfer_matrix",
+          "name": "calculate_rat",
+          "type": "function"
+        },
+        {
+          "module": "solcore.absorption_calculator.transfer_matrix",
+          "name": "calculate_absorption_profile",
+          "type": "function"
+        },
+        {
+          "module": "solcore.absorption_calculator.transfer_matrix",
+          "name": "calculate_ellipsometry",
+          "type": "function"
+        },
+        {
+          "module": "solcore.optics.beer_lambert",
+          "name": "solve_beer_lambert",
+          "type": "function"
+        },
+        {
+          "module": "solcore.optics.tmm",
+          "name": "solve_tmm",
+          "type": "function"
+        },
+        {
+          "module": "solcore.optics.external_optics",
+          "name": "solve_external_optics",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "solar_cell_characteristics",
+      "description": "高层电池求解、IV/QE 与二极管参数",
+      "selection_reason": "保留太阳能电池统一入口及可单独检验的详细平衡、耗尽近似和二极管模型，返回数值曲线便于后续任务验证。",
+      "verification_tier": "numerical_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "solcore.solar_cell_solver",
+          "name": "solar_cell_solver",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.depletion_approximation",
+          "name": "iv_depletion",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.depletion_approximation",
+          "name": "qe_depletion",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.detailed_balance",
+          "name": "iv_detailed_balance",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.detailed_balance",
+          "name": "qe_detailed_balance",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.detailed_balance",
+          "name": "absorptance_detailed_balance",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.diode_equation",
+          "name": "iv_2diode",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.diode_equation",
+          "name": "calculate_J01",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.diode_equation",
+          "name": "calculate_J02_from_Voc",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.diode_equation",
+          "name": "calculate_J02_from_rad_eff",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.diode_equation",
+          "name": "update_j0",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.tunnel_junctions",
+          "name": "resistive_tunnel_junction",
+          "type": "function"
+        },
+        {
+          "module": "solcore.analytic_solar_cells.tunnel_junctions",
+          "name": "parametric_tunnel_junction",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "id": "quantum_wells",
+      "description": "量子阱的高层计算及势场构建",
+      "selection_reason": "保留代表量子能力，先以小型势阱校验能级与波函数；专用后端运行依赖待验证。",
+      "verification_tier": "numerical_runtime_required",
+      "evidence": [
+        "public_api",
+        "core_capability",
+        "composable_io"
+      ],
+      "evidence_sources": [],
+      "symbols": [
+        {
+          "module": "solcore.quantum_mechanics.high_level_kp_QW",
+          "name": "schrodinger",
+          "type": "function"
+        },
+        {
+          "module": "solcore.quantum_mechanics.structure_utilities",
+          "name": "structure_to_potentials",
+          "type": "function"
+        },
+        {
+          "module": "solcore.quantum_mechanics.heterostructure_alignment",
+          "name": "VBO_align",
+          "type": "function"
+        },
+        {
+          "module": "solcore.poisson_drift_diffusion.QWunit",
+          "name": "QWunit",
+          "type": "class",
+          "methods": [
+            "__init__",
+            "solve",
+            "GetEffectiveQW"
+          ]
+        }
+      ]
+    }
+  ]
+}

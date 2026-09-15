@@ -1,0 +1,710 @@
+[
+  {
+    "global_id": "pypi_meshio_10",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/nschloe/meshio",
+          "https://pypi.org/project/meshio/",
+          "https://github.com/nschloe/meshio#readme"
+        ],
+        "name": "meshio",
+        "version": "v5.3.5",
+        "index": 10
+      },
+      "description": "meshio 是面向多种网格格式的 Python 读写和转换库，使用统一的节点、单元块、点数据、单元数据及集合表示，支持 Gmsh、VTK、VTU、XDMF 等文件及时间序列数据交换。它可连接网格生成和数值分析流程，本身不生成网格，也不求解半导体物理方程。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 4,
+        "function": 3,
+        "class_func": 18,
+        "all_func": 21
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "CellBlock",
+        "type": "class",
+        "module": "meshio._mesh",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "cell_type": {
+                "type": "str",
+                "description": ""
+              },
+              "data": {
+                "type": "list | np.ndarray",
+                "description": ""
+              },
+              "tags": {
+                "type": "list[str] | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell_type: str, data: list | np.ndarray, tags: list[str] | None = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Mesh",
+        "type": "class",
+        "module": "meshio._mesh",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "points": {
+                "type": "ArrayLike",
+                "description": ""
+              },
+              "cells": {
+                "type": "dict[str, ArrayLike] | list[tuple[str, ArrayLike] | CellBlock]",
+                "description": ""
+              },
+              "point_data": {
+                "type": "dict[str, ArrayLike] | None",
+                "description": ""
+              },
+              "cell_data": {
+                "type": "dict[str, list[ArrayLike]] | None",
+                "description": ""
+              },
+              "field_data": {
+                "type": "",
+                "description": ""
+              },
+              "point_sets": {
+                "type": "dict[str, ArrayLike] | None",
+                "description": ""
+              },
+              "cell_sets": {
+                "type": "dict[str, list[ArrayLike]] | None",
+                "description": ""
+              },
+              "gmsh_periodic": {
+                "type": "",
+                "description": ""
+              },
+              "info": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, points: ArrayLike, cells: dict[str, ArrayLike] | list[tuple[str, ArrayLike] | CellBlock], point_data: dict[str, ArrayLike] | None = None, cell_data: dict[str, list[ArrayLike]] | None = None, field_data = None, point_sets: dict[str, ArrayLike] | None = None, cell_sets: dict[str, list[ArrayLike]] | None = None, gmsh_periodic = None, info = None",
+            "ori_description": ""
+          },
+          {
+            "name": "copy",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "get_cells_type",
+            "description": "",
+            "input": {
+              "self": null,
+              "cell_type": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell_type: str",
+            "ori_description": ""
+          },
+          {
+            "name": "get_cell_data",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "str",
+                "description": ""
+              },
+              "cell_type": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name: str, cell_type: str",
+            "ori_description": ""
+          },
+          {
+            "name": "cells_dict",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "cell_data_dict",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "cell_sets_dict",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "cell_sets_to_data",
+            "description": "",
+            "input": {
+              "self": null,
+              "data_name": {
+                "type": "str | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, data_name: str | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "point_sets_to_data",
+            "description": "",
+            "input": {
+              "self": null,
+              "join_char": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, join_char: str = '-'",
+            "ori_description": ""
+          },
+          {
+            "name": "cell_data_to_sets",
+            "description": "Convert point_data to cell_sets.",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key: str",
+            "ori_description": "Convert point_data to cell_sets."
+          },
+          {
+            "name": "point_data_to_sets",
+            "description": "Convert point_data to point_sets.",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key: str",
+            "ori_description": "Convert point_data to point_sets."
+          }
+        ]
+      },
+      {
+        "name": "read",
+        "type": "function",
+        "module": "meshio._helpers",
+        "description": "Reads an unstructured mesh with added data.",
+        "input": {
+          "filename": {
+            "type": "",
+            "description": ""
+          },
+          "file_format": {
+            "type": "str | None",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The mesh data."
+          }
+        },
+        "ori_input": "filename, file_format: str | None = None",
+        "ori_description": "Reads an unstructured mesh with added data.  :param filenames: The files/PathLikes to read from. :type filenames: str  :returns mesh{2,3}d: The mesh data."
+      },
+      {
+        "name": "write",
+        "type": "function",
+        "module": "meshio._helpers",
+        "description": "Writes mesh together with data to a file.  :params filename: File to write to.",
+        "input": {
+          "filename": {
+            "type": "str  :params point_data: Named additional point data to write to the file.",
+            "description": ""
+          },
+          "mesh": {
+            "type": "Mesh",
+            "description": ""
+          },
+          "file_format": {
+            "type": "str | None",
+            "description": ""
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "filename, mesh: Mesh, file_format: str | None = None, **kwargs",
+        "ori_description": "Writes mesh together with data to a file.  :params filename: File to write to. :type filename: str  :params point_data: Named additional point data to write to the file. :type point_data: dict"
+      },
+      {
+        "name": "write_points_cells",
+        "type": "function",
+        "module": "meshio._helpers",
+        "description": "",
+        "input": {
+          "filename": {
+            "type": "",
+            "description": ""
+          },
+          "points": {
+            "type": "ArrayLike",
+            "description": ""
+          },
+          "cells": {
+            "type": "dict[str, ArrayLike] | list[tuple[str, ArrayLike] | CellBlock]",
+            "description": ""
+          },
+          "point_data": {
+            "type": "dict[str, ArrayLike] | None",
+            "description": ""
+          },
+          "cell_data": {
+            "type": "dict[str, list[ArrayLike]] | None",
+            "description": ""
+          },
+          "field_data": {
+            "type": "",
+            "description": ""
+          },
+          "point_sets": {
+            "type": "dict[str, ArrayLike] | None",
+            "description": ""
+          },
+          "cell_sets": {
+            "type": "dict[str, list[ArrayLike]] | None",
+            "description": ""
+          },
+          "file_format": {
+            "type": "str | None",
+            "description": ""
+          },
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "filename, points: ArrayLike, cells: dict[str, ArrayLike] | list[tuple[str, ArrayLike] | CellBlock], point_data: dict[str, ArrayLike] | None = None, cell_data: dict[str, list[ArrayLike]] | None = None, field_data = None, point_sets: dict[str, ArrayLike] | None = None, cell_sets: dict[str, list[ArrayLike]] | None = None, file_format: str | None = None, **kwargs",
+        "ori_description": ""
+      },
+      {
+        "name": "TimeSeriesReader",
+        "type": "class",
+        "module": "meshio.xdmf.time_series",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename",
+            "ori_description": ""
+          },
+          {
+            "name": "read_points_cells",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "read_data",
+            "description": "",
+            "input": {
+              "self": null,
+              "k": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, k: int",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "TimeSeriesWriter",
+        "type": "class",
+        "module": "meshio.xdmf.time_series",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "",
+                "description": ""
+              },
+              "data_format": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename, data_format: str = 'HDF'",
+            "ori_description": ""
+          },
+          {
+            "name": "write_points_cells",
+            "description": "",
+            "input": {
+              "self": null,
+              "points": {
+                "type": "ArrayLike",
+                "description": ""
+              },
+              "cells": {
+                "type": "dict[str, ArrayLike] | list[tuple[str, ArrayLike] | CellBlock]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, points: ArrayLike, cells: dict[str, ArrayLike] | list[tuple[str, ArrayLike] | CellBlock]",
+            "ori_description": ""
+          },
+          {
+            "name": "write_data",
+            "description": "",
+            "input": {
+              "self": null,
+              "t": {
+                "type": "",
+                "description": ""
+              },
+              "point_data": {
+                "type": "",
+                "description": ""
+              },
+              "cell_data": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, t, point_data = None, cell_data = None",
+            "ori_description": ""
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/nschloe/meshio",
+        "documentation": "https://github.com/nschloe/meshio#readme",
+        "pypi": "https://pypi.org/project/meshio/",
+        "pypi_version": "5.3.5",
+        "tag": "v5.3.5",
+        "commit": "b2ee99842e119901349fdeee06b5bf61e01f450a",
+        "release_published_at": "2024-01-31T15:09:04Z",
+        "checked_on": "2026-09-10",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 与 GitHub Release 均为 5.3.5；src/meshio/__about__.py 从已安装分发元数据读取版本，不包含固定版本值。官方 README 提供用法和格式说明，未找到独立官方 API 文档站，使用 README 链接。",
+          "顶层 Mesh/read/write 由私有实现模块公开重导出，索引保留源码定义模块；精选避免重复保留各格式的同类 read/write 入口。"
+        ],
+        "release_url": "https://github.com/nschloe/meshio/releases/tag/v5.3.5",
+        "release_api": "https://api.github.com/repos/nschloe/meshio/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/meshio",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "meshio"
+        ],
+        "source_files": [
+          "src/meshio/__init__.py",
+          "src/meshio/__about__.py",
+          "src/meshio/_cli/__init__.py",
+          "src/meshio/_cli/_ascii.py",
+          "src/meshio/_cli/_binary.py",
+          "src/meshio/_cli/_compress.py",
+          "src/meshio/_cli/_convert.py",
+          "src/meshio/_cli/_decompress.py",
+          "src/meshio/_cli/_info.py",
+          "src/meshio/_cli/_main.py",
+          "src/meshio/_common.py",
+          "src/meshio/_cxml/__init__.py",
+          "src/meshio/_cxml/etree.py",
+          "src/meshio/_exceptions.py",
+          "src/meshio/_files.py",
+          "src/meshio/_helpers.py",
+          "src/meshio/_mesh.py",
+          "src/meshio/_vtk_common.py",
+          "src/meshio/abaqus/__init__.py",
+          "src/meshio/abaqus/_abaqus.py",
+          "src/meshio/ansys/__init__.py",
+          "src/meshio/ansys/_ansys.py",
+          "src/meshio/avsucd/__init__.py",
+          "src/meshio/avsucd/_avsucd.py",
+          "src/meshio/cgns/__init__.py",
+          "src/meshio/cgns/_cgns.py",
+          "src/meshio/dolfin/__init__.py",
+          "src/meshio/dolfin/_dolfin.py",
+          "src/meshio/exodus/__init__.py",
+          "src/meshio/exodus/_exodus.py",
+          "src/meshio/flac3d/__init__.py",
+          "src/meshio/flac3d/_flac3d.py",
+          "src/meshio/gmsh/__init__.py",
+          "src/meshio/gmsh/_gmsh22.py",
+          "src/meshio/gmsh/_gmsh40.py",
+          "src/meshio/gmsh/_gmsh41.py",
+          "src/meshio/gmsh/common.py",
+          "src/meshio/gmsh/main.py",
+          "src/meshio/h5m/__init__.py",
+          "src/meshio/h5m/_h5m.py",
+          "src/meshio/hmf/__init__.py",
+          "src/meshio/hmf/_hmf.py",
+          "src/meshio/mdpa/__init__.py",
+          "src/meshio/mdpa/_mdpa.py",
+          "src/meshio/med/__init__.py",
+          "src/meshio/med/_med.py",
+          "src/meshio/medit/__init__.py",
+          "src/meshio/medit/_medit.py",
+          "src/meshio/medit/_medit_internal.py",
+          "src/meshio/nastran/__init__.py",
+          "src/meshio/nastran/_nastran.py",
+          "src/meshio/netgen/__init__.py",
+          "src/meshio/netgen/_netgen.py",
+          "src/meshio/neuroglancer/__init__.py",
+          "src/meshio/neuroglancer/_neuroglancer.py",
+          "src/meshio/obj/__init__.py",
+          "src/meshio/obj/_obj.py",
+          "src/meshio/off/__init__.py",
+          "src/meshio/off/_off.py",
+          "src/meshio/permas/__init__.py",
+          "src/meshio/permas/_permas.py",
+          "src/meshio/ply/__init__.py",
+          "src/meshio/ply/_ply.py",
+          "src/meshio/stl/__init__.py",
+          "src/meshio/stl/_stl.py",
+          "src/meshio/su2/__init__.py",
+          "src/meshio/su2/_su2.py",
+          "src/meshio/svg/__init__.py",
+          "src/meshio/svg/_svg.py",
+          "src/meshio/tecplot/__init__.py",
+          "src/meshio/tecplot/_tecplot.py",
+          "src/meshio/tetgen/__init__.py",
+          "src/meshio/tetgen/_tetgen.py",
+          "src/meshio/ugrid/__init__.py",
+          "src/meshio/ugrid/_ugrid.py",
+          "src/meshio/vtk/__init__.py",
+          "src/meshio/vtk/_main.py",
+          "src/meshio/vtk/_vtk_42.py",
+          "src/meshio/vtk/_vtk_51.py",
+          "src/meshio/vtu/__init__.py",
+          "src/meshio/vtu/_vtu.py",
+          "src/meshio/wkt/__init__.py",
+          "src/meshio/wkt/_wkt.py",
+          "src/meshio/xdmf/__init__.py",
+          "src/meshio/xdmf/common.py",
+          "src/meshio/xdmf/main.py",
+          "src/meshio/xdmf/time_series.py"
+        ],
+        "source_file_sha256": {
+          "src/meshio/__init__.py": "0eabe42f9e0983e53da37c5b5450e25a3c003755f64875886a922f2032a3401d",
+          "src/meshio/__about__.py": "d68728e0ade9cd4fc4427f885cdc6bb2d29325866bc1f095019db16833de374e",
+          "src/meshio/_cli/__init__.py": "8ea246e4060eb6dbcff78944fd901ec5c1af2c4ffa412c8e3745c3ec4d5cb68a",
+          "src/meshio/_cli/_ascii.py": "97011cbf9aee121d82789e32d56c26929eb7e8c122965b54c3b10f65978079b1",
+          "src/meshio/_cli/_binary.py": "7bff21636b79018ebeff101d26d8ae02dfc4d66205a4c5eff4c0e72aaf11098e",
+          "src/meshio/_cli/_compress.py": "68220e016c34c60afad13f306301c9202fbe47154fafe92d5cfaa8d9eaca1bad",
+          "src/meshio/_cli/_convert.py": "1baf53f1ff88431f75d444ecdd084c738378108c7b062f5a8f8b09bf3f6b3789",
+          "src/meshio/_cli/_decompress.py": "1d2d471a519d75c32e7150bf1aca44c6d3a4e8978bd58ae51959f21d5fc19509",
+          "src/meshio/_cli/_info.py": "4d2da345ffc265e2def921a211182ee784a89d61bff5ea0f12dfa638e0bd6df5",
+          "src/meshio/_cli/_main.py": "bd6aabcfb35941187afad0dd797850b7e9564ad0a16399ea0f1e7257f3291bdc",
+          "src/meshio/_common.py": "99adb3da8e1cd86b32a2c028cd853a2d994c041d812b62c776cdf81e57e92c49",
+          "src/meshio/_cxml/__init__.py": "b192ae8f76270febfdf505b1444192ab36e92d0cf6e3c622950cc8782596a370",
+          "src/meshio/_cxml/etree.py": "2cac7e5a179b7450738c559b0660cfae799a77b8cf16db3ea4b2cd3f4a8b3986",
+          "src/meshio/_exceptions.py": "b24298bfa94e91a04697c1d9d82a87768f169b656416629c90795e8fa31d1e56",
+          "src/meshio/_files.py": "ffac963259c84c228f0ff9d59e3b515ae2682e0fe0d73e9847a1d3653999b1ea",
+          "src/meshio/_helpers.py": "ba9749b64f9776a421a1c867539f8b765176d4e8a825e34d45d21425066f6460",
+          "src/meshio/_mesh.py": "393ec090c2a71f9faa9a6131f93da238d353fd5b3129157fdc0f9a85e1556501",
+          "src/meshio/_vtk_common.py": "df14909dd0f57a0ea4b623bb862d6f30fc644e78751773c098cd5743e9f61691",
+          "src/meshio/abaqus/__init__.py": "f3b39857203f02de19deea3fc72413f7876111af196c1e2fbd33652623a33025",
+          "src/meshio/abaqus/_abaqus.py": "d6021656777734fd88817d1b24e4bad8c298cf8212f34bb7ddaff1459eac46b5",
+          "src/meshio/ansys/__init__.py": "149733de05b1dfd618f0b65176bc780825a1ce8b0024e36cd946563a918d00b5",
+          "src/meshio/ansys/_ansys.py": "1067db646f269508c59e9aaac35aeaeab0207ec7ff72dd66afff18aa77df1cc9",
+          "src/meshio/avsucd/__init__.py": "20c099e79282ddf2f62494c200e577f3df9a060a9851233405f40ae34ae3d8fc",
+          "src/meshio/avsucd/_avsucd.py": "0ed7b1b456468f817a2758f1d53822b2a5c5bb44075492fccc75467dc2a68c63",
+          "src/meshio/cgns/__init__.py": "8c382f56c6898a93ab4fac99fda668e6650ae65e956891e3877871b4fb42c8c7",
+          "src/meshio/cgns/_cgns.py": "db7aa2b8dbc597f570ad12bdc53bd2314848088197b7117e9219af5311e358cf",
+          "src/meshio/dolfin/__init__.py": "419c6573053f65c69c2d8d07df01dd9b7390783447e8527a2015cc6bcfe55480",
+          "src/meshio/dolfin/_dolfin.py": "f184e9a929a552884a7763b7d7b6b2d76384087d08548f8c32d29e3ae648f62e",
+          "src/meshio/exodus/__init__.py": "80b97f4cd836ed6d7235ab932708b0a5a0e2a96c2ce6ebec99bfc9e937b3e67a",
+          "src/meshio/exodus/_exodus.py": "e0516fe077b3f38a472c657e1c035d42737115919f859defa2360efc20f5505b",
+          "src/meshio/flac3d/__init__.py": "d7aa9b94cc752f7975ccc009ec4f4f046d13606fa72081c76e44a12eeb12650b",
+          "src/meshio/flac3d/_flac3d.py": "e12802cedc8aa61ca506c8d55656314674e03f511507a837e29745848006a622",
+          "src/meshio/gmsh/__init__.py": "d1fc39e1cbac26ee9321b73e181f6e3fb21e308d82312fe36918c0be161bf8b0",
+          "src/meshio/gmsh/_gmsh22.py": "4f66118f63150385e48a62a76ddea6dcb238016e76cd4fc609cc617249786891",
+          "src/meshio/gmsh/_gmsh40.py": "783cad4380701b18ee72fc5a7d43b3fbad421a52e4f8b245a1e45cf7ecf829fc",
+          "src/meshio/gmsh/_gmsh41.py": "22d0e88f844e155beb1eef23f276211aa9928cd0c1c781aca9d3686b24bdadbf",
+          "src/meshio/gmsh/common.py": "12da82195655e260aacfd7553f3975cacbc504b0c31f3defe2cd90aef9fe8924",
+          "src/meshio/gmsh/main.py": "5aec8e6a23fb08ae774aa921c432dc76a055e06b65c12bfef12c2e066dde5dcb",
+          "src/meshio/h5m/__init__.py": "571b4db0ec7f84adbbf91720980013c1ccdeb34502b882f964e6343134f0f4a6",
+          "src/meshio/h5m/_h5m.py": "b4457440c2af1d5367d1eacb0f83f7e82e86ea03d88b2a4cdadfd50cc450cc37",
+          "src/meshio/hmf/__init__.py": "c83e1b64460bac7f195ffeee246d864f003432869451c9393abb75d9dd1a8ea5",
+          "src/meshio/hmf/_hmf.py": "73814d9e077fbc486e46b0b81f7d714e0581882811329594feffb1ed644e7258",
+          "src/meshio/mdpa/__init__.py": "5f64fcbdaec47356bf6c347274601ec977f1b94b139b5b439e940111d83442ff",
+          "src/meshio/mdpa/_mdpa.py": "aec37c7f61d655b4bec4f34eb63e614850cfba901a422b77e80cfb9319d0b419",
+          "src/meshio/med/__init__.py": "6c05e830bae4b99e74771a4eae34a08ac823d58b358e97c7ba2d6a4608a3ce19",
+          "src/meshio/med/_med.py": "a81691a3d4dbdc05112ad6783959da73a1903ca058615216dbefdab69403abe4",
+          "src/meshio/medit/__init__.py": "b7f63de8b53643a7646cfc7aa65650d72f87326ec1e3e1b46450dfddc42875ae",
+          "src/meshio/medit/_medit.py": "257d4f76510561557a980ae23aa836f2558d3158709b67800e9ba0cde411b2d8",
+          "src/meshio/medit/_medit_internal.py": "3ef46f711f59b172aebee1508aca449c84067a9706866a9154b20006c2959c70",
+          "src/meshio/nastran/__init__.py": "0629cd032da5d88d931f14bc80fb8261d9e782e3f01dbffc7eee7ccd3b8fe934",
+          "src/meshio/nastran/_nastran.py": "1057b31faee99cb82b77281d7299e4433bb3c2ebc7452bad15afc6bd5e2977a7",
+          "src/meshio/netgen/__init__.py": "c5a9eb51582220cf3fe999b69b579ce2a4b2b79806978c1786d58ced2e7fcbc7",
+          "src/meshio/netgen/_netgen.py": "d83992d4d436b7f27874b37774979f90ed311a1b0a894e434dd2c3d6cf630b1d",
+          "src/meshio/neuroglancer/__init__.py": "7f4dfd6b965b0eee2746cdce63979659cbcd387c1c88a1455077e302f363ff9d",
+          "src/meshio/neuroglancer/_neuroglancer.py": "b6644a7b7f2f9d9c27b61a96fc4bc27be3cb7a4b89e9d2d51437112fb1bf9953",
+          "src/meshio/obj/__init__.py": "5accb326819a10cca37a8b784f6ca90121486ae10fe8a3f6b7fa0763f8c3db14",
+          "src/meshio/obj/_obj.py": "7c5acbb4c3783d2576bc529d2047d15db0b22fcd145d453e7c82c978411270a5",
+          "src/meshio/off/__init__.py": "330c2edbcc65fa0fee9b80fe088ed6146fc9dbed2b3f17972349472df0fd2598",
+          "src/meshio/off/_off.py": "1f91cc32905cccf1c3754bed7f8d4b0192ce73aba27bc0f2026eacc2efd4b3f7",
+          "src/meshio/permas/__init__.py": "8a03f1d2c8c5e4831738a53ee8a69ceb9960d67f67a45ed0909b7c14d97bf08c",
+          "src/meshio/permas/_permas.py": "74d3cc64854488f4905ad3ee8a7890205b23f1f426640467563c67fac160ea01",
+          "src/meshio/ply/__init__.py": "455a35a9187b3775f3c375e7d15799808b897eb577d625cb7a62c0ceaac4a69f",
+          "src/meshio/ply/_ply.py": "281e0f836c0ecc63d5f694bf8d2177017481c9b931b119406d3d61ceb2a4d2c2",
+          "src/meshio/stl/__init__.py": "9e9ba6e94f590db78e28e7767aec5cbbd339e5e620d6257d7797c2f4fd1a4fd5",
+          "src/meshio/stl/_stl.py": "bca34d3dd69d8f80141398ae03bc61976b9a93df4c3e643f679aa415159674b3",
+          "src/meshio/su2/__init__.py": "e1e21c4d33d4b6474ff41eb60cd38372914c7869ba0c841205807960d04f3b89",
+          "src/meshio/su2/_su2.py": "fe9ec95112a42c67a59a713bcbd52156649117f2f1f77d0d335cadb04af79db0",
+          "src/meshio/svg/__init__.py": "9d96558f4b9c37bf11e65c7f82f6bf86e979404ec15d5da598b3dd21ab44e082",
+          "src/meshio/svg/_svg.py": "54ee540090d2fcc88eaf4b8d40127eb6aaee9a642e1f32439d61978f8eeaa982",
+          "src/meshio/tecplot/__init__.py": "6c5080d75448c6e64dfaf5b91b2699bde6d11a4dfdb6e72633de74fb877f967d",
+          "src/meshio/tecplot/_tecplot.py": "41803c2f76495cad05039a47b0c0f5d3dca4d95741f6561a9d6cb9bf60ed05c6",
+          "src/meshio/tetgen/__init__.py": "53160e22e49c5012e17cdf7cc25b723d9075d08073979da5eacc5b5bf0dd6120",
+          "src/meshio/tetgen/_tetgen.py": "97c4abed5be4fabdea5f3adf5dd88db24bdf519062185100e940d9dfc72a87ec",
+          "src/meshio/ugrid/__init__.py": "f4ab19415cc694e7b5d786614571f96b039432051ca7415ab0ec1b14a453aa72",
+          "src/meshio/ugrid/_ugrid.py": "bde299d092d3d6ec25407406809100e64996291f4131d74901bac493b69fbc99",
+          "src/meshio/vtk/__init__.py": "7a85b6c86e617d8e4040763a4503241ea0d9b8397935806cb32e007481d3436b",
+          "src/meshio/vtk/_main.py": "c40ca2427188da7c4a677f3568237cf7593079016eae6c1f9560ee5fde544d5d",
+          "src/meshio/vtk/_vtk_42.py": "fe4cdeb466a37299824bada4a2ef73c7e3f175007c172e29a769c5dfd2267c35",
+          "src/meshio/vtk/_vtk_51.py": "e0ed8591c38a8a46c89f7062e22514f04e15cc4b3edf08ae63da522e410c031d",
+          "src/meshio/vtu/__init__.py": "fcea3896a835862036760afe960449f8f55ba79b34ae27c45c9c9e97e09e630b",
+          "src/meshio/vtu/_vtu.py": "a9cdeb417f7cac7a9969351d85bd1a28d545c05b48a9fba5bb4c0cfb3250b574",
+          "src/meshio/wkt/__init__.py": "5579e2c0b714d200eddc32a0db6fc587cfb22e4334e4f6e456bcc833a474413d",
+          "src/meshio/wkt/_wkt.py": "b667b3375516f7bebbb8f1535fd8858f94726c32c189d619ada7e6dbaa5fe1a2",
+          "src/meshio/xdmf/__init__.py": "53daff00546293094c8d6094c69b7f198b4b7b49ccc539d1c75001b647fdc6ca",
+          "src/meshio/xdmf/common.py": "b28bb2b6cc1c1f84278a3fe246b0c2cb02b4b67b499e9f78c604f632db1d7600",
+          "src/meshio/xdmf/main.py": "eee238a8602a17bf48b22a9c5d0a6523e0097c308777a2d748781c327e55d5d5",
+          "src/meshio/xdmf/time_series.py": "58e2e4dcc916f441f66dd579e58be45282c547461ae44b33a2fe2f7d1e2bdbd0"
+        },
+        "source_version": "v5.3.5",
+        "source_commit": "b2ee99842e119901349fdeee06b5bf61e01f450a",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "meshio_balanced_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/meshio_v5.3.5.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/meshio_v5.3.5.json",
+        "source_sha256": "5479c449e26f10f6d9787ad2dafdd310b94c4428a4f08d6afca0c6b9a6d084fa",
+        "profile_sha256": "0d82e0ba919a3bde1ea00edded62d2f86c8386e203274cd86c8131433dcd2267",
+        "boundary": "统一网格对象、点/单元字段和集合转换、通用文件读写及 XDMF 时间序列。通过通用 read/write 的 file_format 覆盖格式，不重复收录数十套格式实现；不凑足 50。",
+        "target_all_func": {
+          "min": 20,
+          "max": 100
+        },
+        "raw_tool_count": 162,
+        "selected_tool_count": 7,
+        "selected_class_count": 4,
+        "selected_function_count": 3,
+        "selected_method_count": 18,
+        "selected_all_func": 21,
+        "missing_description_count": 21,
+        "excluded_tool_count": 155,
+        "capability_count": 2,
+        "desired_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "target_exception_reason": "统一 read/write 已覆盖多种格式；追加格式内部 read/write 或 XML/CLI 辅助函数只会重复或降低抽象层次，合理核心范围为 21 个调用。"
+      }
+    }
+  }
+]

@@ -38,6 +38,7 @@ def call_environment_tool(
     memory_limit: int,
     write_limit: int,
     call_tool_fn: CallToolFn = _call_tool,
+    environment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     tool = tools.get(name)
     if tool is None:
@@ -52,6 +53,7 @@ def call_environment_tool(
         shutil.copytree(workspace, candidate, symlinks=True)
         outcome = call_tool_fn(
             tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
+            environment,
         )
         result = outcome.get("result")
         error = outcome.get("error")
@@ -77,9 +79,16 @@ def call_environment_tool(
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     tools = {tool["name"]: tool for tool in config["tools"]}
+    environment = config.get("environment", {})
     workspace = Path(config["workspace"]).resolve()
     trace = Path(config["trace"]).resolve()
     calls = 0
+    choices = None
+    if 'review_choice_seed' in config:
+        from task_gen.tool_graph.review_choices import ReviewChoices, TOOL
+        if TOOL['name'] in tools:
+            raise ValueError('review 工具名称冲突')
+        choices = ReviewChoices(config['review_choice_seed'])
     for line in stdin:
         request: dict[str, Any] = {}
         try:
@@ -98,7 +107,14 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     "description": tool.get("description", ""),
                     "inputSchema": tool["inputSchema"],
                     "outputSchema": tool["outputSchema"],
+                    "annotations": {
+                        "readOnlyHint": not bool(tool.get("usageConditions", {}).get("sideEffects", ["unknown"])),
+                        "openWorldHint": False,
+                    },
+                    **({"usageConditions": tool["usageConditions"]} if "usageConditions" in tool else {}),
                 } for tool in tools.values()]}
+                if choices is not None:
+                    result['tools'].append(TOOL)
             elif method == "tools/call":
                 if calls >= int(config["max_tool_calls"]):
                     raise RpcError(-32000, "工具调用次数已达到上限")
@@ -107,12 +123,23 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     raise RpcError(-32602, "tools/call 缺少 params")
                 name = params.get("name")
                 arguments = params.get("arguments", {})
-                if not isinstance(name, str) or name not in tools:
+                is_choice = choices is not None and name == TOOL['name']
+                if not isinstance(name, str) or (name not in tools and not is_choice):
                     raise RpcError(-32602, f"未知工具：{name}")
                 if not isinstance(arguments, dict):
                     raise RpcError(-32602, "工具 arguments 必须是 object")
                 calls += 1
-                record = call_environment_tool(
+                if is_choice:
+                    try:
+                        schema_error = _schema_error(TOOL['inputSchema'], arguments)
+                        if schema_error:
+                            raise ValueError(schema_error)
+                        payload = choices.choose(arguments)
+                        record = {'tool': name, 'arguments': arguments, 'result': payload, 'error': None}
+                    except ValueError as error:
+                        record = {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
+                else:
+                    record = call_environment_tool(
                     name,
                     arguments,
                     tools,
@@ -120,6 +147,7 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     timeout=int(config["timeout"]),
                     memory_limit=int(config["memory_limit"]),
                     write_limit=int(config["write_limit"]),
+                    environment=environment,
                 )
                 trace.parent.mkdir(parents=True, exist_ok=True)
                 with trace.open("a", encoding="utf-8") as stream:

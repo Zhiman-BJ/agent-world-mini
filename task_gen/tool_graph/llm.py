@@ -24,7 +24,7 @@ from typing import Any, overload
 from uuid import uuid4
 
 from utils.llm import LLMClient
-from utils.search_agent.codex import CodexAgentClient
+from .codex import CodexAgentClient
 
 
 Message = dict[str, str]
@@ -102,6 +102,7 @@ def _record_call(
     started: float,
     result: InferenceResult | None = None,
     error: Exception | None = None,
+    agent_log: dict[str, Any] | None = None,
 ) -> None:
     if trace is None:
         return
@@ -121,6 +122,7 @@ def _record_call(
         "usage": _plain(result.usage) if result else {},
         "status": "succeeded" if result else "failed",
         "error": f"{type(error).__name__}: {error}" if error else None,
+        **({"agent_log": agent_log} if agent_log is not None else {}),
     })
 
 
@@ -174,8 +176,8 @@ def infer(
 
     config = llm_config or {}
     trace = _TRACE_CONTEXT.get()
-    # codex 后端走本机已登录的 Codex CLI，用于 API 账户配额不足时；
-    # 阶段 prompt 和返回契约完全不变。它没有 max_tokens 概念，该配置只影响 api 后端。
+    # 普通阶段按配置走 API 或 Codex。Step 2 的 review 不经过这里，
+    # 由 review_agent 直接创建 CodexAgentClient，以保留只读 MCP 初态探索能力。
     if str(config.get("backend") or "api") == "codex":
         return _infer_codex(
             prompt,
@@ -192,6 +194,10 @@ def infer(
     parameters: dict[str, object] = {"temperature": float(config.get("temperature", 0.2))}
     if config.get("max_tokens") is not None:
         parameters["max_tokens"] = int(config["max_tokens"])
+    if config.get("response_format") is not None:
+        parameters["response_format"] = config["response_format"]
+    if config.get("reasoning_effort"):
+        parameters["reasoning_effort"] = str(config["reasoning_effort"])
 
     def run(index: int, item: str) -> InferenceResult:
         started_at = datetime.now().astimezone().isoformat()
@@ -256,6 +262,8 @@ def _infer_codex(
     """
     client = CodexAgentClient(
         model=str(config["model"]) if config.get("model") else None,
+        codex_home=str(config["codex_home"]) if config.get("codex_home") else None,
+        reasoning_effort=config.get("reasoning_effort"),
         timeout_seconds=int(config.get("timeout_seconds", 1800)),
         sandbox="read-only",
     )
@@ -338,7 +346,7 @@ def parse_json_object(text: str) -> dict[str, Any]:
     """从 LLM 回复中提取唯一的顶层 JSON object。
 
     容忍 ``` 围栏以及 object 前后的解释性文字；不容忍顶层不是 object、
-    结构被截断或根本没有 object。失败时抛出 :class:`MalformedJSONError`，
+    缺少末尾闭合符时尝试补齐，但不补字段、值或分隔符。失败时抛出 :class:`MalformedJSONError`，
     消息带原始回复的首尾片段，用于区分"模型没按格式回答"和"输出被截断"
     这两种需要不同处置的情况。
     """
@@ -351,9 +359,7 @@ def parse_json_object(text: str) -> dict[str, Any]:
     if start < 0:
         raise MalformedJSONError(f"回复中没有 JSON object：{_excerpt(text)}")
     end = _match_object(stripped, start)
-    if end < 0:
-        raise MalformedJSONError(f"JSON object 未闭合，可能被截断：{_excerpt(text)}")
-    candidate = stripped[start:end]
+    candidate = stripped[start:end] if end >= 0 else _close_json_tail(stripped[start:])
     try:
         value = json.loads(candidate)
     except json.JSONDecodeError as error:
@@ -368,6 +374,30 @@ def parse_json_object(text: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise MalformedJSONError(f"顶层不是 JSON object：{_excerpt(text)}")
     return value
+
+
+def _close_json_tail(text: str) -> str:
+    """只追加末尾缺少的闭合符；不修复错配括号或未完成的转义。"""
+    stack: list[str] = []
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append("}" if char == "{" else "]")
+        elif char in "}]":
+            if not stack or stack.pop() != char:
+                return text
+    if escaped:
+        return text
+    return text + ('"' if in_string else "") + "".join(reversed(stack))
 
 
 def _escape_control_characters(text: str) -> str:
@@ -432,13 +462,23 @@ def _client(config: Mapping[str, Any]) -> LLMClient:
     backend = str(config.get("backend") or "api")
     if backend != "api":
         raise ValueError(f"tool_graph.llm 仅支持 api 后端，不支持 {backend!r}")
-    client = LLMClient.from_environment()
+    client = LLMClient() if config.get("api_key_file") else LLMClient.from_environment()
     if "model" in config:
         client.model = str(config["model"] or "")
     if "base_url" in config:
         client.base_url = str(config["base_url"] or "")
     if "api_key_env" in config:
         client.api_key = os.environ.get(str(config["api_key_env"]), "")
+    if config.get("api_key_file"):
+        path = Path(str(config["api_key_file"])).expanduser()
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            key = payload.get("OPENAI_API_KEY") if isinstance(payload, dict) else None
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("缺少 OPENAI_API_KEY")
+        except (OSError, ValueError):
+            raise ValueError(f"无法读取管线凭据：{path}，需包含非空 OPENAI_API_KEY") from None
+        client.api_key = key.strip()
     if "timeout_seconds" in config:
         client.timeout_seconds = int(config["timeout_seconds"])
     return client

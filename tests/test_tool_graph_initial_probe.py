@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+from contextvars import ContextVar
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from task_gen.tool_graph.contracts import Config
+from task_gen.tool_graph.llm import InferenceResult
+from task_gen.tool_graph import step_2_chain_sample as sampling
+from task_gen.tool_graph.step_3_chain_execute import execute_frozen_chains as execute_chains
+from task_gen.tool_graph.step_5_task_validate import _basic_errors
+from tests.test_tool_graph_execution import tool, task_candidate
+
+
+def response(value):
+    return InferenceResult(json.dumps(value), {}, "test")
+
+
+class InitialStateTest(unittest.TestCase):
+    def setUp(self):
+        review = patch.object(sampling, "review_with_initial_state", side_effect=
+            lambda prompts, **kwargs: sampling.infer(prompts, llm_config=kwargs["llm_config"]))
+        self.review = review.start()
+        self.addCleanup(review.stop)
+
+    def test_objective_stage_does_not_access_initial_state(self):
+        environment = {"resources": [], "tools": [tool(n, "unused") for n in "abc"]}
+        graph = [{"from_tool": "a", "to_tool": "b", "weight": 3}, {"from_tool": "b", "to_tool": "c", "weight": 3}]
+        config = Config(planning={"sample_count": 1, "review_count": 1, "keep_top_count": 1, "min_chain_length": 2, "max_chain_length": 3, "random_seed": 1})
+        replies = [
+            [response({"objective": "Inspect record-7", "design_basis": "Locate then inspect"})],
+            [response({"accepted": True, "chain": ["a", "c"], "reason": "One local repair", "score": 4})],
+        ]
+        with patch.object(sampling, "infer", side_effect=replies) as mocked:
+            output = sampling.sample_chains({"config": config, "environment": environment, "tool_graph": graph})
+        candidate = output["tasks"][0]
+        self.assertEqual(candidate["objective"], "Inspect record-7")
+        self.assertGreater(candidate["score"], 0)
+        self.assertNotIn("logic_score", candidate)
+        self.assertEqual(mocked.call_count, 1)
+        self.assertEqual(candidate["chain"], ["a", "b", "c"])
+        self.assertNotIn("initial_state_report", mocked.call_args_list[0].args[0][0])
+        self.assertNotIn("initial_state_report", output)
+        self.review.assert_not_called()
+
+    def test_multitask_objective_reaches_review_unchanged(self):
+        environment = {"resources": [], "tools": [tool("security_report", "unused"), tool("quality_update", "unused")]}
+        chain = ["security_report", "quality_update"]
+        objective = "Summarize security findings; update one existing quality record."
+        replies = [[response({"objective": objective, "design_basis": "Two related outcomes"})],
+                   [response({"accepted": True, "chain": chain, "reason": "Both independent subtask results are supported.", "score": 4})]]
+        with patch.object(sampling, "infer", side_effect=replies) as mocked:
+            output = sampling.sample_chains({"config": Config(planning={"sample_count": 1, "min_chain_length": 2, "max_chain_length": 2, "random_seed": 0}),
+                                             "environment": environment, "tool_graph": [{"from_tool": chain[0], "to_tool": chain[1], "weight": 1}]})
+        self.assertEqual(output["tasks"][0]["objective"], objective)
+        self.assertEqual(output["tasks"][0]["chain"], chain)
+        self.assertEqual(output["sampling_report"]["final_task_count"], 1)
+        self.assertEqual(mocked.call_count, 1)
+        self.assertNotIn('"accepted"', mocked.call_args_list[0].args[0][0])
+
+    def test_execution_propagates_context_and_review_evidence(self):
+        marker = ContextVar("trace_check", default=None)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "workspace").mkdir()
+            config = Config(environment_dir=root, execution={"retry_count": 0, "max_concurrency": 2})
+            environment = {"resources": [], "tools": [tool("query", "def run(arguments, context):\n    return {'success': True, 'data': {}}") ]}
+
+            def infer(prompt, **kwargs):
+                self.assertEqual(marker.get(), "captured")
+                self.assertIn("Existing record-7", prompt)
+                return response({"arguments": {}})
+
+            token = marker.set("captured")
+            try:
+                with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=infer):
+                    output = execute_chains({"config": config, "run_dir": root / "run", "environment": environment,
+                                             "tasks": [{**task_candidate(n, ["query"]), "llm_review": {"reason": "Existing record-7"}} for n in ("task1", "task2")]})
+            finally:
+                marker.reset(token)
+            self.assertTrue(all(item["execution"]["success"] for item in output["tasks"]), output)
+
+    def test_execution_failures_are_not_amplified(self):
+        self.assertEqual(_basic_errors({"execution": {"success": False, "error": "missing evidence"}}, {}), ["execution 未成功：missing evidence"])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -73,11 +73,6 @@
       }
     }
   ],
-  "resource_constraints": {
-    "should_modify": ["appointments"],
-    "can_modify": [],
-    "must_not_modify": []
-  },
   "reference": {
     "tool_calls": [
       {

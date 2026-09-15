@@ -17,18 +17,24 @@ def table_digest(database: Path, table: str) -> str:
         columns = [
             str(row[1]) for row in connection.execute(f'PRAGMA table_info("{quoted}")')
         ]
-        rows = [
-            list(row)
-            for row in connection.execute(f'SELECT * FROM "{quoted}" ORDER BY rowid')
-        ]
+        digest = hashlib.sha256()
+        digest.update(b'{"columns":')
+        digest.update(json.dumps(
+            columns, ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8"))
+        digest.update(b',"rows":[')
+        first = True
+        for row in connection.execute(f'SELECT * FROM "{quoted}" ORDER BY rowid'):
+            if not first:
+                digest.update(b",")
+            first = False
+            digest.update(json.dumps(
+                list(row), ensure_ascii=False, separators=(",", ":"),
+            ).encode("utf-8"))
+        digest.update(b"]}")
     finally:
         connection.close()
-    payload = json.dumps(
-        {"columns": columns, "rows": rows},
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return digest.hexdigest()
 
 
 def tree_digest(root: Path) -> str:

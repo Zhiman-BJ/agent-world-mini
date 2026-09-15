@@ -13,6 +13,10 @@ artifacts/
 cross_audit*.json
 *_progress*.json
 
+# Local working documents
+docs/
+task_gen/tool_graph/AGENTS.md
+
 # One-off server recovery and scheduling scripts
 training/run_gpu4_*.sh
 training/run_parallel_mcpmark_back_gpus.sh
@@ -32,9 +36,18 @@ dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.worktrees/
 .vscode/
 .idea/
 
 # OS metadata
 .DS_Store
 Thumbs.db
+
+seed_data_raw/
+seed_pypi_raw/
+seed_gen/pypi_outputs/ori_all/
+seed_gen/pypi_outputs/selection_reports
+seed_gen/pypi_selection_profiles
+seed_gen/agent_scoring
+test_api.py
