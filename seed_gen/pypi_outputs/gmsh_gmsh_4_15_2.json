@@ -1963,7 +1963,7 @@
         "tag": "gmsh_4_15_2",
         "commit": "657c8e915f60405e6cad0c8ec7faf812bfff1a60",
         "release_published_at": "2026-03-24",
-        "checked_on": "2026-09-10",
+        "checked_on": "2026-09-15",
         "github_prerelease": null,
         "notes": [
           "官网明确标注 Current stable release 4.15.2, 24 March 2026，与 CHANGELOG.txt 和 PyPI 一致；源码由官方 GitLab 精确标签克隆。",
@@ -2007,8 +2007,8 @@
         "profile_id": "gmsh_balanced_v1",
         "source_artifact": "seed_gen/pypi_outputs/ori_all/gmsh_gmsh_4_15_2.json",
         "profile_artifact": "seed_gen/pypi_selection_profiles/gmsh_gmsh_4_15_2.json",
-        "source_sha256": "5caf54cd98a6f95c0d2400a6e3507aa248dc464d50b44b2d90a01366453685c6",
-        "profile_sha256": "81aee2ae27dd25b7ad1f47f20cc706ab6ea204df71914738e12804cde26c7a84",
+        "source_sha256": "686ef6641157280232ed81b52d6390f761403a85bcf98bc3de4466c5ecc9f5be",
+        "profile_sha256": "7b6bc461be31cc6324f3fb259517b9c863fa815074684187ad35d461e9428b87",
         "boundary": "无界面的几何构建、物理分组、网格尺寸场、生成、节点/单元查询与保存。优先 OCC 内核，补充基本 geo 线面入口；排除 GUI、ONELAB、插件与底层有限元基函数接口。静态命名空间按函数计数。",
         "target_all_func": {
           "min": 50,

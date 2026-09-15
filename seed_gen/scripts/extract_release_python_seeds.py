@@ -67,12 +67,17 @@ def git(root: Path, *args: str) -> str:
 def build_seed(spec: dict, raw_root: Path) -> list[dict]:
     root = raw_root / spec["directory"]
     commit = git(root, "rev-parse", "HEAD")
-    if commit != spec["commit"] or git(root, "rev-parse", f"{spec['tag']}^{{commit}}") != commit:
+    release_ref = spec.get("ref", spec["tag"])
+    if commit != spec["commit"] or git(root, "rev-parse", f"{release_ref}^{{commit}}") != commit:
         raise ValueError(f"Release commit mismatch: {root}")
     if git(root, "status", "--porcelain", "--untracked-files=no"):
         raise ValueError(f"Tracked source modifications in {root}")
     source_root = root / spec.get("source_root", ".")
     tools, files = extract_modules(source_root, spec["modules"])
+    module_prefix = spec.get("module_prefix", "")
+    if module_prefix:
+        for tool in tools:
+            tool["module"] = f"{module_prefix}.{tool['module']}" if tool["module"] else module_prefix
     files = [(source_root / file).relative_to(root).as_posix() for file in files]
     adapter_metadata = {}
     if spec.get("adapter"):
@@ -112,6 +117,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
                 **{key: spec[key] for key in ("repository", "documentation", "pypi", "pypi_version",
                                              "tag", "commit", "release_published_at", "checked_on",
                                              "github_prerelease", "notes")},
+                **({"release_ref": release_ref} if release_ref != spec["tag"] else {}),
                 "release_url": spec.get("release_url", f"{spec['repository']}/releases/tag/{spec['tag']}"),
                 "release_api": spec.get("release_api", f"https://api.github.com/repos/{spec['repository'].removeprefix('https://github.com/')}/releases/latest"),
                 "selection_rule": spec.get("selection_rule", "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch"),
@@ -121,6 +127,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
             "python_source_extraction": {
                 "strategy": "static_ast_and_native_export_docs" if native_count else "static_ast",
                 "requested_modules": spec["modules"], "source_files": files,
+                **({"module_prefix": module_prefix} if module_prefix else {}),
                 "source_file_sha256": {file: hashlib.sha256((root / file).read_bytes()).hexdigest() for file in files},
                 "source_version": spec["tag"], "source_commit": commit,
                 "native_function_count": native_count,

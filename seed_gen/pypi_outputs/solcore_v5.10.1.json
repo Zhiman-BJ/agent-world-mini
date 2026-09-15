@@ -2265,7 +2265,7 @@
         "tag": "v5.10.1",
         "commit": "2df20db12c0059d784aad445cd2f1872b8189708",
         "release_published_at": "2025-07-03T08:24:15Z",
-        "checked_on": "2026-09-10",
+        "checked_on": "2026-09-15",
         "github_prerelease": false,
         "notes": [
           "采用 GitHub Release v5.10.1，与 PyPI 5.10.1 一致。官方 Read the Docs latest 页面显示 5.10.1；旧 docs.solcore.solar/en/master/ 页面仍显示 5.7.7，故使用前者。",
@@ -2491,8 +2491,8 @@
         "profile_id": "solcore_balanced_v1",
         "source_artifact": "seed_gen/pypi_outputs/ori_all/solcore_v5.10.1.json",
         "profile_artifact": "seed_gen/pypi_selection_profiles/solcore_v5.10.1.json",
-        "source_sha256": "b8208e231ba9a02b57592ee9e8ff236e9fdafcfb40d3eb1ad1c4f608d6f12936",
-        "profile_sha256": "e8fd4d100f6d99d778e2ba47c247d3aacf80e2fba3f666fe4a00cb25dc22f952",
+        "source_sha256": "474d7e78a75ce374792599af35875c56c0c4bcc538158afd4f67bc0975bb4cce",
+        "profile_sha256": "a7804ed452487fa7fbd85202a62c9d389644894efb373410d8a5059d1a429b52",
         "boundary": "材料/单位、光源、层结结构、介电模型、传输矩阵光学、太阳能电池高层求解及代表量子阱操作。限定本地数据库和小型计算；solar_cell_solver 的 task/kind 需限制为已验收模型。排除下载/数据库写入、SPICE、SMARTS、RCWA/S4 外部程序及底层矩阵装配，PDD/量子后端须后续独立验证。",
         "target_all_func": {
           "min": 50,

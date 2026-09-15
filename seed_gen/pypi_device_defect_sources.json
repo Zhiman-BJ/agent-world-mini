@@ -27,7 +27,7 @@
     "documentation": "https://gmsh.info/doc/texinfo/",
     "pypi": "https://pypi.org/project/gmsh/", "pypi_version": "4.15.2",
     "tag": "gmsh_4_15_2", "commit": "657c8e915f60405e6cad0c8ec7faf812bfff1a60",
-    "release_published_at": "2026-03-24", "checked_on": "2026-09-10", "github_prerelease": null,
+    "release_published_at": "2026-03-24", "checked_on": "2026-09-15", "github_prerelease": null,
     "release_url": "https://gmsh.info/", "release_api": "",
     "selection_rule": "Official gmsh.info stable release announcement, CHANGELOG.txt, PyPI version and exact GitLab release tag agree; not a GitHub project.",
     "directory": "gmsh", "source_root": "api", "modules": ["gmsh"], "adapter": "gmsh",
@@ -40,7 +40,7 @@
     "documentation": "https://github.com/nschloe/meshio#readme",
     "pypi": "https://pypi.org/project/meshio/", "pypi_version": "5.3.5",
     "tag": "v5.3.5", "commit": "b2ee99842e119901349fdeee06b5bf61e01f450a",
-    "release_published_at": "2024-01-31T15:09:04Z", "checked_on": "2026-09-10", "github_prerelease": false,
+    "release_published_at": "2024-01-31T15:09:04Z", "checked_on": "2026-09-15", "github_prerelease": false,
     "directory": "meshio", "source_root": "src", "modules": ["meshio"],
     "description": "meshio 是面向多种网格格式的 Python 读写和转换库，使用统一的节点、单元块、点数据、单元数据及集合表示，支持 Gmsh、VTK、VTU、XDMF 等文件及时间序列数据交换。它可连接网格生成和数值分析流程，本身不生成网格，也不求解半导体物理方程。",
     "notes": ["PyPI 与 GitHub Release 均为 5.3.5；src/meshio/__about__.py 从已安装分发元数据读取版本，不包含固定版本值。官方 README 提供用法和格式说明，未找到独立官方 API 文档站，使用 README 链接。", "顶层 Mesh/read/write 由私有实现模块公开重导出，索引保留源码定义模块；精选避免重复保留各格式的同类 read/write 入口。"]

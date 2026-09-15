@@ -1,0 +1,195 @@
+{
+  "schema_version": "1.0",
+  "source": "Codex goal objective supplied by the user on 2026-09-15",
+  "checked_on": "2026-09-15",
+  "general_selection_target": {
+    "min_all_func": 50,
+    "max_all_func": 100,
+    "policy": "每包通常保留 50–100 个函数或类方法；公开 API 不足或继续扩充只会引入重复、内部或长尾接口时允许有据例外。"
+  },
+  "relationship_codes": {
+    "A": "可替代方案",
+    "C": "互补组合",
+    "D": "直接数据传递",
+    "H": "上层封装下层",
+    "I": "通过集成接口连接"
+  },
+  "scenarios": [
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.01 Poisson / Drift-Diffusion",
+      "application": "PN/MOS/diode 基础器件",
+      "python_backends": ["devsim", "sesame"],
+      "relationship": "主要 A",
+      "task_design": "设置 doping/contact；跑 IV；修 solver"
+    },
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.02 Heterostructure / Quantum Device",
+      "application": "QW/QCL/RTD/HEMT",
+      "python_backends": ["nextnanopy", "nextnano"],
+      "relationship": "Python client + external solver",
+      "task_design": "改 layer thickness；找目标 transition energy"
+    },
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.03 Solar / Optoelectronic Device",
+      "application": "solar cell / QW solar cell",
+      "python_backends": ["solcore"],
+      "relationship": "独立综合环境",
+      "task_design": "改 layer/材料，使 efficiency 最大"
+    },
+    {
+      "l2": "02.02 Carrier",
+      "l3": "02.02.01 Mobility / Scattering",
+      "application": "HEMT/2DEG mobility",
+      "python_backends": ["mobilitypy"],
+      "relationship": "可接 openbandparams → TCAD",
+      "task_design": "找 dominant scattering mechanism"
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.01 Geometry Construction",
+      "application": "TCAD/FEM 几何",
+      "python_backends": ["gmsh", "pygmsh"],
+      "relationship": "pygmsh → Gmsh H/I",
+      "task_design": "建 MOS cross-section"
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.02 Mesh Interchange",
+      "application": "solver 间 mesh 传递",
+      "python_backends": ["meshio"],
+      "relationship": "Gmsh → meshio D",
+      "task_design": "格式转换、检查 physical group"
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.03 Generic FEM/PDE",
+      "application": "自定义 electrothermal/PDE",
+      "python_backends": ["scikit-fem"],
+      "relationship": "meshio → scikit-fem I/D",
+      "task_design": "边界条件/PDE 调试"
+    },
+    {
+      "l2": "02.04 SPICE",
+      "l3": "02.04.01 Netlist Execution",
+      "application": "DC/AC/transient",
+      "python_backends": ["spicelib", "PySpice", "ngspyce"],
+      "relationship": "三者多数 A；底层 ngspice/Xyce",
+      "task_design": "修 netlist；运行仿真"
+    },
+    {
+      "l2": "02.04 SPICE",
+      "l3": "02.04.02 Parameter Sweep / Monte Carlo",
+      "application": "process/device variation",
+      "python_backends": ["spicelib", "ngspice/Xyce"],
+      "relationship": "+ ngspice/Xyce",
+      "task_design": "调 R/C/W/L 到 spec"
+    },
+    {
+      "l2": "02.05 Circuit",
+      "l3": "02.05.01 Symbolic Analysis",
+      "application": "transfer function、impedance",
+      "python_backends": ["lcapy"],
+      "relationship": "可与 SPICE C",
+      "task_design": "推导极点/零点并 cross-check"
+    },
+    {
+      "l2": "02.05 Circuit",
+      "l3": "02.05.02 Design Optimization",
+      "application": "corner/performance optimization",
+      "python_backends": ["PyOPUS"],
+      "relationship": "+ SPICE C",
+      "task_design": "多 corner 参数优化"
+    },
+    {
+      "l2": "02.06 RF",
+      "l3": "02.06.01 S-parameter Network Analysis",
+      "application": "RF device/VNA",
+      "python_backends": ["scikit-rf"],
+      "relationship": "",
+      "task_design": "cascade、S↔Z、gain、matching"
+    },
+    {
+      "l2": "02.06 RF",
+      "l3": "02.06.02 Calibration / De-embedding",
+      "application": "wafer probe/VNA",
+      "python_backends": ["scikit-rf"],
+      "relationship": "+ measurement backend C",
+      "task_design": "从 raw standards 完成校准"
+    },
+    {
+      "l2": "02.07 Photonic",
+      "l3": "02.07.01 Circuit-level S Matrix",
+      "application": "PIC network",
+      "python_backends": ["sax", "simphony"],
+      "relationship": "多为 A",
+      "task_design": "连接 MZI/MMI，优化 spectrum"
+    },
+    {
+      "l2": "02.08 FDTD",
+      "l3": "02.08.01 Open-source FDTD",
+      "application": "waveguide/cavity",
+      "python_backends": ["meep"],
+      "relationship": "gdsfactory integration I",
+      "task_design": "geometry→FDTD→spectrum"
+    },
+    {
+      "l2": "02.08 FDTD",
+      "l3": "02.08.02 Cloud FDTD",
+      "application": "大规模/优化",
+      "python_backends": ["tidy3d"],
+      "relationship": "gdsfactory integration I",
+      "task_design": "同类任务，但有云成本"
+    },
+    {
+      "l2": "02.09 FEM",
+      "l3": "02.09.01 Eigenmode",
+      "application": "waveguide mode",
+      "python_backends": ["femwell"],
+      "relationship": "gdsfactory integration I",
+      "task_design": "调 width 到目标 neff"
+    },
+    {
+      "l2": "02.09 FEM",
+      "l3": "02.09.02 EME / propagation",
+      "application": "sectional waveguide propagation",
+      "python_backends": ["emepy"],
+      "relationship": "",
+      "task_design": "分段结构 transmission"
+    },
+    {
+      "l2": "02.10 Inverse",
+      "l3": "02.10.01 Geometry Inverse Design",
+      "application": "grating/coupler inverse design",
+      "python_backends": ["ceviche", "angler", "legume-gme"],
+      "relationship": "多为 A",
+      "task_design": "optimize pixels/geometry"
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.01 Plasma / Etch Physics",
+      "application": "plasma properties、etch chamber physics",
+      "python_backends": ["plasmapy"],
+      "relationship": "与 Cantera/FiPy C",
+      "task_design": "从 pressure/power/composition 推 plasma regime"
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.02 Reaction / Gas Chemistry",
+      "application": "CVD/etch gas-phase chemistry",
+      "python_backends": ["cantera"],
+      "relationship": "C",
+      "task_design": "调 gas ratio/temperature，满足 species target"
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.03 Diffusion / Reaction PDE",
+      "application": "diffusion、surface reaction、electrodeposition",
+      "python_backends": ["fipy"],
+      "relationship": "geometry/mesh 可配合 C",
+      "task_design": "调 boundary/transport 参数，复现 profile"
+    }
+  ]
+}

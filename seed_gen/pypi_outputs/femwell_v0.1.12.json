@@ -1,0 +1,1647 @@
+[
+  {
+    "global_id": "pypi_femwell_38",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/HelgeGehring/femwell",
+          "https://pypi.org/project/femwell/",
+          "https://HelgeGehring.github.io/femwell/"
+        ],
+        "name": "femwell",
+        "version": "v0.1.12",
+        "index": 38
+      },
+      "description": "Femwell 是基于有限元的多物理场和光子波导工具包，提供二维截面网格、波导本征模、模式归一化与重叠、热、静电、磁静态和部分半导体方程接口，可将几何与材料分区转为模式和场分布。不同求解模块成熟度不一，需要固定样例验证。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 3,
+        "function": 32,
+        "class_func": 36,
+        "all_func": 68
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Mode",
+        "type": "class",
+        "module": "femwell.maxwell.waveguide",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "omega",
+            "description": "Angular frequency of the light",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Angular frequency of the light"
+          },
+          {
+            "name": "k0",
+            "description": "Vacuum propagation constant of the light",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Vacuum propagation constant of the light"
+          },
+          {
+            "name": "wavelength",
+            "description": "Vacuum wavelength of the light",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Vacuum wavelength of the light"
+          },
+          {
+            "name": "n_eff",
+            "description": "Effective refractive index of the mode",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Effective refractive index of the mode"
+          },
+          {
+            "name": "poynting",
+            "description": "Poynting vector of the mode",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Poynting vector of the mode"
+          },
+          {
+            "name": "Sx",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "Sy",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "Sz",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "te_fraction",
+            "description": "TE-fraction of the mode",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "TE-fraction of the mode"
+          },
+          {
+            "name": "tm_fraction",
+            "description": "TM-fraction of the mode",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "TM-fraction of the mode"
+          },
+          {
+            "name": "transversality",
+            "description": "TE-fraction of the mode",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "TE-fraction of the mode"
+          },
+          {
+            "name": "calculate_overlap",
+            "description": "",
+            "input": {
+              "self": null,
+              "mode": {
+                "type": "",
+                "description": ""
+              },
+              "elements": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mode, elements = None",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_coupling_coefficient",
+            "description": "",
+            "input": {
+              "self": null,
+              "mode": {
+                "type": "",
+                "description": ""
+              },
+              "delta_epsilon": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mode, delta_epsilon",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_effective_area",
+            "description": "",
+            "input": {
+              "self": null,
+              "field": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, field = 'xy'",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_propagation_loss",
+            "description": "",
+            "input": {
+              "self": null,
+              "distance": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, distance",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_power",
+            "description": "",
+            "input": {
+              "self": null,
+              "elements": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, elements = None",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_confinement_factor",
+            "description": "",
+            "input": {
+              "self": null,
+              "elements": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, elements",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_pertubated_neff",
+            "description": "",
+            "input": {
+              "self": null,
+              "delta_epsilon": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, delta_epsilon",
+            "ori_description": ""
+          },
+          {
+            "name": "calculate_intensity",
+            "description": "Calculates the intensity of a mode.  The intensity is calculated from the cross-product between the electric and magnetic field, as described in https://doi.org/10.1364/OE.16.016659.  The calculation is performed as follows: 1) The electric and magnetic fields are interpolated on the quadrature points with the simulation basis; 2) The intensity is calculated directly on the quadrature points; 3) The intensity is projected on a new discontinuous, piecewise linear triangular basis.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "Basis, NDArray",
+                "description": "Plot-ready basis and intensity array"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Calculates the intensity of a mode.  The intensity is calculated from the cross-product between the electric and magnetic field, as described in https://doi.org/10.1364/OE.16.016659.  The calculation is performed as follows: 1) The electric and magnetic fields are interpolated on the quadrature points with the simulation basis; 2) The intensity is calculated directly on the quadrature points; 3) The intensity is projected on a new discontinuous, piecewise linear triangular basis.  Returns: Basis, NDArray: Plot-ready basis and intensity array"
+          },
+          {
+            "name": "plot",
+            "description": "",
+            "input": {
+              "self": null,
+              "field": {
+                "type": "",
+                "description": ""
+              },
+              "plot_vectors": {
+                "type": "",
+                "description": ""
+              },
+              "colorbar": {
+                "type": "",
+                "description": ""
+              },
+              "direction": {
+                "type": "",
+                "description": ""
+              },
+              "title": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, field, plot_vectors = False, colorbar = True, direction = 'y', title = 'E'",
+            "ori_description": ""
+          },
+          {
+            "name": "plot_component",
+            "description": "Plots a component of the electric or magnetic field.",
+            "input": {
+              "self": null,
+              "field": {
+                "type": "Literal['E', 'H']",
+                "description": "Field of interest, can be the electric field or the magnetic field."
+              },
+              "component": {
+                "type": "Literal['x', 'y', 'z', 'n', 't']",
+                "description": "Component of the field to plot."
+              },
+              "part": {
+                "type": "Literal['real', 'imag', 'abs'] | Callable",
+                "description": "Function to use to preprocess the field to be plotted. Defaults to \"real\"."
+              },
+              "boundaries": {
+                "type": "bool",
+                "description": "Superimpose the mesh boundaries on the plot. Defaults to True."
+              },
+              "colorbar": {
+                "type": "bool",
+                "description": "Adds a colorbar to the plot. Defaults to False."
+              },
+              "ax": {
+                "type": "Axes",
+                "description": "Axes onto which the plot is drawn. Defaults to None."
+              }
+            },
+            "output": null,
+            "ori_input": "self, field: Literal['E', 'H'], component: Literal['x', 'y', 'z', 'n', 't'], part: Literal['real', 'imag', 'abs'] | Callable = 'real', boundaries: bool = True, colorbar: bool = False, ax: Axes = None",
+            "ori_description": "Plots a component of the electric or magnetic field.  Args: field (\"E\", \"H\"): Field of interest, can be the electric field or the magnetic field. component (\"x\", \"y\", \"z\", \"n\", \"t\"): Component of the field to plot. part (\"real\", \"imag\", \"abs\", callable): Function to use to preprocess the field to be plotted. Defaults to \"real\". boundaries (bool): Superimpose the mesh boundaries on the plot. Defaults to True. colorbar (bool): Adds a colorbar to the plot. Defaults to False. ax (Axes, optional): Axes onto which the plot is drawn. Defaults to None."
+          },
+          {
+            "name": "show",
+            "description": "Plots the different quantities associated with a field.",
+            "input": {
+              "self": null,
+              "field": {
+                "type": "Literal['E', 'H', 'I'] | NDArray",
+                "description": "Field of interest, can be the electric field, the magnetic field or the intensity of the mode."
+              },
+              "part": {
+                "type": "Literal['real', 'imag', 'abs'] | Callable",
+                "description": "Function to use to preprocess the field to be plotted. Defaults to \"real\"."
+              },
+              "plot_vectors": {
+                "type": "bool",
+                "description": "If set to True, plot the normal and tangential component"
+              },
+              "boundaries": {
+                "type": "bool",
+                "description": "Superimpose the mesh boundaries on the plot. Defaults to True."
+              },
+              "colorbar": {
+                "type": "bool",
+                "description": "Adds a colorbar to the plot. Defaults to False."
+              },
+              "direction": {
+                "type": "Literal['x', 'y']",
+                "description": "Orientation of the plots (\"x\" for horizontal and \"y\" for vertical) Defaults to \"x\"."
+              },
+              "title": {
+                "type": "Optional[str]",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Tuple[Figure, Axes]",
+                "description": "Figure and axes of the plot."
+              }
+            },
+            "ori_input": "self, field: Literal['E', 'H', 'I'] | NDArray, part: Literal['real', 'imag', 'abs'] | Callable = 'real', plot_vectors: bool = False, boundaries: bool = True, colorbar: bool = False, direction: Literal['x', 'y'] = 'x', title: Optional[str] = None",
+            "ori_description": "Plots the different quantities associated with a field.  Args: field (\"E\", \"H\", \"I\"): Field of interest, can be the electric field, the magnetic field or the intensity of the mode. part (\"real\", \"imag\", \"abs\", callable): Function to use to preprocess the field to be plotted. Defaults to \"real\". plot_vectors (bool): If set to True, plot the normal and tangential component boundaries (bool): Superimpose the mesh boundaries on the plot. Defaults to True. colorbar (bool): Adds a colorbar to the plot. Defaults to False. direction (\"x\", \"y\"): Orientation of the plots (\"x\" for horizontal and \"y\" for vertical) Defaults to \"x\". Returns: Tuple[Figure, Axes]: Figure and axes of the plot."
+          },
+          {
+            "name": "plot_intensity",
+            "description": "Plots the intensity of a mode as outlined in `calculate_intensity`.",
+            "input": {
+              "self": null,
+              "ax": {
+                "type": "Axes",
+                "description": "Axes onto which the plot is drawn. Defaults to None."
+              },
+              "colorbar": {
+                "type": "bool",
+                "description": "Adds a colorbar to the plot. Defaults to True."
+              },
+              "normalize": {
+                "type": "bool",
+                "description": "Normalizes the intensity by its maximum value. Defaults to True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Tuple[Figure, Axes]",
+                "description": "Figure and axes of the plot."
+              }
+            },
+            "ori_input": "self, ax: Axes = None, colorbar: bool = True, normalize: bool = True",
+            "ori_description": "Plots the intensity of a mode as outlined in `calculate_intensity`.  Args: ax (Axes, optional): Axes onto which the plot is drawn. Defaults to None. colorbar (bool, optional): Adds a colorbar to the plot. Defaults to True. normalize (bool, optional): Normalizes the intensity by its maximum value. Defaults to True.  Returns: Tuple[Figure, Axes]: Figure and axes of the plot."
+          }
+        ]
+      },
+      {
+        "name": "Modes",
+        "type": "class",
+        "module": "femwell.maxwell.waveguide",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "sorted",
+            "description": "",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key",
+            "ori_description": ""
+          },
+          {
+            "name": "n_effs",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "compute_modes",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "Computes the modes of a waveguide.",
+        "input": {
+          "basis_epsilon_r": {
+            "type": "Basis",
+            "description": "Basis on which epsilon_r is defined."
+          },
+          "epsilon_r": {
+            "type": "NDArray",
+            "description": "Relative permittivity of the waveguide."
+          },
+          "wavelength": {
+            "type": "float",
+            "description": "Wavelength of the light."
+          },
+          "mu_r": {
+            "type": "float, optional",
+            "description": "Relative permeability of the waveguide. Defaults to 1."
+          },
+          "num_modes": {
+            "type": "int, optional",
+            "description": "Number of modes to compute. Defaults to 1."
+          },
+          "order": {
+            "type": "int, optional",
+            "description": "Order of the basis functions. Defaults to 1."
+          },
+          "metallic_boundaries": {
+            "type": "bool, optional",
+            "description": "If True, the boundaries are considered to be metallic. Defaults to False."
+          },
+          "radius": {
+            "type": "float, optional",
+            "description": "Radius of the waveguide. Defaults to np.inf."
+          },
+          "n_guess": {
+            "type": "float, optional",
+            "description": "Initial guess for the effective index. Defaults to None."
+          },
+          "solver": {
+            "type": "str, optional",
+            "description": "Solver to use. Defaults to \"scipy\"."
+          }
+        },
+        "output": null,
+        "ori_input": "basis_epsilon_r, epsilon_r, wavelength, *, mu_r = 1, num_modes = 1, order = 1, metallic_boundaries = False, radius = np.inf, n_guess = None, solver = 'scipy'",
+        "ori_description": "Computes the modes of a waveguide.  Args: basis_epsilon_r (Basis): Basis on which epsilon_r is defined. epsilon_r (NDArray): Relative permittivity of the waveguide. wavelength (float): Wavelength of the light. mu_r (float, optional): Relative permeability of the waveguide. Defaults to 1. num_modes (int, optional): Number of modes to compute. Defaults to 1. order (int, optional): Order of the basis functions. Defaults to 1. metallic_boundaries (bool, optional): If True, the boundaries are considered to be metallic. Defaults to False. radius (float, optional): Radius of the waveguide. Defaults to np.inf. n_guess (float, optional): Initial guess for the effective index. Defaults to None. solver (str, optional): Solver to use. Defaults to \"scipy\"."
+      },
+      {
+        "name": "calculate_hfield",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "",
+        "input": {
+          "basis": {
+            "type": "",
+            "description": ""
+          },
+          "xs": {
+            "type": "",
+            "description": ""
+          },
+          "beta": {
+            "type": "",
+            "description": ""
+          },
+          "omega": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis, xs, beta, omega",
+        "ori_description": ""
+      },
+      {
+        "name": "calculate_energy_current_density",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "",
+        "input": {
+          "basis": {
+            "type": "",
+            "description": ""
+          },
+          "xs": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis, xs",
+        "ori_description": ""
+      },
+      {
+        "name": "calculate_overlap",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "Calculates the fully vectorial overlap between two modes.  If the modes do not share the basis, interpolation is performed automatically.",
+        "input": {
+          "basis_i": {
+            "type": "Basis",
+            "description": "Basis of the first mode"
+          },
+          "E_i": {
+            "type": "np.ndarray",
+            "description": "Electric field of the first mode"
+          },
+          "H_i": {
+            "type": "np.ndarray",
+            "description": "Magnetic field of the first mode"
+          },
+          "basis_j": {
+            "type": "Basis",
+            "description": "Basis of the second mode"
+          },
+          "E_j": {
+            "type": "np.ndarray",
+            "description": "Electric field of the first mode"
+          },
+          "H_j": {
+            "type": "np.ndarray",
+            "description": "Magnetic field of the first mode"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "np.complex64",
+            "description": "Complex overlap between the two modes"
+          }
+        },
+        "ori_input": "basis_i: Basis, E_i: np.ndarray, H_i: np.ndarray, basis_j: Basis, E_j: np.ndarray, H_j: np.ndarray",
+        "ori_description": "Calculates the fully vectorial overlap between two modes.  If the modes do not share the basis, interpolation is performed automatically.  Args: basis_i (Basis): Basis of the first mode E_i (np.ndarray): Electric field of the first mode H_i (np.ndarray): Magnetic field of the first mode basis_j (Basis): Basis of the second mode E_j (np.ndarray): Electric field of the first mode H_j (np.ndarray): Magnetic field of the first mode  Returns: np.complex64: Complex overlap between the two modes"
+      },
+      {
+        "name": "calculate_scalar_product",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "",
+        "input": {
+          "basis_i": {
+            "type": "",
+            "description": ""
+          },
+          "E_i": {
+            "type": "",
+            "description": ""
+          },
+          "basis_j": {
+            "type": "",
+            "description": ""
+          },
+          "H_j": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis_i, E_i, basis_j, H_j",
+        "ori_description": ""
+      },
+      {
+        "name": "plot_mode",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "Plots a mode.",
+        "input": {
+          "basis": {
+            "type": "Basis",
+            "description": "Basis of the mode."
+          },
+          "mode": {
+            "type": "np.ndarray",
+            "description": "Mode to plot."
+          },
+          "plot_vectors": {
+            "type": "bool, optional",
+            "description": "If True, plot the normal and tangential components. Defaults to False."
+          },
+          "colorbar": {
+            "type": "bool, optional",
+            "description": "Adds a colorbar to the plot. Defaults to True."
+          },
+          "title": {
+            "type": "str, optional",
+            "description": "Title of the plot. Defaults to \"E\"."
+          },
+          "direction": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis, mode, plot_vectors = False, colorbar = True, title = 'E', direction = 'y'",
+        "ori_description": "Plots a mode.  Args: basis (Basis): Basis of the mode. mode (np.ndarray): Mode to plot. plot_vectors (bool, optional): If True, plot the normal and tangential components. Defaults to False. colorbar (bool, optional): Adds a colorbar to the plot. Defaults to True. title (str, optional): Title of the plot. Defaults to \"E\"."
+      },
+      {
+        "name": "eval_error_estimator",
+        "type": "function",
+        "module": "femwell.maxwell.waveguide",
+        "description": "",
+        "input": {
+          "basis": {
+            "type": "",
+            "description": ""
+          },
+          "u": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis, u",
+        "ori_description": ""
+      },
+      {
+        "name": "MeshTracker",
+        "type": "class",
+        "module": "femwell.mesh",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Map between shapely and gmsh Shapely is useful for built-in geometry equivalencies and extracting orientation, instead of doing it manually We can also track information about the entities using labels (useful for selective mesh refinement later)",
+            "input": {
+              "self": null,
+              "model": {
+                "type": "",
+                "description": ""
+              },
+              "atol": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, model, atol = 0.001",
+            "ori_description": "Map between shapely and gmsh Shapely is useful for built-in geometry equivalencies and extracting orientation, instead of doing it manually We can also track information about the entities using labels (useful for selective mesh refinement later)"
+          },
+          {
+            "name": "get_point_index",
+            "description": "",
+            "input": {
+              "self": null,
+              "xy_point": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, xy_point",
+            "ori_description": ""
+          },
+          {
+            "name": "get_xy_segment_index_and_orientation",
+            "description": "",
+            "input": {
+              "self": null,
+              "xy_point1": {
+                "type": "",
+                "description": ""
+              },
+              "xy_point2": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, xy_point1, xy_point2",
+            "ori_description": ""
+          },
+          {
+            "name": "get_gmsh_points_from_label",
+            "description": "",
+            "input": {
+              "self": null,
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, label",
+            "ori_description": ""
+          },
+          {
+            "name": "get_gmsh_xy_lines_from_label",
+            "description": "",
+            "input": {
+              "self": null,
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, label",
+            "ori_description": ""
+          },
+          {
+            "name": "get_gmsh_xy_surfaces_from_label",
+            "description": "",
+            "input": {
+              "self": null,
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, label",
+            "ori_description": ""
+          },
+          {
+            "name": "xy_channel_loop_from_vertices",
+            "description": "",
+            "input": {
+              "self": null,
+              "vertices": {
+                "type": "",
+                "description": ""
+              },
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, vertices, label",
+            "ori_description": ""
+          },
+          {
+            "name": "add_get_point",
+            "description": "Add a shapely point to the gmsh model, or retrieve the existing gmsh model points with equivalent coordinates (within tol.)",
+            "input": {
+              "self": null,
+              "shapely_xy_point": {
+                "type": "shapely.geometry.Point",
+                "description": "x, y coordinates"
+              },
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shapely_xy_point, label = None",
+            "ori_description": "Add a shapely point to the gmsh model, or retrieve the existing gmsh model points with equivalent coordinates (within tol.)  Args: shapely_xy_point (shapely.geometry.Point): x, y coordinates resolution (float): gmsh resolution at that point"
+          },
+          {
+            "name": "add_get_xy_segment",
+            "description": "Add a shapely segment (2-point line) to the gmsh model in the xy plane, or retrieve the existing gmsh segment with equivalent coordinates (within tol.)",
+            "input": {
+              "self": null,
+              "shapely_xy_point1": {
+                "type": "shapely.geometry.Point",
+                "description": "first x, y coordinates"
+              },
+              "shapely_xy_point2": {
+                "type": "shapely.geometry.Point",
+                "description": "second x, y coordinates"
+              },
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shapely_xy_point1, shapely_xy_point2, label",
+            "ori_description": "Add a shapely segment (2-point line) to the gmsh model in the xy plane, or retrieve the existing gmsh segment with equivalent coordinates (within tol.)  Args: shapely_xy_point1 (shapely.geometry.Point): first x, y coordinates shapely_xy_point2 (shapely.geometry.Point): second x, y coordinates"
+          },
+          {
+            "name": "add_get_xy_line",
+            "description": "Add a shapely line (multi-point line) to the gmsh model in the xy plane, or retrieve the existing gmsh segment with equivalent coordinates (within tol.)",
+            "input": {
+              "self": null,
+              "shapely_xy_curve": {
+                "type": "shapely.geometry.LineString",
+                "description": "curve"
+              },
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shapely_xy_curve, label",
+            "ori_description": "Add a shapely line (multi-point line) to the gmsh model in the xy plane, or retrieve the existing gmsh segment with equivalent coordinates (within tol.)  Args: shapely_xy_curve (shapely.geometry.LineString): curve"
+          },
+          {
+            "name": "add_xy_surface",
+            "description": "Add a xy surface corresponding to shapely_xy_polygon, or retrieve the existing gmsh model surface with equivalent coordinates (within tol.)",
+            "input": {
+              "self": null,
+              "shapely_xy_polygon": {
+                "type": "shapely.geometry.Polygon",
+                "description": ""
+              },
+              "label": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, shapely_xy_polygon, label = None",
+            "ori_description": "Add a xy surface corresponding to shapely_xy_polygon, or retrieve the existing gmsh model surface with equivalent coordinates (within tol.)  Args: shapely_xy_polygon (shapely.geometry.Polygon):"
+          }
+        ]
+      },
+      {
+        "name": "break_line",
+        "type": "function",
+        "module": "femwell.mesh",
+        "description": "",
+        "input": {
+          "line": {
+            "type": "",
+            "description": ""
+          },
+          "other_line": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "line, other_line",
+        "ori_description": ""
+      },
+      {
+        "name": "mesh_from_polygons",
+        "type": "function",
+        "module": "femwell.mesh",
+        "description": "",
+        "input": {
+          "shapes_dict": {
+            "type": "OrderedDict",
+            "description": ""
+          },
+          "resolutions": {
+            "type": "Optional[Dict[str, Dict[str, float]]]",
+            "description": ""
+          },
+          "default_resolution_min": {
+            "type": "float",
+            "description": ""
+          },
+          "default_resolution_max": {
+            "type": "float",
+            "description": ""
+          },
+          "filename": {
+            "type": "Optional[str]",
+            "description": ""
+          },
+          "gmsh_algorithm": {
+            "type": "int",
+            "description": ""
+          },
+          "global_quad": {
+            "type": "Optional[bool]",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "shapes_dict: OrderedDict, resolutions: Optional[Dict[str, Dict[str, float]]] = None, default_resolution_min: float = 0.01, default_resolution_max: float = 0.5, filename: Optional[str] = None, gmsh_algorithm: int = 5, global_quad: Optional[bool] = False",
+        "ori_description": ""
+      },
+      {
+        "name": "mesh_waveguide",
+        "type": "function",
+        "module": "femwell.waveguide",
+        "description": "Create a mesh for a waveguide.",
+        "input": {
+          "filename": {
+            "type": "",
+            "description": "path to save the mesh."
+          },
+          "wsim": {
+            "type": "",
+            "description": "width of the simulation window."
+          },
+          "hclad": {
+            "type": "",
+            "description": "height of the cladding."
+          },
+          "hbox": {
+            "type": "",
+            "description": "height of the box."
+          },
+          "wcore": {
+            "type": "",
+            "description": "width of the core."
+          },
+          "hcore": {
+            "type": "",
+            "description": "height of the core."
+          }
+        },
+        "output": null,
+        "ori_input": "filename, wsim, hclad, hbox, wcore, hcore",
+        "ori_description": "Create a mesh for a waveguide.  Args: filename: path to save the mesh. wsim: width of the simulation window. hclad: height of the cladding. hbox: height of the box. wcore: width of the core. hcore: height of the core."
+      },
+      {
+        "name": "solve_thermal",
+        "type": "function",
+        "module": "femwell.thermal",
+        "description": "Thermal simulation.",
+        "input": {
+          "basis0": {
+            "type": "",
+            "description": "Basis of the thermal_conductivity"
+          },
+          "thermal_conductivity": {
+            "type": "",
+            "description": "thermal conductivity in W/m‧K."
+          },
+          "specific_conductivity": {
+            "type": "Dict[str, float]",
+            "description": "specific conductivity in S/m."
+          },
+          "current_densities": {
+            "type": "",
+            "description": "current densities flowing through the layer in A."
+          },
+          "fixed_boundaries": {
+            "type": "",
+            "description": "fixed boundaries."
+          },
+          "order": {
+            "type": "",
+            "description": "order of the basis."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "basis, temperature profile"
+          }
+        },
+        "ori_input": "basis0, thermal_conductivity, specific_conductivity: Dict[str, float], current_densities, fixed_boundaries, order = 1",
+        "ori_description": "Thermal simulation.  Args: basis0: Basis of the thermal_conductivity thermal_conductivity: thermal conductivity in W/m‧K. specific_conductivity: specific conductivity in S/m. current_densities: current densities flowing through the layer in A. fixed_boundaries: fixed boundaries. order: order of the basis.  Returns: basis, temperature profile"
+      },
+      {
+        "name": "solve_thermal_transient",
+        "type": "function",
+        "module": "femwell.thermal_transient",
+        "description": "Thermal transient simulation.",
+        "input": {
+          "basis0": {
+            "type": "",
+            "description": "Basis of the thermal_conductivity."
+          },
+          "thermal_conductivity_p0": {
+            "type": "",
+            "description": "thermal conductivity in W/m‧K."
+          },
+          "thermal_diffusivity_p0": {
+            "type": "",
+            "description": "thermal diffusivity in m^2/s."
+          },
+          "specific_conductivity": {
+            "type": "Dict[str, float]",
+            "description": "specific conductivity in S/m."
+          },
+          "current_densities_0": {
+            "type": "",
+            "description": "current densities at time 0."
+          },
+          "current_densities": {
+            "type": "",
+            "description": "current densities as a function of time."
+          },
+          "fixed_boundaries": {
+            "type": "",
+            "description": "fixed boundaries."
+          },
+          "dt": {
+            "type": "",
+            "description": "time step."
+          },
+          "steps": {
+            "type": "",
+            "description": "number of steps."
+          }
+        },
+        "output": null,
+        "ori_input": "basis0, thermal_conductivity_p0, thermal_diffusivity_p0, specific_conductivity: Dict[str, float], current_densities_0, current_densities, fixed_boundaries, dt, steps",
+        "ori_description": "Thermal transient simulation.  Args: basis0: Basis of the thermal_conductivity. thermal_conductivity_p0: thermal conductivity in W/m‧K. thermal_diffusivity_p0: thermal diffusivity in m^2/s. specific_conductivity: specific conductivity in S/m. current_densities_0: current densities at time 0. current_densities: current densities as a function of time. fixed_boundaries: fixed boundaries. dt: time step. steps: number of steps."
+      },
+      {
+        "name": "laplace_equation",
+        "type": "function",
+        "module": "femwell.laplace",
+        "description": "",
+        "input": {
+          "u": {
+            "type": "",
+            "description": ""
+          },
+          "v": {
+            "type": "",
+            "description": ""
+          },
+          "w": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "u, v, w",
+        "ori_description": ""
+      },
+      {
+        "name": "solve_magnetostatic_2D",
+        "type": "function",
+        "module": "femwell.magnetostatic",
+        "description": "The 2D magnetostatic problem can be reduced to a scalar Coulomb equation with source.",
+        "input": {
+          "basis_mu_r": {
+            "type": "",
+            "description": ""
+          },
+          "mu_r": {
+            "type": "",
+            "description": ""
+          },
+          "mesh": {
+            "type": "",
+            "description": ""
+          },
+          "current_densities": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis_mu_r, mu_r, mesh, current_densities",
+        "ori_description": "The 2D magnetostatic problem can be reduced to a scalar Coulomb equation with source."
+      },
+      {
+        "name": "solve_coulomb",
+        "type": "function",
+        "module": "femwell.tcad",
+        "description": "",
+        "input": {
+          "basis": {
+            "type": "",
+            "description": ""
+          },
+          "epsilon_r": {
+            "type": "",
+            "description": ""
+          },
+          "fixed_boundaries": {
+            "type": "",
+            "description": ""
+          },
+          "phi_k": {
+            "type": "",
+            "description": ""
+          },
+          "phi_n": {
+            "type": "",
+            "description": ""
+          },
+          "phi_p": {
+            "type": "",
+            "description": ""
+          },
+          "doping": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis, epsilon_r, fixed_boundaries, phi_k, phi_n, phi_p, doping",
+        "ori_description": ""
+      },
+      {
+        "name": "solve_continuity_equations",
+        "type": "function",
+        "module": "femwell.tcad",
+        "description": "",
+        "input": {
+          "basis": {
+            "type": "",
+            "description": ""
+          },
+          "phi_i": {
+            "type": "",
+            "description": ""
+          },
+          "p_i_1": {
+            "type": "",
+            "description": ""
+          },
+          "n_i_1": {
+            "type": "",
+            "description": ""
+          },
+          "pn": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "basis, phi_i, p_i_1, n_i_1, pn",
+        "ori_description": ""
+      },
+      {
+        "name": "dn_carriers",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Phenomenological wavelength-dependent index perturbation from free carriers in silicon.  Use quadratic fits for wavelengths, or better-characterized models at 1550 nm and 1310 nm.",
+        "input": {
+          "wavelength": {
+            "type": "float",
+            "description": "(um)."
+          },
+          "dN": {
+            "type": "float",
+            "description": "excess electrons (/cm^3)."
+          },
+          "dP": {
+            "type": "float",
+            "description": "excess holes (/cm^3)."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "dn",
+            "description": "change in refractive index compared to intrinsic silicon."
+          }
+        },
+        "ori_input": "wavelength: float, dN: float, dP: float",
+        "ori_description": "Phenomenological wavelength-dependent index perturbation from free carriers in silicon.  Use quadratic fits for wavelengths, or better-characterized models at 1550 nm and 1310 nm.  Args: wavelength: (um). dN: excess electrons (/cm^3). dP: excess holes (/cm^3).  Returns: dn: change in refractive index compared to intrinsic silicon."
+      },
+      {
+        "name": "dalpha_carriers",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Phenomenological wavelength-dependent absorption perturbation from free carriers in silicon.  Use quadratic fits for wavelengths, or better-characterized models at 1550 nm and 1310 nm.",
+        "input": {
+          "wavelength": {
+            "type": "float",
+            "description": "(um)."
+          },
+          "dN": {
+            "type": "float",
+            "description": "excess electrons (/cm^3)."
+          },
+          "dP": {
+            "type": "float",
+            "description": "excess holes (/cm^3)."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "dalpha",
+            "description": "change in absorption coefficient (/cm)"
+          }
+        },
+        "ori_input": "wavelength: float, dN: float, dP: float",
+        "ori_description": "Phenomenological wavelength-dependent absorption perturbation from free carriers in silicon.  Use quadratic fits for wavelengths, or better-characterized models at 1550 nm and 1310 nm.  Args: wavelength: (um). dN: excess electrons (/cm^3). dP: excess holes (/cm^3).  Returns: dalpha: change in absorption coefficient (/cm)"
+      },
+      {
+        "name": "alpha_to_k",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Converts absorption coefficient (/cm) to extinction coefficient (unitless), given wavelength (um).",
+        "input": {
+          "alpha": {
+            "type": "",
+            "description": ""
+          },
+          "wavelength": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "alpha, wavelength",
+        "ori_description": "Converts absorption coefficient (/cm) to extinction coefficient (unitless), given wavelength (um)."
+      },
+      {
+        "name": "k_to_alpha",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Converts extinction coefficient (unitless) to absorption coefficient (/cm), given wavelength (um).",
+        "input": {
+          "k": {
+            "type": "",
+            "description": ""
+          },
+          "wavelength": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "k, wavelength",
+        "ori_description": "Converts extinction coefficient (unitless) to absorption coefficient (/cm), given wavelength (um)."
+      },
+      {
+        "name": "built_in_voltage",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Junction built-in voltage.",
+        "input": {
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          }
+        },
+        "output": null,
+        "ori_input": "NA, ND",
+        "ori_description": "Junction built-in voltage.  Arguments: NA: acceptor concentration (cm-3) ND: donor concentration (cm-3)"
+      },
+      {
+        "name": "depletion_width",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Depletion width.",
+        "input": {
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          },
+          "V": {
+            "type": "",
+            "description": "voltage (V)"
+          }
+        },
+        "output": null,
+        "ori_input": "NA, ND, V",
+        "ori_description": "Depletion width.  Arguments: NA: acceptor concentration (cm-3) ND: donor concentration (cm-3) V: voltage (V)"
+      },
+      {
+        "name": "depletion_width_n_side",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Depletion on n-side.",
+        "input": {
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          },
+          "V": {
+            "type": "",
+            "description": "voltage (V)"
+          }
+        },
+        "output": null,
+        "ori_input": "NA, ND, V",
+        "ori_description": "Depletion on n-side.  Arguments: NA: acceptor concentration (cm-3) ND: donor concentration (cm-3) V: voltage (V)"
+      },
+      {
+        "name": "depletion_width_p_side",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Depletion on p-side.",
+        "input": {
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          },
+          "V": {
+            "type": "",
+            "description": "voltage (V)"
+          }
+        },
+        "output": null,
+        "ori_input": "NA, ND, V",
+        "ori_description": "Depletion on p-side.  Arguments: NA: acceptor concentration (cm-3) ND: donor concentration (cm-3) V: voltage (V)"
+      },
+      {
+        "name": "hole_concentration_depletion_approx",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Hole concentration (depletion approximation).",
+        "input": {
+          "x": {
+            "type": "",
+            "description": "position (x, um)"
+          },
+          "V": {
+            "type": "",
+            "description": "voltage (V)"
+          },
+          "xpn": {
+            "type": "",
+            "description": "junction position (x, um)"
+          },
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          }
+        },
+        "output": null,
+        "ori_input": "x, V, xpn, NA, ND",
+        "ori_description": "Hole concentration (depletion approximation).  Arguments: x: position (x, um) xpn: junction position (x, um) NA: acceptor concentration (cm-3) ND: donor concentration (cm-3) V: voltage (V)"
+      },
+      {
+        "name": "electron_concentration_depletion_approx",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Electron concentration (depletion approximation).",
+        "input": {
+          "x": {
+            "type": "",
+            "description": "position (x, um)"
+          },
+          "V": {
+            "type": "",
+            "description": "voltage (V)"
+          },
+          "xpn": {
+            "type": "",
+            "description": "junction position (x, um)"
+          },
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          }
+        },
+        "output": null,
+        "ori_input": "x, V, xpn, NA, ND",
+        "ori_description": "Electron concentration (depletion approximation).  Arguments: x: position (x, um) xpn: junction position (x, um) NA: acceptor concentration (cm-3) ND: donor concentration (cm-3) V: voltage (V)"
+      },
+      {
+        "name": "index_pn_junction",
+        "type": "function",
+        "module": "femwell.pn_analytical",
+        "description": "Refractive index of silicon around a pn junction.",
+        "input": {
+          "x": {
+            "type": "",
+            "description": "position (um)"
+          },
+          "xpn": {
+            "type": "",
+            "description": "junction position (um)"
+          },
+          "NA": {
+            "type": "",
+            "description": "acceptor concentration (cm-3)"
+          },
+          "ND": {
+            "type": "",
+            "description": "donor concentration (cm-3)"
+          },
+          "V": {
+            "type": "",
+            "description": "voltage (V)"
+          },
+          "wavelength": {
+            "type": "",
+            "description": "of light (um)"
+          }
+        },
+        "output": null,
+        "ori_input": "x, xpn, NA, ND, V, wavelength",
+        "ori_description": "Refractive index of silicon around a pn junction.  Arguments: x: position (um) xpn: junction position (um) NA: acceptor concentration (cm-3) ND: donor concentration (cm-3) V: voltage (V) wavelength: of light (um)"
+      },
+      {
+        "name": "solver_dense",
+        "type": "function",
+        "module": "femwell.solver",
+        "description": "",
+        "input": {
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "**kwargs",
+        "ori_description": ""
+      },
+      {
+        "name": "solver_eigen_scipy_operator",
+        "type": "function",
+        "module": "femwell.solver",
+        "description": "Solve generalized eigenproblem using SciPy (ARPACK).",
+        "input": {
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "EigenSolver",
+            "description": "A solver function that can be passed to :func:`solve`."
+          }
+        },
+        "ori_input": "**kwargs",
+        "ori_description": "Solve generalized eigenproblem using SciPy (ARPACK).  Returns ------- EigenSolver A solver function that can be passed to :func:`solve`."
+      },
+      {
+        "name": "solver_eigen_scipy_invert",
+        "type": "function",
+        "module": "femwell.solver",
+        "description": "Solve generalized eigenproblem using SciPy (ARPACK).",
+        "input": {
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "EigenSolver",
+            "description": "A solver function that can be passed to :func:`solve`."
+          }
+        },
+        "ori_input": "**kwargs",
+        "ori_description": "Solve generalized eigenproblem using SciPy (ARPACK).  Returns ------- EigenSolver A solver function that can be passed to :func:`solve`."
+      },
+      {
+        "name": "solver_eigen_slepc",
+        "type": "function",
+        "module": "femwell.solver",
+        "description": "",
+        "input": {
+          "kwargs": {
+            "type": "**kwargs",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "**kwargs",
+        "ori_description": ""
+      },
+      {
+        "name": "solver_cached",
+        "type": "function",
+        "module": "femwell.solver",
+        "description": "",
+        "input": {
+          "solver_orig": {
+            "type": "",
+            "description": ""
+          },
+          "cache_path": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "solver_orig, cache_path",
+        "ori_description": ""
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/HelgeGehring/femwell",
+        "documentation": "https://HelgeGehring.github.io/femwell/",
+        "pypi": "https://pypi.org/project/femwell/",
+        "pypi_version": "0.1.12",
+        "tag": "v0.1.12",
+        "commit": "e16d268a412b94d1d210ec6b17d0389c84eed92b",
+        "release_published_at": "2025-01-06T16:29:03Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 0.1.12 与 GitHub 最新正式 Release v0.1.12 一致。",
+          "本次只静态整理 Python API；Gmsh、scikit-fem 与稀疏本征求解后端的实际兼容性尚未运行验证。"
+        ],
+        "release_url": "https://github.com/HelgeGehring/femwell/releases/tag/v0.1.12",
+        "release_api": "https://api.github.com/repos/HelgeGehring/femwell/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/femwell",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "femwell"
+        ],
+        "source_files": [
+          "femwell/__init__.py",
+          "femwell/coulomb.py",
+          "femwell/culomb.py",
+          "femwell/fefd.py",
+          "femwell/fefd_2d.py",
+          "femwell/fiber.py",
+          "femwell/laplace.py",
+          "femwell/magnetostatic.py",
+          "femwell/maxwell/__init__.py",
+          "femwell/maxwell/waveguide.py",
+          "femwell/mesh/__init__.py",
+          "femwell/mesh.py",
+          "femwell/mesh/mesh.py",
+          "femwell/mesh/meshtracker.py",
+          "femwell/mesh/slice.py",
+          "femwell/mode_solver_1d.py",
+          "femwell/mode_solver_2d_periodic.py",
+          "femwell/mode_solver_2d_periodic_quadratic.py",
+          "femwell/mode_solver_inplane.py",
+          "femwell/mode_solver_schrodinger.py",
+          "femwell/pn_analytical.py",
+          "femwell/solver.py",
+          "femwell/tcad.py",
+          "femwell/tests/test_mesh.py",
+          "femwell/thermal.py",
+          "femwell/thermal_transient.py",
+          "femwell/utils.py",
+          "femwell/visualization.py",
+          "femwell/waveguide.py"
+        ],
+        "source_file_sha256": {
+          "femwell/__init__.py": "c62611f01bd60bcbc23e9cdc7d3d12f22d3d0b647c57ec41ca8f9619c42f9d97",
+          "femwell/coulomb.py": "9bc522c27f7846a84da2fcac1e5a2d0bb697229da348e633113485df7b706313",
+          "femwell/culomb.py": "5b2db59aba5589c6118e86f3ea9195fcf25daa99b8e63544c243845b01def5b3",
+          "femwell/fefd.py": "393e0f5388b182cb4711497ec8e1925933486d1b2b1e3e8ec8a2e8ff50eff19f",
+          "femwell/fefd_2d.py": "3710d750b9e256891f9856797963975a14b37de94bd25ade50986771bc5cb49a",
+          "femwell/fiber.py": "b8747316d79aeda01d401cbdf5d2193584a0bf92991355fa8b9b8b70269f993e",
+          "femwell/laplace.py": "d916ce69fdb3d066dba4a0822285212e7979730c956a8b26035ca59b07233751",
+          "femwell/magnetostatic.py": "d8e1dadb4087144d9666c378be6116ddf89da390e3fb7c750e649c26dddba3d5",
+          "femwell/maxwell/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "femwell/maxwell/waveguide.py": "8291ca19b0e56a66e6dc28762214f571aa45f386089734d8811588f0b64760f1",
+          "femwell/mesh/__init__.py": "82e713e65607ae179bbf58594863ba69f84fdf4e56a1ff808ac31675d36906ba",
+          "femwell/mesh.py": "36d5bd995cac1c7d9be7051b1663e7ce7144760e8d6a0c6d27d8123575183423",
+          "femwell/mesh/mesh.py": "baaa5cd1a876cc347d8ab5aa75714675ad53a86ad5d8e16a884e8eeab7e5f1d1",
+          "femwell/mesh/meshtracker.py": "e9520e63a3c65fec08c8a51aada358bf1e8e173e51b8a20a316bf5d17be4911e",
+          "femwell/mesh/slice.py": "4557815b05193ead6b13c9ff077ba4ed7add50ab2f955c85f728b725305696e0",
+          "femwell/mode_solver_1d.py": "8b2ac24740ffa78c2326f1dc26ed87012eca501a389651a85cf917745501be26",
+          "femwell/mode_solver_2d_periodic.py": "7d1bb84f4427fd6c808c47a8f18d2795edad88e8801d0cef64249c52ca5d1bc5",
+          "femwell/mode_solver_2d_periodic_quadratic.py": "0437e3318da7e8eb097fdbc700c1a3a61a403dc8b71faed6f1cd89b6f84565e1",
+          "femwell/mode_solver_inplane.py": "946fd758ae8b99593bccf5b612f9f712da997d57b90e1a9cc035d0dfdff61928",
+          "femwell/mode_solver_schrodinger.py": "b10687cb738e82aa7833945b691aab989b08d29b835295536e79ab77216991be",
+          "femwell/pn_analytical.py": "e5a885217884c02ad0925a68ac773972167d5bc1701be2c66e12a9cc44ec0a0f",
+          "femwell/solver.py": "fc7111f1821e9daecfe608834a57aa58dac23a090a38ff4f7eba565912168509",
+          "femwell/tcad.py": "d108d83eed7e2419fb7cf37fd5b1262b2d76d424a96599f08a3d8d0d8b0361ee",
+          "femwell/tests/test_mesh.py": "3e93ed08e54464386b56e477bbab55131bacbadea2f6cf4f5e0ee49ef83a4afd",
+          "femwell/thermal.py": "2a2dead8c58e227d0bb2ae4f5cf7beb67be730b08e649682f4a5ddfbfb5bf55f",
+          "femwell/thermal_transient.py": "af2bf00052ecb2065e1cd0c887b1bb5ea5865e9fc492aa01ce3f98827b2d2ecb",
+          "femwell/utils.py": "504a229fc199e1d8dd923d26f579aca921caf173b41a9e7b9a7e1d115202cff9",
+          "femwell/visualization.py": "7e65d99af23dedd0b004fc2fa678ffe092368962951200dafe5266928a470fdb",
+          "femwell/waveguide.py": "84065ae506bbcb6fe8c2d469529b53efb8240216b201bc9417747d71ddff93e1"
+        },
+        "source_version": "v0.1.12",
+        "source_commit": "e16d268a412b94d1d210ec6b17d0389c84eed92b",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "femwell_waveguide_multiphysics_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/femwell_v0.1.12.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/femwell_v0.1.12.json",
+        "source_sha256": "9306515862ad4738342fafbf12b7a833fdf20a0f529ebe711c83e65879b68cf7",
+        "profile_sha256": "3f59e579128340f4b23289b22eea7ef173fd949f5ef3b78e1de88dfa58d70a56",
+        "boundary": "截面网格、Maxwell 波导模式、热/静电/半导体辅助与本征求解器；排除测试、绘图细节和低层弱形式辅助。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 82,
+        "selected_tool_count": 35,
+        "selected_class_count": 3,
+        "selected_function_count": 32,
+        "selected_method_count": 36,
+        "selected_all_func": 68,
+        "missing_description_count": 34,
+        "excluded_tool_count": 47,
+        "capability_count": 3
+      }
+    }
+  }
+]

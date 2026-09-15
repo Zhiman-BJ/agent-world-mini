@@ -1,0 +1,2006 @@
+[
+  {
+    "global_id": "pypi_mp_api_16",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/materialsproject/api",
+          "https://pypi.org/project/mp-api/",
+          "https://docs.materialsproject.org/downloading-data/using-the-api"
+        ],
+        "name": "mp-api",
+        "version": "v0.46.5",
+        "index": 16
+      },
+      "description": "mp-api 是 Materials Project 官方 API 的 Python 客户端，提供材料数据资源的查询、筛选、分页和结构化响应模型，可将远程材料检索结果交给 pymatgen、ASE 等工具继续分析。访问真实数据库需要 API 密钥和网络连接。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 11,
+        "function": 0,
+        "class_func": 52,
+        "all_func": 52
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "MPRester",
+        "type": "class",
+        "module": "mp_api.client.mprester",
+        "input": "_Rester",
+        "description": "Access the new Materials Project API.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the MPRester.",
+            "input": {
+              "self": null,
+              "api_key": {
+                "type": "str | None",
+                "description": "A String API key for accessing the MaterialsProject REST interface. Please obtain your API key at"
+              },
+              "endpoint": {
+                "type": "str | None",
+                "description": "URL of endpoint to access the MaterialsProject REST interface. Defaults to the standard Materials Project REST address at \"https://api.materialsproject.org\", but can be changed to other URLs implementing a similar interface."
+              },
+              "include_user_agent": {
+                "type": "bool",
+                "description": "If True, will include a user agent with the HTTP request including information on pymatgen and system version making the API request. This helps MP support pymatgen users, and is similar to what most web browsers send with each page request. Set to False to disable the user agent."
+              },
+              "use_document_model": {
+                "type": "bool",
+                "description": "If False, skip the creating the document model and return data as a dictionary. This can be simpler to work with but bypasses data validation and will not give auto-complete for available fields."
+              },
+              "session": {
+                "type": "Session | None",
+                "description": "Session object to use. By default (None), the client will create one."
+              },
+              "headers": {
+                "type": "dict | None",
+                "description": "Custom headers for localhost connections."
+              },
+              "mute_progress_bars": {
+                "type": "bool",
+                "description": "Whether to mute progress bars."
+              },
+              "db_version": {
+                "type": "str | None",
+                "description": "EXPERIMENTAL, allows for accessing a different version of the database than what is currently deployed. The Materials Project cannot guarantee that all features will still work."
+              },
+              "local_dataset_cache": {
+                "type": "str | os.PathLike",
+                "description": "Target directory for downloading full datasets. Defaults to \"mp_datasets\" in the user's home directory"
+              },
+              "force_renew": {
+                "type": "bool",
+                "description": "Option to overwrite existing local dataset"
+              },
+              "query_builder": {
+                "type": "QueryBuilderWithCache | None",
+                "description": "Instance of QueryBuilderWithCache to use in querying delta tables"
+              },
+              "notify_db_version": {
+                "type": "bool",
+                "description": "If True, the current MP database version will be retrieved and logged locally in the ~/.mprester.log.yaml. If the database version changes, you will be notified. The current database version is also printed on instantiation. These local logs are not sent to materialsproject.org and are not associated with your API key, so be aware that a notification may not be presented if you run MPRester from multiple computing environments."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "access to legacy kwargs that may be in the process of being deprecated"
+              }
+            },
+            "output": null,
+            "ori_input": "self, api_key: str | None = None, endpoint: str | None = None, include_user_agent: bool = True, use_document_model: bool = True, session: Session | None = None, headers: dict | None = None, mute_progress_bars: bool = MAPI_CLIENT_SETTINGS.MUTE_PROGRESS_BARS, db_version: str | None = None, local_dataset_cache: str | os.PathLike = MAPI_CLIENT_SETTINGS.LOCAL_DATASET_CACHE, force_renew: bool = False, query_builder: QueryBuilderWithCache | None = None, notify_db_version: bool = False, **kwargs",
+            "ori_description": "Initialize the MPRester.  Arguments: api_key (str): A String API key for accessing the MaterialsProject REST interface. Please obtain your API key at https://next-gen.materialsproject.org/api. If this is None, the code will check if there is a \"MP_API_KEY\" setting. If so, it will use that environment variable. This makes easier for heavy users to simply add this environment variable to their setups and MPRester can then be called without any arguments. endpoint (str): URL of endpoint to access the MaterialsProject REST interface. Defaults to the standard Materials Project REST address at \"https://api.materialsproject.org\", but can be changed to other URLs implementing a similar interface. include_user_agent (bool): If True, will include a user agent with the HTTP request including information on pymatgen and system version making the API request. This helps MP support pymatgen users, and is similar to what most web browsers send with each page request. Set to False to disable the user agent. use_document_model: If False, skip the creating the document model and return data as a dictionary. This can be simpler to work with but bypasses data validation and will not give auto-complete for available fields. session: Session object to use. By default (None), the client will create one. headers: Custom headers for localhost connections. mute_progress_bars: Whether to mute progress bars. db_version (str) : EXPERIMENTAL, allows for accessing a different version of the database than what is currently deployed. The Materials Project cannot guarantee that all features will still work. local_dataset_cache: Target directory for downloading full datasets. Defaults to \"mp_datasets\" in the user's home directory force_renew: Option to overwrite existing local dataset query_builder : Instance of QueryBuilderWithCache to use in querying delta tables NOTE: Must be a QueryBuilderWithCache, a deltalake.QueryBuilder will be ignored. notify_db_version (bool): If True, the current MP database version will be retrieved and logged locally in the ~/.mprester.log.yaml. If the database version changes, you will be notified. The current database version is also printed on instantiation. These local logs are not sent to materialsproject.org and are not associated with your API key, so be aware that a notification may not be presented if you run MPRester from multiple computing environments. **kwargs: access to legacy kwargs that may be in the process of being deprecated"
+          },
+          {
+            "name": "get_structure_by_material_id",
+            "description": "Get a Structure corresponding to a material_id.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project material_id (a string, e.g., mp-1234)."
+              },
+              "final": {
+                "type": "bool",
+                "description": "Whether to get the final structure, or the list of initial (pre-relaxation) structures. Defaults to True."
+              },
+              "conventional_unit_cell": {
+                "type": "bool",
+                "description": "Whether to get the standard conventional unit cell for the final or list of initial structures."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Structure object or list of Structure objects."
+              }
+            },
+            "ori_input": "self, material_id: str, final: bool = True, conventional_unit_cell: bool = False",
+            "ori_description": "Get a Structure corresponding to a material_id.  Args: material_id (str): Materials Project material_id (a string, e.g., mp-1234). final (bool): Whether to get the final structure, or the list of initial (pre-relaxation) structures. Defaults to True. conventional_unit_cell (bool): Whether to get the standard conventional unit cell for the final or list of initial structures.  Returns: Structure object or list of Structure objects."
+          },
+          {
+            "name": "get_material_ids",
+            "description": "Get all materials ids for a formula or chemsys.",
+            "input": {
+              "self": null,
+              "chemsys_formula": {
+                "type": "str | list[str]",
+                "description": "A chemical system, list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]), or single formula (e.g., Fe2O3, Si*)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of all materials ids ([MPID])"
+              }
+            },
+            "ori_input": "self, chemsys_formula: str | list[str]",
+            "ori_description": "Get all materials ids for a formula or chemsys.  Args: chemsys_formula (str, List[str]): A chemical system, list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]), or single formula (e.g., Fe2O3, Si*).  Returns: List of all materials ids ([MPID])"
+          },
+          {
+            "name": "get_structures",
+            "description": "Get a list of Structures corresponding to a chemical system or formula.",
+            "input": {
+              "self": null,
+              "chemsys_formula": {
+                "type": "str | list[str]",
+                "description": "A chemical system, list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]), or single formula (e.g., Fe2O3, Si*)."
+              },
+              "final": {
+                "type": "bool",
+                "description": "Whether to get the final structure, or the list of initial (pre-relaxation) structures. Defaults to True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of Structure objects. ([Structure])"
+              }
+            },
+            "ori_input": "self, chemsys_formula: str | list[str], final = True",
+            "ori_description": "Get a list of Structures corresponding to a chemical system or formula.  Args: chemsys_formula (str, List[str]): A chemical system, list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]), or single formula (e.g., Fe2O3, Si*). final (bool): Whether to get the final structure, or the list of initial (pre-relaxation) structures. Defaults to True.  Returns: List of Structure objects. ([Structure])"
+          },
+          {
+            "name": "find_structure",
+            "description": "Finds matching structures from the Materials Project database.  Multiple results may be returned of \"similar\" structures based on distance using the pymatgen StructureMatcher algorithm, however only a single result should match with the same spacegroup, calculated to the default tolerances.",
+            "input": {
+              "self": null,
+              "filename_or_structure": {
+                "type": "str | Structure",
+                "description": "filename or Structure object"
+              },
+              "ltol": {
+                "type": "float",
+                "description": "fractional length tolerance"
+              },
+              "stol": {
+                "type": "float",
+                "description": "site tolerance"
+              },
+              "angle_tol": {
+                "type": "float",
+                "description": "angle tolerance in degrees"
+              },
+              "allow_multiple_results": {
+                "type": "bool",
+                "description": "changes return type for either a single material_id or list of material_ids"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A matching material_id if one is found or list of results if allow_multiple_results is True"
+              }
+            },
+            "ori_input": "self, filename_or_structure: str | Structure, ltol: float = MAPI_CLIENT_SETTINGS.LTOL, stol: float = MAPI_CLIENT_SETTINGS.STOL, angle_tol: float = MAPI_CLIENT_SETTINGS.ANGLE_TOL, allow_multiple_results: bool = False",
+            "ori_description": "Finds matching structures from the Materials Project database.  Multiple results may be returned of \"similar\" structures based on distance using the pymatgen StructureMatcher algorithm, however only a single result should match with the same spacegroup, calculated to the default tolerances.  Args: filename_or_structure: filename or Structure object ltol: fractional length tolerance stol: site tolerance angle_tol: angle tolerance in degrees allow_multiple_results: changes return type for either a single material_id or list of material_ids Returns: A matching material_id if one is found or list of results if allow_multiple_results is True Raises: MPRestError"
+          },
+          {
+            "name": "get_entries",
+            "description": "Get a list of ComputedStructureEntry from a chemical system, or formula, or MPID.  This returns a list of ComputedStructureEntry with final structures for all thermo types represented in the database. Each type corresponds to a different mixing scheme (i.e. GGA/GGA+U, GGA/GGA+U/R2SCAN, R2SCAN). By default the thermo_type of the entry is also returned.",
+            "input": {
+              "self": null,
+              "chemsys_formula_mpids": {
+                "type": "str | list[str]",
+                "description": "A chemical system, list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]), formula, list of formulas (e.g., Fe2O3, Si*, [SiO2, BiFeO3]), Materials Project ID, or list of Materials Project IDs (e.g., mp-22526, [mp-22526, mp-149])."
+              },
+              "compatible_only": {
+                "type": "bool",
+                "description": "Whether to return only \"compatible\" entries. Compatible entries are entries that have been processed using the MaterialsProject2020Compatibility class, which performs adjustments to allow mixing of GGA and GGA+U calculations for more accurate phase diagrams and reaction energies. This data is obtained from the core \"thermo\" API endpoint."
+              },
+              "property_data": {
+                "type": "list[str] | None",
+                "description": "Specify additional properties to include in entry.data. If None, only default data is included. Should be a subset of input parameters in the 'MPRester.thermo.available_fields' list."
+              },
+              "conventional_unit_cell": {
+                "type": "bool",
+                "description": "Whether to get the standard conventional unit cell"
+              },
+              "additional_criteria": {
+                "type": "dict | None",
+                "description": "Any additional criteria to pass. The keys and values should correspond to proper function inputs to `MPRester.thermo.search`. For instance, if you are only interested in entries on the convex hull, you could pass {\"energy_above_hull\": (0.0, 0.0)} or {\"is_stable\": True}."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Used here only to gracefully handle deprecated arguments. All kwargs are ignored."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List ComputedStructureEntry objects."
+              }
+            },
+            "ori_input": "self, chemsys_formula_mpids: str | list[str], compatible_only: bool = True, property_data: list[str] | None = None, conventional_unit_cell: bool = False, additional_criteria: dict | None = None, **kwargs",
+            "ori_description": "Get a list of ComputedStructureEntry from a chemical system, or formula, or MPID.  This returns a list of ComputedStructureEntry with final structures for all thermo types represented in the database. Each type corresponds to a different mixing scheme (i.e. GGA/GGA+U, GGA/GGA+U/R2SCAN, R2SCAN). By default the thermo_type of the entry is also returned.  Args: chemsys_formula_mpids (str, List[str]): A chemical system, list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]), formula, list of formulas (e.g., Fe2O3, Si*, [SiO2, BiFeO3]), Materials Project ID, or list of Materials Project IDs (e.g., mp-22526, [mp-22526, mp-149]). compatible_only (bool): Whether to return only \"compatible\" entries. Compatible entries are entries that have been processed using the MaterialsProject2020Compatibility class, which performs adjustments to allow mixing of GGA and GGA+U calculations for more accurate phase diagrams and reaction energies. This data is obtained from the core \"thermo\" API endpoint. property_data (list): Specify additional properties to include in entry.data. If None, only default data is included. Should be a subset of input parameters in the 'MPRester.thermo.available_fields' list. conventional_unit_cell (bool): Whether to get the standard conventional unit cell additional_criteria (dict): Any additional criteria to pass. The keys and values should correspond to proper function inputs to `MPRester.thermo.search`. For instance, if you are only interested in entries on the convex hull, you could pass {\"energy_above_hull\": (0.0, 0.0)} or {\"is_stable\": True}. kwargs: Used here only to gracefully handle deprecated arguments. All kwargs are ignored.  Returns: List ComputedStructureEntry objects."
+          },
+          {
+            "name": "get_entries_in_chemsys",
+            "description": "Helper method to get a list of ComputedEntries in a chemical system. For example, elements = [\"Li\", \"Fe\", \"O\"] will return a list of all entries in the parent Li-Fe-O chemical system, as well as all subsystems (i.e., all LixOy, FexOy, LixFey, LixFeyOz, Li, Fe and O phases). Extremely useful for creating phase diagrams of entire chemical systems.  Note that by default this returns mixed GGA/GGA+U/r2SCAN entries. For others, pass GGA/GGA+U, or R2SCAN as thermo_types in additional_criteria.  Mixed entries are taken from the MP-built phase diagram for the whole chemical system, so they share one energy scale and reproduce the hull shown on https://materialsproject.org. Narrowing the query with `additional_criteria`, or passing ``compatible_only = False``, cannot be served that way and returns entries that are *not* immediately suitable for constructing a phase diagram; ``property_data`` and ``conventional_unit_cell`` re-apply the mixing scheme here instead, which can differ slightly from MP. Warnings are thrown for these cases.",
+            "input": {
+              "self": null,
+              "elements": {
+                "type": "str | list[str]",
+                "description": "Parent chemical system string comprising element symbols separated by dashes, e.g., \"Li-Fe-O\" or List of element symbols, e.g., [\"Li\", \"Fe\", \"O\"]."
+              },
+              "use_gibbs": {
+                "type": "int | None",
+                "description": "If None (default), DFT energy is returned. If a number, return the free energy of formation estimated using a machine learning model (see GibbsComputedStructureEntry). The number is the temperature in Kelvin at which to estimate the free energy. Must be between 300 K and 2000 K."
+              },
+              "compatible_only": {
+                "type": "bool",
+                "description": "Whether to return only \"compatible\" entries. Compatible entries are entries that have been processed using the MaterialsProject2020Compatibility class, which performs adjustments to allow mixing of GGA and GGA+U calculations for more accurate phase diagrams and reaction energies. This data is obtained from the core \"thermo\" API endpoint."
+              },
+              "property_data": {
+                "type": "list[str] | None",
+                "description": "Specify additional properties to include in entry.data. If None, only default data is included. Should be a subset of input parameters in the 'MPRester.thermo.available_fields' list."
+              },
+              "conventional_unit_cell": {
+                "type": "bool",
+                "description": "Whether to get the standard conventional unit cell"
+              },
+              "additional_criteria": {
+                "type": "dict | None",
+                "description": "Any additional criteria to pass. The keys and values should correspond to proper function inputs to `MPRester.thermo.search`. For instance, if you are only interested in entries on the convex hull, you could pass {\"energy_above_hull\": (0.0, 0.0)} or {\"is_stable\": True}, or if you are only interested in entry data"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Other kwargs to pass to `get_entries`"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of ComputedStructureEntry."
+              }
+            },
+            "ori_input": "self, elements: str | list[str], use_gibbs: int | None = None, compatible_only: bool = True, property_data: list[str] | None = None, conventional_unit_cell: bool = False, additional_criteria: dict | None = None, **kwargs",
+            "ori_description": "Helper method to get a list of ComputedEntries in a chemical system. For example, elements = [\"Li\", \"Fe\", \"O\"] will return a list of all entries in the parent Li-Fe-O chemical system, as well as all subsystems (i.e., all LixOy, FexOy, LixFey, LixFeyOz, Li, Fe and O phases). Extremely useful for creating phase diagrams of entire chemical systems.  Note that by default this returns mixed GGA/GGA+U/r2SCAN entries. For others, pass GGA/GGA+U, or R2SCAN as thermo_types in additional_criteria.  Mixed entries are taken from the MP-built phase diagram for the whole chemical system, so they share one energy scale and reproduce the hull shown on https://materialsproject.org. Narrowing the query with `additional_criteria`, or passing ``compatible_only = False``, cannot be served that way and returns entries that are *not* immediately suitable for constructing a phase diagram; ``property_data`` and ``conventional_unit_cell`` re-apply the mixing scheme here instead, which can differ slightly from MP. Warnings are thrown for these cases.  Args: elements (str or [str]): Parent chemical system string comprising element symbols separated by dashes, e.g., \"Li-Fe-O\" or List of element symbols, e.g., [\"Li\", \"Fe\", \"O\"]. use_gibbs: If None (default), DFT energy is returned. If a number, return the free energy of formation estimated using a machine learning model (see GibbsComputedStructureEntry). The number is the temperature in Kelvin at which to estimate the free energy. Must be between 300 K and 2000 K. compatible_only (bool): Whether to return only \"compatible\" entries. Compatible entries are entries that have been processed using the MaterialsProject2020Compatibility class, which performs adjustments to allow mixing of GGA and GGA+U calculations for more accurate phase diagrams and reaction energies. This data is obtained from the core \"thermo\" API endpoint. property_data (list): Specify additional properties to include in entry.data. If None, only default data is included. Should be a subset of input parameters in the 'MPRester.thermo.available_fields' list. conventional_unit_cell (bool): Whether to get the standard conventional unit cell additional_criteria (dict): Any additional criteria to pass. The keys and values should correspond to proper function inputs to `MPRester.thermo.search`. For instance, if you are only interested in entries on the convex hull, you could pass {\"energy_above_hull\": (0.0, 0.0)} or {\"is_stable\": True}, or if you are only interested in entry data kwargs : Other kwargs to pass to `get_entries` Returns: List of ComputedStructureEntry."
+          },
+          {
+            "name": "get_entry_by_material_id",
+            "description": "Get all ComputedEntry objects corresponding to a material_id.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project material_id (a string, e.g., mp-1234)."
+              },
+              "compatible_only": {
+                "type": "bool",
+                "description": "Whether to return only \"compatible\" entries. Compatible entries are entries that have been processed using the MaterialsProject2020Compatibility class, which performs adjustments to allow mixing of GGA and GGA+U calculations for more accurate phase diagrams and reaction energies. This data is obtained from the core \"thermo\" API endpoint."
+              },
+              "property_data": {
+                "type": "list[str] | None",
+                "description": "Specify additional properties to include in entry.data. If None, only default data is included. Should be a subset of input parameters in the 'MPRester.thermo.available_fields' list."
+              },
+              "conventional_unit_cell": {
+                "type": "bool",
+                "description": "Whether to get the standard conventional unit cell"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Other kwargs to pass to `get_entries`"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of ComputedEntry or ComputedStructureEntry object."
+              }
+            },
+            "ori_input": "self, material_id: str, compatible_only: bool = True, property_data: list[str] | None = None, conventional_unit_cell: bool = False, **kwargs",
+            "ori_description": "Get all ComputedEntry objects corresponding to a material_id.  Args: material_id (str): Materials Project material_id (a string, e.g., mp-1234). compatible_only (bool): Whether to return only \"compatible\" entries. Compatible entries are entries that have been processed using the MaterialsProject2020Compatibility class, which performs adjustments to allow mixing of GGA and GGA+U calculations for more accurate phase diagrams and reaction energies. This data is obtained from the core \"thermo\" API endpoint. property_data (list): Specify additional properties to include in entry.data. If None, only default data is included. Should be a subset of input parameters in the 'MPRester.thermo.available_fields' list. conventional_unit_cell (bool): Whether to get the standard conventional unit cell kwargs : Other kwargs to pass to `get_entries` Returns: List of ComputedEntry or ComputedStructureEntry object."
+          },
+          {
+            "name": "get_task_ids_associated_with_material_id",
+            "description": "Get Task ID values associated with a specific Material ID.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Material ID"
+              },
+              "calc_types": {
+                "type": "list[CalcType] | None",
+                "description": "If specified, will restrict to a certain task type, e.g. [CalcType.GGA_STATIC]"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "([str])",
+                "description": "List of Task ID values."
+              }
+            },
+            "ori_input": "self, material_id: str, calc_types: list[CalcType] | None = None",
+            "ori_description": "Get Task ID values associated with a specific Material ID.  Args: material_id (str): Material ID calc_types ([CalcType]): If specified, will restrict to a certain task type, e.g. [CalcType.GGA_STATIC]  Returns: ([str]): List of Task ID values."
+          },
+          {
+            "name": "get_material_id_from_task_id",
+            "description": "Returns the current material_id from a given task_id. The material_id should rarely change, and is usually chosen from among the smallest numerical id from the group of task_ids for that material. However, in some circumstances it might change, and this method is useful for finding the new material_id.",
+            "input": {
+              "self": null,
+              "task_id": {
+                "type": "str",
+                "description": "A task id."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "material_id (MPID)"
+              }
+            },
+            "ori_input": "self, task_id: str",
+            "ori_description": "Returns the current material_id from a given task_id. The material_id should rarely change, and is usually chosen from among the smallest numerical id from the group of task_ids for that material. However, in some circumstances it might change, and this method is useful for finding the new material_id.  Args: task_id (str): A task id.  Returns: material_id (MPID)"
+          },
+          {
+            "name": "get_download_info",
+            "description": "Get a list of URLs to retrieve raw VASP output files from the NoMaD repository",
+            "input": {
+              "self": null,
+              "material_ids": {
+                "type": "str | MPID | list[str | MPID]",
+                "description": "list of material identifiers (mp-id's)"
+              },
+              "calc_types": {
+                "type": "list[str | CalcType] | None",
+                "description": "list of calc types to include in download (see CalcType Enum class)"
+              },
+              "file_patterns": {
+                "type": "list[str] | None",
+                "description": "list of wildcard file names to include for each task"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "a tuple of 1) a dictionary mapping material_ids to task_ids and calc_types, and 2) a list of URLs to download zip archives from NoMaD repository. Each zip archive will contain a manifest.json with metadata info, e.g. the task/external_ids that belong to a directory."
+              }
+            },
+            "ori_input": "self, material_ids: str | MPID | list[str | MPID], calc_types: list[str | CalcType] | None = None, file_patterns: list[str] | None = None",
+            "ori_description": "Get a list of URLs to retrieve raw VASP output files from the NoMaD repository Args: material_ids (str or MPID, or list thereof): list of material identifiers (mp-id's) calc_types (list of str or CalcType): list of calc types to include in download (see CalcType Enum class) file_patterns (list): list of wildcard file names to include for each task Returns: a tuple of 1) a dictionary mapping material_ids to task_ids and calc_types, and 2) a list of URLs to download zip archives from NoMaD repository. Each zip archive will contain a manifest.json with metadata info, e.g. the task/external_ids that belong to a directory."
+          },
+          {
+            "name": "query",
+            "description": "The MPRester().query method has been replaced with the MPRester().summary.search method. Note this method also no longer supports direct MongoDB-type queries. For more information, please see the new documentation.",
+            "input": {
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "*args, **kwargs",
+            "ori_description": "The MPRester().query method has been replaced with the MPRester().summary.search method. Note this method also no longer supports direct MongoDB-type queries. For more information, please see the new documentation."
+          },
+          {
+            "name": "get_database_version",
+            "description": "DEPRECATED: use `self.db_version` instead.  The Materials Project database is periodically updated and has a database version associated with it. When the database is updated, consolidated data (information about \"a material\") may and does change, while calculation data about a specific calculation task remains unchanged and available for querying via its task_id.  The database version is set as a date in the format YYYY_MM_DD, where \"_DD\" may be optional. An additional numerical suffix might be added if multiple releases happen on the same day.  Returns: database version as a string if accessible, None otherwise",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "DEPRECATED: use `self.db_version` instead.  The Materials Project database is periodically updated and has a database version associated with it. When the database is updated, consolidated data (information about \"a material\") may and does change, while calculation data about a specific calculation task remains unchanged and available for querying via its task_id.  The database version is set as a date in the format YYYY_MM_DD, where \"_DD\" may be optional. An additional numerical suffix might be added if multiple releases happen on the same day.  Returns: database version as a string if accessible, None otherwise"
+          },
+          {
+            "name": "get_emmet_version",
+            "description": "Get the latest version emmet-core and emmet-api used in the current API service.  Returns: version as a string",
+            "input": {
+              "endpoint": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "endpoint",
+            "ori_description": "Get the latest version emmet-core and emmet-api used in the current API service.  Returns: version as a string"
+          },
+          {
+            "name": "get_material_id_references",
+            "description": "Returns all references for a material id.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "A material id."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of BibTeX references ([str])"
+              }
+            },
+            "ori_input": "self, material_id: str",
+            "ori_description": "Returns all references for a material id.  Args: material_id (str): A material id.  Returns: List of BibTeX references ([str])"
+          },
+          {
+            "name": "get_pourbaix_entries",
+            "description": "A helper function to get all entries necessary to generate a Pourbaix diagram from the rest interface.",
+            "input": {
+              "self": null,
+              "chemsys": {
+                "type": "str | list[str] | list[ComputedEntry | ComputedStructureEntry]",
+                "description": ""
+              },
+              "solid_compat": {
+                "type": "Literal['MaterialsProjectCompatibility', 'MaterialsProject2020Compatibility'] | Compatibility | None",
+                "description": "Compatibility scheme used to pre-process solid DFT energies prior to applying aqueous energy adjustments. May be passed as a string (either \"MaterialsProjectCompatibility\" or \"MaterialsProject2020Compatibility\"), or as a class instance (e.g., MaterialsProject2020Compatibility()). If None, solid DFT energies are used as-is."
+              },
+              "use_gibbs": {
+                "type": "Literal[300] | None",
+                "description": "Set to 300 (for 300 Kelvin) to use a machine learning model to estimate solid free energy from DFT energy (see GibbsComputedStructureEntry). This can slightly improve the accuracy of the Pourbaix diagram in some cases. Default: None. Note that temperatures other than 300K are not permitted here, because MaterialsProjectAqueousCompatibility corrections, used in Pourbaix diagram construction, are calculated based on 300 K data."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "list of PourbaixEntry"
+              }
+            },
+            "ori_input": "self, chemsys: str | list[str] | list[ComputedEntry | ComputedStructureEntry], solid_compat: Literal['MaterialsProjectCompatibility', 'MaterialsProject2020Compatibility'] | Compatibility | None = 'MaterialsProject2020Compatibility', use_gibbs: Literal[300] | None = None",
+            "ori_description": "A helper function to get all entries necessary to generate a Pourbaix diagram from the rest interface.  Args: chemsys (str or [str] or Computed(Structure)Entry): Chemical system string comprising element symbols separated by dashes, e.g., \"Li-Fe-O\" or List of element symbols, e.g., [\"Li\", \"Fe\", \"O\"].  Can also be a list of Computed(Structure)Entry objects to allow for adding extra calculation data to the Pourbaix Diagram. If this is set, the chemsys will be inferred from the entries. solid_compat: Compatibility scheme used to pre-process solid DFT energies prior to applying aqueous energy adjustments. May be passed as a string (either \"MaterialsProjectCompatibility\" or \"MaterialsProject2020Compatibility\"), or as a class instance (e.g., MaterialsProject2020Compatibility()). If None, solid DFT energies are used as-is. Default: MaterialsProject2020Compatibility use_gibbs: Set to 300 (for 300 Kelvin) to use a machine learning model to estimate solid free energy from DFT energy (see GibbsComputedStructureEntry). This can slightly improve the accuracy of the Pourbaix diagram in some cases. Default: None. Note that temperatures other than 300K are not permitted here, because MaterialsProjectAqueousCompatibility corrections, used in Pourbaix diagram construction, are calculated based on 300 K data.  Returns: list of PourbaixEntry"
+          },
+          {
+            "name": "get_ion_entries",
+            "description": "Retrieve IonEntry objects that can be used in the construction of Pourbaix Diagrams. The energies of the IonEntry are calculaterd from the solid energies in the provided Phase Diagram to be consistent with experimental free energies.  NOTE! This is an advanced method that assumes detailed understanding of how to construct computational Pourbaix Diagrams. If you just want to build a Pourbaix Diagram using default settings, use get_pourbaix_entries.",
+            "input": {
+              "self": null,
+              "pd": {
+                "type": "PhaseDiagram",
+                "description": "Solid phase diagram on which to construct IonEntry. Note that this Phase Diagram MUST include O and H in its chemical system. For example, to retrieve IonEntry for Ti, the phase diagram passed here should contain materials in the H-O-Ti chemical system. It is also assumed that solid energies have already been corrected with MaterialsProjectAqueousCompatibility, which is necessary for proper construction of Pourbaix diagrams."
+              },
+              "ion_ref_data": {
+                "type": "list[dict] | None",
+                "description": "Aqueous ion reference data. If None (default), the data are downloaded from the Aqueous Ion Reference Data project hosted on MPContribs. To add a custom ionic species, first download data using get_ion_reference_data, then add or customize it with your additional data, and pass the customized list here."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "[IonEntry]",
+                "description": "IonEntry are similar to PDEntry objects. Their energies are free energies in eV."
+              }
+            },
+            "ori_input": "self, pd: PhaseDiagram, ion_ref_data: list[dict] | None = None",
+            "ori_description": "Retrieve IonEntry objects that can be used in the construction of Pourbaix Diagrams. The energies of the IonEntry are calculaterd from the solid energies in the provided Phase Diagram to be consistent with experimental free energies.  NOTE! This is an advanced method that assumes detailed understanding of how to construct computational Pourbaix Diagrams. If you just want to build a Pourbaix Diagram using default settings, use get_pourbaix_entries.  Args: pd: Solid phase diagram on which to construct IonEntry. Note that this Phase Diagram MUST include O and H in its chemical system. For example, to retrieve IonEntry for Ti, the phase diagram passed here should contain materials in the H-O-Ti chemical system. It is also assumed that solid energies have already been corrected with MaterialsProjectAqueousCompatibility, which is necessary for proper construction of Pourbaix diagrams. ion_ref_data: Aqueous ion reference data. If None (default), the data are downloaded from the Aqueous Ion Reference Data project hosted on MPContribs. To add a custom ionic species, first download data using get_ion_reference_data, then add or customize it with your additional data, and pass the customized list here.  Returns: [IonEntry]: IonEntry are similar to PDEntry objects. Their energies are free energies in eV."
+          },
+          {
+            "name": "get_wulff_shape",
+            "description": "Constructs a Wulff shape for a material.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project material_id, e.g. 'mp-123'."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "pymatgen.analysis.wulff.WulffShape"
+              }
+            },
+            "ori_input": "self, material_id: str",
+            "ori_description": "Constructs a Wulff shape for a material.  Args: material_id (str): Materials Project material_id, e.g. 'mp-123'.  Returns: pymatgen.analysis.wulff.WulffShape"
+          },
+          {
+            "name": "get_charge_density_from_material_id",
+            "description": "Get charge density data for a given Materials Project ID.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Material Project ID"
+              },
+              "inc_task_doc": {
+                "type": "bool",
+                "description": "Whether to include the task document in the returned data."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "(Chgcar, (Chgcar, CoreTaskDoc | dict), None)",
+                "description": "Pymatgen Chgcar object, or tuple with object and CoreTaskDoc"
+              }
+            },
+            "ori_input": "self, material_id: str, inc_task_doc: bool = False",
+            "ori_description": "Get charge density data for a given Materials Project ID.  Arguments: material_id (str): Material Project ID inc_task_doc (bool): Whether to include the task document in the returned data.  Returns: (Chgcar, (Chgcar, CoreTaskDoc | dict), None): Pymatgen Chgcar object, or tuple with object and CoreTaskDoc"
+          },
+          {
+            "name": "get_stability",
+            "description": "Get the energy above hull of a list of entries.",
+            "input": {
+              "self": null,
+              "entries": {
+                "type": "list[ComputedEntry | ComputedStructureEntry | PDEntry]",
+                "description": "List of entries with energy and composition information to compute hull energies."
+              },
+              "thermo_type": {
+                "type": "ThermoType | str",
+                "description": "The hull type to use. Defaults to ThermoType.GGA_GGA_U_R2SCAN."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "list of dict",
+                "description": "{ \"e_above_hull\": float, # energy above the hull \"composition\": dict[str,float], # composition as dict \"energy\": float, # energy with mixing / corrections \"entry_id\": str, # optional identifier }"
+              }
+            },
+            "ori_input": "self, entries: list[ComputedEntry | ComputedStructureEntry | PDEntry], thermo_type: ThermoType | str = DEFAULT_THERMOTYPE",
+            "ori_description": "Get the energy above hull of a list of entries.  Args: entries (list of ComputedEntry or ComputedStructureEntry or PDEntry) : List of entries with energy and composition information to compute hull energies. thermo_type (str or ThermoType) : The hull type to use. Defaults to ThermoType.GGA_GGA_U_R2SCAN.  Returns: list of dict: { \"e_above_hull\": float, # energy above the hull \"composition\": dict[str,float], # composition as dict \"energy\": float, # energy with mixing / corrections \"entry_id\": str, # optional identifier }"
+          }
+        ]
+      },
+      {
+        "name": "MaterialsRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.materials",
+        "input": "CoreRester",
+        "description": "",
+        "function": [
+          {
+            "name": "search",
+            "description": "Query core material docs using a variety of search criteria.",
+            "input": {
+              "self": null,
+              "material_ids": {
+                "type": "str | list[str] | None",
+                "description": "A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13])."
+              },
+              "chemsys": {
+                "type": "str | list[str] | None",
+                "description": "A chemical system or list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P])."
+              },
+              "crystal_system": {
+                "type": "CrystalSystem | None",
+                "description": "Crystal system of material."
+              },
+              "density": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum density to consider."
+              },
+              "deprecated": {
+                "type": "bool | None",
+                "description": "Whether the material is tagged as deprecated."
+              },
+              "elements": {
+                "type": "list[str] | None",
+                "description": "A list of elements."
+              },
+              "exclude_elements": {
+                "type": "list[str] | None",
+                "description": "A list of elements to exclude."
+              },
+              "formula": {
+                "type": "str | list[str] | None",
+                "description": "A formula including anonymized formula or wild cards (e.g., Fe2O3, ABO3, Si*). A list of chemical formulas can also be passed (e.g., [Fe2O3, ABO3])."
+              },
+              "num_elements": {
+                "type": "tuple[int, int] | None",
+                "description": "Minimum and maximum number of elements to consider."
+              },
+              "num_sites": {
+                "type": "tuple[int, int] | None",
+                "description": "Minimum and maximum number of sites to consider."
+              },
+              "spacegroup_number": {
+                "type": "int | None",
+                "description": "Space group number of material."
+              },
+              "spacegroup_symbol": {
+                "type": "str | None",
+                "description": "Space group symbol of the material in international short symbol notation."
+              },
+              "task_ids": {
+                "type": "list[str] | None",
+                "description": "List of Materials Project IDs to return data for."
+              },
+              "volume": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum volume to consider."
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in MaterialsCoreDoc to return data for. Default is material_id, last_updated, and formula_pretty if all_fields is False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([MaterialsDoc], [dict]) List of material documents or dictionaries."
+              }
+            },
+            "ori_input": "self, material_ids: str | list[str] | None = None, chemsys: str | list[str] | None = None, crystal_system: CrystalSystem | None = None, density: tuple[float, float] | None = None, deprecated: bool | None = False, elements: list[str] | None = None, exclude_elements: list[str] | None = None, formula: str | list[str] | None = None, num_elements: tuple[int, int] | None = None, num_sites: tuple[int, int] | None = None, spacegroup_number: int | None = None, spacegroup_symbol: str | None = None, task_ids: list[str] | None = None, volume: tuple[float, float] | None = None, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None",
+            "ori_description": "Query core material docs using a variety of search criteria.  Arguments: material_ids (str, List[str]): A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13]). chemsys (str, List[str]): A chemical system or list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]). crystal_system (CrystalSystem): Crystal system of material. density (Tuple[float,float]): Minimum and maximum density to consider. deprecated (bool): Whether the material is tagged as deprecated. elements (List[str]): A list of elements. exclude_elements (List[str]): A list of elements to exclude. formula (str, List[str]): A formula including anonymized formula or wild cards (e.g., Fe2O3, ABO3, Si*). A list of chemical formulas can also be passed (e.g., [Fe2O3, ABO3]). num_elements (Tuple[int,int]): Minimum and maximum number of elements to consider. num_sites (Tuple[int,int]): Minimum and maximum number of sites to consider. spacegroup_number (int): Space group number of material. spacegroup_symbol (str): Space group symbol of the material in international short symbol notation. task_ids (List[str]): List of Materials Project IDs to return data for. volume (Tuple[float,float]): Minimum and maximum volume to consider. num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in MaterialsCoreDoc to return data for. Default is material_id, last_updated, and formula_pretty if all_fields is False.  Returns: ([MaterialsDoc], [dict]) List of material documents or dictionaries."
+          },
+          {
+            "name": "find_structure",
+            "description": "Finds matching structures from the Materials Project database.  Multiple results may be returned of \"similar\" structures based on distance using the pymatgen StructureMatcher algorithm, however only a single result should match with the same spacegroup, calculated to the default tolerances.",
+            "input": {
+              "self": null,
+              "filename_or_structure": {
+                "type": "str | Path | Structure",
+                "description": "filename as a str or Path, or a Structure object"
+              },
+              "ltol": {
+                "type": "",
+                "description": "fractional length tolerance"
+              },
+              "stol": {
+                "type": "",
+                "description": "site tolerance"
+              },
+              "angle_tol": {
+                "type": "",
+                "description": "angle tolerance in degrees"
+              },
+              "allow_multiple_results": {
+                "type": "bool | int",
+                "description": "changes return type for either a single material_id or list of material_ids. If a bool, returns either all matches (True) or one match at most (False). If an int, returns that many matches at most."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A matching material_id if one is found or list of results if allow_multiple_results is True"
+              }
+            },
+            "ori_input": "self, filename_or_structure: str | Path | Structure, ltol = MAPI_CLIENT_SETTINGS.LTOL, stol = MAPI_CLIENT_SETTINGS.STOL, angle_tol = MAPI_CLIENT_SETTINGS.ANGLE_TOL, allow_multiple_results: bool | int = False",
+            "ori_description": "Finds matching structures from the Materials Project database.  Multiple results may be returned of \"similar\" structures based on distance using the pymatgen StructureMatcher algorithm, however only a single result should match with the same spacegroup, calculated to the default tolerances.  Args: filename_or_structure: filename as a str or Path, or a Structure object ltol: fractional length tolerance stol: site tolerance angle_tol: angle tolerance in degrees allow_multiple_results (bool or int): changes return type for either a single material_id or list of material_ids. If a bool, returns either all matches (True) or one match at most (False). If an int, returns that many matches at most.  Returns: A matching material_id if one is found or list of results if allow_multiple_results is True Raises: MPRestError"
+          },
+          {
+            "name": "get_structure_by_material_id",
+            "description": "Get a structure for a given Materials Project ID.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials project ID"
+              },
+              "final": {
+                "type": "bool",
+                "description": "Whether to get the final structure, or the list of initial (pre-relaxation) structures. Defaults to True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "structure (Union[Structure, List[Structure]])",
+                "description": "Pymatgen structure object or list of pymatgen structure objects."
+              }
+            },
+            "ori_input": "self, material_id: str, final: bool = True",
+            "ori_description": "Get a structure for a given Materials Project ID.  Arguments: material_id (str): Materials project ID final (bool): Whether to get the final structure, or the list of initial (pre-relaxation) structures. Defaults to True.  Returns: structure (Union[Structure, List[Structure]]): Pymatgen structure object or list of pymatgen structure objects."
+          }
+        ]
+      },
+      {
+        "name": "SummaryRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.summary",
+        "input": "BaseRester",
+        "description": "",
+        "function": [
+          {
+            "name": "search",
+            "description": "Query core data using a variety of search criteria.",
+            "input": {
+              "self": null,
+              "band_gap": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum band gap in eV to consider."
+              },
+              "chemsys": {
+                "type": "str | list[str] | None",
+                "description": "A chemical system or list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P])."
+              },
+              "crystal_system": {
+                "type": "CrystalSystem | None",
+                "description": "Crystal system(s) of the materials."
+              },
+              "density": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum density to consider."
+              },
+              "deprecated": {
+                "type": "bool | None",
+                "description": "Whether the material is tagged as deprecated."
+              },
+              "e_electronic": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum electronic dielectric constant to consider."
+              },
+              "e_ionic": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum ionic dielectric constant to consider."
+              },
+              "e_total": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum total dielectric constant to consider."
+              },
+              "efermi": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum fermi energy in eV to consider."
+              },
+              "elastic_anisotropy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value to consider for the elastic anisotropy."
+              },
+              "elements": {
+                "type": "list[str] | None",
+                "description": "A list of elements."
+              },
+              "energy_above_hull": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum energy above the hull in eV/atom to consider."
+              },
+              "equilibrium_reaction_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum equilibrium reaction energy in eV/atom to consider. exclude_elements (List(str)): List of elements to exclude."
+              },
+              "exclude_elements": {
+                "type": "list[str] | None",
+                "description": ""
+              },
+              "formation_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum formation energy in eV/atom to consider."
+              },
+              "formula": {
+                "type": "str | list[str] | None",
+                "description": "A formula including anonymized formula or wild cards (e.g., Fe2O3, ABO3, Si*). A list of chemical formulas can also be passed (e.g., [Fe2O3, ABO3])."
+              },
+              "g_reuss": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value in GPa to consider for the Reuss average of the shear modulus."
+              },
+              "g_voigt": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value in GPa to consider for the Voigt average of the shear modulus."
+              },
+              "g_vrh": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value in GPa to consider for the Voigt-Reuss-Hill average of the shear modulus."
+              },
+              "has_props": {
+                "type": "list[HasProps] | list[str] | None",
+                "description": "(List[HasProps], List[str]): The calculated properties available for the material."
+              },
+              "has_reconstructed": {
+                "type": "bool | None",
+                "description": "Whether the entry has any reconstructed surfaces."
+              },
+              "is_gap_direct": {
+                "type": "bool | None",
+                "description": "Whether the material has a direct band gap."
+              },
+              "is_metal": {
+                "type": "bool | None",
+                "description": "Whether the material is considered a metal."
+              },
+              "is_stable": {
+                "type": "bool | None",
+                "description": "Whether the material lies on the convex energy hull."
+              },
+              "k_reuss": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value in GPa to consider for the Reuss average of the bulk modulus."
+              },
+              "k_voigt": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value in GPa to consider for the Voigt average of the bulk modulus."
+              },
+              "k_vrh": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value in GPa to consider for the Voigt-Reuss-Hill average of the bulk modulus."
+              },
+              "magnetic_ordering": {
+                "type": "Ordering | None",
+                "description": "Magnetic ordering of the material."
+              },
+              "material_ids": {
+                "type": "str | list[str] | None",
+                "description": "A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13])."
+              },
+              "n": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum refractive index to consider."
+              },
+              "num_elements": {
+                "type": "int | tuple[int, int] | None",
+                "description": "Alias for `nelements`, deprecated. Minimum and maximum number of elements to consider."
+              },
+              "num_sites": {
+                "type": "int | tuple[int, int] | None",
+                "description": "Minimum and maximum number of sites to consider."
+              },
+              "num_magnetic_sites": {
+                "type": "tuple[int, int] | None",
+                "description": "Minimum and maximum number of magnetic sites to consider."
+              },
+              "num_unique_magnetic_sites": {
+                "type": "tuple[int, int] | None",
+                "description": "Minimum and maximum number of unique magnetic sites to consider."
+              },
+              "piezoelectric_modulus": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum piezoelectric modulus to consider."
+              },
+              "poisson_ratio": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum value to consider for Poisson's ratio. possible_species (List(str)): List of element symbols appended with oxidation states. (e.g. Cr2+,O2-)"
+              },
+              "possible_species": {
+                "type": "list[str] | None",
+                "description": ""
+              },
+              "shape_factor": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum shape factor values to consider."
+              },
+              "spacegroup_number": {
+                "type": "int | list[int] | None",
+                "description": "Space group number(s) of materials."
+              },
+              "spacegroup_symbol": {
+                "type": "str | list[str] | None",
+                "description": "Space group symbol(s) of the materials in international short symbol notation."
+              },
+              "surface_energy_anisotropy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum surface energy anisotropy values to consider."
+              },
+              "theoretical": {
+                "type": "bool | None",
+                "description": "(bool): Whether the material is theoretical."
+              },
+              "total_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum corrected total energy in eV/atom to consider."
+              },
+              "total_magnetization": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum total magnetization values to consider."
+              },
+              "total_magnetization_normalized_formula_units": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum total magnetization values normalized by formula units to consider."
+              },
+              "total_magnetization_normalized_vol": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum total magnetization values normalized by volume to consider."
+              },
+              "uncorrected_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum uncorrected total energy in eV/atom to consider."
+              },
+              "volume": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum volume to consider."
+              },
+              "weighted_surface_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum weighted surface energy in J/m² to consider."
+              },
+              "weighted_work_function": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum weighted work function in eV to consider."
+              },
+              "include_gnome": {
+                "type": "bool",
+                "description": "whether to include materials from GNoMe dataset"
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in SummaryDoc to return data for. Default is material_id if all_fields is False."
+              },
+              "_page": {
+                "type": "int | None",
+                "description": "Page of the results to skip to."
+              },
+              "_sort_fields": {
+                "type": "str | None",
+                "description": "Field to sort on. Including a leading \"-\" sign will reverse sort order."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([SummaryDoc], [dict]) List of SummaryDoc documents or dictionaries."
+              }
+            },
+            "ori_input": "self, band_gap: tuple[float, float] | None = None, chemsys: str | list[str] | None = None, crystal_system: CrystalSystem | None = None, density: tuple[float, float] | None = None, deprecated: bool | None = None, e_electronic: tuple[float, float] | None = None, e_ionic: tuple[float, float] | None = None, e_total: tuple[float, float] | None = None, efermi: tuple[float, float] | None = None, elastic_anisotropy: tuple[float, float] | None = None, elements: list[str] | None = None, energy_above_hull: tuple[float, float] | None = None, equilibrium_reaction_energy: tuple[float, float] | None = None, exclude_elements: list[str] | None = None, formation_energy: tuple[float, float] | None = None, formula: str | list[str] | None = None, g_reuss: tuple[float, float] | None = None, g_voigt: tuple[float, float] | None = None, g_vrh: tuple[float, float] | None = None, has_props: list[HasProps] | list[str] | None = None, has_reconstructed: bool | None = None, is_gap_direct: bool | None = None, is_metal: bool | None = None, is_stable: bool | None = None, k_reuss: tuple[float, float] | None = None, k_voigt: tuple[float, float] | None = None, k_vrh: tuple[float, float] | None = None, magnetic_ordering: Ordering | None = None, material_ids: str | list[str] | None = None, n: tuple[float, float] | None = None, num_elements: int | tuple[int, int] | None = None, num_sites: int | tuple[int, int] | None = None, num_magnetic_sites: tuple[int, int] | None = None, num_unique_magnetic_sites: tuple[int, int] | None = None, piezoelectric_modulus: tuple[float, float] | None = None, poisson_ratio: tuple[float, float] | None = None, possible_species: list[str] | None = None, shape_factor: tuple[float, float] | None = None, spacegroup_number: int | list[int] | None = None, spacegroup_symbol: str | list[str] | None = None, surface_energy_anisotropy: tuple[float, float] | None = None, theoretical: bool | None = None, total_energy: tuple[float, float] | None = None, total_magnetization: tuple[float, float] | None = None, total_magnetization_normalized_formula_units: tuple[float, float] | None = None, total_magnetization_normalized_vol: tuple[float, float] | None = None, uncorrected_energy: tuple[float, float] | None = None, volume: tuple[float, float] | None = None, weighted_surface_energy: tuple[float, float] | None = None, weighted_work_function: tuple[float, float] | None = None, include_gnome: bool = True, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None, _page: int | None = None, _sort_fields: str | None = None, **kwargs",
+            "ori_description": "Query core data using a variety of search criteria.  Arguments: band_gap (Tuple[float,float]): Minimum and maximum band gap in eV to consider. chemsys (str, List[str]): A chemical system or list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]). crystal_system (CrystalSystem or list[CrystalSystem]): Crystal system(s) of the materials. density (Tuple[float,float]): Minimum and maximum density to consider. deprecated (bool): Whether the material is tagged as deprecated. e_electronic (Tuple[float,float]): Minimum and maximum electronic dielectric constant to consider. e_ionic (Tuple[float,float]): Minimum and maximum ionic dielectric constant to consider. e_total (Tuple[float,float]): Minimum and maximum total dielectric constant to consider. efermi (Tuple[float,float]): Minimum and maximum fermi energy in eV to consider. elastic_anisotropy (Tuple[float,float]): Minimum and maximum value to consider for the elastic anisotropy. elements (List[str]): A list of elements. energy_above_hull (Tuple[int,int]): Minimum and maximum energy above the hull in eV/atom to consider. equilibrium_reaction_energy (Tuple[float,float]): Minimum and maximum equilibrium reaction energy in eV/atom to consider. exclude_elements (List(str)): List of elements to exclude. formation_energy (Tuple[int,int]): Minimum and maximum formation energy in eV/atom to consider. formula (str, List[str]): A formula including anonymized formula or wild cards (e.g., Fe2O3, ABO3, Si*). A list of chemical formulas can also be passed (e.g., [Fe2O3, ABO3]). g_reuss (Tuple[float,float]): Minimum and maximum value in GPa to consider for the Reuss average of the shear modulus. g_voigt (Tuple[float,float]): Minimum and maximum value in GPa to consider for the Voigt average of the shear modulus. g_vrh (Tuple[float,float]): Minimum and maximum value in GPa to consider for the Voigt-Reuss-Hill average of the shear modulus. has_props: (List[HasProps], List[str]): The calculated properties available for the material. has_reconstructed (bool): Whether the entry has any reconstructed surfaces. is_gap_direct (bool): Whether the material has a direct band gap. is_metal (bool): Whether the material is considered a metal. is_stable (bool): Whether the material lies on the convex energy hull. k_reuss (Tuple[float,float]): Minimum and maximum value in GPa to consider for the Reuss average of the bulk modulus. k_voigt (Tuple[float,float]): Minimum and maximum value in GPa to consider for the Voigt average of the bulk modulus. k_vrh (Tuple[float,float]): Minimum and maximum value in GPa to consider for the Voigt-Reuss-Hill average of the bulk modulus. magnetic_ordering (Ordering): Magnetic ordering of the material. material_ids (str, List[str]): A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13]). n (Tuple[float,float]): Minimum and maximum refractive index to consider. nelements (Tuple[int,int]): Minimum and maximum number of elements to consider. num_elements (Tuple[int,int]): Alias for `nelements`, deprecated. Minimum and maximum number of elements to consider. num_sites (Tuple[int,int]): Minimum and maximum number of sites to consider. num_magnetic_sites (Tuple[int,int]): Minimum and maximum number of magnetic sites to consider. num_unique_magnetic_sites (Tuple[int,int]): Minimum and maximum number of unique magnetic sites to consider. piezoelectric_modulus (Tuple[float,float]): Minimum and maximum piezoelectric modulus to consider. poisson_ratio (Tuple[float,float]): Minimum and maximum value to consider for Poisson's ratio. possible_species (List(str)): List of element symbols appended with oxidation states. (e.g. Cr2+,O2-) shape_factor (Tuple[float,float]): Minimum and maximum shape factor values to consider. spacegroup_number (int or list[int]): Space group number(s) of materials. spacegroup_symbol (str or list[str]): Space group symbol(s) of the materials in international short symbol notation. surface_energy_anisotropy (Tuple[float,float]): Minimum and maximum surface energy anisotropy values to consider. theoretical: (bool): Whether the material is theoretical. total_energy (Tuple[int,int]): Minimum and maximum corrected total energy in eV/atom to consider. total_magnetization (Tuple[float,float]): Minimum and maximum total magnetization values to consider. total_magnetization_normalized_formula_units (Tuple[float,float]): Minimum and maximum total magnetization values normalized by formula units to consider. total_magnetization_normalized_vol (Tuple[float,float]): Minimum and maximum total magnetization values normalized by volume to consider. uncorrected_energy (Tuple[int,int]): Minimum and maximum uncorrected total energy in eV/atom to consider. volume (Tuple[float,float]): Minimum and maximum volume to consider. weighted_surface_energy (Tuple[float,float]): Minimum and maximum weighted surface energy in J/m² to consider. weighted_work_function (Tuple[float,float]): Minimum and maximum weighted work function in eV to consider. include_gnome (bool): whether to include materials from GNoMe dataset num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in SummaryDoc to return data for. Default is material_id if all_fields is False. _page (int or None) : Page of the results to skip to. _sort_fields (str or None) : Field to sort on. Including a leading \"-\" sign will reverse sort order.  Returns: ([SummaryDoc], [dict]) List of SummaryDoc documents or dictionaries."
+          }
+        ]
+      },
+      {
+        "name": "ThermoRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.thermo",
+        "input": "BaseRester",
+        "description": "",
+        "function": [
+          {
+            "name": "search",
+            "description": "Query core thermo docs using a variety of search criteria.",
+            "input": {
+              "self": null,
+              "material_ids": {
+                "type": "str | list[str] | None",
+                "description": "List of Materials Project IDs to return data for."
+              },
+              "chemsys": {
+                "type": "str | list[str] | None",
+                "description": "A chemical system or list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P])."
+              },
+              "energy_above_hull": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum energy above the hull in eV/atom to consider."
+              },
+              "equilibrium_reaction_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum equilibrium reaction energy in eV/atom to consider."
+              },
+              "formation_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum formation energy in eV/atom to consider."
+              },
+              "formula": {
+                "type": "str | list[str] | None",
+                "description": "A formula including anonymized formula or wild cards (e.g., Fe2O3, ABO3, Si*). A list of chemical formulas can also be passed (e.g., [Fe2O3, ABO3])."
+              },
+              "is_stable": {
+                "type": "bool | None",
+                "description": "Whether the material is stable."
+              },
+              "num_elements": {
+                "type": "tuple[int, int] | None",
+                "description": "Minimum and maximum number of elements in the material to consider."
+              },
+              "thermo_ids": {
+                "type": "list[str] | None",
+                "description": "List of thermo IDs to return data for. This is a combination of the Materials Project ID and thermo type (e.g. mp-149_GGA_GGA+U)."
+              },
+              "thermo_types": {
+                "type": "list[ThermoType | str] | None",
+                "description": "List of thermo/run types to return data for (e.g. ThermoType.GGA_GGA_U)."
+              },
+              "total_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum corrected total energy in eV/atom to consider."
+              },
+              "uncorrected_energy": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum uncorrected total energy in eV/atom to consider."
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in ThermoDoc to return data for. Default is material_id and last_updated if all_fields is False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([ThermoDoc], [dict]) List of thermo documents or dictionaries."
+              }
+            },
+            "ori_input": "self, material_ids: str | list[str] | None = None, chemsys: str | list[str] | None = None, energy_above_hull: tuple[float, float] | None = None, equilibrium_reaction_energy: tuple[float, float] | None = None, formation_energy: tuple[float, float] | None = None, formula: str | list[str] | None = None, is_stable: bool | None = None, num_elements: tuple[int, int] | None = None, thermo_ids: list[str] | None = None, thermo_types: list[ThermoType | str] | None = None, total_energy: tuple[float, float] | None = None, uncorrected_energy: tuple[float, float] | None = None, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None",
+            "ori_description": "Query core thermo docs using a variety of search criteria.  Arguments: material_ids (str, List[str]): A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13]). chemsys (str, List[str]): A chemical system or list of chemical systems (e.g., Li-Fe-O, Si-*, [Si-O, Li-Fe-P]). energy_above_hull (Tuple[float,float]): Minimum and maximum energy above the hull in eV/atom to consider. equilibrium_reaction_energy (Tuple[float,float]): Minimum and maximum equilibrium reaction energy in eV/atom to consider. formation_energy (Tuple[float,float]): Minimum and maximum formation energy in eV/atom to consider. formula (str, List[str]): A formula including anonymized formula or wild cards (e.g., Fe2O3, ABO3, Si*). A list of chemical formulas can also be passed (e.g., [Fe2O3, ABO3]). is_stable (bool): Whether the material is stable. material_ids (List[str]): List of Materials Project IDs to return data for. thermo_ids (List[str]): List of thermo IDs to return data for. This is a combination of the Materials Project ID and thermo type (e.g. mp-149_GGA_GGA+U). thermo_types (List[ThermoType or str]): List of thermo/run types to return data for (e.g. ThermoType.GGA_GGA_U). num_elements (Tuple[int,int]): Minimum and maximum number of elements in the material to consider. total_energy (Tuple[float,float]): Minimum and maximum corrected total energy in eV/atom to consider. uncorrected_energy (Tuple[float,float]): Minimum and maximum uncorrected total energy in eV/atom to consider. num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in ThermoDoc to return data for. Default is material_id and last_updated if all_fields is False.  Returns: ([ThermoDoc], [dict]) List of thermo documents or dictionaries."
+          },
+          {
+            "name": "get_phase_diagram_from_chemsys",
+            "description": "Get a pre-computed phase diagram for a given chemsys.",
+            "input": {
+              "self": null,
+              "chemsys": {
+                "type": "str",
+                "description": "A chemical system (e.g. Li-Fe-O)"
+              },
+              "thermo_type": {
+                "type": "ThermoType | str",
+                "description": "The thermo type for the phase diagram. Defaults to ThermoType.GGA_GGA_U_R2SCAN."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "(PhaseDiagram)",
+                "description": "Pymatgen phase diagram object."
+              }
+            },
+            "ori_input": "self, chemsys: str, thermo_type: ThermoType | str = DEFAULT_THERMOTYPE",
+            "ori_description": "Get a pre-computed phase diagram for a given chemsys.  Arguments: chemsys (str): A chemical system (e.g. Li-Fe-O) thermo_type (ThermoType): The thermo type for the phase diagram. Defaults to ThermoType.GGA_GGA_U_R2SCAN.  Returns: (PhaseDiagram): Pymatgen phase diagram object."
+          }
+        ]
+      },
+      {
+        "name": "BandStructureRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.electronic_structure",
+        "input": "BaseESPropertyRester",
+        "description": "",
+        "function": [
+          {
+            "name": "search",
+            "description": "Query band structure summary data in electronic structure docs using a variety of search criteria.",
+            "input": {
+              "self": null,
+              "band_gap": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum band gap in eV to consider."
+              },
+              "efermi": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum fermi energy in eV to consider."
+              },
+              "is_gap_direct": {
+                "type": "bool | None",
+                "description": "Whether the material has a direct band gap."
+              },
+              "is_metal": {
+                "type": "bool | None",
+                "description": "Whether the material is considered a metal."
+              },
+              "magnetic_ordering": {
+                "type": "Ordering | str | None",
+                "description": "Magnetic ordering of the material."
+              },
+              "path_type": {
+                "type": "BSPathType | str",
+                "description": "k-path selection convention for the band structure."
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in ElectronicStructureDoc to return data for. Default is material_id and last_updated if all_fields is False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([ElectronicStructureDoc]) List of electronic structure documents"
+              }
+            },
+            "ori_input": "self, band_gap: tuple[float, float] | None = None, efermi: tuple[float, float] | None = None, is_gap_direct: bool | None = None, is_metal: bool | None = None, magnetic_ordering: Ordering | str | None = None, path_type: BSPathType | str = BSPathType.setyawan_curtarolo, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None",
+            "ori_description": "Query band structure summary data in electronic structure docs using a variety of search criteria.  Arguments: band_gap (Tuple[float,float]): Minimum and maximum band gap in eV to consider. efermi (Tuple[float,float]): Minimum and maximum fermi energy in eV to consider. is_gap_direct (bool): Whether the material has a direct band gap. is_metal (bool): Whether the material is considered a metal. magnetic_ordering (Ordering or str): Magnetic ordering of the material. path_type (BSPathType or str): k-path selection convention for the band structure. num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in ElectronicStructureDoc to return data for. Default is material_id and last_updated if all_fields is False.  Returns: ([ElectronicStructureDoc]) List of electronic structure documents"
+          },
+          {
+            "name": "search_bandstructure_summary",
+            "description": "Deprecated.",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": "Deprecated."
+          },
+          {
+            "name": "get_bandstructure_from_material_id",
+            "description": "Get the band structure pymatgen object associated with a Materials Project ID.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project ID for a material"
+              },
+              "path_type": {
+                "type": "str | BSPathType",
+                "description": "k-point path selection convention"
+              },
+              "line_mode": {
+                "type": "bool",
+                "description": "Whether to return data for a line-mode calculation"
+              },
+              "load_projections": {
+                "type": "bool",
+                "description": "Optionally load atom- and spin-projected bandstructure, if available."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "bandstructure (Union[BandStructure, BandStructureSymmLine])",
+                "description": "BandStructure or BandStructureSymmLine object"
+              }
+            },
+            "ori_input": "self, material_id: str, path_type: str | BSPathType = BSPathType.setyawan_curtarolo, line_mode = True, load_projections: bool = False",
+            "ori_description": "Get the band structure pymatgen object associated with a Materials Project ID.  Arguments: material_id (str): Materials Project ID for a material path_type (BSPathType or its value as a str): k-point path selection convention line_mode (bool): Whether to return data for a line-mode calculation load_projections (bool) : Optionally load atom- and spin-projected bandstructure, if available.  Returns: bandstructure (Union[BandStructure, BandStructureSymmLine]): BandStructure or BandStructureSymmLine object"
+          }
+        ]
+      },
+      {
+        "name": "DosRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.electronic_structure",
+        "input": "BaseESPropertyRester",
+        "description": "",
+        "function": [
+          {
+            "name": "search",
+            "description": "Query density of states summary data in electronic structure docs using a variety of search criteria.",
+            "input": {
+              "self": null,
+              "band_gap": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum band gap in eV to consider."
+              },
+              "efermi": {
+                "type": "tuple[float, float] | None",
+                "description": "Minimum and maximum fermi energy in eV to consider."
+              },
+              "element": {
+                "type": "Element | str | None",
+                "description": "Element for element-projected dos data."
+              },
+              "magnetic_ordering": {
+                "type": "Ordering | str | None",
+                "description": "Magnetic ordering of the material."
+              },
+              "orbital": {
+                "type": "OrbitalType | str | None",
+                "description": "Orbital for orbital-projected dos data."
+              },
+              "projection_type": {
+                "type": "DOSProjectionType | str",
+                "description": "Projection type of dos data. Default is the total dos."
+              },
+              "spin": {
+                "type": "Spin | str",
+                "description": "Spin channel of dos data. If non spin-polarized data is stored in Spin.up"
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in ElectronicStructureDoc to return data for. Default is material_id and last_updated if all_fields is False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([ElectronicStructureDoc]) List of electronic structure documents"
+              }
+            },
+            "ori_input": "self, band_gap: tuple[float, float] | None = None, efermi: tuple[float, float] | None = None, element: Element | str | None = None, magnetic_ordering: Ordering | str | None = None, orbital: OrbitalType | str | None = None, projection_type: DOSProjectionType | str = DOSProjectionType.total, spin: Spin | str = Spin.up, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None",
+            "ori_description": "Query density of states summary data in electronic structure docs using a variety of search criteria.  Arguments: band_gap (Tuple[float,float]): Minimum and maximum band gap in eV to consider. efermi (Tuple[float,float]): Minimum and maximum fermi energy in eV to consider. element (Element or str): Element for element-projected dos data. magnetic_ordering (Ordering or str): Magnetic ordering of the material. orbital (OrbitalType or str): Orbital for orbital-projected dos data. projection_type (DOSProjectionType or str): Projection type of dos data. Default is the total dos. spin (Spin or str): Spin channel of dos data. If non spin-polarized data is stored in Spin.up num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in ElectronicStructureDoc to return data for. Default is material_id and last_updated if all_fields is False.  Returns: ([ElectronicStructureDoc]) List of electronic structure documents"
+          },
+          {
+            "name": "search_dos_summary",
+            "description": "Deprecated.",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": "Deprecated."
+          },
+          {
+            "name": "get_dos_from_material_id",
+            "description": "Get the complete density of states pymatgen object associated with a Materials Project ID.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project ID for a material"
+              },
+              "load_projections": {
+                "type": "bool",
+                "description": "Optionally load atom- and spin-orbital-projected DOS, if available."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "pymatgen Dos"
+              }
+            },
+            "ori_input": "self, material_id: str, load_projections: bool = False",
+            "ori_description": "Get the complete density of states pymatgen object associated with a Materials Project ID.  Arguments: material_id (str): Materials Project ID for a material load_projections (bool) : Optionally load atom- and spin-orbital-projected DOS, if available.  Returns: pymatgen Dos"
+          }
+        ]
+      },
+      {
+        "name": "PhononRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.phonon",
+        "input": "BaseRester",
+        "description": "",
+        "function": [
+          {
+            "name": "search",
+            "description": "Query phonon docs using a variety of search criteria.  Exactly one of `identifiers` and `material_ids` may be supplied. When `material_ids` is supplied, the summary endpoint is queried to resolve each material's `phonon_IDs` into the underlying phonon task identifiers (filtered by `phonon_method` when provided), and those phonon IDs are then used to query the phonon endpoint.",
+            "input": {
+              "self": null,
+              "identifiers": {
+                "type": "str | list[str] | None",
+                "description": "A single Phonon Task ID string or list of strings (e.g., aaaaaaft, [aaaaaaft, aaaeguxu])."
+              },
+              "material_ids": {
+                "type": "str | list[str] | None",
+                "description": "A single Materials Project ID or list of IDs (e.g., mp-149, [mp-149, mp-13])."
+              },
+              "phonon_method": {
+                "type": "str | None",
+                "description": "phonon method to search (dfpt, phonopy, pheasy)"
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in PhononBSDOSTask to return data for. Default is identifier, last_updated, and formula_pretty if all_fields is False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([PhononBSDOSTask], [dict]) List of phonon documents or dictionaries."
+              }
+            },
+            "ori_input": "self, identifiers: str | list[str] | None = None, material_ids: str | list[str] | None = None, phonon_method: str | None = None, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None",
+            "ori_description": "Query phonon docs using a variety of search criteria.  Exactly one of `identifiers` and `material_ids` may be supplied. When `material_ids` is supplied, the summary endpoint is queried to resolve each material's `phonon_IDs` into the underlying phonon task identifiers (filtered by `phonon_method` when provided), and those phonon IDs are then used to query the phonon endpoint.  Arguments: identifiers (str, List[str]): A single Phonon Task ID string or list of strings (e.g., aaaaaaft, [aaaaaaft, aaaeguxu]). material_ids (str, List[str]): A single Materials Project ID or list of IDs (e.g., mp-149, [mp-149, mp-13]). phonon_method (str): phonon method to search (dfpt, phonopy, pheasy) num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in PhononBSDOSTask to return data for. Default is identifier, last_updated, and formula_pretty if all_fields is False.  Returns: ([PhononBSDOSTask], [dict]) List of phonon documents or dictionaries."
+          },
+          {
+            "name": "get_bandstructure_from_material_id",
+            "description": "Get the phonon band structure pymatgen object associated with a given material ID and phonon method.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project ID for a material"
+              },
+              "phonon_method": {
+                "type": "str",
+                "description": "phonon method, i.e. pheasy or dfpt"
+              },
+              "path_type": {
+                "type": "str | BSPathType",
+                "description": "k-path selection convention for the band structure."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "bandstructure (PhononBS)",
+                "description": "PhononBS object"
+              }
+            },
+            "ori_input": "self, material_id: str, phonon_method: str, path_type: str | BSPathType = BSPathType.setyawan_curtarolo",
+            "ori_description": "Get the phonon band structure pymatgen object associated with a given material ID and phonon method.  Arguments: material_id (str): Materials Project ID for a material phonon_method (str): phonon method, i.e. pheasy or dfpt path_type (BSPathType or str): k-path selection convention for the band structure.  Returns: bandstructure (PhononBS): PhononBS object"
+          },
+          {
+            "name": "get_dos_from_material_id",
+            "description": "Get the phonon dos pymatgen object associated with a given material ID and phonon method.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str",
+                "description": "Materials Project ID for a material"
+              },
+              "phonon_method": {
+                "type": "str",
+                "description": "phonon method, i.e. pheasy or dfpt"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "dos (PhononDOS)",
+                "description": "PhononDOS object"
+              }
+            },
+            "ori_input": "self, material_id: str, phonon_method: str",
+            "ori_description": "Get the phonon dos pymatgen object associated with a given material ID and phonon method.  Arguments: material_id (str): Materials Project ID for a material phonon_method (str): phonon method, i.e. pheasy or dfpt  Returns: dos (PhononDOS): PhononDOS object"
+          },
+          {
+            "name": "compute_thermo_quantities",
+            "description": "Compute thermodynamical quantities for a given phonon ID or material ID and phonon_method.  Exactly one of `identifier` or `material_id` must be supplied.",
+            "input": {
+              "self": null,
+              "material_id": {
+                "type": "str | None",
+                "description": "Materials Project ID to calculate quantities for; the first phonon ID associated with the requested `phonon_method` for the material will be used."
+              },
+              "phonon_method": {
+                "type": "str | None",
+                "description": "phonon method, i.e. pheasy or dfpt"
+              },
+              "identifier": {
+                "type": "str | None",
+                "description": "Phonon ID to calculate quantities for"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "quantities (dict)",
+                "description": "thermodynamical quantities"
+              }
+            },
+            "ori_input": "self, material_id: str | None = None, phonon_method: str | None = None, identifier: str | None = None",
+            "ori_description": "Compute thermodynamical quantities for a given phonon ID or material ID and phonon_method.  Exactly one of `identifier` or `material_id` must be supplied.  Arguments: identifier (str): Phonon ID to calculate quantities for material_id (str): Materials Project ID to calculate quantities for; the first phonon ID associated with the requested `phonon_method` for the material will be used. phonon_method (str): phonon method, i.e. pheasy or dfpt  Returns: quantities (dict): thermodynamical quantities"
+          }
+        ]
+      },
+      {
+        "name": "SimilarityRester",
+        "type": "class",
+        "module": "mp_api.client.routes.materials.similarity",
+        "input": "BaseRester",
+        "description": "",
+        "function": [
+          {
+            "name": "fingerprint_structure",
+            "description": "Get the fingerprint of a user-submitted structures.",
+            "input": {
+              "self": null,
+              "structure": {
+                "type": "Structure",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, structure: Structure",
+            "ori_description": "Get the fingerprint of a user-submitted structures."
+          },
+          {
+            "name": "search",
+            "description": "Query similarity docs using a variety of search criteria.",
+            "input": {
+              "self": null,
+              "material_ids": {
+                "type": "str | list[str] | None",
+                "description": "A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13])."
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int",
+                "description": "Number of data entries per chunk."
+              },
+              "all_fields": {
+                "type": "bool",
+                "description": "Whether to return all fields in the document. Defaults to True."
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": "List of fields in SimilarityDoc to return data for. Default is material_id, last_updated, and formula_pretty if all_fields is False."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([SimilarityDoc], [dict]) List of similarity documents or dictionaries."
+              }
+            },
+            "ori_input": "self, material_ids: str | list[str] | None = None, num_chunks: int | None = None, chunk_size: int = 1000, all_fields: bool = True, fields: list[str] | None = None",
+            "ori_description": "Query similarity docs using a variety of search criteria.  Arguments: material_ids (str, List[str]): A single Material ID string or list of strings (e.g., mp-149, [mp-149, mp-13]). num_chunks (int): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int): Number of data entries per chunk. all_fields (bool): Whether to return all fields in the document. Defaults to True. fields (List[str]): List of fields in SimilarityDoc to return data for. Default is material_id, last_updated, and formula_pretty if all_fields is False.  Returns: ([SimilarityDoc], [dict]) List of similarity documents or dictionaries."
+          },
+          {
+            "name": "find_similar",
+            "description": "Find structures most similar to a user-submitted structure.",
+            "input": {
+              "self": null,
+              "structure_or_mpid": {
+                "type": "Structure | str | MPID | AlphaID",
+                "description": "pymatgen .Structure, or str, MPID, AlphaID If a .Structure, the feature vector is computed on the fly If a str, MPID, or AlphaID, attempts to retrieve a pre-computed feature vector using the input as a material ID"
+              },
+              "top": {
+                "type": "int | None",
+                "description": "int The number of most similar materials to return, defaults to 50. Setting to None will return the maximum possible number of most similar materials.."
+              },
+              "num_chunks": {
+                "type": "int | None",
+                "description": "Maximum number of chunks of data to yield. None will yield all possible."
+              },
+              "chunk_size": {
+                "type": "int | None",
+                "description": "Number of data entries per chunk. The chunk_size is also used to limit the number of responses returned."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([SimilarityEntry] | [dict]) List of SimilarityEntry documents (if `use_document_model`) or dict (otherwise) listing structures most similar to the input structure."
+              }
+            },
+            "ori_input": "self, structure_or_mpid: Structure | str | MPID | AlphaID, top: int | None = 50, num_chunks: int | None = None, chunk_size: int | None = 1000",
+            "ori_description": "Find structures most similar to a user-submitted structure.  Arguments: structure_or_mpid : pymatgen .Structure, or str, MPID, AlphaID If a .Structure, the feature vector is computed on the fly If a str, MPID, or AlphaID, attempts to retrieve a pre-computed feature vector using the input as a material ID top : int The number of most similar materials to return, defaults to 50. Setting to None will return the maximum possible number of most similar materials.. num_chunks (int or None): Maximum number of chunks of data to yield. None will yield all possible. chunk_size (int or None): Number of data entries per chunk. The chunk_size is also used to limit the number of responses returned.  Returns: ([SimilarityEntry] | [dict]) List of SimilarityEntry documents (if `use_document_model`) or dict (otherwise) listing structures most similar to the input structure."
+          }
+        ]
+      },
+      {
+        "name": "BaseRester",
+        "type": "class",
+        "module": "mp_api.client.core.client",
+        "input": "_Rester",
+        "description": "Base client class with core stubs.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the REST API helper class.  s3_client: boto3 S3 client object with which to connect to the object stores. timeout: Time in seconds to wait until a request timeout error is thrown",
+            "input": {
+              "self": null,
+              "api_key": {
+                "type": "str | None",
+                "description": "A String API key for accessing the MaterialsProject REST interface. Please obtain your API key at"
+              },
+              "endpoint": {
+                "type": "str | None",
+                "description": "Url of endpoint to access the MaterialsProject REST interface. Defaults to the standard Materials Project REST address at \"https://api.materialsproject.org\", but can be changed to other urls implementing a similar interface."
+              },
+              "include_user_agent": {
+                "type": "bool",
+                "description": "If True, will include a user agent with the HTTP request including information on pymatgen and system version making the API request. This helps MP support pymatgen users, and is similar to what most web browsers send with each page request. Set to False to disable the user agent."
+              },
+              "use_document_model": {
+                "type": "bool",
+                "description": "If False, skip the creating the document model and return data as a dictionary. This can be simpler to work with but bypasses data validation and will not give auto-complete for available fields."
+              },
+              "session": {
+                "type": "requests.Session | None",
+                "description": "requests Session object with which to connect to the API, for advanced usage only."
+              },
+              "headers": {
+                "type": "dict | None",
+                "description": "Custom headers for localhost connections."
+              },
+              "mute_progress_bars": {
+                "type": "bool",
+                "description": "Whether to disable progress bars."
+              },
+              "db_version": {
+                "type": "str | None",
+                "description": "EXPERIMENTAL, allows for accessing a different version of the database than what is currently deployed. The Materials Project cannot guarantee that all features will still work."
+              },
+              "local_dataset_cache": {
+                "type": "str | os.PathLike",
+                "description": "Target directory for downloading full datasets. Defaults to 'mp_datasets' in the user's home directory"
+              },
+              "force_renew": {
+                "type": "bool",
+                "description": "Option to overwrite existing local dataset"
+              },
+              "query_builder": {
+                "type": "QueryBuilderWithCache | None",
+                "description": "Instance of QueryBuilderWithCache to use in querying delta tables"
+              },
+              "s3_client": {
+                "type": "Any | None",
+                "description": "boto3 S3 client object with which to connect to the object stores.ct to the object stores.ct to the object stores."
+              },
+              "timeout": {
+                "type": "int",
+                "description": "Time in seconds to wait until a request timeout error is thrown"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "access to legacy kwargs that may be in the process of being deprecated"
+              }
+            },
+            "output": null,
+            "ori_input": "self, api_key: str | None = None, endpoint: str | None = None, include_user_agent: bool = True, use_document_model: bool = True, session: requests.Session | None = None, headers: dict | None = None, mute_progress_bars: bool = MAPI_CLIENT_SETTINGS.MUTE_PROGRESS_BARS, db_version: str | None = None, local_dataset_cache: str | os.PathLike = MAPI_CLIENT_SETTINGS.LOCAL_DATASET_CACHE, force_renew: bool = False, query_builder: QueryBuilderWithCache | None = None, s3_client: Any | None = None, timeout: int = 20, **kwargs",
+            "ori_description": "Initialize the REST API helper class.  s3_client: boto3 S3 client object with which to connect to the object stores. timeout: Time in seconds to wait until a request timeout error is thrown  Arguments: api_key: A String API key for accessing the MaterialsProject REST interface. Please obtain your API key at https://www.materialsproject.org/dashboard. If this is None, the code will check if there is a \"PMG_MAPI_KEY\" setting. If so, it will use that environment variable. This makes easier for heavy users to simply add this environment variable to their setups and MPRester can then be called without any arguments. endpoint: Url of endpoint to access the MaterialsProject REST interface. Defaults to the standard Materials Project REST address at \"https://api.materialsproject.org\", but can be changed to other urls implementing a similar interface. include_user_agent: If True, will include a user agent with the HTTP request including information on pymatgen and system version making the API request. This helps MP support pymatgen users, and is similar to what most web browsers send with each page request. Set to False to disable the user agent. session: requests Session object with which to connect to the API, for advanced usage only. use_document_model: If False, skip the creating the document model and return data as a dictionary. This can be simpler to work with but bypasses data validation and will not give auto-complete for available fields. headers: Custom headers for localhost connections. mute_progress_bars: Whether to disable progress bars. db_version (str) : EXPERIMENTAL, allows for accessing a different version of the database than what is currently deployed. The Materials Project cannot guarantee that all features will still work. local_dataset_cache: Target directory for downloading full datasets. Defaults to 'mp_datasets' in the user's home directory force_renew: Option to overwrite existing local dataset query_builder : Instance of QueryBuilderWithCache to use in querying delta tables NOTE: Must be a QueryBuilderWithCache, a deltalake.QueryBuilder will be ignored. s3_client: boto3 S3 client object with which to connect to the object stores.ct to the object stores.ct to the object stores. timeout: Time in seconds to wait until a request timeout error is thrown **kwargs: access to legacy kwargs that may be in the process of being deprecated"
+          },
+          {
+            "name": "get_data_by_id",
+            "description": "",
+            "input": {
+              "self": null,
+              "document_id": {
+                "type": "str",
+                "description": ""
+              },
+              "fields": {
+                "type": "list[str] | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, document_id: str, fields: list[str] | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "count",
+            "description": "Return a count of total documents.",
+            "input": {
+              "self": null,
+              "criteria": {
+                "type": "dict | None",
+                "description": "As in .search(). Defaults to None"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "Count of total results"
+              }
+            },
+            "ori_input": "self, criteria: dict | None = None",
+            "ori_description": "Return a count of total documents.  Args: criteria (dict | None): As in .search(). Defaults to None  Returns: int : Count of total results"
+          },
+          {
+            "name": "available_fields",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "MPDataset",
+        "type": "class",
+        "module": "mp_api.client.core.utils",
+        "input": "",
+        "description": "Convenience wrapper for pyarrow datasets stored on disk.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a MPDataset.",
+            "input": {
+              "self": null,
+              "path": {
+                "type": "str | Path",
+                "description": "A path-like string."
+              },
+              "document_model": {
+                "type": "ModelMetaclass",
+                "description": "Pydantic document model for use during de-serialization of arrow data"
+              },
+              "use_document_model": {
+                "type": "bool",
+                "description": "Use 'document_model' during de-serialization of arrow data."
+              }
+            },
+            "output": null,
+            "ori_input": "self, path: str | Path, document_model: ModelMetaclass, use_document_model: bool",
+            "ori_description": "Initialize a MPDataset.  Parameters ----------- path: str | Path A path-like string. document_model: ModelMetaclass Pydantic document model for use during de-serialization of arrow data use_document_model: bool Use 'document_model' during de-serialization of arrow data."
+          },
+          {
+            "name": "pyarrow_dataset",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "pydantic_model",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "num_chunks",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "MPCoreMCP",
+        "type": "class",
+        "module": "mp_api.mcp.tools",
+        "input": "_NeedsMPClient",
+        "description": "Define LLM-agnostic MCP for the Materials Project API.  Because this MCP must support all common LLMs, it defines two methods, `search` and `fetch`, which are compatible with OpenAI's spec.",
+        "function": [
+          {
+            "name": "search",
+            "description": "Define OpenAI compatible search.  Search through the autogenerated robocrystallographer descriptions of materials to return lists of likely matching materials.  Does not return the detailed `metadata` associated with a material. To retrieve this, use the `fetch` method for a given result `id`.",
+            "input": {
+              "self": null,
+              "query": {
+                "type": "str",
+                "description": "A natural language query of either: - comma-delimited keywords, example: \"polyhedra,orthorhombic,superconductor\". This should contain no whitespace; all whitespace will be removed. - chemical formula, example: \"TiO2\" - dash-delimited elements for more general chemical system, example: \"Li-P-S\" To query by formula or chemical system, no commas should be present in the query."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "SearchOutput, a dict of `results` each with structure mp_api.mcp._schemas.SearchOutput"
+              }
+            },
+            "ori_input": "self, query: str",
+            "ori_description": "Define OpenAI compatible search.  Search through the autogenerated robocrystallographer descriptions of materials to return lists of likely matching materials.  Does not return the detailed `metadata` associated with a material. To retrieve this, use the `fetch` method for a given result `id`.  Args: query (str) : A natural language query of either: - comma-delimited keywords, example: \"polyhedra,orthorhombic,superconductor\". This should contain no whitespace; all whitespace will be removed. - chemical formula, example: \"TiO2\" - dash-delimited elements for more general chemical system, example: \"Li-P-S\" To query by formula or chemical system, no commas should be present in the query.  Returns: SearchOutput, a dict of `results` each with structure mp_api.mcp._schemas.SearchOutput"
+          },
+          {
+            "name": "fetch",
+            "description": "Retrieve complete material information by Materials Project ID, formula, or chemical system.",
+            "input": {
+              "self": null,
+              "idx": {
+                "type": "str",
+                "description": "A Materials Project ID, chemical formula, or chemical system.  If a Materials Project ID, this should be an integer prefixed by `mp-`."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "FetchResult",
+                "description": "Complete document with id, title, robocrys autogenerated description, URL, and metadata derived from the materials summary collection. If no data about the particular id is available, returns a FetchResult with only the id field populated."
+              }
+            },
+            "ori_input": "self, idx: str",
+            "ori_description": "Retrieve complete material information by Materials Project ID, formula, or chemical system.  Args: idx (str) : A Materials Project ID, chemical formula, or chemical system.  If a Materials Project ID, this should be an integer prefixed by `mp-`. Examples: \"mp-149\", \"mp-13\"  If a chemical formula, only the most stable structure with that reduced chemical formula is returned. Examples: LiFePO4, Si  If a chemical system, should be a dash-delimited list of elements. The elements do not need to be sorted. Examples: Ga-As, Si-P-O  Returns: FetchResult : Complete document with id, title, robocrys autogenerated description, URL, and metadata derived from the materials summary collection.  If no data about the particular id is available, returns a FetchResult with only the id field populated.  Raises: MPRestError: If no identifier is specified"
+          },
+          {
+            "name": "fetch_many",
+            "description": "Retrieve complete material information for a list of materials.  Should only be used to retrieve at most 100 materials. For larger lists, use the `fetch_all` method and filter down.  May return fewer than 100 results if identical chemical systems or formulas which exist in the same chemical system were specified.",
+            "input": {
+              "self": null,
+              "str_idxs": {
+                "type": "str",
+                "description": "A list of Materials Project IDs, chemical formulas, or chemical systems, separated by commas, e.g., \"mp-13, LiCl, Fe-O\""
+              },
+              "limit_one_per_chemsys": {
+                "type": "bool",
+                "description": "Whether to limit to one entry per chemical system."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "list of FetchResult with detailed material metadata."
+              }
+            },
+            "ori_input": "self, str_idxs: str, limit_one_per_chemsys: bool = False",
+            "ori_description": "Retrieve complete material information for a list of materials.  Should only be used to retrieve at most 100 materials. For larger lists, use the `fetch_all` method and filter down.  May return fewer than 100 results if identical chemical systems or formulas which exist in the same chemical system were specified.  Args: str_idxs (str) : A list of Materials Project IDs, chemical formulas, or chemical systems, separated by commas, e.g., \"mp-13, LiCl, Fe-O\" limit_one_per_chemsys (bool) : Whether to limit to one entry per chemical system.  Returns: list of FetchResult with detailed material metadata.  Raises: MPRestError if any identifiers are malformatted, or if more than 100 identifiers are specified."
+          },
+          {
+            "name": "fetch_all",
+            "description": "Retrieve complete material information for the entire Materials Project.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "list of FetchResult",
+                "description": "Complete document with id, title, robocrys autogenerated description, URL, and metadata derived from the materials summary collection, as available."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Retrieve complete material information for the entire Materials Project.  Returns: list of FetchResult : Complete document with id, title, robocrys autogenerated description, URL, and metadata derived from the materials summary collection, as available."
+          },
+          {
+            "name": "get_phase_diagram_from_elements",
+            "description": "Find a thermodynamic phase diagram in the Materials Project by specified elements.",
+            "input": {
+              "self": null,
+              "elements": {
+                "type": "str",
+                "description": "a list of comma-separated elements"
+              },
+              "thermo_type": {
+                "type": "Literal['GGA_GGA+U', 'GGA_GGA+U_R2SCAN', 'R2SCAN']",
+                "description": "One of emmet.core.types.enums.ThermoType - \"GGA_GGA+U\" to use PBE GGA and PBE+U mixed data - \"R2SCAN\" to use the r2SCAN only hull - \"GGA_GGA+U_R2SCAN\" to use the \"GGA_GGA+U\" hull mixed with r2SCAN data"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "plotly.graph_objects.Figure representing the phase diagram."
+              }
+            },
+            "ori_input": "self, elements: str, thermo_type: Literal['GGA_GGA+U', 'GGA_GGA+U_R2SCAN', 'R2SCAN'] = 'GGA_GGA+U_R2SCAN'",
+            "ori_description": "Find a thermodynamic phase diagram in the Materials Project by specified elements.  Args: elements (str) : a list of comma-separated elements thermo_type (str) : One of emmet.core.types.enums.ThermoType - \"GGA_GGA+U\" to use PBE GGA and PBE+U mixed data - \"R2SCAN\" to use the r2SCAN only hull - \"GGA_GGA+U_R2SCAN\" to use the \"GGA_GGA+U\" hull mixed with r2SCAN data  Returns: plotly.graph_objects.Figure representing the phase diagram.  Examples: Given elements Na and Cl: ``` phase_diagram = MPCoreMCP().get_phase_diagram_from_elements( elements = \"Na, Cl\", ) ```  Given a chemical system, \"K-P-O\": ``` phase_diagram = MPCoreMCP().get_phase_diagram_from_elements( elements = \",\".join(\"K-P-O\".split(\"-\")), ) ```"
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/materialsproject/api",
+        "documentation": "https://docs.materialsproject.org/downloading-data/using-the-api",
+        "pypi": "https://pypi.org/project/mp-api/",
+        "pypi_version": "0.46.5",
+        "tag": "v0.46.5",
+        "commit": "e114cc193551f421ed5cf10bf8854bf474cf6a7e",
+        "release_published_at": "2026-08-18T00:16:25Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 0.46.5 与 GitHub Release v0.46.5 一致；官方使用文档位于 docs.materialsproject.org。",
+          "本次只静态解析客户端接口，不调用 Materials Project 服务或验证 API 密钥。"
+        ],
+        "release_url": "https://github.com/materialsproject/api/releases/tag/v0.46.5",
+        "release_api": "https://api.github.com/repos/materialsproject/api/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/mp-api",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "mp_api"
+        ],
+        "source_files": [
+          "mp_api/__init__.py",
+          "mp_api/_test_utils.py",
+          "mp_api/client/__init__.py",
+          "mp_api/client/_server_utils.py",
+          "mp_api/client/contribs/__init__.py",
+          "mp_api/client/contribs/_logger.py",
+          "mp_api/client/contribs/_types.py",
+          "mp_api/client/contribs/_units.py",
+          "mp_api/client/contribs/client.py",
+          "mp_api/client/contribs/schemas.py",
+          "mp_api/client/contribs/settings.py",
+          "mp_api/client/contribs/utils.py",
+          "mp_api/client/core/__init__.py",
+          "mp_api/client/core/_oxygen_evolution.py",
+          "mp_api/client/core/client.py",
+          "mp_api/client/core/exceptions.py",
+          "mp_api/client/core/schemas.py",
+          "mp_api/client/core/settings.py",
+          "mp_api/client/core/utils.py",
+          "mp_api/client/mprester.py",
+          "mp_api/client/routes/__init__.py",
+          "mp_api/client/routes/_server.py",
+          "mp_api/client/routes/materials/__init__.py",
+          "mp_api/client/routes/materials/absorption.py",
+          "mp_api/client/routes/materials/alloys.py",
+          "mp_api/client/routes/materials/bonds.py",
+          "mp_api/client/routes/materials/chemenv.py",
+          "mp_api/client/routes/materials/dielectric.py",
+          "mp_api/client/routes/materials/doi.py",
+          "mp_api/client/routes/materials/elasticity.py",
+          "mp_api/client/routes/materials/electrodes.py",
+          "mp_api/client/routes/materials/electronic_structure.py",
+          "mp_api/client/routes/materials/eos.py",
+          "mp_api/client/routes/materials/grain_boundaries.py",
+          "mp_api/client/routes/materials/magnetism.py",
+          "mp_api/client/routes/materials/materials.py",
+          "mp_api/client/routes/materials/oxidation_states.py",
+          "mp_api/client/routes/materials/phonon.py",
+          "mp_api/client/routes/materials/piezo.py",
+          "mp_api/client/routes/materials/provenance.py",
+          "mp_api/client/routes/materials/robocrys.py",
+          "mp_api/client/routes/materials/similarity.py",
+          "mp_api/client/routes/materials/substrates.py",
+          "mp_api/client/routes/materials/summary.py",
+          "mp_api/client/routes/materials/surface_properties.py",
+          "mp_api/client/routes/materials/synthesis.py",
+          "mp_api/client/routes/materials/tasks.py",
+          "mp_api/client/routes/materials/thermo.py",
+          "mp_api/client/routes/materials/xas.py",
+          "mp_api/client/routes/molecules/__init__.py",
+          "mp_api/client/routes/molecules/jcesr.py",
+          "mp_api/client/routes/molecules/molecules.py",
+          "mp_api/client/routes/molecules/summary.py",
+          "mp_api/mcp/__init__.py",
+          "mp_api/mcp/_schemas.py",
+          "mp_api/mcp/mp_mcp.py",
+          "mp_api/mcp/server.py",
+          "mp_api/mcp/tools.py",
+          "mp_api/mcp/utils.py"
+        ],
+        "source_file_sha256": {
+          "mp_api/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "mp_api/_test_utils.py": "9bf84eda570755b96167d7935355af2e27ecaccfeec89af500e90f4c4898a0aa",
+          "mp_api/client/__init__.py": "eefb7e1a9610a4ce9c60d624510a3bd516edc7b31d6735e3359e94d5b072f191",
+          "mp_api/client/_server_utils.py": "f3a8a2968ac7ee9a9ff3278aa54ef21b7a25e265018d79c64a034010d88d6366",
+          "mp_api/client/contribs/__init__.py": "a30b6bd7b3391e920a7c795d262dedd392f68d6b7b51b4406c94bda7b603fbaa",
+          "mp_api/client/contribs/_logger.py": "b49c9317be32c56739e9eb8e2118d6a6c6e19b0f332e376eeb632e85ff2b48f7",
+          "mp_api/client/contribs/_types.py": "1ccbbb78033c222f53de2f3933ad9507d450a7bd9682751e9a97614b6838302e",
+          "mp_api/client/contribs/_units.py": "fc1be10ae8ccd1e5cfdfde4e22d8735c691c04eaa9a5030dc3d10863864de077",
+          "mp_api/client/contribs/client.py": "1dba7a1d368f6199d47a2e61a0e59cbffc54502fc22420ce5ce272327046519c",
+          "mp_api/client/contribs/schemas.py": "4944ef61155b5dd5466d1ed36a8ae51fdb227da6966b7a3201118b6c95fcf574",
+          "mp_api/client/contribs/settings.py": "486428610c28d9bf668b6091930fd92b4a65a713bb9afbb11ff840e819ab79d6",
+          "mp_api/client/contribs/utils.py": "29c0b175ed13190e83f70a1d14c9c1cd8ae948df74f581b5749539c692cf0f68",
+          "mp_api/client/core/__init__.py": "205d4098886731264c04871acc975aa65098ce36901e43dd0e23bedab4c763c1",
+          "mp_api/client/core/_oxygen_evolution.py": "2a11ffe4bc976055d1c21c5bc9a666beda02190dd2ed58e4e046f25c959c2a04",
+          "mp_api/client/core/client.py": "0b5ad987c232602515117c2bf93b289f246938fbb1e3c107d79ca1d7d1b4c4ee",
+          "mp_api/client/core/exceptions.py": "233d71c54bacadd75b6a66936efaf42722f9149ad80c291c1c8864f43f2eb58b",
+          "mp_api/client/core/schemas.py": "53425b4e4de157a229577bd559b793957c34e4276d80d6d0b4e791d29fed99b1",
+          "mp_api/client/core/settings.py": "d4e21a7838becf2ec71e99726441ac550d2a02cf91b956be121d2a8ce24b3c39",
+          "mp_api/client/core/utils.py": "ec5125754d860f005b5160b7677827519add9f083168f171342a99d6ab5ea67e",
+          "mp_api/client/mprester.py": "b38420d532349ec6332e3b912dcb4f739a4758ce109024e776f6b5cb4e3cc0a6",
+          "mp_api/client/routes/__init__.py": "0b2f217120ccf29fc7d570e80f27caeb1f50e754b9da651e559247783f29e1c3",
+          "mp_api/client/routes/_server.py": "ad00464a5800bfe7f387084749249fee7da55ea7beb5c95ca0d16e88c90d1f79",
+          "mp_api/client/routes/materials/__init__.py": "7a37683a485430f559c539857c38818142e6453ffe3792827042819ee1a54c10",
+          "mp_api/client/routes/materials/absorption.py": "42f6581cd396b903497d21ecf1bcfb37dfec497ed9dc2239e5239ac04925bee8",
+          "mp_api/client/routes/materials/alloys.py": "c23c920f392f1c872e2076d750633c199905528ad782f9bf6eb86bdaa2afe8f2",
+          "mp_api/client/routes/materials/bonds.py": "3c77336e7f0ef8123f7cc4db8bed1dffe671e7ef960e83ba76e6c83eb7adef2a",
+          "mp_api/client/routes/materials/chemenv.py": "3feecc14a8fb5daf2794991249b53d6fe0bccc5fb552eb16013a1e1bc39a3005",
+          "mp_api/client/routes/materials/dielectric.py": "037d8fac3e9a1896194d8bb65d8fa81fd2081eeb5935fd036c4647530ef447cc",
+          "mp_api/client/routes/materials/doi.py": "e09b6d035591dcb6413673a03cb3a9272be57f33dcb77af0dfb397f998076433",
+          "mp_api/client/routes/materials/elasticity.py": "487b9fe296956175678408544d6dcc48c754627e0e31f3535288239b10b06c32",
+          "mp_api/client/routes/materials/electrodes.py": "d2df49c734cd55b28a69380c747b6d8853a4efc351bc1543074d1333316f37c0",
+          "mp_api/client/routes/materials/electronic_structure.py": "c2a936076286ef6c3bd5bb30091cda70402065fa45a53c5d56cd6c84aeaba1a4",
+          "mp_api/client/routes/materials/eos.py": "e091be3e0cfd5cfe45af75e5d4cbf4b9282dce43f4e708cb5fe928ec0ce36c5a",
+          "mp_api/client/routes/materials/grain_boundaries.py": "92b27519e569bc3204299ae90d764e3e27cc819897f177b83cb058faa5ad4d30",
+          "mp_api/client/routes/materials/magnetism.py": "0d264c3828578a3574d7ee1726210860c7d8082fb656a8d380de58289545d3c3",
+          "mp_api/client/routes/materials/materials.py": "2537c5ee2eb1f02ad92ee1fcd3fa19020282cd8d9ccf12e736e3d3b021343fc8",
+          "mp_api/client/routes/materials/oxidation_states.py": "cea273b05e542cfa75a2d7c6a2b2ba9c9abe3e00c7df55211ad4a295e12cada2",
+          "mp_api/client/routes/materials/phonon.py": "c22c7d1b10dea22acb89c42f75cada08e93ea25262dd1f6021d5db670f41a12b",
+          "mp_api/client/routes/materials/piezo.py": "8553339c6ec6a75160e80d79f21fbf866adf2d9e7be683843f1db578db01f92f",
+          "mp_api/client/routes/materials/provenance.py": "db77e967b891b00e79ac98fb93181ed397c9b6daeeb29461fd339031f5afc94e",
+          "mp_api/client/routes/materials/robocrys.py": "d4b0362059d28043a4ba0d8a9ddceda2532afd41b5d9960c314274fc3b9de2af",
+          "mp_api/client/routes/materials/similarity.py": "cc50f8701a453839e2e27fe0185a58b389a01a4be4b215dc970d9442cbc0cd2c",
+          "mp_api/client/routes/materials/substrates.py": "af6db325ffcbbc45932709b929fdcfb9a8599c4b64179fd1713a5977e8ba149c",
+          "mp_api/client/routes/materials/summary.py": "11131f5fe62ba44ced53f34ecc67437780b20b4577f56129ff29f4b8a177f02e",
+          "mp_api/client/routes/materials/surface_properties.py": "013f23cb1ae60054ebee74936359b2eb6e9dab14a93f9550d434fbed21b48dbe",
+          "mp_api/client/routes/materials/synthesis.py": "0c9ca08950158c82b9c9947f3c3521ea4ecc91c5cd5ada9c0a72d7d3316e3115",
+          "mp_api/client/routes/materials/tasks.py": "2c6545cb0745a2452600a6848e62956072e62124d31bd541be8aef82ef803ed1",
+          "mp_api/client/routes/materials/thermo.py": "2e3ed14ef43560eb564cbb66fe360eded04d31b9e75fd0a0baf98af97ea1458c",
+          "mp_api/client/routes/materials/xas.py": "869264a813341ff417d859795ccc700bde7e763cbf9235546dff6710395c2617",
+          "mp_api/client/routes/molecules/__init__.py": "42a9ee50117ba1956f549dad96944b989834beb5a12f07b178a1340db3f8ce9d",
+          "mp_api/client/routes/molecules/jcesr.py": "d0dfb4f44831d6f6bcad0a45e1744cc8fe9f7e252a25ff251dd16ea4b713375d",
+          "mp_api/client/routes/molecules/molecules.py": "bc258002739a1e7f5bd7fef887e379058d70227c896af3b1ebf91dab63f026c6",
+          "mp_api/client/routes/molecules/summary.py": "f874ea86095f42a7c0a4bbb4ad5e8cceb7a148787c36751b981f3191ebd99162",
+          "mp_api/mcp/__init__.py": "1580a61256ccba56359049a8fa0759cf66d66c920d0c661e127cae90c349bc99",
+          "mp_api/mcp/_schemas.py": "fe9a85a3050dd9e29ec1637d7ec8dd4491e094a8577978a92588c805e4ec87bc",
+          "mp_api/mcp/mp_mcp.py": "4b8bf5e202b13d7c429da11d0bd12289a5d1cdbccbebd548362106fd8080b0bd",
+          "mp_api/mcp/server.py": "66f78b5ca09deb35763436b218aabe1e7b67819f26189a77757d34f6d2f2fc9d",
+          "mp_api/mcp/tools.py": "642b51943feb5d270ecbb12f72c6743065dfb2eef3343bee6dcce6508f4606f9",
+          "mp_api/mcp/utils.py": "086694f659e3b1bf1586bbdf8ffd004c612b32101f8989d52dddc5236f734be2"
+        },
+        "source_version": "v0.46.5",
+        "source_commit": "e114cc193551f421ed5cf10bf8854bf474cf6a7e",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "mp_api_materials_explorer_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/mp-api_v0.46.5.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/mp-api_v0.46.5.json",
+        "source_sha256": "3b16e9e54396405cbcb3438ed25e43cfa73c89f27f76f74fd115c945360d31f1",
+        "profile_sha256": "49852cdc46133eea30d95976d67adb077babb87cd9b286034d8fa6c9c9d1bdc6",
+        "boundary": "Materials Project 查询客户端、结构/热力学/电子结构检索和统一响应；排除贡献者管理、MCP 服务和内部认证辅助。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 98,
+        "selected_tool_count": 11,
+        "selected_class_count": 11,
+        "selected_function_count": 0,
+        "selected_method_count": 52,
+        "selected_all_func": 52,
+        "missing_description_count": 12,
+        "excluded_tool_count": 87,
+        "capability_count": 3
+      }
+    }
+  }
+]

@@ -1,0 +1,1571 @@
+[
+  {
+    "global_id": "pypi_custodian_21",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/materialsproject/custodian",
+          "https://pypi.org/project/custodian/",
+          "https://materialsproject.github.io/custodian/"
+        ],
+        "name": "custodian",
+        "version": "v2025.12.14",
+        "index": 21
+      },
+      "description": "custodian 是面向材料计算的作业监控和错误恢复框架，通过 Job、监控器、错误处理器和验证器包装外部程序，记录运行状态并在常见失败时修复输入后重试。它不替代具体的 VASP、QE 等计算程序。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 13,
+        "function": 5,
+        "class_func": 50,
+        "all_func": 55
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Custodian",
+        "type": "class",
+        "module": "custodian.custodian",
+        "input": "",
+        "description": "Custodian class is the manager for a list of jobs given a list of error handlers.  The way it works is as follows:  1. Let's say you have defined a list of jobs as [job1, job2, job3, ...] and you have defined a list of possible error handlers as [err1, err2, ...] 2. Custodian will run the jobs in the order of job1, job2, ... During each job, custodian will monitor for errors using the handlers that have is_monitor == True. If an error is detected, corrective measures are taken and the particular job is rerun. 3. At the end of each individual job, Custodian will run through the list of error handlers that have is_monitor == False. If an error is detected, corrective measures are taken and the particular job is rerun.  .. attribute: max_errors  Maximum number of errors allowed.  .. attribute: handlers  All error handlers (including monitors). All error handlers are used to check for errors at the end of a run.  .. attribute: monitors  Error handlers that are Monitors, i.e., handlers that monitors a job as it is being run.  .. attribute: polling_time_step  The length of time in seconds between steps in which a job is checked for completion.  .. attribute: monitor_freq  The number of polling steps before monitoring occurs. For example, if you have a polling_time_step of 10 seconds and a monitor_freq of 30, this means that Custodian uses the monitors to check for errors every 30 x 10 = 300 seconds, i.e., 5 minutes.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a Custodian from a list of jobs and error handlers.",
+            "input": {
+              "self": null,
+              "handlers": {
+                "type": "[ErrorHandler]",
+                "description": "Error handlers. In order of priority of fixing."
+              },
+              "jobs": {
+                "type": "[Job]",
+                "description": "Sequence of Jobs to be run. Note that this can be any sequence or even a generator yielding jobs."
+              },
+              "validators": {
+                "type": "[Validator]",
+                "description": "Validators to ensure job success"
+              },
+              "max_errors_per_job": {
+                "type": "int",
+                "description": "Maximum number of errors per job allowed before exiting. Defaults to None, which means it is set to be equal to max_errors.."
+              },
+              "max_errors": {
+                "type": "int",
+                "description": "Maximum number of total errors allowed before exiting. Defaults to 1."
+              },
+              "polling_time_step": {
+                "type": "int",
+                "description": "The length of time in seconds between steps in which a job is checked for completion. Defaults to 10 secs."
+              },
+              "monitor_freq": {
+                "type": "int",
+                "description": "The number of polling steps before monitoring occurs. For example, if you have a polling_time_step of 10 seconds and a monitor_freq of 30, this means that Custodian uses the monitors to check for errors every 30 x 10 = 300 seconds, i.e., 5 minutes."
+              },
+              "skip_over_errors": {
+                "type": "bool",
+                "description": "If set to True, custodian will skip over error handlers that failed (raised an Exception of some sort). Otherwise, custodian will simply exit on unrecoverable errors. The former will lead to potentially more robust performance, but may make it difficult to improve handlers. The latter will allow one to catch potentially bad error handler implementations. Defaults to False."
+              },
+              "scratch_dir": {
+                "type": "str",
+                "description": "If this is set, any files in the current directory are copied to a temporary directory in a scratch space first before any jobs are performed, and moved back to the current directory upon completion of all jobs. This is useful in some setups where a scratch partition has much faster IO. To use this, set scratch_dir=root of directory you want to use for runs. There is no need to provide unique directory names; we will use python's tempfile creation mechanisms. A symbolic link is created during the course of the run in the working directory called \"scratch_link\" as users may want to sometimes check the output during the course of a run. If this is None (the default), the run is performed in the current working directory."
+              },
+              "gzipped_output": {
+                "type": "bool",
+                "description": "Whether to gzip the final output to save space. Defaults to False."
+              },
+              "checkpoint": {
+                "type": "bool",
+                "description": "Whether to checkpoint after each successful Job. Checkpoints are stored as custodian.chk.#.tar.gz files. Defaults to False."
+              },
+              "terminate_func": {
+                "type": "callable",
+                "description": "A function to be called to terminate a running job. If None, the default is to call Popen.terminate."
+              },
+              "terminate_on_nonzero_returncode": {
+                "type": "bool",
+                "description": "If True, a non-zero return code on any Job will result in a termination. Defaults to True."
+              },
+              "directory": {
+                "type": "str",
+                "description": "The directory to run the jobs in. Defaults to the current working directory. If you would like to have the jobs run in a temporary directory, use `scratch_dir` instead."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Any other kwargs are ignored. This is to allow for easy subclassing and instantiation from a dict."
+              }
+            },
+            "output": null,
+            "ori_input": "self, handlers, jobs, validators = None, max_errors_per_job = None, max_errors = 1, polling_time_step = 10, monitor_freq = 30, skip_over_errors = False, scratch_dir = None, gzipped_output = False, checkpoint = False, terminate_func = None, terminate_on_nonzero_returncode = True, directory = None, **kwargs",
+            "ori_description": "Initialize a Custodian from a list of jobs and error handlers.  Args: handlers ([ErrorHandler]): Error handlers. In order of priority of fixing. jobs ([Job]): Sequence of Jobs to be run. Note that this can be any sequence or even a generator yielding jobs. validators([Validator]): Validators to ensure job success max_errors_per_job (int): Maximum number of errors per job allowed before exiting. Defaults to None, which means it is set to be equal to max_errors.. max_errors (int): Maximum number of total errors allowed before exiting. Defaults to 1. polling_time_step (int): The length of time in seconds between steps in which a job is checked for completion. Defaults to 10 secs. monitor_freq (int): The number of polling steps before monitoring occurs. For example, if you have a polling_time_step of 10 seconds and a monitor_freq of 30, this means that Custodian uses the monitors to check for errors every 30 x 10 = 300 seconds, i.e., 5 minutes. skip_over_errors (bool): If set to True, custodian will skip over error handlers that failed (raised an Exception of some sort). Otherwise, custodian will simply exit on unrecoverable errors. The former will lead to potentially more robust performance, but may make it difficult to improve handlers. The latter will allow one to catch potentially bad error handler implementations. Defaults to False. scratch_dir (str): If this is set, any files in the current directory are copied to a temporary directory in a scratch space first before any jobs are performed, and moved back to the current directory upon completion of all jobs. This is useful in some setups where a scratch partition has much faster IO. To use this, set scratch_dir=root of directory you want to use for runs. There is no need to provide unique directory names; we will use python's tempfile creation mechanisms. A symbolic link is created during the course of the run in the working directory called \"scratch_link\" as users may want to sometimes check the output during the course of a run. If this is None (the default), the run is performed in the current working directory. gzipped_output (bool): Whether to gzip the final output to save space. Defaults to False. checkpoint (bool): Whether to checkpoint after each successful Job. Checkpoints are stored as custodian.chk.#.tar.gz files. Defaults to False. terminate_func (callable): A function to be called to terminate a running job. If None, the default is to call Popen.terminate. terminate_on_nonzero_returncode (bool): If True, a non-zero return code on any Job will result in a termination. Defaults to True. directory (str): The directory to run the jobs in. Defaults to the current working directory. If you would like to have the jobs run in a temporary directory, use `scratch_dir` instead. **kwargs: Any other kwargs are ignored. This is to allow for easy subclassing and instantiation from a dict."
+          },
+          {
+            "name": "from_spec",
+            "description": "Load a Custodian instance where the jobs are specified from a structure and a spec dict. This allows simple custom job sequences to be constructed quickly via a YAML file.",
+            "input": {
+              "cls": null,
+              "spec": {
+                "type": "dict",
+                "description": "A dict specifying job. A sample of the dict in YAML format for the usual MP workflow is given as follows  ```"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Custodian instance."
+              }
+            },
+            "ori_input": "cls, spec",
+            "ori_description": "Load a Custodian instance where the jobs are specified from a structure and a spec dict. This allows simple custom job sequences to be constructed quickly via a YAML file.  Args: spec (dict): A dict specifying job. A sample of the dict in YAML format for the usual MP workflow is given as follows  ``` jobs: - jb: custodian.vasp.jobs.VaspJob params: final: False suffix: .relax1 - jb: custodian.vasp.jobs.VaspJob params: final: True suffix: .relax2 settings_override: {\"file\": \"CONTCAR\", \"action\": {\"_file_copy\": {\"dest\": \"POSCAR\"}} jobs_common_params: vasp_cmd: /opt/vasp handlers: - hdlr: custodian.vasp.handlers.VaspErrorHandler - hdlr: custodian.vasp.handlers.AliasingErrorHandler - hdlr: custodian.vasp.handlers.MeshSymmetryHandler validators: - vldr: custodian.vasp.validators.VasprunXMLValidator custodian_params: scratch_dir: /tmp ```  The `jobs` key is a list of jobs. Each job is specified via \"job\": <explicit path>, and all parameters are specified via `params` which is a dict.  `common_params` specify a common set of parameters that are passed to all jobs, e.g., vasp_cmd.  Returns: Custodian instance."
+          },
+          {
+            "name": "run",
+            "description": "Runs all jobs.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "All errors encountered as a list of list. [[error_dicts for job 1], [error_dicts for job 2], ....]"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Runs all jobs.  Returns: All errors encountered as a list of list. [[error_dicts for job 1], [error_dicts for job 2], ....]  Raises: ValidationError: if a job fails validation ReturnCodeError: if the process has a return code different from 0 NonRecoverableError: if an unrecoverable occurs MaxCorrectionsPerJobError: if max_errors_per_job is reached MaxCorrectionsError: if max_errors is reached MaxCorrectionsPerHandlerError: if max_errors_per_handler is reached"
+          },
+          {
+            "name": "run_interrupted",
+            "description": "Runs custodian in a interrupted mode, which sets up and validates jobs but doesn't run the executable.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "number of remaining jobs"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Runs custodian in a interrupted mode, which sets up and validates jobs but doesn't run the executable.  Returns: number of remaining jobs  Raises: ValidationError: if a job fails validation ReturnCodeError: if the process has a return code different from 0 NonRecoverableError: if an unrecoverable occurs MaxCorrectionsPerJobError: if max_errors_per_job is reached MaxCorrectionsError: if max_errors is reached MaxCorrectionsPerHandlerError: if max_errors_per_handler is reached"
+          }
+        ]
+      },
+      {
+        "name": "VaspJob",
+        "type": "class",
+        "module": "custodian.vasp.jobs",
+        "input": "Job",
+        "description": "A basic vasp job. Just runs whatever is in the directory. But conceivably can be a complex processing of inputs etc. with initialization.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "This constructor is necessarily complex due to the need for flexibility. For standard kinds of runs, it's often better to use one of the static constructors. The defaults are usually fine too.",
+            "input": {
+              "self": null,
+              "vasp_cmd": {
+                "type": "str",
+                "description": "Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"]"
+              },
+              "output_file": {
+                "type": "str",
+                "description": "Name of file to direct standard out to. Defaults to \"vasp.out\"."
+              },
+              "stderr_file": {
+                "type": "str",
+                "description": "Name of file to direct standard error to. Defaults to \"std_err.txt\"."
+              },
+              "suffix": {
+                "type": "str",
+                "description": "A suffix to be appended to the final output. E.g., to rename all VASP output from say vasp.out to vasp.out.relax1, provide \".relax1\" as the suffix."
+              },
+              "final": {
+                "type": "bool",
+                "description": "Indicating whether this is the final vasp job in a series. Defaults to True."
+              },
+              "backup": {
+                "type": "bool",
+                "description": "Whether to backup the initial input files. If True, the INCAR, KPOINTS, POSCAR and POTCAR will be copied with a \".orig\" appended. Defaults to True."
+              },
+              "auto_npar": {
+                "type": "bool",
+                "description": "Whether to automatically tune NPAR to be sqrt( number of cores) as recommended by VASP for DFT calculations. Generally, this results in significant speedups. Defaults to False. Set to False for HF, GW and RPA calculations."
+              },
+              "auto_gamma": {
+                "type": "bool",
+                "description": "Whether to automatically check if run is a Gamma 1x1x1 run, and whether a Gamma optimized version of VASP exists with \".gamma\" appended to the name of the VASP executable (typical setup in many systems). If so, run the gamma optimized version of VASP instead of regular VASP. You can also specify the gamma vasp command using the gamma_vasp_cmd argument if the command is named differently."
+              },
+              "settings_override": {
+                "type": "[dict]",
+                "description": "An ansible style list of dict to override changes. For example, to set ISTART=1 for subsequent runs and to copy the CONTCAR to the POSCAR, you will provide::  [{\"dict\": \"INCAR\", \"action\": {\"_set\": {\"ISTART\": 1}}}, {\"file\": \"CONTCAR\", \"action\": {\"_file_copy\": {\"dest\": \"POSCAR\"}}}]"
+              },
+              "gamma_vasp_cmd": {
+                "type": "str",
+                "description": "Command for gamma vasp version when auto_gamma is True. Should follow the list style of subprocess. Defaults to None, which means \".gamma\" is added to the last argument of the standard vasp_cmd."
+              },
+              "copy_magmom": {
+                "type": "bool",
+                "description": "Whether to copy the final magmom from the OUTCAR to the next INCAR. Useful for multi-relaxation runs where the CHGCAR and WAVECAR are sometimes deleted (due to changes in fft grid, etc.). Only applies to non-final runs."
+              },
+              "auto_continue": {
+                "type": "bool",
+                "description": "Whether to automatically continue a run if a STOPCAR is present. This is very useful if using the wall-time handler which will write a read-only STOPCAR to prevent VASP from deleting it once it finishes"
+              },
+              "update_incar": {
+                "type": "bool",
+                "description": "Whether to update INCAR settings from updated settings in vasprun.xml. This is particularly useful in certain calculatons where VASP automatically sets certain parameters, e.g., NBANDS. Only parameters that are already present in the INCAR will be updated, i.e., no new parameters will be added even if they are in the final vasprun.xml. Note that settings_override take precedence over updated params."
+              },
+              "terminate_timeout": {
+                "type": "float",
+                "description": "Timeout in seconds to wait for graceful termination (SIGTERM) before escalating to SIGKILL. Large MPI jobs may need longer timeouts. Defaults to 10.0 seconds."
+              }
+            },
+            "output": null,
+            "ori_input": "self, vasp_cmd, output_file = 'vasp.out', stderr_file = 'std_err.txt', suffix = '', final = True, backup = True, auto_npar = False, auto_gamma = True, settings_override = None, gamma_vasp_cmd = None, copy_magmom = False, auto_continue = False, update_incar = False, terminate_timeout: float = 10.0",
+            "ori_description": "This constructor is necessarily complex due to the need for flexibility. For standard kinds of runs, it's often better to use one of the static constructors. The defaults are usually fine too.  Args: vasp_cmd (str): Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"] output_file (str): Name of file to direct standard out to. Defaults to \"vasp.out\". stderr_file (str): Name of file to direct standard error to. Defaults to \"std_err.txt\". suffix (str): A suffix to be appended to the final output. E.g., to rename all VASP output from say vasp.out to vasp.out.relax1, provide \".relax1\" as the suffix. final (bool): Indicating whether this is the final vasp job in a series. Defaults to True. backup (bool): Whether to backup the initial input files. If True, the INCAR, KPOINTS, POSCAR and POTCAR will be copied with a \".orig\" appended. Defaults to True. auto_npar (bool): Whether to automatically tune NPAR to be sqrt( number of cores) as recommended by VASP for DFT calculations. Generally, this results in significant speedups. Defaults to False. Set to False for HF, GW and RPA calculations. auto_gamma (bool): Whether to automatically check if run is a Gamma 1x1x1 run, and whether a Gamma optimized version of VASP exists with \".gamma\" appended to the name of the VASP executable (typical setup in many systems). If so, run the gamma optimized version of VASP instead of regular VASP. You can also specify the gamma vasp command using the gamma_vasp_cmd argument if the command is named differently. settings_override ([dict]): An ansible style list of dict to override changes. For example, to set ISTART=1 for subsequent runs and to copy the CONTCAR to the POSCAR, you will provide::  [{\"dict\": \"INCAR\", \"action\": {\"_set\": {\"ISTART\": 1}}}, {\"file\": \"CONTCAR\", \"action\": {\"_file_copy\": {\"dest\": \"POSCAR\"}}}] gamma_vasp_cmd (str): Command for gamma vasp version when auto_gamma is True. Should follow the list style of subprocess. Defaults to None, which means \".gamma\" is added to the last argument of the standard vasp_cmd. copy_magmom (bool): Whether to copy the final magmom from the OUTCAR to the next INCAR. Useful for multi-relaxation runs where the CHGCAR and WAVECAR are sometimes deleted (due to changes in fft grid, etc.). Only applies to non-final runs. auto_continue (bool): Whether to automatically continue a run if a STOPCAR is present. This is very useful if using the wall-time handler which will write a read-only STOPCAR to prevent VASP from deleting it once it finishes update_incar (bool): Whether to update INCAR settings from updated settings in vasprun.xml. This is particularly useful in certain calculatons where VASP automatically sets certain parameters, e.g., NBANDS. Only parameters that are already present in the INCAR will be updated, i.e., no new parameters will be added even if they are in the final vasprun.xml. Note that settings_override take precedence over updated params. terminate_timeout (float): Timeout in seconds to wait for graceful termination (SIGTERM) before escalating to SIGKILL. Large MPI jobs may need longer timeouts. Defaults to 10.0 seconds."
+          },
+          {
+            "name": "setup",
+            "description": "Performs initial setup for VaspJob, including overriding any settings and backing up.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Performs initial setup for VaspJob, including overriding any settings and backing up."
+          },
+          {
+            "name": "run",
+            "description": "Perform the actual VASP run.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "(subprocess.Popen) Used for monitoring."
+              }
+            },
+            "ori_input": "self, directory = './'",
+            "ori_description": "Perform the actual VASP run.  Returns: (subprocess.Popen) Used for monitoring."
+          },
+          {
+            "name": "postprocess",
+            "description": "Postprocessing includes renaming and gzipping where necessary. Also copies the magmom to the incar if necessary.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Postprocessing includes renaming and gzipping where necessary. Also copies the magmom to the incar if necessary."
+          },
+          {
+            "name": "double_relaxation_run",
+            "description": "Returns a list of two jobs corresponding to an AFLOW style double relaxation run.",
+            "input": {
+              "cls": null,
+              "vasp_cmd": {
+                "type": "str",
+                "description": "Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"]"
+              },
+              "auto_npar": {
+                "type": "bool",
+                "description": "Whether to automatically tune NPAR to be sqrt( number of cores) as recommended by VASP for DFT calculations. Generally, this results in significant speedups. Defaults to True. Set to False for HF, GW and RPA calculations."
+              },
+              "ediffg": {
+                "type": "float",
+                "description": "Force convergence criteria for subsequent runs ( ignored for the initial run.)"
+              },
+              "half_kpts_first_relax": {
+                "type": "bool",
+                "description": "Whether to halve the kpoint grid for the first relaxation. Speeds up difficult convergence considerably. Defaults to False."
+              },
+              "auto_continue": {
+                "type": "bool",
+                "description": "Whether to automatically continue a run if a STOPCAR is present. This is very useful if using the wall-time handler which will write a read-only STOPCAR to prevent VASP from deleting it once it finishes. Defaults to False."
+              },
+              "directory": {
+                "type": "str",
+                "description": "Directory where the job was run. Defaults to './'."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of two jobs corresponding to an AFLOW style run."
+              }
+            },
+            "ori_input": "cls, vasp_cmd, auto_npar = True, ediffg = -0.05, half_kpts_first_relax = False, auto_continue = False, directory = './'",
+            "ori_description": "Returns a list of two jobs corresponding to an AFLOW style double relaxation run.  Args: vasp_cmd (str): Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"] auto_npar (bool): Whether to automatically tune NPAR to be sqrt( number of cores) as recommended by VASP for DFT calculations. Generally, this results in significant speedups. Defaults to True. Set to False for HF, GW and RPA calculations. ediffg (float): Force convergence criteria for subsequent runs ( ignored for the initial run.) half_kpts_first_relax (bool): Whether to halve the kpoint grid for the first relaxation. Speeds up difficult convergence considerably. Defaults to False. auto_continue (bool): Whether to automatically continue a run if a STOPCAR is present. This is very useful if using the wall-time handler which will write a read-only STOPCAR to prevent VASP from deleting it once it finishes. Defaults to False. directory (str): Directory where the job was run. Defaults to './'.  Returns: List of two jobs corresponding to an AFLOW style run."
+          },
+          {
+            "name": "metagga_opt_run",
+            "description": "Returns a list of three jobs to perform an optimization for any metaGGA functional. There is an initial calculation of the GGA wavefunction which is fed into the initial metaGGA optimization to precondition the electronic structure optimizer. The metaGGA optimization is performed using the double relaxation scheme.",
+            "input": {
+              "cls": null,
+              "vasp_cmd": {
+                "type": "",
+                "description": ""
+              },
+              "auto_npar": {
+                "type": "",
+                "description": ""
+              },
+              "ediffg": {
+                "type": "",
+                "description": ""
+              },
+              "half_kpts_first_relax": {
+                "type": "",
+                "description": ""
+              },
+              "auto_continue": {
+                "type": "",
+                "description": ""
+              },
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, vasp_cmd, auto_npar = True, ediffg = -0.05, half_kpts_first_relax = False, auto_continue = False, directory = './'",
+            "ori_description": "Returns a list of three jobs to perform an optimization for any metaGGA functional. There is an initial calculation of the GGA wavefunction which is fed into the initial metaGGA optimization to precondition the electronic structure optimizer. The metaGGA optimization is performed using the double relaxation scheme."
+          },
+          {
+            "name": "full_opt_run",
+            "description": "Returns a generator of jobs for a full optimization run. Basically, this runs an infinite series of geometry optimization jobs until the % vol change in a particular optimization is less than vol_change_tol.",
+            "input": {
+              "cls": null,
+              "vasp_cmd": {
+                "type": "str",
+                "description": "Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"]"
+              },
+              "vol_change_tol": {
+                "type": "float",
+                "description": "The tolerance at which to stop a run. Defaults to 0.05, i.e., 5%."
+              },
+              "max_steps": {
+                "type": "int",
+                "description": "The maximum number of runs. Defaults to 10 ( highly unlikely that this limit is ever reached)."
+              },
+              "ediffg": {
+                "type": "float",
+                "description": "Force convergence criteria for subsequent runs ( ignored for the initial run.)"
+              },
+              "half_kpts_first_relax": {
+                "type": "bool",
+                "description": "Whether to halve the kpoint grid for the first relaxation. Speeds up difficult convergence considerably. Defaults to False."
+              },
+              "directory": {
+                "type": "str",
+                "description": "Directory where the job was run. Defaults to './'."
+              },
+              "vasp_job_kwargs": {
+                "type": "**vasp_job_kwargs",
+                "description": "Passthrough kwargs to VaspJob. See :class:`custodian.vasp.jobs.VaspJob`."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Generator of jobs."
+              }
+            },
+            "ori_input": "cls, vasp_cmd, vol_change_tol = 0.02, max_steps = 10, ediffg = -0.05, half_kpts_first_relax = False, directory = './', **vasp_job_kwargs",
+            "ori_description": "Returns a generator of jobs for a full optimization run. Basically, this runs an infinite series of geometry optimization jobs until the % vol change in a particular optimization is less than vol_change_tol.  Args: vasp_cmd (str): Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"] vol_change_tol (float): The tolerance at which to stop a run. Defaults to 0.05, i.e., 5%. max_steps (int): The maximum number of runs. Defaults to 10 ( highly unlikely that this limit is ever reached). ediffg (float): Force convergence criteria for subsequent runs ( ignored for the initial run.) half_kpts_first_relax (bool): Whether to halve the kpoint grid for the first relaxation. Speeds up difficult convergence considerably. Defaults to False. directory (str): Directory where the job was run. Defaults to './'. **vasp_job_kwargs: Passthrough kwargs to VaspJob. See :class:`custodian.vasp.jobs.VaspJob`.  Returns: Generator of jobs."
+          },
+          {
+            "name": "terminate",
+            "description": "Kill all VASP processes associated with the current job.  Tries to kill the entire process group (safest for MPI jobs), then waits to confirm termination. Escalates SIGTERM → SIGKILL → parent process fallback.  Note: The parent process fallback may leave behind ghost MPI child processes (less likely with srun since SLURM purportedly cleans up process trees).",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "str",
+                "description": "Unused, kept for API compatibility with base class."
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory: str = './'",
+            "ori_description": "Kill all VASP processes associated with the current job.  Tries to kill the entire process group (safest for MPI jobs), then waits to confirm termination. Escalates SIGTERM → SIGKILL → parent process fallback.  Note: The parent process fallback may leave behind ghost MPI child processes (less likely with srun since SLURM purportedly cleans up process trees).  Args: directory: Unused, kept for API compatibility with base class."
+          }
+        ]
+      },
+      {
+        "name": "QCJob",
+        "type": "class",
+        "module": "custodian.qchem.jobs",
+        "input": "Job",
+        "description": "A basic QChem Job.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "qchem_command": {
+                "type": "str",
+                "description": "Command to run QChem."
+              },
+              "max_cores": {
+                "type": "int",
+                "description": "Maximum number of cores to parallelize over."
+              },
+              "multimode": {
+                "type": "str",
+                "description": "Parallelization scheme, either openmp or mpi."
+              },
+              "input_file": {
+                "type": "str",
+                "description": "Name of the QChem input file."
+              },
+              "output_file": {
+                "type": "str",
+                "description": "Name of the QChem output file."
+              },
+              "qclog_file": {
+                "type": "str",
+                "description": "Name of the file to redirect the standard output to. None means not to record the standard output."
+              },
+              "suffix": {
+                "type": "str",
+                "description": "String to append to the file in postprocess."
+              },
+              "calc_loc": {
+                "type": "str",
+                "description": "Path where Q-Chem should run. Defaults to None, in which case Q-Chem will run in the system-defined QCLOCALSCR."
+              },
+              "nboexe": {
+                "type": "str",
+                "description": "Path to the NBO7 executable. Defaults to None."
+              },
+              "save_scratch": {
+                "type": "bool",
+                "description": "Whether to save full scratch directory contents. Defaults to False."
+              },
+              "backup": {
+                "type": "bool",
+                "description": "Whether to backup the initial input file. If True, the input will be copied with a \".orig\" appended. Defaults to True."
+              }
+            },
+            "output": null,
+            "ori_input": "self, qchem_command, max_cores, multimode = 'openmp', input_file = 'mol.qin', output_file = 'mol.qout', qclog_file = 'mol.qclog', suffix = '', calc_loc = None, nboexe = None, save_scratch = False, backup = True",
+            "ori_description": "Args: qchem_command (str): Command to run QChem. max_cores (int): Maximum number of cores to parallelize over. multimode (str): Parallelization scheme, either openmp or mpi. input_file (str): Name of the QChem input file. output_file (str): Name of the QChem output file. qclog_file (str): Name of the file to redirect the standard output to. None means not to record the standard output. suffix (str): String to append to the file in postprocess. calc_loc (str): Path where Q-Chem should run. Defaults to None, in which case Q-Chem will run in the system-defined QCLOCALSCR. nboexe (str): Path to the NBO7 executable. Defaults to None. save_scratch (bool): Whether to save full scratch directory contents. Defaults to False. backup (bool): Whether to backup the initial input file. If True, the input will be copied with a \".orig\" appended. Defaults to True."
+          },
+          {
+            "name": "setup",
+            "description": "Sets up environment variables necessary to efficiently run QChem.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "str | Path",
+                "description": "The directory to run in. Defaults to \"./\"."
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory: str | Path = './'",
+            "ori_description": "Sets up environment variables necessary to efficiently run QChem.  Args: directory (str): The directory to run in. Defaults to \"./\"."
+          },
+          {
+            "name": "run",
+            "description": "Perform the actual QChem run.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "str | Path",
+                "description": "The directory to run in. Defaults to \"./\"."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "(subprocess.Popen) Used for monitoring."
+              }
+            },
+            "ori_input": "self, directory: str | Path = './'",
+            "ori_description": "Perform the actual QChem run.  Args: directory (str): The directory to run in. Defaults to \"./\".  Returns: (subprocess.Popen) Used for monitoring."
+          },
+          {
+            "name": "postprocess",
+            "description": "Renames and removes scratch files after running QChem.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "str | Path",
+                "description": "The directory to run in. Defaults to \"./\"."
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory: str | Path = './'",
+            "ori_description": "Renames and removes scratch files after running QChem.  Args: directory (str): The directory to run in. Defaults to \"./\"."
+          },
+          {
+            "name": "opt_with_frequency_flattener",
+            "description": "Optimize a structure and calculate vibrational frequencies to check if the structure is in a true minima.  If there are an inappropriate number of imaginary frequencies (>0 for a minimum-energy structure, >1 for a transition-state), attempt to re-calculate using one of two methods: - Perturb the geometry based on the imaginary frequencies and re-optimize - Use the exact Hessian to inform a subsequent optimization After each geometry optimization, the frequencies are re-calculated to determine if a true minimum (or transition-state) has been found.  Note: Very small imaginary frequencies (-15cm^-1 < nu < 0) are allowed if there is only one more than there should be. In other words, if there is one very small imaginary frequency, it is still treated as a minimum, and if there is one significant imaginary frequency and one very small imaginary frequency, it is still treated as a transition-state.",
+            "input": {
+              "cls": null,
+              "qchem_command": {
+                "type": "str",
+                "description": "Command to run QChem."
+              },
+              "multimode": {
+                "type": "str",
+                "description": "Parallelization scheme, either openmp or mpi."
+              },
+              "input_file": {
+                "type": "str",
+                "description": "Name of the QChem input file."
+              },
+              "output_file": {
+                "type": "str",
+                "description": "Name of the QChem output file."
+              },
+              "qclog_file": {
+                "type": "str",
+                "description": "Name of the file to redirect the standard output"
+              },
+              "max_iterations": {
+                "type": "int",
+                "description": "Number of perturbation -> optimization -> frequency iterations to perform. Defaults to 10."
+              },
+              "max_molecule_perturb_scale": {
+                "type": "float",
+                "description": "The maximum scaled perturbation that can be applied to the molecule. Defaults to 0.3."
+              },
+              "check_connectivity": {
+                "type": "bool",
+                "description": "Whether to check differences in connectivity introduced by structural perturbation. Defaults to True."
+              },
+              "linked": {
+                "type": "bool",
+                "description": "Whether or not to use the linked flattener. If set to True (default), then the explicit Hessians from a vibrational frequency analysis will be used as the initial Hessian of subsequent optimizations. In many cases, this can significantly improve optimization efficiency."
+              },
+              "transition_state": {
+                "type": "bool",
+                "description": "If True (default False), use a ts optimization (search for a saddle point instead of a minimum)"
+              },
+              "freq_before_opt": {
+                "type": "bool",
+                "description": "If True (default False), run a frequency calculation before any opt/ts searches to improve understanding of the local potential energy surface."
+              },
+              "save_final_scratch": {
+                "type": "bool",
+                "description": "Whether to save full scratch directory contents at the end of the flattening. Defaults to False."
+              },
+              "QCJob_kwargs": {
+                "type": "**QCJob_kwargs",
+                "description": "Passthrough kwargs to QCJob. See :class:`custodian.qchem.jobs.QCJob`."
+              }
+            },
+            "output": null,
+            "ori_input": "cls, qchem_command, multimode = 'openmp', input_file = 'mol.qin', output_file = 'mol.qout', qclog_file = 'mol.qclog', max_iterations = 10, max_molecule_perturb_scale = 0.3, check_connectivity = True, linked = True, transition_state = False, freq_before_opt = False, save_final_scratch = False, **QCJob_kwargs",
+            "ori_description": "Optimize a structure and calculate vibrational frequencies to check if the structure is in a true minima.  If there are an inappropriate number of imaginary frequencies (>0 for a minimum-energy structure, >1 for a transition-state), attempt to re-calculate using one of two methods: - Perturb the geometry based on the imaginary frequencies and re-optimize - Use the exact Hessian to inform a subsequent optimization After each geometry optimization, the frequencies are re-calculated to determine if a true minimum (or transition-state) has been found.  Note: Very small imaginary frequencies (-15cm^-1 < nu < 0) are allowed if there is only one more than there should be. In other words, if there is one very small imaginary frequency, it is still treated as a minimum, and if there is one significant imaginary frequency and one very small imaginary frequency, it is still treated as a transition-state.  Args: qchem_command (str): Command to run QChem. multimode (str): Parallelization scheme, either openmp or mpi. input_file (str): Name of the QChem input file. output_file (str): Name of the QChem output file. qclog_file (str): Name of the file to redirect the standard output max_iterations (int): Number of perturbation -> optimization -> frequency iterations to perform. Defaults to 10. max_molecule_perturb_scale (float): The maximum scaled perturbation that can be applied to the molecule. Defaults to 0.3. check_connectivity (bool): Whether to check differences in connectivity introduced by structural perturbation. Defaults to True. linked (bool): Whether or not to use the linked flattener. If set to True (default), then the explicit Hessians from a vibrational frequency analysis will be used as the initial Hessian of subsequent optimizations. In many cases, this can significantly improve optimization efficiency. transition_state (bool): If True (default False), use a ts optimization (search for a saddle point instead of a minimum) freq_before_opt (bool): If True (default False), run a frequency calculation before any opt/ts searches to improve understanding of the local potential energy surface. save_final_scratch (bool): Whether to save full scratch directory contents at the end of the flattening. Defaults to False. **QCJob_kwargs: Passthrough kwargs to QCJob. See :class:`custodian.qchem.jobs.QCJob`."
+          }
+        ]
+      },
+      {
+        "name": "Cp2kJob",
+        "type": "class",
+        "module": "custodian.cp2k.jobs",
+        "input": "Job",
+        "description": "A basic cp2k job. Just runs whatever is in the directory. But conceivably can be a complex processing of inputs etc. with initialization.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "This constructor is necessarily complex due to the need for flexibility. For standard kinds of runs, it's often better to use one of the static constructors. The defaults are usually fine too.",
+            "input": {
+              "self": null,
+              "cp2k_cmd": {
+                "type": "list",
+                "description": "Command to run cp2k as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"cp2k.popt\"]"
+              },
+              "input_file": {
+                "type": "str",
+                "description": "Name of the file to use as input to CP2K executable. Defaults to \"cp2k.inp\""
+              },
+              "output_file": {
+                "type": "str",
+                "description": "Name of file to direct standard out to. Defaults to \"cp2k.out\"."
+              },
+              "stderr_file": {
+                "type": "str",
+                "description": "Name of file to direct standard error to. Defaults to \"std_err.txt\"."
+              },
+              "suffix": {
+                "type": "str",
+                "description": "A suffix to be appended to the final output. E.g., to rename all CP2K output from say cp2k.out to cp2k.out.relax1, provide \".relax1\" as the suffix."
+              },
+              "final": {
+                "type": "bool",
+                "description": "Indicating whether this is the final cp2k job in a series. Defaults to True."
+              },
+              "backup": {
+                "type": "bool",
+                "description": "Whether to backup the initial input files. If True, the input file will be copied with a \".orig\" appended. Defaults to True."
+              },
+              "settings_override": {
+                "type": "[actions]",
+                "description": "A list of actions. See the Cp2kModder in interpreter.py"
+              },
+              "restart": {
+                "type": "bool",
+                "description": "Whether to run in restart mode, i.e. this a continuation of a previous calculation. Default is False."
+              }
+            },
+            "output": null,
+            "ori_input": "self, cp2k_cmd, input_file = 'cp2k.inp', output_file = 'cp2k.out', stderr_file = 'std_err.txt', suffix = '', final = True, backup = True, settings_override = None, restart = False",
+            "ori_description": "This constructor is necessarily complex due to the need for flexibility. For standard kinds of runs, it's often better to use one of the static constructors. The defaults are usually fine too.  Args: cp2k_cmd (list): Command to run cp2k as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"cp2k.popt\"] input_file (str): Name of the file to use as input to CP2K executable. Defaults to \"cp2k.inp\" output_file (str): Name of file to direct standard out to. Defaults to \"cp2k.out\". stderr_file (str): Name of file to direct standard error to. Defaults to \"std_err.txt\". suffix (str): A suffix to be appended to the final output. E.g., to rename all CP2K output from say cp2k.out to cp2k.out.relax1, provide \".relax1\" as the suffix. final (bool): Indicating whether this is the final cp2k job in a series. Defaults to True. backup (bool): Whether to backup the initial input files. If True, the input file will be copied with a \".orig\" appended. Defaults to True. settings_override ([actions]): A list of actions. See the Cp2kModder in interpreter.py restart (bool): Whether to run in restart mode, i.e. this a continuation of a previous calculation. Default is False."
+          },
+          {
+            "name": "setup",
+            "description": "Performs initial setup for Cp2k in three stages. First, if custodian is running in restart mode, then the restart function will copy the restart file to self.input_file, and remove any previous WFN initialization if present. Second, any additional user specified settings will be applied. Lastly, a backup of the input file will be made for reference.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Performs initial setup for Cp2k in three stages. First, if custodian is running in restart mode, then the restart function will copy the restart file to self.input_file, and remove any previous WFN initialization if present. Second, any additional user specified settings will be applied. Lastly, a backup of the input file will be made for reference."
+          },
+          {
+            "name": "run",
+            "description": "Perform the actual CP2K run.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "(subprocess.Popen) Used for monitoring."
+              }
+            },
+            "ori_input": "self, directory = './'",
+            "ori_description": "Perform the actual CP2K run.  Returns: (subprocess.Popen) Used for monitoring."
+          },
+          {
+            "name": "postprocess",
+            "description": "Postprocessing includes renaming and gzipping where necessary.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Postprocessing includes renaming and gzipping where necessary."
+          },
+          {
+            "name": "terminate",
+            "description": "Terminate cp2k.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Terminate cp2k."
+          }
+        ]
+      },
+      {
+        "name": "Job",
+        "type": "class",
+        "module": "custodian.custodian",
+        "input": "MSONable",
+        "description": "Abstract base class defining the interface for a Job.",
+        "function": [
+          {
+            "name": "setup",
+            "description": "This method is run before the start of a job. Allows for some pre-processing.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "This method is run before the start of a job. Allows for some pre-processing."
+          },
+          {
+            "name": "run",
+            "description": "This method perform the actual work for the job. If parallel error checking (monitoring) is desired, this must return a Popen process.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "This method perform the actual work for the job. If parallel error checking (monitoring) is desired, this must return a Popen process."
+          },
+          {
+            "name": "postprocess",
+            "description": "This method is called at the end of a job, *after* error detection. This allows post-processing, such as cleanup, analysis of results, etc.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "This method is called at the end of a job, *after* error detection. This allows post-processing, such as cleanup, analysis of results, etc."
+          },
+          {
+            "name": "terminate",
+            "description": "Implement termination function.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Implement termination function."
+          },
+          {
+            "name": "name",
+            "description": "A nice string name for the job.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "A nice string name for the job."
+          }
+        ]
+      },
+      {
+        "name": "VaspNEBJob",
+        "type": "class",
+        "module": "custodian.vasp.jobs",
+        "input": "VaspJob",
+        "description": "A NEB vasp job, especially for CI-NEB running at PBS clusters. The class is added for the purpose of handling a different folder arrangement in NEB calculation.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "This constructor is a simplified version of VaspJob, which satisfies the need for flexibility. For standard kinds of runs, it's often better to use one of the static constructors. The defaults are usually fine too.",
+            "input": {
+              "self": null,
+              "vasp_cmd": {
+                "type": "str",
+                "description": "Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"]"
+              },
+              "output_file": {
+                "type": "str",
+                "description": "Name of file to direct standard out to. Defaults to \"vasp.out\"."
+              },
+              "stderr_file": {
+                "type": "str",
+                "description": "Name of file to direct standard error to. Defaults to \"std_err.txt\"."
+              },
+              "suffix": {
+                "type": "str",
+                "description": "A suffix to be appended to the final output. E.g., to rename all VASP output from say vasp.out to vasp.out.relax1, provide \".relax1\" as the suffix."
+              },
+              "final": {
+                "type": "bool",
+                "description": "Indicating whether this is the final vasp job in a series. Defaults to True."
+              },
+              "backup": {
+                "type": "bool",
+                "description": "Whether to backup the initial input files. If True, the INCAR, KPOINTS, POSCAR and POTCAR will be copied with a \".orig\" appended. Defaults to True."
+              },
+              "auto_npar": {
+                "type": "bool",
+                "description": "Whether to automatically tune NPAR to be sqrt( number of cores) as recommended by VASP for DFT calculations. Generally, this results in significant speedups. Defaults to True. Set to False for HF, GW and RPA calculations."
+              },
+              "half_kpts": {
+                "type": "bool",
+                "description": "Whether to halve the kpoint grid for NEB. Speeds up convergence considerably. Defaults to False."
+              },
+              "auto_gamma": {
+                "type": "bool",
+                "description": "Whether to automatically check if run is a Gamma 1x1x1 run, and whether a Gamma optimized version of VASP exists with \".gamma\" appended to the name of the VASP executable (typical setup in many systems). If so, run the gamma optimized version of VASP instead of regular VASP. You can also specify the gamma vasp command using the gamma_vasp_cmd argument if the command is named differently."
+              },
+              "auto_continue": {
+                "type": "bool",
+                "description": "Whether to automatically continue a run if a STOPCAR is present. This is very useful if using the wall-time handler which will write a read-only STOPCAR to prevent VASP from deleting it once it finishes."
+              },
+              "gamma_vasp_cmd": {
+                "type": "str",
+                "description": "Command for gamma vasp version when auto_gamma is True. Should follow the list style of subprocess. Defaults to None, which means \".gamma\" is added to the last argument of the standard vasp_cmd."
+              },
+              "settings_override": {
+                "type": "[dict]",
+                "description": "An ansible style list of dict to override changes. For example, to set ISTART=1 for subsequent runs and to copy the CONTCAR to the POSCAR, you will provide::  [{\"dict\": \"INCAR\", \"action\": {\"_set\": {\"ISTART\": 1}}}, {\"file\": \"CONTCAR\", \"action\": {\"_file_copy\": {\"dest\": \"POSCAR\"}}}]"
+              }
+            },
+            "output": null,
+            "ori_input": "self, vasp_cmd, output_file = 'neb_vasp.out', stderr_file = 'neb_std_err.txt', suffix = '', final = True, backup = True, auto_npar = True, half_kpts = False, auto_gamma = True, auto_continue = False, gamma_vasp_cmd = None, settings_override = None",
+            "ori_description": "This constructor is a simplified version of VaspJob, which satisfies the need for flexibility. For standard kinds of runs, it's often better to use one of the static constructors. The defaults are usually fine too.  Args: vasp_cmd (str): Command to run vasp as a list of args. For example, if you are using mpirun, it can be something like [\"mpirun\", \"pvasp.5.2.11\"] output_file (str): Name of file to direct standard out to. Defaults to \"vasp.out\". stderr_file (str): Name of file to direct standard error to. Defaults to \"std_err.txt\". suffix (str): A suffix to be appended to the final output. E.g., to rename all VASP output from say vasp.out to vasp.out.relax1, provide \".relax1\" as the suffix. final (bool): Indicating whether this is the final vasp job in a series. Defaults to True. backup (bool): Whether to backup the initial input files. If True, the INCAR, KPOINTS, POSCAR and POTCAR will be copied with a \".orig\" appended. Defaults to True. auto_npar (bool): Whether to automatically tune NPAR to be sqrt( number of cores) as recommended by VASP for DFT calculations. Generally, this results in significant speedups. Defaults to True. Set to False for HF, GW and RPA calculations. half_kpts (bool): Whether to halve the kpoint grid for NEB. Speeds up convergence considerably. Defaults to False. auto_gamma (bool): Whether to automatically check if run is a Gamma 1x1x1 run, and whether a Gamma optimized version of VASP exists with \".gamma\" appended to the name of the VASP executable (typical setup in many systems). If so, run the gamma optimized version of VASP instead of regular VASP. You can also specify the gamma vasp command using the gamma_vasp_cmd argument if the command is named differently. auto_continue (bool): Whether to automatically continue a run if a STOPCAR is present. This is very useful if using the wall-time handler which will write a read-only STOPCAR to prevent VASP from deleting it once it finishes. gamma_vasp_cmd (str): Command for gamma vasp version when auto_gamma is True. Should follow the list style of subprocess. Defaults to None, which means \".gamma\" is added to the last argument of the standard vasp_cmd. settings_override ([dict]): An ansible style list of dict to override changes. For example, to set ISTART=1 for subsequent runs and to copy the CONTCAR to the POSCAR, you will provide::  [{\"dict\": \"INCAR\", \"action\": {\"_set\": {\"ISTART\": 1}}}, {\"file\": \"CONTCAR\", \"action\": {\"_file_copy\": {\"dest\": \"POSCAR\"}}}]"
+          },
+          {
+            "name": "setup",
+            "description": "Performs initial setup for VaspNEBJob, including overriding any settings and backing up.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Performs initial setup for VaspNEBJob, including overriding any settings and backing up."
+          },
+          {
+            "name": "run",
+            "description": "Perform the actual VASP run.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "(subprocess.Popen) Used for monitoring."
+              }
+            },
+            "ori_input": "self, directory = './'",
+            "ori_description": "Perform the actual VASP run.  Returns: (subprocess.Popen) Used for monitoring."
+          },
+          {
+            "name": "postprocess",
+            "description": "Postprocessing includes renaming and gzipping where necessary.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Postprocessing includes renaming and gzipping where necessary."
+          }
+        ]
+      },
+      {
+        "name": "GenerateVaspInputJob",
+        "type": "class",
+        "module": "custodian.vasp.jobs",
+        "input": "Job",
+        "description": "Generates a VASP input based on an existing directory. This is typically used to modify the VASP input files before the next VaspJob.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "input_set": {
+                "type": "str",
+                "description": "Full path to the input set. E.g., \"pymatgen.io.vasp.sets.MPNonSCFSet\"."
+              },
+              "contcar_only": {
+                "type": "bool",
+                "description": "If True (default), only CONTCAR structures are used as input to the input set."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional kwargs to pass to the input set."
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_set, contcar_only = True, **kwargs",
+            "ori_description": "Args: input_set (str): Full path to the input set. E.g., \"pymatgen.io.vasp.sets.MPNonSCFSet\". contcar_only (bool): If True (default), only CONTCAR structures are used as input to the input set. **kwargs: Additional kwargs to pass to the input set."
+          },
+          {
+            "name": "setup",
+            "description": "Dummy setup.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Dummy setup."
+          },
+          {
+            "name": "run",
+            "description": "Run the calculation.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Run the calculation."
+          },
+          {
+            "name": "postprocess",
+            "description": "Dummy postprocess.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Dummy postprocess."
+          }
+        ]
+      },
+      {
+        "name": "VaspFilesValidator",
+        "type": "class",
+        "module": "custodian.vasp.validators",
+        "input": "Validator",
+        "description": "Check for existence of some of the files that VASP normally create upon running.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Dummy init.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Dummy init."
+          },
+          {
+            "name": "check",
+            "description": "Check for error.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Check for error."
+          }
+        ]
+      },
+      {
+        "name": "VaspErrorHandler",
+        "type": "class",
+        "module": "custodian.vasp.handlers",
+        "input": "ErrorHandler",
+        "description": "Master VaspErrorHandler class that handles a number of common errors that occur during VASP runs.  Args: is_monitor (bool): This class property indicates whether the error handler is a monitor, i.e., a handler that monitors a job as it is running. If a monitor-type handler notices an error, the job will be sent a termination signal, the error is then corrected, and then the job is restarted. This is useful for catching errors that occur early in the run but do not cause immediate failure. num_sites_kpoint_cutoff (int) : The maximum number of atoms in a structure for which increasing the k-point density is permitted as a possible error correction. Defaults to 50 atoms/structure.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the handler with the output file to check.",
+            "input": {
+              "self": null,
+              "output_filename": {
+                "type": "str",
+                "description": "This is the file where the stdout for vasp is being redirected. The error messages that are checked are present in the stdout. Defaults to \"vasp.out\", which is the default redirect used by :class:`custodian.vasp.jobs.VaspJob`."
+              },
+              "errors_subset_to_catch": {
+                "type": "list",
+                "description": "A subset of errors to catch. The default is None, which means all supported errors are detected. Use this to catch only a subset of supported errors. E.g., [\"eddrmm\", \"zheev\"] will only catch the eddrmm and zheev errors, and not others. If you wish to only exclude one or two of the errors, you can create this list by the following lines:  subset = list(VaspErrorHandler().error_msgs) subset.remove(\"eddrmm\") handler = VaspErrorHandler(errors_subset_to_catch=subset)"
+              },
+              "vtst_fixes": {
+                "type": "bool",
+                "description": "Whether to consider VTST optimizers. Defaults to False for compatibility purposes, but if you have VTST, you would likely benefit from setting this to True."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Ignored. Added to increase signature flexibility."
+              }
+            },
+            "output": null,
+            "ori_input": "self, output_filename = 'vasp.out', errors_subset_to_catch = None, vtst_fixes = False, **kwargs",
+            "ori_description": "Initialize the handler with the output file to check.  Args: output_filename (str): This is the file where the stdout for vasp is being redirected. The error messages that are checked are present in the stdout. Defaults to \"vasp.out\", which is the default redirect used by :class:`custodian.vasp.jobs.VaspJob`. errors_subset_to_catch (list): A subset of errors to catch. The default is None, which means all supported errors are detected. Use this to catch only a subset of supported errors. E.g., [\"eddrmm\", \"zheev\"] will only catch the eddrmm and zheev errors, and not others. If you wish to only exclude one or two of the errors, you can create this list by the following lines:  subset = list(VaspErrorHandler().error_msgs) subset.remove(\"eddrmm\") handler = VaspErrorHandler(errors_subset_to_catch=subset)  vtst_fixes (bool): Whether to consider VTST optimizers. Defaults to False for compatibility purposes, but if you have VTST, you would likely benefit from setting this to True. **kwargs: Ignored. Added to increase signature flexibility."
+          },
+          {
+            "name": "check",
+            "description": "Check for error.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Check for error."
+          },
+          {
+            "name": "correct",
+            "description": "Perform corrections.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Perform corrections."
+          }
+        ]
+      },
+      {
+        "name": "VaspModder",
+        "type": "class",
+        "module": "custodian.vasp.interpreter",
+        "input": "Modder",
+        "description": "A Modder for VaspInputSets.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a Modder for VaspInput sets.",
+            "input": {
+              "self": null,
+              "actions": {
+                "type": "[Action]",
+                "description": "A sequence of supported actions. See :mod:`custodian.ansible.actions`. Default is None, which means DictActions and FileActions are supported."
+              },
+              "strict": {
+                "type": "bool",
+                "description": "Indicating whether to use strict mode. In non-strict mode, unsupported actions are simply ignored without any errors raised. In strict mode, if an unsupported action is supplied, a ValueError is raised. Defaults to True."
+              },
+              "vi": {
+                "type": "VaspInput",
+                "description": "A VaspInput object from the current directory. Initialized automatically if not passed (but passing it will avoid having to re-parse the directory)."
+              },
+              "directory": {
+                "type": "str",
+                "description": "The directory containing the VaspInput set."
+              }
+            },
+            "output": null,
+            "ori_input": "self, actions = None, strict = True, vi = None, directory = './'",
+            "ori_description": "Initialize a Modder for VaspInput sets.  Args: actions ([Action]): A sequence of supported actions. See :mod:`custodian.ansible.actions`. Default is None, which means DictActions and FileActions are supported. strict (bool): Indicating whether to use strict mode. In non-strict mode, unsupported actions are simply ignored without any errors raised. In strict mode, if an unsupported action is supplied, a ValueError is raised. Defaults to True. vi (VaspInput): A VaspInput object from the current directory. Initialized automatically if not passed (but passing it will avoid having to re-parse the directory). directory (str): The directory containing the VaspInput set."
+          },
+          {
+            "name": "apply_actions",
+            "description": "Applies a list of actions to the Vasp Input Set and rewrites modified files.",
+            "input": {
+              "self": null,
+              "actions": {
+                "type": "dict",
+                "description": "A list of actions of the form {'file': filename, 'action': moddermodification} or {'dict': vaspinput_key, 'action': moddermodification}."
+              }
+            },
+            "output": null,
+            "ori_input": "self, actions",
+            "ori_description": "Applies a list of actions to the Vasp Input Set and rewrites modified files.  Args: actions (dict): A list of actions of the form {'file': filename, 'action': moddermodification} or {'dict': vaspinput_key, 'action': moddermodification}."
+          }
+        ]
+      },
+      {
+        "name": "VasprunXMLValidator",
+        "type": "class",
+        "module": "custodian.vasp.validators",
+        "input": "Validator",
+        "description": "Checks that a valid vasprun.xml was generated.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "output_file": {
+                "type": "str",
+                "description": "Name of file VASP standard output is directed to. Defaults to \"vasp.out\"."
+              },
+              "stderr_file": {
+                "type": "str",
+                "description": "Name of file VASP standard error is direct to. Defaults to \"std_err.txt\"."
+              }
+            },
+            "output": null,
+            "ori_input": "self, output_file: str = 'vasp.out', stderr_file: str = 'std_err.txt'",
+            "ori_description": "Args: output_file (str): Name of file VASP standard output is directed to. Defaults to \"vasp.out\". stderr_file (str): Name of file VASP standard error is direct to. Defaults to \"std_err.txt\"."
+          },
+          {
+            "name": "check",
+            "description": "Check for errors.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Check for errors."
+          }
+        ]
+      },
+      {
+        "name": "QChemErrorHandler",
+        "type": "class",
+        "module": "custodian.qchem.handlers",
+        "input": "ErrorHandler",
+        "description": "Master QChemErrorHandler class that handles a number of common errors that occur during QChem runs.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the error handler from a set of input and output files.",
+            "input": {
+              "self": null,
+              "input_file": {
+                "type": "str",
+                "description": "Name of the QChem input file."
+              },
+              "output_file": {
+                "type": "str",
+                "description": "Name of the QChem output file."
+              },
+              "scf_max_cycles": {
+                "type": "int",
+                "description": "The max iterations to set to fix SCF failure."
+              },
+              "geom_max_cycles": {
+                "type": "int",
+                "description": "The max iterations to set to fix geometry optimization failure."
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_file = 'mol.qin', output_file = 'mol.qout', scf_max_cycles = 100, geom_max_cycles = 200",
+            "ori_description": "Initialize the error handler from a set of input and output files.  Args: input_file (str): Name of the QChem input file. output_file (str): Name of the QChem output file. scf_max_cycles (int): The max iterations to set to fix SCF failure. geom_max_cycles (int): The max iterations to set to fix geometry optimization failure."
+          },
+          {
+            "name": "check",
+            "description": "Checks output file for errors.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Checks output file for errors."
+          },
+          {
+            "name": "correct",
+            "description": "Perform corrections.",
+            "input": {
+              "self": null,
+              "directory": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, directory = './'",
+            "ori_description": "Perform corrections."
+          }
+        ]
+      },
+      {
+        "name": "Modder",
+        "type": "class",
+        "module": "custodian.ansible.interpreter",
+        "input": "",
+        "description": "Class to modify a dict/file/any object using a mongo-like language. Keywords are mostly adopted from mongo's syntax, but instead of $, an underscore precedes action keywords. This is so that the modification can be inserted into a mongo db easily.  Allowable actions are supplied as a list of classes as an argument. Refer to the action classes on what the actions do. Action classes are in pymatpro.ansible.actions.  Examples: >>> modder = Modder() >>> dct = {\"Hello\": \"World\"} >>> mod = {'_set': {'Hello':'Universe', 'Bye': 'World'}} >>> modder.modify(mod, dct) >>> dct['Bye'] 'World' >>> dct['Hello'] 'Universe'",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize a Modder from a list of supported actions.",
+            "input": {
+              "self": null,
+              "actions": {
+                "type": "[Action]",
+                "description": "A sequence of supported actions. See :mod:`custodian.ansible.actions`. Default is None, which means only DictActions are supported."
+              },
+              "strict": {
+                "type": "bool",
+                "description": "Indicating whether to use strict mode. In non-strict mode, unsupported actions are simply ignored without any errors raised. In strict mode, if an unsupported action is supplied, a ValueError is raised. Defaults to True."
+              },
+              "directory": {
+                "type": "str",
+                "description": "The directory containing the files to be modified. Defaults to \"./\"."
+              }
+            },
+            "output": null,
+            "ori_input": "self, actions = None, strict = True, directory = './'",
+            "ori_description": "Initialize a Modder from a list of supported actions.  Args: actions ([Action]): A sequence of supported actions. See :mod:`custodian.ansible.actions`. Default is None, which means only DictActions are supported. strict (bool): Indicating whether to use strict mode. In non-strict mode, unsupported actions are simply ignored without any errors raised. In strict mode, if an unsupported action is supplied, a ValueError is raised. Defaults to True. directory (str): The directory containing the files to be modified. Defaults to \"./\"."
+          },
+          {
+            "name": "modify",
+            "description": "Note that modify makes actual in-place modifications. It does not return a copy.",
+            "input": {
+              "self": null,
+              "modification": {
+                "type": "dict",
+                "description": "Modification must be {action_keyword : settings}. E.g., {'_set': {'Hello':'Universe', 'Bye': 'World'}}"
+              },
+              "obj": {
+                "type": "dict/str/object",
+                "description": "Object to modify depending on actions. For example, for DictActions, obj will be a dict to be modified. For FileActions, obj will be a string with a full pathname to a file."
+              }
+            },
+            "output": null,
+            "ori_input": "self, modification, obj",
+            "ori_description": "Note that modify makes actual in-place modifications. It does not return a copy.  Args: modification (dict): Modification must be {action_keyword : settings}. E.g., {'_set': {'Hello':'Universe', 'Bye': 'World'}} obj (dict/str/object): Object to modify depending on actions. For example, for DictActions, obj will be a dict to be modified. For FileActions, obj will be a string with a full pathname to a file."
+          },
+          {
+            "name": "modify_object",
+            "description": "Modify an object that supports pymatgen's as_dict() and from_dict API.",
+            "input": {
+              "self": null,
+              "modification": {
+                "type": "dict",
+                "description": "Modification must be {action_keyword : settings}. E.g., {'_set': {'Hello':'Universe', 'Bye': 'World'}}"
+              },
+              "obj": {
+                "type": "object",
+                "description": "Object to modify"
+              }
+            },
+            "output": null,
+            "ori_input": "self, modification, obj",
+            "ori_description": "Modify an object that supports pymatgen's as_dict() and from_dict API.  Args: modification (dict): Modification must be {action_keyword : settings}. E.g., {'_set': {'Hello':'Universe', 'Bye': 'World'}} obj (object): Object to modify"
+          }
+        ]
+      },
+      {
+        "name": "load_vasprun",
+        "type": "function",
+        "module": "custodian.vasp.io",
+        "description": "Load Vasprun object from file path. Caches the output for reuse.",
+        "input": {
+          "filepath": {
+            "type": "",
+            "description": "path to the vasprun.xml file."
+          },
+          "vasprun_kwargs": {
+            "type": "**vasprun_kwargs",
+            "description": "kwargs arguments passed to the Vasprun init."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "The Vasprun object"
+          }
+        },
+        "ori_input": "filepath, **vasprun_kwargs",
+        "ori_description": "Load Vasprun object from file path. Caches the output for reuse.  Args: filepath: path to the vasprun.xml file. **vasprun_kwargs: kwargs arguments passed to the Vasprun init.  Returns: The Vasprun object"
+      },
+      {
+        "name": "increase_k_point_density",
+        "type": "function",
+        "module": "custodian.vasp.utils",
+        "description": "Inputs: kpoints (Kpoints, dict, float, int) : If a dict or Kpoints object: original Kpoints used in the calculation If a float: the original KSPACING used in the calculation structure (Structure) : associated structure factor (float) : factor used to increase k-point density. The first increase uses approximately (1 + factor) higher k-point density. The second increase: ~ (1 + 2*factor) higher k-kpoint density, etc. max_inc (int) : the maximum permitted increases in k-point density before giving up min_kpoints (int): The minimum permitted number of k-points. Can be useful if using the tetrahedron method, where at least 4 k-points are needed. force_gamma (bool) = True: whether to use Gamma-centered or Monkhorst-Pack grids Outputs: dict : The new Kpoints object / KSPACING consistent with constraints. If an empty dict, no new k-point mesh could be found.",
+        "input": {
+          "kpoints": {
+            "type": "Kpoints | dict | float",
+            "description": ""
+          },
+          "structure": {
+            "type": "Structure",
+            "description": ""
+          },
+          "factor": {
+            "type": "float",
+            "description": ""
+          },
+          "max_inc": {
+            "type": "int",
+            "description": ""
+          },
+          "min_kpoints": {
+            "type": "int",
+            "description": ""
+          },
+          "force_gamma": {
+            "type": "bool",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "kpoints: Kpoints | dict | float, structure: Structure, factor: float = 0.1, max_inc: int = 500, min_kpoints: int = 1, force_gamma: bool = True",
+        "ori_description": "Inputs: kpoints (Kpoints, dict, float, int) : If a dict or Kpoints object: original Kpoints used in the calculation If a float: the original KSPACING used in the calculation structure (Structure) : associated structure factor (float) : factor used to increase k-point density. The first increase uses approximately (1 + factor) higher k-point density. The second increase: ~ (1 + 2*factor) higher k-kpoint density, etc. max_inc (int) : the maximum permitted increases in k-point density before giving up min_kpoints (int): The minimum permitted number of k-points. Can be useful if using the tetrahedron method, where at least 4 k-points are needed. force_gamma (bool) = True: whether to use Gamma-centered or Monkhorst-Pack grids Outputs: dict : The new Kpoints object / KSPACING consistent with constraints. If an empty dict, no new k-point mesh could be found."
+      },
+      {
+        "name": "backup",
+        "type": "function",
+        "module": "custodian.utils",
+        "description": "Backup files to a tar.gz file. Used, for example, in backing up the files of an errored run before performing corrections.",
+        "input": {
+          "filenames": {
+            "type": "[str]",
+            "description": "List of files to backup. Supports wildcards, e.g., *.*."
+          },
+          "prefix": {
+            "type": "str",
+            "description": "prefix to the files. Defaults to error, which means a series of error.1.tar.gz, error.2.tar.gz, ... will be generated."
+          },
+          "directory": {
+            "type": "str",
+            "description": "directory where the files exist"
+          }
+        },
+        "output": null,
+        "ori_input": "filenames, prefix = 'error', directory = './'",
+        "ori_description": "Backup files to a tar.gz file. Used, for example, in backing up the files of an errored run before performing corrections.  Args: filenames ([str]): List of files to backup. Supports wildcards, e.g., *.*. prefix (str): prefix to the files. Defaults to error, which means a series of error.1.tar.gz, error.2.tar.gz, ... will be generated. directory (str): directory where the files exist"
+      },
+      {
+        "name": "perturb_coordinates",
+        "type": "function",
+        "module": "custodian.qchem.utils",
+        "description": "Perturbs a structure along the imaginary mode vibrational frequency vectors.  old_coords (np.ndarray): Initial molecule coordinates negative_freq_vecs (list of np.ndarray): Vibrational frequency vectors corresponding to imaginary (negative) frequencies molecule_perturb_scale (float): Scaling factor for coordination modification. The perturbation vector will be multiplied by this factor. reversed_direction (bool): If True, then perturb in direction opposite of frequency modes.",
+        "input": {
+          "old_coords": {
+            "type": "",
+            "description": ""
+          },
+          "negative_freq_vecs": {
+            "type": "",
+            "description": ""
+          },
+          "molecule_perturb_scale": {
+            "type": "",
+            "description": ""
+          },
+          "reversed_direction": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "old_coords, negative_freq_vecs, molecule_perturb_scale, reversed_direction",
+        "ori_description": "Perturbs a structure along the imaginary mode vibrational frequency vectors.  old_coords (np.ndarray): Initial molecule coordinates negative_freq_vecs (list of np.ndarray): Vibrational frequency vectors corresponding to imaginary (negative) frequencies molecule_perturb_scale (float): Scaling factor for coordination modification. The perturbation vector will be multiplied by this factor. reversed_direction (bool): If True, then perturb in direction opposite of frequency modes."
+      },
+      {
+        "name": "restart",
+        "type": "function",
+        "module": "custodian.cp2k.utils",
+        "description": "Helper function. To discard old restart if convergence is already good, and copy the restart file to the input file. Restart also supports switching back and forth between OT and diagonalization as needed based on convergence behavior. If OT is not being used and a band gap exists, then OT will be activated.",
+        "input": {
+          "actions": {
+            "type": "list",
+            "description": "list of actions that the handler is going to return to custodian. If no actions are present, then non are added by this function"
+          },
+          "output_file": {
+            "type": "str",
+            "description": "the cp2k output file name."
+          },
+          "input_file": {
+            "type": "str",
+            "description": "the cp2k input file name."
+          },
+          "no_actions_needed": {
+            "type": "bool",
+            "description": "if no actions are needed, then this should be set to True."
+          }
+        },
+        "output": null,
+        "ori_input": "actions, output_file, input_file, no_actions_needed = False",
+        "ori_description": "Helper function. To discard old restart if convergence is already good, and copy the restart file to the input file. Restart also supports switching back and forth between OT and diagonalization as needed based on convergence behavior. If OT is not being used and a band gap exists, then OT will be activated.  Args: actions (list): list of actions that the handler is going to return to custodian. If no actions are present, then non are added by this function output_file (str): the cp2k output file name. input_file (str): the cp2k input file name. no_actions_needed (bool): if no actions are needed, then this should be set to True."
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/materialsproject/custodian",
+        "documentation": "https://materialsproject.github.io/custodian/",
+        "pypi": "https://pypi.org/project/custodian/",
+        "pypi_version": "2025.12.14",
+        "tag": "v2025.12.14",
+        "commit": "4591934b5bc4ae90a11037c3f95f1eb2023ca571",
+        "release_published_at": "2025-12-14T15:48:02Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 2025.12.14 与 GitHub Release v2025.12.14 一致。",
+          "错误恢复依赖外部程序和真实输出；本次仅做静态 API 整理。"
+        ],
+        "release_url": "https://github.com/materialsproject/custodian/releases/tag/v2025.12.14",
+        "release_api": "https://api.github.com/repos/materialsproject/custodian/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/custodian",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "custodian"
+        ],
+        "source_files": [
+          "src/custodian/__init__.py",
+          "src/custodian/ansible/__init__.py",
+          "src/custodian/ansible/actions.py",
+          "src/custodian/ansible/interpreter.py",
+          "src/custodian/cli/__init__.py",
+          "src/custodian/cli/converge_geometry.py",
+          "src/custodian/cli/converge_kpoints.py",
+          "src/custodian/cli/cstdn.py",
+          "src/custodian/cli/run_nwchem.py",
+          "src/custodian/cli/run_vasp.py",
+          "src/custodian/cp2k/__init__.py",
+          "src/custodian/cp2k/handlers.py",
+          "src/custodian/cp2k/interpreter.py",
+          "src/custodian/cp2k/jobs.py",
+          "src/custodian/cp2k/utils.py",
+          "src/custodian/cp2k/validators.py",
+          "src/custodian/custodian.py",
+          "src/custodian/feff/__init__.py",
+          "src/custodian/feff/handlers.py",
+          "src/custodian/feff/interpreter.py",
+          "src/custodian/feff/jobs.py",
+          "src/custodian/gaussian/__init__.py",
+          "src/custodian/gaussian/handlers.py",
+          "src/custodian/gaussian/jobs.py",
+          "src/custodian/jdftx/__init__.py",
+          "src/custodian/jdftx/jobs.py",
+          "src/custodian/lobster/__init__.py",
+          "src/custodian/lobster/handlers.py",
+          "src/custodian/lobster/jobs.py",
+          "src/custodian/nwchem/__init__.py",
+          "src/custodian/nwchem/handlers.py",
+          "src/custodian/nwchem/jobs.py",
+          "src/custodian/qchem/__init__.py",
+          "src/custodian/qchem/handlers.py",
+          "src/custodian/qchem/jobs.py",
+          "src/custodian/qchem/utils.py",
+          "src/custodian/utils.py",
+          "src/custodian/vasp/__init__.py",
+          "src/custodian/vasp/handlers.py",
+          "src/custodian/vasp/interpreter.py",
+          "src/custodian/vasp/io.py",
+          "src/custodian/vasp/jobs.py",
+          "src/custodian/vasp/utils.py",
+          "src/custodian/vasp/validators.py"
+        ],
+        "source_file_sha256": {
+          "src/custodian/__init__.py": "3d4639dcedea57006f74391aea2a511de17791ece77b4dc1b062f90eb882005d",
+          "src/custodian/ansible/__init__.py": "4c4fa640641d77f64e20a7fd59ef2d019ed88ef3688c8b5d86bb02f4e6136d9d",
+          "src/custodian/ansible/actions.py": "a7f373dace3880c7ad84b3cde08ace89febf2c1ffce192557c941f29ce2a1687",
+          "src/custodian/ansible/interpreter.py": "9e358c8f8f67b9a02a2302904a5ccb5e2d53da0d6f18dde121f90fe392078cdc",
+          "src/custodian/cli/__init__.py": "b2be4f69ba35f95d626b71ee15dc1e598432937ebcfb525c7ff90116522c8472",
+          "src/custodian/cli/converge_geometry.py": "ba820787d18c6ed1f5ef48c2b358cc72a0cb45aab8c603709c37ffae3af7b728",
+          "src/custodian/cli/converge_kpoints.py": "99b913d08a8ae369441288f0871a88f2c5e883ba34ae2d02b73a54bd57f03557",
+          "src/custodian/cli/cstdn.py": "e1dfd6144726fb2cc12646ce820626378b1be97a2790c66d76e7b24d0a15f6a2",
+          "src/custodian/cli/run_nwchem.py": "8b4a00b5e9c5376f571a55b82a623b288e7bbf8a2103f702f209dabce5865c0e",
+          "src/custodian/cli/run_vasp.py": "fb9d0aedb2c2e530da771c0d2681b3988cd76a008aa10c4f457b87a98cf655bb",
+          "src/custodian/cp2k/__init__.py": "7662a67f46f301b625afa01f4f3a461fa5d254dabc1bdfa5e768ace4463a4931",
+          "src/custodian/cp2k/handlers.py": "2c81849bec08c1d222ab2a875657551f5d7c7355ee29d2a3f8f6d84fbe1e2cfb",
+          "src/custodian/cp2k/interpreter.py": "404ff927d96581885e8eccb94e2a4accda4a06776f3e7f991549ff1ae3b08c54",
+          "src/custodian/cp2k/jobs.py": "34f01de5a2b175806151971410b0aced2c8b66129b3dd3325da3b0cb30dffe40",
+          "src/custodian/cp2k/utils.py": "043af4060156174b91825bbb493634769be255e90da221f3c7dfaae855d93b69",
+          "src/custodian/cp2k/validators.py": "daf5e40fe6cb3d2b0e9a8411be760dca3ac0e7947a2c1c673c2eda32a91445d5",
+          "src/custodian/custodian.py": "d5c9c8649bef293349ab111055655e9f1cf24f59ca473ede70f7c30ee2502005",
+          "src/custodian/feff/__init__.py": "30b96c45c2ec56b73787cbb31b1c23ec974c2060fd27e6928b40b41c9eafd6f6",
+          "src/custodian/feff/handlers.py": "0ae5aa7cef03af6bb91a03592c349e36c6700242d741df435b6722e0aaafb506",
+          "src/custodian/feff/interpreter.py": "d76f6027a2e636a50fa2ed8a02be3076f9e104dee9b215b1f015795710297c1a",
+          "src/custodian/feff/jobs.py": "9ef5d1c6cb0ada04f8bea7f7951fc5ca0686da23321ed989c966f1c6a722a727",
+          "src/custodian/gaussian/__init__.py": "e1d294eb1b1aed88e63880537816635b70fcfe5c15e1783ef3f3a2b48ea0d16d",
+          "src/custodian/gaussian/handlers.py": "def03da8d3f0fffbb419f2eba94705eb0698542b17cd3cc98c11eaa8a145b6e9",
+          "src/custodian/gaussian/jobs.py": "bd8289dc41c1b08f1399f414ff6e58d697a453d1b36da375db7033de0967a9cc",
+          "src/custodian/jdftx/__init__.py": "a9617612a2d33a0484f5a26382f3cba2c50e5c082a96dc252bfc1592c1e79d00",
+          "src/custodian/jdftx/jobs.py": "8d0676ac8de82244e397fddb6c75bcd1afc9f469be6498301567dbde5dae7453",
+          "src/custodian/lobster/__init__.py": "30f2cfa49fe69067d636e9bebe4a4cd58f53645cc3f5d3177db79c58bf6c15cf",
+          "src/custodian/lobster/handlers.py": "5cc2b242e15203cc11b748c9e955be007e1062b4e5a341c10de587bef5b9833d",
+          "src/custodian/lobster/jobs.py": "f59b4c95bf0c2b6e68bd99db3f4cf0346043acb78a86583ffc59a9ace9a270ae",
+          "src/custodian/nwchem/__init__.py": "0ac8dd98449f0c60ed3c7f4ca0c37317c5c0fc1a146c135e750ec409b0732bd4",
+          "src/custodian/nwchem/handlers.py": "542ec83810c1358f51b1cae0c4ba26287949c80a23a24af00405e96226103469",
+          "src/custodian/nwchem/jobs.py": "87c2e18ff1b054b237c09224dcbffce378a34301b8153d99efd861dcc545b0a8",
+          "src/custodian/qchem/__init__.py": "845df96aa48e077881f7cf8efa29436291f8e935321d6d5a8132dcca2c37994f",
+          "src/custodian/qchem/handlers.py": "29e4309f03ec2f05940412080ef54a9e669e5e27967f3330103ce934713e91e2",
+          "src/custodian/qchem/jobs.py": "454034cff500e95ab789700ba5c52d7471ea3c81eff291377c1759f047a48b76",
+          "src/custodian/qchem/utils.py": "a96594b102f470fd778f021d0d0dfd636766081fced41f1c96a9963e9b2918b8",
+          "src/custodian/utils.py": "13be126b5ce2f59cdebe73eddf79028f381eb2cb0822b702f2ea72d09a1277ac",
+          "src/custodian/vasp/__init__.py": "4709c981f3737ac998edb05a9906f7bdeefd80465d1158e7f338b68992d5a5dc",
+          "src/custodian/vasp/handlers.py": "3f79bd2a25ec3a51ad2b83d648d6f39001c81a7a4e55f3f07a60d9f8a5aa9a15",
+          "src/custodian/vasp/interpreter.py": "a140468ff3d309a8afce9b36ae213838214d2d445f8185d4f3fd8c0ec8958d09",
+          "src/custodian/vasp/io.py": "6f07621dfa36c84eb29c969f7efc496a961088f71ad81293acc4e82c73d14de8",
+          "src/custodian/vasp/jobs.py": "1a625e200afd757c471af7f78b60e8b308a583cf4939c2441b04822cd99b629d",
+          "src/custodian/vasp/utils.py": "3edbb03402430d3d5dd681bd13a3d5bdf0885586028993e90def3d5c2f12e049",
+          "src/custodian/vasp/validators.py": "85fc4c512225444d2a2ab14bf38358fe406ead266b0d4ec9e4065e1b63c57174"
+        },
+        "source_version": "v2025.12.14",
+        "source_commit": "4591934b5bc4ae90a11037c3f95f1eb2023ca571",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "custodian_recovery_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/custodian_v2025.12.14.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/custodian_v2025.12.14.json",
+        "source_sha256": "584efbc91b8ff7e0ea680e6b47bc3e99375c59d5e0d137c2adb289f14a979e65",
+        "profile_sha256": "2ea283750777ca6d90d245b195863d1d51696bc28e52b91a6fb4bef1a7a88f84",
+        "boundary": "通用 Custodian 运行监控、VASP/QC/CP2K 代表作业、错误处理和验证；不展开所有量化软件适配。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 100,
+        "selected_tool_count": 18,
+        "selected_class_count": 13,
+        "selected_function_count": 5,
+        "selected_method_count": 50,
+        "selected_all_func": 55,
+        "missing_description_count": 3,
+        "excluded_tool_count": 82,
+        "capability_count": 3
+      }
+    }
+  }
+]

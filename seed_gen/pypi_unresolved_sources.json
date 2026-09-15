@@ -1,0 +1,40 @@
+[
+  {
+    "name": "ngspyce",
+    "status": "no_confirmed_release",
+    "repository": "https://github.com/ignamv/ngspyce",
+    "documentation": "https://github.com/ignamv/ngspyce#readme",
+    "pypi": "",
+    "checked_on": "2026-09-15",
+    "evidence": {
+      "github_tags": [],
+      "github_releases": [],
+      "pypi_project_exists": false,
+      "default_branch_head": "154a2724",
+      "default_branch_last_commit_at": "2020-03-11T13:11:13Z"
+    },
+    "reason": "官方仓库没有标签或 Release，PyPI 无同名项目，无法确认可复现的发布版本；按指南不把默认分支冒充发布版，因此不生成源码发布索引和精选 JSON。",
+    "alternatives_collected": ["spicelib", "PySpice"],
+    "external_runtime": "ngspice shared library"
+  },
+  {
+    "name": "nextnano",
+    "status": "external_solver",
+    "repository": "",
+    "documentation": "https://www.nextnano.com/",
+    "pypi": "",
+    "checked_on": "2026-09-15",
+    "reason": "nextnano 是需许可的外部求解器，不是本表要静态解析的 Python 包；已整理其官方 Python 客户端 nextnanopy。",
+    "alternatives_collected": ["nextnanopy"]
+  },
+  {
+    "name": "ngspice/Xyce",
+    "status": "external_solver",
+    "repository": "",
+    "documentation": "https://ngspice.sourceforge.io/",
+    "pypi": "",
+    "checked_on": "2026-09-15",
+    "reason": "ngspice 和 Xyce 是 SPICE 求解器可执行程序/共享库，不作为 Python API 包索引；其 Python 调用边界由 spicelib、PySpice 和 PyOPUS 表示。",
+    "alternatives_collected": ["spicelib", "PySpice", "PyOPUS"]
+  }
+]

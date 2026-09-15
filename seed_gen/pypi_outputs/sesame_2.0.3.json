@@ -1203,7 +1203,7 @@
         "tag": "2.0.3",
         "commit": "639b43515321e261b3ae7e0ae0d60b0f71556933",
         "release_published_at": "2019-04-25T22:32:09Z",
-        "checked_on": "2026-09-10",
+        "checked_on": "2026-09-15",
         "github_prerelease": false,
         "notes": [
           "此处为 usnistgov/sesame 半导体求解器；PyPI 的 sesame 0.3.3 是 mafrosis/sesame 加密工具，故不填写该同名 PyPI 链接。source=pypi 沿用用户指定的 Python 包种子分类，不表示已确认 PyPI 分发。",
@@ -1288,8 +1288,8 @@
         "profile_id": "sesame_balanced_v1",
         "source_artifact": "seed_gen/pypi_outputs/ori_all/sesame_2.0.3.json",
         "profile_artifact": "seed_gen/pypi_selection_profiles/sesame_2.0.3.json",
-        "source_sha256": "35d1b5ed52ca4aec44a725493a970d35bf657fb78352bf58843cb0c51c67f2e8",
-        "profile_sha256": "cde587c38afd37d9765bbe314c220584f043e9f9ce8d18c28a3e0bbbb51fe9f1",
+        "source_sha256": "0929fee7419205748e02b8495e9981f73eb62406c3b38b0d19b13b04414fdcc7",
+        "profile_sha256": "01d4c5d72fcd81e87e2d2b17b5152a72f1ff8592e55dd6dc8dc71392d958f171",
         "boundary": "小型一维/二维器件构建、缩放、漂移扩散求解、载流子/复合/电流分析、结果保存与必要绘图。排除 Qt GUI、MUMPS 包装、异常类和雅可比/残差装配。少量几何工具用于定位缺陷及校验网格；图形验证需无界面后端。仅静态筛选，数值求解和旧版依赖兼容性未验证。",
         "target_all_func": {
           "min": 50,

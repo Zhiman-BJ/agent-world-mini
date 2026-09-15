@@ -1,0 +1,1556 @@
+[
+  {
+    "global_id": "pypi_phonopy_22",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/phonopy/phonopy",
+          "https://pypi.org/project/phonopy/",
+          "https://phonopy.github.io/phonopy/"
+        ],
+        "name": "phonopy",
+        "version": "v4.5.0",
+        "index": 22
+      },
+      "description": "phonopy 是晶格动力学和声子性质计算工具，提供超胞生成、位移结构、力常数、动力学矩阵、声子频率与本征矢、态密度和热力学量分析接口，可读取外部第一性原理计算得到的原子力。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 7,
+        "function": 8,
+        "class_func": 49,
+        "all_func": 57
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Phonopy",
+        "type": "class",
+        "module": "phonopy.api_phonopy",
+        "input": "",
+        "description": "Phonopy main API.  A ``Phonopy`` instance is created from a unit cell and a supercell matrix. It manages displacement generation, force-constant construction, and derived phonon quantities such as band structure, mesh sampling, DOS, thermal properties, group velocity, irreducible representations, modulations, dynamic structure factor, and finite- temperature random displacements.  Most attributes are exposed as ``@property`` accessors documented individually below. See :ref:`phonopy_module` for a tutorial-style overview of the typical workflow.  Examples -------- >>> import numpy as np >>> from phonopy import Phonopy >>> from phonopy.structure.atoms import PhonopyAtoms >>> a = 5.404 >>> unitcell = PhonopyAtoms( ... symbols=[\"Si\"] * 8, ... cell=np.eye(3) * a, ... scaled_positions=[ ... [0, 0, 0], [0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0], ... [0.25, 0.25, 0.25], [0.25, 0.75, 0.75], ... [0.75, 0.25, 0.75], [0.75, 0.75, 0.25], ... ], ... ) >>> phonon = Phonopy(unitcell, supercell_matrix=[2, 2, 2]) >>> phonon.generate_displacements(distance=0.03) >>> # Obtain forces by running an external calculator on >>> # phonon.supercells_with_displacements, then: >>> # phonon.forces = sets_of_forces >>> # phonon.produce_force_constants() >>> # phonon.run_mesh([20, 20, 20]) >>> # phonon.run_thermal_properties(t_step=10, t_max=1000, t_min=0)",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Init method.",
+            "input": {
+              "self": null,
+              "unitcell": {
+                "type": "PhonopyAtoms",
+                "description": "Input unit cell."
+              },
+              "supercell_matrix": {
+                "type": "Sequence[int] | Sequence[Sequence[int]] | NDArray | None",
+                "description": "Transformation matrix to the supercell from the unit cell. ``shape=(3, 3)``, ``dtype=int``."
+              },
+              "primitive_matrix": {
+                "type": "Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | Sequence[Sequence[float]] | NDArray | None",
+                "description": "Transformation matrix to the primitive cell from the unit cell. ``shape=(3, 3)``, ``dtype=float``. Default is ``\"auto\"``, which guesses the primitive matrix from crystal symmetry. To use the unit cell as the primitive cell (identity transformation), pass ``\"P\"``. ``None`` is treated the same as ``\"auto\"``."
+              },
+              "group_velocity_delta_q": {
+                "type": "float | None",
+                "description": "Delta-q distance to calculate group velocity."
+              },
+              "symprec": {
+                "type": "float",
+                "description": "Symmetry search precision. Default is 1e-5."
+              },
+              "is_symmetry": {
+                "type": "bool",
+                "description": "Whether to search symmetry of the supercell. Default is True."
+              },
+              "distinguish_symbol_index": {
+                "type": "bool",
+                "description": "When True, atoms whose symbols differ only in the numeric suffix (\"Cl\" vs \"Cl1\") are treated as distinct species in the symmetry search and in the automatic primitive matrix determination. By default (False) the suffix is a calculator-facing label that does not affect symmetry. Default is False."
+              },
+              "use_SNF_supercell": {
+                "type": "bool",
+                "description": "Build the supercell with the SNF algorithm when True. Default is False. The SNF algorithm is faster than the original one, but the order of atoms in the supercell can be different. Backward compatibility with old data (e.g., force constants) is therefore not guaranteed."
+              },
+              "hermitianize_dynamical_matrix": {
+                "type": "bool",
+                "description": "Whether to force-Hermitianize the dynamical matrix. Default is True, i.e., ``D <- (D + D^H) / 2``."
+              },
+              "calculator": {
+                "type": "str | None",
+                "description": "Calculator name such as ``'vasp'``, ``'qe'``, etc. Default is None."
+              },
+              "log_level": {
+                "type": "int",
+                "description": "Log level. Default is 0."
+              },
+              "lang": {
+                "type": "Literal['C', 'Rust']",
+                "description": "Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+              }
+            },
+            "output": null,
+            "ori_input": "self, unitcell: PhonopyAtoms, supercell_matrix: Sequence[int] | Sequence[Sequence[int]] | NDArray | None = None, primitive_matrix: Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | Sequence[Sequence[float]] | NDArray | None = 'auto', group_velocity_delta_q: float | None = None, symprec: float = 1e-05, is_symmetry: bool = True, distinguish_symbol_index: bool = False, use_SNF_supercell: bool = False, hermitianize_dynamical_matrix: bool = True, calculator: str | None = None, log_level: int = 0, lang: Literal['C', 'Rust'] = 'Rust'",
+            "ori_description": "Init method.  Parameters ---------- unitcell : PhonopyAtoms Input unit cell. supercell_matrix : array_like, optional Transformation matrix to the supercell from the unit cell. ``shape=(3, 3)``, ``dtype=int``. primitive_matrix : str or array_like, optional Transformation matrix to the primitive cell from the unit cell. ``shape=(3, 3)``, ``dtype=float``. Default is ``\"auto\"``, which guesses the primitive matrix from crystal symmetry. To use the unit cell as the primitive cell (identity transformation), pass ``\"P\"``. ``None`` is treated the same as ``\"auto\"``. group_velocity_delta_q : float, optional Delta-q distance to calculate group velocity. symprec : float, optional Symmetry search precision. Default is 1e-5. is_symmetry : bool, optional Whether to search symmetry of the supercell. Default is True. distinguish_symbol_index : bool, optional When True, atoms whose symbols differ only in the numeric suffix (\"Cl\" vs \"Cl1\") are treated as distinct species in the symmetry search and in the automatic primitive matrix determination. By default (False) the suffix is a calculator-facing label that does not affect symmetry. Default is False. use_SNF_supercell : bool, optional Build the supercell with the SNF algorithm when True. Default is False. The SNF algorithm is faster than the original one, but the order of atoms in the supercell can be different. Backward compatibility with old data (e.g., force constants) is therefore not guaranteed. hermitianize_dynamical_matrix : bool, optional Whether to force-Hermitianize the dynamical matrix. Default is True, i.e., ``D <- (D + D^H) / 2``. calculator : str, optional Calculator name such as ``'vasp'``, ``'qe'``, etc. Default is None. log_level : int, optional Log level. Default is 0. lang : Literal[\"C\", \"Rust\"], optional Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+          },
+          {
+            "name": "primitive",
+            "description": "Return primitive cell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return primitive cell."
+          },
+          {
+            "name": "unitcell",
+            "description": "Return input unit cell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return input unit cell."
+          },
+          {
+            "name": "supercell",
+            "description": "Return supercell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return supercell."
+          },
+          {
+            "name": "symmetry",
+            "description": "Return symmetry of the supercell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return symmetry of the supercell."
+          },
+          {
+            "name": "dataset",
+            "description": "",
+            "input": {
+              "self": null,
+              "dataset": {
+                "type": "DisplacementDataset | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dataset: DisplacementDataset | None",
+            "ori_description": ""
+          },
+          {
+            "name": "displacements",
+            "description": "",
+            "input": {
+              "self": null,
+              "displacements": {
+                "type": "Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, displacements: Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "force_constants",
+            "description": "",
+            "input": {
+              "self": null,
+              "force_constants": {
+                "type": "NDArray[np.double] | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, force_constants: NDArray[np.double] | None",
+            "ori_description": ""
+          },
+          {
+            "name": "forces",
+            "description": "",
+            "input": {
+              "self": null,
+              "sets_of_forces": {
+                "type": "NDArray[np.double] | Sequence[NDArray[np.double]] | Sequence[Sequence[Sequence[float]]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sets_of_forces: NDArray[np.double] | Sequence[NDArray[np.double]] | Sequence[Sequence[Sequence[float]]]",
+            "ori_description": ""
+          },
+          {
+            "name": "dynamical_matrix",
+            "description": "Return the ``DynamicalMatrix`` instance.  This is the dynamical-matrix builder object, not the matrix itself. Call ``dm.run(q)`` and then access ``dm.dynamical_matrix`` to obtain the matrix at a given q-point.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the ``DynamicalMatrix`` instance.  This is the dynamical-matrix builder object, not the matrix itself. Call ``dm.run(q)`` and then access ``dm.dynamical_matrix`` to obtain the matrix at a given q-point."
+          },
+          {
+            "name": "supercells_with_displacements",
+            "description": "Return supercells with displacements as a list of ``PhonopyAtoms``.  Generated by :meth:`generate_displacements`.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return supercells with displacements as a list of ``PhonopyAtoms``.  Generated by :meth:`generate_displacements`."
+          },
+          {
+            "name": "mesh_numbers",
+            "description": "Return sampling mesh numbers in reciprocal space.  ``shape=(3,)``, ``dtype='int64'``. ``None`` if ``run_mesh`` / ``init_mesh`` has not been called.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return sampling mesh numbers in reciprocal space.  ``shape=(3,)``, ``dtype='int64'``. ``None`` if ``run_mesh`` / ``init_mesh`` has not been called."
+          },
+          {
+            "name": "qpoints",
+            "description": "Return QpointsPhonon instance.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return QpointsPhonon instance."
+          },
+          {
+            "name": "band_structure",
+            "description": "Return BandStructure instance.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return BandStructure instance."
+          },
+          {
+            "name": "group_velocity",
+            "description": "Return GroupVelocity instance.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return GroupVelocity instance."
+          },
+          {
+            "name": "mesh",
+            "description": "Return Mesh or IterMesh instance.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return Mesh or IterMesh instance."
+          },
+          {
+            "name": "random_displacements",
+            "description": "Return RandomDisplacements instance.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return RandomDisplacements instance."
+          },
+          {
+            "name": "dynamic_structure_factor",
+            "description": "Return DynamicStructureFactor instance.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return DynamicStructureFactor instance."
+          }
+        ]
+      },
+      {
+        "name": "load",
+        "type": "function",
+        "module": "phonopy.cui.load",
+        "description": "Create a ``Phonopy`` instance from parameters and/or input files.  A \"phonopy_yaml\"-like file is parsed unless crystal structure information is given through ``unitcell_filename``, ``supercell_filename``, ``unitcell`` (``PhonopyAtoms``-like), or ``supercell`` (``PhonopyAtoms``-like). Even when a \"phonopy_yaml\"-like file is parsed, parameters other than crystal structure can be overwritten.  Phonopy's default ``FORCE_SETS`` and ``BORN`` files are parsed when they are found in the current directory and the corresponding data are not yet provided by other means.  **Crystal structure**  Means to provide crystal structure(s), in order of priority:  1. ``unitcell_filename`` (with ``supercell_matrix``) 2. ``supercell_filename`` 3. ``unitcell`` (with ``supercell_matrix``) 4. ``supercell`` 5. ``phonopy_yaml``  **Force sets or force constants**  Optional. Means to provide information used to generate force constants, in order of priority:  1. ``force_constants_filename`` 2. ``force_sets_filename`` 3. ``phonopy_yaml`` if force constants are found in it. 4. ``phonopy_yaml`` if forces are found in ``phonopy_yaml.dataset``. 5. ``FORCE_CONSTANTS`` is searched in the current directory. 6. ``force_constants.hdf5`` is searched in the current directory. 7. ``FORCE_SETS`` is searched in the current directory.  When both 3 and 4 are satisfied but not the others, force constants and dataset are both stored on the ``Phonopy`` instance, but force constants are not produced from the dataset.  **Parameters for non-analytical term correction (NAC)**  Optional. Means to provide NAC parameters, in order of priority:  1. ``born_filename`` 2. ``nac_params`` 3. ``phonopy_yaml.nac_params`` if present and ``is_nac=True``. 4. ``BORN`` is searched in the current directory when ``is_nac=True``.",
+        "input": {
+          "phonopy_yaml": {
+            "type": "str | os.PathLike | typing.IO | None",
+            "description": "Filename of a \"phonopy.yaml\"-like file (``str`` / ``bytes``) or a file-pointer-like object. If given, the data in the file are parsed. Default is None."
+          },
+          "supercell_matrix": {
+            "type": "Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None",
+            "description": "Supercell matrix multiplied to the input cell basis vectors. ``shape=(3,)`` or ``(3, 3)``; the former is interpreted as a diagonal matrix. ``dtype=int``. Default is the identity matrix."
+          },
+          "primitive_matrix": {
+            "type": "Sequence[Sequence[float]] | Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | NDArray[np.double] | None",
+            "description": "Primitive matrix multiplied to the input cell basis vectors. Default is ``'auto'``, which guesses the primitive matrix from crystal symmetry. ``None`` is treated the same as ``'auto'``. To use the unit cell as the primitive cell (identity transformation), pass ``'P'``. For array_like input, ``shape=(3, 3)``, ``dtype=float``. When ``'F'``, ``'I'``, ``'A'``, ``'C'``, or ``'R'`` is given instead of a 3x3 matrix, the primitive matrix for the character found at https://spglib.github.io/spglib/definition.html is used. When a \"phonopy.yaml\"-like file is loaded and it carries a ``primitive_matrix``, that value takes priority over the default ``'auto'``."
+          },
+          "is_nac": {
+            "type": "bool",
+            "description": "If True, look for a ``BORN`` file. If False, NAC is turned off. Default is True."
+          },
+          "calculator": {
+            "type": "str | None",
+            "description": "Calculator used for computing forces. This is used to switch the set of physical units. Default is None, which is equivalent to ``\"vasp\"``."
+          },
+          "unitcell": {
+            "type": "PhonopyAtoms | None",
+            "description": "Input unit cell. Default is None."
+          },
+          "supercell": {
+            "type": "PhonopyAtoms | None",
+            "description": "Input supercell. When given, the default value of ``primitive_matrix`` is set to ``'auto'`` (can be overwritten), and ``supercell_matrix`` is ignored. Default is None."
+          },
+          "nac_params": {
+            "type": "NacParams | None",
+            "description": "Parameters required for non-analytical term correction. Default is None. Expected structure::  {'born': Born effective charges (array_like, shape=(primitive cell atoms, 3, 3), dtype=float), 'dielectric': Dielectric constant matrix (array_like, shape=(3, 3), dtype=float), 'factor': unit conversion factor (float, optional), 'method': 'gonze' (default) or 'wang' (str, optional)}"
+          },
+          "unitcell_filename": {
+            "type": "os.PathLike | str | None",
+            "description": "Input unit cell filename. Default is None."
+          },
+          "supercell_filename": {
+            "type": "os.PathLike | str | None",
+            "description": "Input supercell filename. When specified, ``supercell_matrix`` is ignored. Default is None."
+          },
+          "born_filename": {
+            "type": "os.PathLike | str | None",
+            "description": "Filename of a ``BORN``-format file containing non-analytical term correction parameters."
+          },
+          "force_sets_filename": {
+            "type": "os.PathLike | str | None",
+            "description": "Filename of a file in ``FORCE_SETS`` format containing sets of forces and displacements. Default is None."
+          },
+          "force_constants_filename": {
+            "type": "os.PathLike | str | None",
+            "description": "Filename of a file in ``FORCE_CONSTANTS`` or ``force_constants.hdf5`` format containing force constants. Default is None."
+          },
+          "fc_calculator": {
+            "type": "Literal['traditional', 'symfc', 'alm'] | None",
+            "description": "Force constants calculator backend. Default is None."
+          },
+          "fc_calculator_options": {
+            "type": "str | None",
+            "description": "Optional parameters passed to the external fc-calculator as a single text string. Parsing rules depend on the calculator. For ``alm``, each parameter is split by ``','`` and each key-value pair is written as ``'key = value'``."
+          },
+          "produce_fc": {
+            "type": "bool",
+            "description": "When False, force constants are not calculated from the dataset of displacements and forces even if the dataset exists. Default is True."
+          },
+          "is_symmetry": {
+            "type": "bool",
+            "description": "When False, crystal symmetry (except for lattice translation) is not considered. Default is True."
+          },
+          "symmetrize_fc": {
+            "type": "bool",
+            "description": "When False, force constants are not symmetrized when creating them from displacements and forces. Default is True."
+          },
+          "is_compact_fc": {
+            "type": "bool",
+            "description": "When True, force constants are produced with ``shape=(primitive, supercell, 3, 3)``; when False, with ``shape=(supercell, supercell, 3, 3)``. ``supercell`` and ``primitive`` indicate the number of atoms in those cells. Default is True."
+          },
+          "use_pypolymlp": {
+            "type": "bool",
+            "description": "Use pypolymlp for generating force constants. Default is False."
+          },
+          "mlp_params": {
+            "type": "dict | None",
+            "description": "A set of parameters used by machine-learning potentials."
+          },
+          "use_SNF_supercell": {
+            "type": "bool",
+            "description": "Build the supercell with the SNF algorithm when True. Default is False. The SNF algorithm is faster than the original one, but the order of atoms in the supercell can be different. Backward compatibility with old data (e.g., force constants) is therefore not guaranteed."
+          },
+          "symprec": {
+            "type": "float",
+            "description": "Tolerance used to find crystal symmetry. Default is 1e-5."
+          },
+          "log_level": {
+            "type": "int",
+            "description": "Verbosity control. Default is 0."
+          },
+          "lang": {
+            "type": "Literal['C', 'Rust']",
+            "description": "Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+          }
+        },
+        "output": null,
+        "ori_input": "phonopy_yaml: str | os.PathLike | typing.IO | None = None, supercell_matrix: Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None = None, primitive_matrix: Sequence[Sequence[float]] | Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | NDArray[np.double] | None = 'auto', is_nac: bool = True, calculator: str | None = None, unitcell: PhonopyAtoms | None = None, supercell: PhonopyAtoms | None = None, nac_params: NacParams | None = None, unitcell_filename: os.PathLike | str | None = None, supercell_filename: os.PathLike | str | None = None, born_filename: os.PathLike | str | None = None, force_sets_filename: os.PathLike | str | None = None, force_constants_filename: os.PathLike | str | None = None, fc_calculator: Literal['traditional', 'symfc', 'alm'] | None = None, fc_calculator_options: str | None = None, produce_fc: bool = True, is_symmetry: bool = True, symmetrize_fc: bool = True, is_compact_fc: bool = True, use_pypolymlp: bool = False, mlp_params: dict | None = None, use_SNF_supercell: bool = False, symprec: float = 1e-05, log_level: int = 0, lang: Literal['C', 'Rust'] = 'Rust'",
+        "ori_description": "Create a ``Phonopy`` instance from parameters and/or input files.  A \"phonopy_yaml\"-like file is parsed unless crystal structure information is given through ``unitcell_filename``, ``supercell_filename``, ``unitcell`` (``PhonopyAtoms``-like), or ``supercell`` (``PhonopyAtoms``-like). Even when a \"phonopy_yaml\"-like file is parsed, parameters other than crystal structure can be overwritten.  Phonopy's default ``FORCE_SETS`` and ``BORN`` files are parsed when they are found in the current directory and the corresponding data are not yet provided by other means.  **Crystal structure**  Means to provide crystal structure(s), in order of priority:  1. ``unitcell_filename`` (with ``supercell_matrix``) 2. ``supercell_filename`` 3. ``unitcell`` (with ``supercell_matrix``) 4. ``supercell`` 5. ``phonopy_yaml``  **Force sets or force constants**  Optional. Means to provide information used to generate force constants, in order of priority:  1. ``force_constants_filename`` 2. ``force_sets_filename`` 3. ``phonopy_yaml`` if force constants are found in it. 4. ``phonopy_yaml`` if forces are found in ``phonopy_yaml.dataset``. 5. ``FORCE_CONSTANTS`` is searched in the current directory. 6. ``force_constants.hdf5`` is searched in the current directory. 7. ``FORCE_SETS`` is searched in the current directory.  When both 3 and 4 are satisfied but not the others, force constants and dataset are both stored on the ``Phonopy`` instance, but force constants are not produced from the dataset.  **Parameters for non-analytical term correction (NAC)**  Optional. Means to provide NAC parameters, in order of priority:  1. ``born_filename`` 2. ``nac_params`` 3. ``phonopy_yaml.nac_params`` if present and ``is_nac=True``. 4. ``BORN`` is searched in the current directory when ``is_nac=True``.  Parameters ---------- phonopy_yaml : str, os.PathLike, typing.IO, optional Filename of a \"phonopy.yaml\"-like file (``str`` / ``bytes``) or a file-pointer-like object. If given, the data in the file are parsed. Default is None. supercell_matrix : array_like, optional Supercell matrix multiplied to the input cell basis vectors. ``shape=(3,)`` or ``(3, 3)``; the former is interpreted as a diagonal matrix. ``dtype=int``. Default is the identity matrix. primitive_matrix : array_like or str, optional Primitive matrix multiplied to the input cell basis vectors. Default is ``'auto'``, which guesses the primitive matrix from crystal symmetry. ``None`` is treated the same as ``'auto'``. To use the unit cell as the primitive cell (identity transformation), pass ``'P'``. For array_like input, ``shape=(3, 3)``, ``dtype=float``. When ``'F'``, ``'I'``, ``'A'``, ``'C'``, or ``'R'`` is given instead of a 3x3 matrix, the primitive matrix for the character found at https://spglib.github.io/spglib/definition.html is used. When a \"phonopy.yaml\"-like file is loaded and it carries a ``primitive_matrix``, that value takes priority over the default ``'auto'``. is_nac : bool, optional If True, look for a ``BORN`` file. If False, NAC is turned off. Default is True. calculator : str, optional Calculator used for computing forces. This is used to switch the set of physical units. Default is None, which is equivalent to ``\"vasp\"``. unitcell : PhonopyAtoms, optional Input unit cell. Default is None. supercell : PhonopyAtoms, optional Input supercell. When given, the default value of ``primitive_matrix`` is set to ``'auto'`` (can be overwritten), and ``supercell_matrix`` is ignored. Default is None. nac_params : NacParams, optional Parameters required for non-analytical term correction. Default is None. Expected structure::  {'born': Born effective charges (array_like, shape=(primitive cell atoms, 3, 3), dtype=float), 'dielectric': Dielectric constant matrix (array_like, shape=(3, 3), dtype=float), 'factor': unit conversion factor (float, optional), 'method': 'gonze' (default) or 'wang' (str, optional)}  unitcell_filename : str, optional Input unit cell filename. Default is None. supercell_filename : str, optional Input supercell filename. When specified, ``supercell_matrix`` is ignored. Default is None. born_filename : str, optional Filename of a ``BORN``-format file containing non-analytical term correction parameters. force_sets_filename : str, optional Filename of a file in ``FORCE_SETS`` format containing sets of forces and displacements. Default is None. force_constants_filename : str, optional Filename of a file in ``FORCE_CONSTANTS`` or ``force_constants.hdf5`` format containing force constants. Default is None. fc_calculator : {\"traditional\", \"symfc\", \"alm\", None}, optional Force constants calculator backend. Default is None. fc_calculator_options : str, optional Optional parameters passed to the external fc-calculator as a single text string. Parsing rules depend on the calculator. For ``alm``, each parameter is split by ``','`` and each key-value pair is written as ``'key = value'``. produce_fc : bool, optional When False, force constants are not calculated from the dataset of displacements and forces even if the dataset exists. Default is True. is_symmetry : bool, optional When False, crystal symmetry (except for lattice translation) is not considered. Default is True. symmetrize_fc : bool, optional When False, force constants are not symmetrized when creating them from displacements and forces. Default is True. is_compact_fc : bool, optional When True, force constants are produced with ``shape=(primitive, supercell, 3, 3)``; when False, with ``shape=(supercell, supercell, 3, 3)``. ``supercell`` and ``primitive`` indicate the number of atoms in those cells. Default is True. use_pypolymlp : bool, optional Use pypolymlp for generating force constants. Default is False. mlp_params : dict, optional A set of parameters used by machine-learning potentials. use_SNF_supercell : bool, optional Build the supercell with the SNF algorithm when True. Default is False. The SNF algorithm is faster than the original one, but the order of atoms in the supercell can be different. Backward compatibility with old data (e.g., force constants) is therefore not guaranteed. symprec : float, optional Tolerance used to find crystal symmetry. Default is 1e-5. log_level : int, optional Verbosity control. Default is 0. lang : Literal[\"C\", \"Rust\"], optional Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+      },
+      {
+        "name": "write_FORCE_SETS",
+        "type": "function",
+        "module": "phonopy.file_IO",
+        "description": "Write FORCE_SETS from dataset.  See more detail in ``get_FORCE_SETS_lines``.",
+        "input": {
+          "dataset": {
+            "type": "DisplacementDataset",
+            "description": ""
+          },
+          "filename": {
+            "type": "str | os.PathLike",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dataset: DisplacementDataset, filename: str | os.PathLike = 'FORCE_SETS'",
+        "ori_description": "Write FORCE_SETS from dataset.  See more detail in ``get_FORCE_SETS_lines``."
+      },
+      {
+        "name": "get_commensurate_points",
+        "type": "function",
+        "module": "phonopy.harmonic.dynmat_to_fc",
+        "description": "Commensurate q-points are returned.",
+        "input": {
+          "supercell_matrix": {
+            "type": "NDArray[np.int64] | Sequence[Sequence[int]]",
+            "description": "Supercell matrix with respect to primitive cell basis vectors. shape=(3, 3), dtype=int"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "ndarray",
+            "description": "Commensurate points corresponding to supercell matrix. shape=(N, 3), dtype='double', order='C' where N = det(supercell_matrix)"
+          }
+        },
+        "ori_input": "supercell_matrix: NDArray[np.int64] | Sequence[Sequence[int]]",
+        "ori_description": "Commensurate q-points are returned.  Parameters ---------- supercell_matrix : array_like Supercell matrix with respect to primitive cell basis vectors. shape=(3, 3), dtype=int  Returns ------- commensurate_points : ndarray Commensurate points corresponding to supercell matrix. shape=(N, 3), dtype='double', order='C' where N = det(supercell_matrix)"
+      },
+      {
+        "name": "PhonopyGruneisen",
+        "type": "class",
+        "module": "phonopy.api_gruneisen",
+        "input": "",
+        "description": "Class to calculate mode Grueneisen parameters.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Init method.",
+            "input": {
+              "self": null,
+              "phonon": {
+                "type": "Phonopy",
+                "description": "Phonopy instances of the same crystal with different volumes, V_0, V_0 + dV, V_0 - dV."
+              },
+              "phonon_plus": {
+                "type": "Phonopy",
+                "description": "Phonopy instances of the same crystal with different volumes, V_0, V_0 + dV, V_0 - dV."
+              },
+              "phonon_minus": {
+                "type": "Phonopy",
+                "description": "Phonopy instances of the same crystal with different volumes, V_0, V_0 + dV, V_0 - dV."
+              },
+              "delta_strain": {
+                "type": "float | None",
+                "description": "Default is None, which gives dV / V_0."
+              }
+            },
+            "output": null,
+            "ori_input": "self, phonon: Phonopy, phonon_plus: Phonopy, phonon_minus: Phonopy, delta_strain: float | None = None",
+            "ori_description": "Init method.  Parameters ---------- phonon, phonon_plus, phonon_minus : Phonopy Phonopy instances of the same crystal with different volumes, V_0, V_0 + dV, V_0 - dV. delta_strain : float, optional Default is None, which gives dV / V_0."
+          },
+          {
+            "name": "get_phonon",
+            "description": "Return Phonopy class instance at dV=0.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return Phonopy class instance at dV=0."
+          },
+          {
+            "name": "set_mesh",
+            "description": "Set sampling mesh.",
+            "input": {
+              "self": null,
+              "mesh": {
+                "type": "Sequence[int] | NDArray[np.int64]",
+                "description": ""
+              },
+              "shift": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": ""
+              },
+              "is_time_reversal": {
+                "type": "bool",
+                "description": ""
+              },
+              "is_gamma_center": {
+                "type": "bool",
+                "description": ""
+              },
+              "is_mesh_symmetry": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mesh: Sequence[int] | NDArray[np.int64], shift: Sequence[float] | NDArray[np.double] | None = None, is_time_reversal: bool = True, is_gamma_center: bool = False, is_mesh_symmetry: bool = True",
+            "ori_description": "Set sampling mesh."
+          },
+          {
+            "name": "get_mesh",
+            "description": "Return mode Grueneisen parameters calculated on sampling mesh.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return mode Grueneisen parameters calculated on sampling mesh."
+          },
+          {
+            "name": "set_band_structure",
+            "description": "Set band structure paths.",
+            "input": {
+              "self": null,
+              "bands": {
+                "type": "Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, bands: Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]]",
+            "ori_description": "Set band structure paths."
+          },
+          {
+            "name": "get_band_structure",
+            "description": "Return band structure calculation results.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return band structure calculation results."
+          },
+          {
+            "name": "write_yaml_mesh",
+            "description": "Write mesh sampling calculation results to file in yaml.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str | os.PathLike",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str | os.PathLike = 'gruneisen_mesh.yaml'",
+            "ori_description": "Write mesh sampling calculation results to file in yaml."
+          },
+          {
+            "name": "write_hdf5_mesh",
+            "description": "Write mesh sampling calculation results to file in hdf5.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str | os.PathLike",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str | os.PathLike = 'gruneisen_mesh.hdf5'",
+            "ori_description": "Write mesh sampling calculation results to file in hdf5."
+          }
+        ]
+      },
+      {
+        "name": "PhonopyQHA",
+        "type": "class",
+        "module": "phonopy.api_qha",
+        "input": "",
+        "description": "PhonopyQHA API.  Deprecated: use phonopy.run_qha, which computes thermal properties from Phonopy instances internally and returns an immutable QHAResult, together with the file writers in phonopy.qha.output and the plotters in phonopy.qha.plot. For fitting E(V) data without phonons, use phonopy.qha.core.BulkModulus.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Init method.",
+            "input": {
+              "self": null,
+              "volumes": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": "Unit cell volumes (V) in angstrom^3. dtype='double' shape=(volumes,)"
+              },
+              "electronic_energies": {
+                "type": "Sequence[float] | Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Electronic energies (U_el) or electronic free energies (F_el) in eV. It is assumed as formar if ndim==1 and latter if ndim==2. dtype='double' shape=(volumes,) or (temperatuers, volumes)"
+              },
+              "temperatures": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": "Temperatures ascending order (T) in K. dtype='double' shape=(temperatures,)"
+              },
+              "free_energy": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Phonon Helmholtz free energy (F_ph) in kJ/mol. dtype='double' shape=(temperatuers, volumes)"
+              },
+              "cv": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Phonon heat capacity at constant volume in J/K/mol. dtype='double' shape=(temperatuers, volumes)"
+              },
+              "entropy": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Phonon entropy at constant volume (S_ph) in J/K/mol. dtype='double' shape=(temperatuers, volumes)"
+              },
+              "pressure": {
+                "type": "float | None",
+                "description": "Pressure in GPa that is added to energy as PV term."
+              },
+              "eos": {
+                "type": "str",
+                "description": "Equation of state used for fitting F vs V. 'vinet', 'murnaghan' or 'birch_murnaghan'."
+              },
+              "t_max": {
+                "type": "float | None",
+                "description": "Maximum temperature to be calculated. This has to be not greater than the temperature of the third element from the end of 'temperatre' elements. If max_t=None, the temperature of the third element from the end is used."
+              },
+              "energy_plot_factor": {
+                "type": "float | None",
+                "description": "This value is multiplied to energy like values only in plotting."
+              },
+              "verbose": {
+                "type": "bool",
+                "description": "Show log or not."
+              }
+            },
+            "output": null,
+            "ori_input": "self, volumes: Sequence[float] | NDArray[np.double] | None = None, electronic_energies: Sequence[float] | Sequence[Sequence[float]] | NDArray[np.double] | None = None, temperatures: Sequence[float] | NDArray[np.double] | None = None, free_energy: Sequence[Sequence[float]] | NDArray[np.double] | None = None, cv: Sequence[Sequence[float]] | NDArray[np.double] | None = None, entropy: Sequence[Sequence[float]] | NDArray[np.double] | None = None, pressure: float | None = None, eos: str = 'vinet', t_max: float | None = None, energy_plot_factor: float | None = None, verbose: bool = False",
+            "ori_description": "Init method.  Notes ----- The first two parameters have to be in this order for the backward compatibility.  Parameters ---------- volumes: array_like Unit cell volumes (V) in angstrom^3. dtype='double' shape=(volumes,) electronic_energies: array_like Electronic energies (U_el) or electronic free energies (F_el) in eV. It is assumed as formar if ndim==1 and latter if ndim==2. dtype='double' shape=(volumes,) or (temperatuers, volumes) temperatures: array_like Temperatures ascending order (T) in K. dtype='double' shape=(temperatures,) free_energy: array_like Phonon Helmholtz free energy (F_ph) in kJ/mol. dtype='double' shape=(temperatuers, volumes) cv: array_like Phonon heat capacity at constant volume in J/K/mol. dtype='double' shape=(temperatuers, volumes) entropy: array_like Phonon entropy at constant volume (S_ph) in J/K/mol. dtype='double' shape=(temperatuers, volumes) pressure: float, optional Pressure in GPa that is added to energy as PV term. eos: str, optional Equation of state used for fitting F vs V. 'vinet', 'murnaghan' or 'birch_murnaghan'. t_max: float Maximum temperature to be calculated. This has to be not greater than the temperature of the third element from the end of 'temperatre' elements. If max_t=None, the temperature of the third element from the end is used. energy_plot_factor: float This value is multiplied to energy like values only in plotting. verbose: boolean Show log or not."
+          },
+          {
+            "name": "bulk_modulus",
+            "description": "Return bulk modulus computed without phonon contribution.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "float",
+                "description": "Bulk modulus calculated without phonon contribution."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return bulk modulus computed without phonon contribution.  Returns ------- float Bulk modulus calculated without phonon contribution."
+          },
+          {
+            "name": "thermal_expansion",
+            "description": "Return thermal expansion coefficients at temperatures.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "list",
+                "description": "Thermal expansion coefficients at temperatues in K^-1. shape=(temperatures, )"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return thermal expansion coefficients at temperatures.  Returns ------- list Thermal expansion coefficients at temperatues in K^-1. shape=(temperatures, )"
+          },
+          {
+            "name": "helmholtz_volume",
+            "description": "Return free_energies at volumes.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "ndarray",
+                "description": "Helmholtz free energies calculated at temperatures and volumes in eV. shape=(temperatures, volumes)"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return free_energies at volumes.  Returns ------- ndarray Helmholtz free energies calculated at temperatures and volumes in eV. shape=(temperatures, volumes)"
+          },
+          {
+            "name": "volume_temperature",
+            "description": "Return volumes at temperatures.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "ndarray",
+                "description": "Equilibrium volumes at temperatures in Angstrom^3. shape=(temperatures,), dtype=float"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return volumes at temperatures.  Returns ------- ndarray Equilibrium volumes at temperatures in Angstrom^3. shape=(temperatures,), dtype=float"
+          },
+          {
+            "name": "gibbs_temperature",
+            "description": "Return Gibbs free energies at temperatures.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "ndarray",
+                "description": "Gibbs free energies at temperatures in eV. shape=(temperatures, ), dtype=float"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return Gibbs free energies at temperatures.  Returns ------- ndarray Gibbs free energies at temperatures in eV. shape=(temperatures, ), dtype=float"
+          },
+          {
+            "name": "heat_capacity_P_numerical",
+            "description": "Return heat capacities at constant pressure at temperatures.  These values are calculated by -T*d^2G/dT^2.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "list",
+                "description": "Heat capacity at constant pressure and temperatures. shape=(temperatures, )"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return heat capacities at constant pressure at temperatures.  These values are calculated by -T*d^2G/dT^2.  Returns ------- list Heat capacity at constant pressure and temperatures. shape=(temperatures, )"
+          },
+          {
+            "name": "get_bulk_modulus_parameters",
+            "description": "Return electronic only bulk modulus EOS fitting parameters.  These values are those computed without phonon free energy.  (lowest energy, bulk modulus, b_prime, equilibrium volume)",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return electronic only bulk modulus EOS fitting parameters.  These values are those computed without phonon free energy.  (lowest energy, bulk modulus, b_prime, equilibrium volume)"
+          }
+        ]
+      },
+      {
+        "name": "GroupVelocity",
+        "type": "class",
+        "module": "phonopy.phonon.group_velocity",
+        "input": "",
+        "description": "Class to calculate group velocities of phonons.  d omega ---- ------- = \\ / omega d q \\/q  Gradient of omega in reciprocal space, which is calculated here by  1 d D(q) ------- <e(q,nu)|------|e(q,nu)> 2 omega d q  Attributes ---------- group_velocity : ndarray Group velocities at q-points. shape=(q-points, num_band, 3), dtype='double', order='C' q_length : float Distance in reciprocal space used to calculate finite difference of dynamcial matrix.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Init method.  dynamical_matrix : DynamicalMatrix Dynamical matrix class instance. q_length : float, optional When set, the dynamical-matrix derivative is approximated by a central finite difference ``D(q + q_length) - D(q - q_length)``. Default is None, which selects the analytical derivative via ``DerivativeOfDynamicalMatrix`` (including Gonze-Lee NAC, since the dipole-dipole derivative kernel is now available). symmetry : Symmetry This is used to symmetrize group velocity at each q-points. Default is None, which means no symmetrization. frequency_factor_to_THz : float Unit conversion factor to convert to THz. Default is VaspToTHz. cutoff_frequency : float Group velocity is set zero if phonon frequency is below this value.",
+            "input": {
+              "self": null,
+              "dynamical_matrix": {
+                "type": "DynamicalMatrix",
+                "description": ""
+              },
+              "q_length": {
+                "type": "float | None",
+                "description": ""
+              },
+              "symmetry": {
+                "type": "Symmetry | None",
+                "description": ""
+              },
+              "frequency_factor_to_THz": {
+                "type": "float | None",
+                "description": ""
+              },
+              "cutoff_frequency": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dynamical_matrix: DynamicalMatrix, q_length: float | None = None, symmetry: Symmetry | None = None, frequency_factor_to_THz: float | None = None, cutoff_frequency: float = 0.0001",
+            "ori_description": "Init method.  dynamical_matrix : DynamicalMatrix Dynamical matrix class instance. q_length : float, optional When set, the dynamical-matrix derivative is approximated by a central finite difference ``D(q + q_length) - D(q - q_length)``. Default is None, which selects the analytical derivative via ``DerivativeOfDynamicalMatrix`` (including Gonze-Lee NAC, since the dipole-dipole derivative kernel is now available). symmetry : Symmetry This is used to symmetrize group velocity at each q-points. Default is None, which means no symmetrization. frequency_factor_to_THz : float Unit conversion factor to convert to THz. Default is VaspToTHz. cutoff_frequency : float Group velocity is set zero if phonon frequency is below this value."
+          },
+          {
+            "name": "run",
+            "description": "Group velocities are computed at q-points.  Calculated group velocities are stored in self._group_velocities.",
+            "input": {
+              "self": null,
+              "q_points": {
+                "type": "Sequence[Sequence[float]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+                "description": "List of q-points such as [[0, 0, 0], [0.1, 0.2, 0.3], ...]."
+              },
+              "perturbation": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": "Direction in fractional coordinates of reciprocal space."
+              }
+            },
+            "output": null,
+            "ori_input": "self, q_points: Sequence[Sequence[float]] | Sequence[NDArray[np.double]] | NDArray[np.double], perturbation: Sequence[float] | NDArray[np.double] | None = None",
+            "ori_description": "Group velocities are computed at q-points.  Calculated group velocities are stored in self._group_velocities.  Parameters ---------- q_points : array-like List of q-points such as [[0, 0, 0], [0.1, 0.2, 0.3], ...]. perturbation : array-like Direction in fractional coordinates of reciprocal space."
+          },
+          {
+            "name": "group_velocities",
+            "description": "Return group velocities.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return group velocities."
+          }
+        ]
+      },
+      {
+        "name": "IrReps",
+        "type": "class",
+        "module": "phonopy.phonon.irreps",
+        "input": "",
+        "description": "Class to calculate space group irreps from eigenvectors.  Methods and terminologies used in this class may be easily found in textbooks such as - Group theory with applications in chemical physics by Patrick Jacobs - Symmetry and condensed matter physics by M. El-Batanouny and F. Wooten  Magnetic space group is not supported.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Init method.",
+            "input": {
+              "self": null,
+              "dynamical_matrix": {
+                "type": "DynamicalMatrix",
+                "description": ""
+              },
+              "qpoint": {
+                "type": "Sequence[float] | NDArray[np.double]",
+                "description": ""
+              },
+              "primitive_symmetry": {
+                "type": "Symmetry",
+                "description": ""
+              },
+              "is_little_cogroup": {
+                "type": "bool",
+                "description": ""
+              },
+              "nac_q_direction": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": ""
+              },
+              "factor": {
+                "type": "float | None",
+                "description": ""
+              },
+              "degeneracy_tolerance": {
+                "type": "float | None",
+                "description": ""
+              },
+              "log_level": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dynamical_matrix: DynamicalMatrix, qpoint: Sequence[float] | NDArray[np.double], primitive_symmetry: Symmetry, is_little_cogroup: bool = False, nac_q_direction: Sequence[float] | NDArray[np.double] | None = None, factor: float | None = None, degeneracy_tolerance: float | None = None, log_level: int = 0",
+            "ori_description": "Init method."
+          },
+          {
+            "name": "get_projection_operators",
+            "description": "Return projection operators.",
+            "input": {
+              "self": null,
+              "idx_irrep": {
+                "type": "int",
+                "description": ""
+              },
+              "i": {
+                "type": "int | None",
+                "description": ""
+              },
+              "j": {
+                "type": "int | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, idx_irrep: int, i: int | None = None, j: int | None = None",
+            "ori_description": "Return projection operators."
+          },
+          {
+            "name": "show",
+            "description": "Show irreps.",
+            "input": {
+              "self": null,
+              "show_irreps": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, show_irreps: bool = False",
+            "ori_description": "Show irreps."
+          },
+          {
+            "name": "write_yaml",
+            "description": "Write irreps in yaml file.",
+            "input": {
+              "self": null,
+              "show_irreps": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, show_irreps: bool = False",
+            "ori_description": "Write irreps in yaml file."
+          }
+        ]
+      },
+      {
+        "name": "degenerate_sets",
+        "type": "function",
+        "module": "phonopy.phonon.degeneracy",
+        "description": "Find degenerate bands from frequencies.",
+        "input": {
+          "freqs": {
+            "type": "NDArray[np.double]",
+            "description": "A list of values. shape=(values,)"
+          },
+          "cutoff": {
+            "type": "float",
+            "description": "Equivalent of values is defined by this value, i.e., abs(val1 - val2) < cutoff Default is 1e-4."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "list of list",
+            "description": "Indices of equivalent values are grouped as a list and those groups are stored in a list. Example ------- In : degenerate_sets(np.array([1.5, 2.1, 2.1, 3.4, 8])) Out: [[0], [1, 2], [3], [4]]"
+          }
+        },
+        "ori_input": "freqs: NDArray[np.double], cutoff: float = DEFAULT_CUTOFF",
+        "ori_description": "Find degenerate bands from frequencies.  Parameters ---------- freqs : ndarray A list of values. shape=(values,) cutoff : float, optional Equivalent of values is defined by this value, i.e., abs(val1 - val2) < cutoff Default is 1e-4.  Returns ------- indices : list of list Indices of equivalent values are grouped as a list and those groups are stored in a list.  Example ------- In : degenerate_sets(np.array([1.5, 2.1, 2.1, 3.4, 8])) Out: [[0], [1, 2], [3], [4]]"
+      },
+      {
+        "name": "length2mesh",
+        "type": "function",
+        "module": "phonopy.phonon.grid",
+        "description": "Convert length to mesh for q-point sampling.  This conversion for each reciprocal axis follows VASP convention by N = max(1, int(l * |a|^* + 0.5)) 'int' means rounding down, not rounding to nearest integer.",
+        "input": {
+          "length": {
+            "type": "float",
+            "description": "Length having the unit of direct space length."
+          },
+          "lattice": {
+            "type": "Sequence[Sequence[float]] | NDArray[np.double]",
+            "description": "Basis vectors of primitive cell in row vectors. dtype='double', shape=(3, 3)"
+          },
+          "rotations": {
+            "type": "NDArray[np.int64] | None",
+            "description": "Rotation matrices in real space. When given, mesh numbers that are symmetrically reasonable are returned. Default is None. dtype='int64', shape=(rotations, 3, 3)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "array_like",
+            "description": "dtype=int, shape=(3,)"
+          }
+        },
+        "ori_input": "length: float, lattice: Sequence[Sequence[float]] | NDArray[np.double], rotations: NDArray[np.int64] | None = None",
+        "ori_description": "Convert length to mesh for q-point sampling.  This conversion for each reciprocal axis follows VASP convention by N = max(1, int(l * |a|^* + 0.5)) 'int' means rounding down, not rounding to nearest integer.  Parameters ---------- length : float Length having the unit of direct space length. lattice : array_like Basis vectors of primitive cell in row vectors. dtype='double', shape=(3, 3) rotations: array_like, optional Rotation matrices in real space. When given, mesh numbers that are symmetrically reasonable are returned. Default is None. dtype='int64', shape=(rotations, 3, 3)  Returns ------- array_like dtype=int, shape=(3,)"
+      },
+      {
+        "name": "PhonopyMLP",
+        "type": "class",
+        "module": "phonopy.interface.mlp",
+        "input": "",
+        "description": "PhonopyMLP class.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "mlp": {
+                "type": "Any | None",
+                "description": ""
+              },
+              "log_level": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mlp: Any | None = None, log_level: int = 0",
+            "ori_description": ""
+          },
+          {
+            "name": "save",
+            "description": "Save MLP.  With `optimal` False, every MLP fitted over the regularization parameters is written rather than only the best one; see save_pypolymlp.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str | os.PathLike | None",
+                "description": ""
+              },
+              "optimal": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str | os.PathLike | None = None, optimal: bool = True",
+            "ori_description": "Save MLP.  With `optimal` False, every MLP fitted over the regularization parameters is written rather than only the best one; see save_pypolymlp."
+          },
+          {
+            "name": "load",
+            "description": "Load MLP.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str | os.PathLike | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str | os.PathLike | None = None",
+            "ori_description": "Load MLP."
+          },
+          {
+            "name": "evaluate",
+            "description": "Evaluate MLP.",
+            "input": {
+              "self": null,
+              "supercells_with_displacements": {
+                "type": "Sequence[PhonopyAtoms | None]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, supercells_with_displacements: Sequence[PhonopyAtoms | None]",
+            "ori_description": "Evaluate MLP."
+          },
+          {
+            "name": "develop",
+            "description": "Develop MLP from displacements of one supercell.",
+            "input": {
+              "self": null,
+              "mlp_dataset": {
+                "type": "Type2DisplacementDataset",
+                "description": ""
+              },
+              "supercell": {
+                "type": "PhonopyAtoms",
+                "description": ""
+              },
+              "params": {
+                "type": "PypolymlpParams | dict | str | None",
+                "description": ""
+              },
+              "test_size": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mlp_dataset: Type2DisplacementDataset, supercell: PhonopyAtoms, params: PypolymlpParams | dict | str | None = None, test_size: float = 0.1",
+            "ori_description": "Develop MLP from displacements of one supercell."
+          },
+          {
+            "name": "develop_from_structures",
+            "description": "Develop MLP from structures with individual lattices.  Unlike `develop`, the structures need not share one supercell, and stress is used in the training. This suits datasets of strained cells; see develop_pypolymlp.",
+            "input": {
+              "self": null,
+              "train_data": {
+                "type": "PypolymlpStructureData",
+                "description": ""
+              },
+              "test_data": {
+                "type": "PypolymlpStructureData | None",
+                "description": ""
+              },
+              "params": {
+                "type": "PypolymlpParams | None",
+                "description": ""
+              },
+              "test_size": {
+                "type": "float",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, train_data: PypolymlpStructureData, test_data: PypolymlpStructureData | None = None, params: PypolymlpParams | None = None, test_size: float = 0.1",
+            "ori_description": "Develop MLP from structures with individual lattices.  Unlike `develop`, the structures need not share one supercell, and stress is used in the training. This suits datasets of strained cells; see develop_pypolymlp."
+          }
+        ]
+      },
+      {
+        "name": "FDFCSolver",
+        "type": "class",
+        "module": "phonopy.harmonic.force_constants",
+        "input": "",
+        "description": "Finite difference type force constants calculator.  This is phonopy's traditional force constants calculator.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "supercell": {
+                "type": "PhonopyAtoms",
+                "description": ""
+              },
+              "primitive": {
+                "type": "Primitive | None",
+                "description": ""
+              },
+              "symmetry": {
+                "type": "Symmetry",
+                "description": ""
+              },
+              "dataset": {
+                "type": "Type1DisplacementDataset",
+                "description": ""
+              },
+              "is_compact_fc": {
+                "type": "bool",
+                "description": ""
+              },
+              "log_level": {
+                "type": "int",
+                "description": ""
+              },
+              "lang": {
+                "type": "Literal['C', 'Rust']",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, supercell: PhonopyAtoms, primitive: Primitive | None, symmetry: Symmetry, dataset: Type1DisplacementDataset, is_compact_fc: bool = False, log_level: int = 0, lang: Literal['C', 'Rust'] = 'Rust'",
+            "ori_description": ""
+          },
+          {
+            "name": "force_constants",
+            "description": "Return force constants.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "dict[int, np.ndarray]",
+                "description": "Force constants with order as key."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return force constants.  Returns ------- dict[int, np.ndarray] Force constants with order as key."
+          }
+        ]
+      },
+      {
+        "name": "check_forces",
+        "type": "function",
+        "module": "phonopy.interface.vasp",
+        "description": "Check a set of forces and show message if it is wrong.",
+        "input": {
+          "forces": {
+            "type": "Sequence | NDArray[np.double]",
+            "description": ""
+          },
+          "num_atom": {
+            "type": "int",
+            "description": ""
+          },
+          "filename": {
+            "type": "str | os.PathLike | typing.IO",
+            "description": ""
+          },
+          "verbose": {
+            "type": "bool",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "forces: Sequence | NDArray[np.double], num_atom: int, filename: str | os.PathLike | typing.IO, verbose: bool = True",
+        "ori_description": "Check a set of forces and show message if it is wrong."
+      },
+      {
+        "name": "get_default_displacement_distance",
+        "type": "function",
+        "module": "phonopy.interface.calculator",
+        "description": "Return default displacement distance of each calculator.",
+        "input": {
+          "interface_mode": {
+            "type": "str | None",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "interface_mode: str | None",
+        "ori_description": "Return default displacement distance of each calculator."
+      },
+      {
+        "name": "write_supercells_with_displacements",
+        "type": "function",
+        "module": "phonopy.interface.lammps",
+        "description": "Write supercells with displacements to files.",
+        "input": {
+          "supercell": {
+            "type": "PhonopyAtoms",
+            "description": ""
+          },
+          "cells_with_displacements": {
+            "type": "Sequence[PhonopyAtoms]",
+            "description": ""
+          },
+          "ids": {
+            "type": "NDArray[np.int64] | Sequence[int]",
+            "description": ""
+          },
+          "pre_filename": {
+            "type": "str | os.PathLike",
+            "description": ""
+          },
+          "width": {
+            "type": "int",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "supercell: PhonopyAtoms, cells_with_displacements: Sequence[PhonopyAtoms], ids: NDArray[np.int64] | Sequence[int], pre_filename: str | os.PathLike = 'supercell', width: int = 3",
+        "ori_description": "Write supercells with displacements to files."
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/phonopy/phonopy",
+        "documentation": "https://phonopy.github.io/phonopy/",
+        "pypi": "https://pypi.org/project/phonopy/",
+        "pypi_version": "4.5.0",
+        "tag": "v4.5.0",
+        "commit": "6683c731a54b3aed2a739138a54138a6b2782013",
+        "release_published_at": "2026-09-08T07:01:09Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 4.5.0 与 GitHub 标签 v4.5.0 一致。",
+          "力常数通常来自外部 DFT 计算；本次不执行电子结构或声子数值计算。"
+        ],
+        "release_url": "https://github.com/phonopy/phonopy/releases/tag/v4.5.0",
+        "release_api": "https://api.github.com/repos/phonopy/phonopy/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/phonopy",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "phonopy"
+        ],
+        "source_files": [
+          "phonopy/__init__.py",
+          "phonopy/_lang.py",
+          "phonopy/api_gruneisen.py",
+          "phonopy/api_phonopy.py",
+          "phonopy/api_qha.py",
+          "phonopy/cui/collect_cell_info.py",
+          "phonopy/cui/create_force_sets.py",
+          "phonopy/cui/load.py",
+          "phonopy/cui/load_helper.py",
+          "phonopy/cui/phonopy_anisotropic_qha_dataset_script.py",
+          "phonopy/cui/phonopy_anisotropic_qha_script.py",
+          "phonopy/cui/phonopy_argparse.py",
+          "phonopy/cui/phonopy_bandplot_script.py",
+          "phonopy/cui/phonopy_gruneisen_script.py",
+          "phonopy/cui/phonopy_mlpsscha_script.py",
+          "phonopy/cui/phonopy_qe_born_script.py",
+          "phonopy/cui/phonopy_qha_script.py",
+          "phonopy/cui/phonopy_script.py",
+          "phonopy/cui/phonopy_strain_cells_script.py",
+          "phonopy/cui/phonopy_vasp_efe_script.py",
+          "phonopy/cui/settings.py",
+          "phonopy/cui/show_symmetry.py",
+          "phonopy/exception.py",
+          "phonopy/file_IO.py",
+          "phonopy/gruneisen/band_structure.py",
+          "phonopy/gruneisen/core.py",
+          "phonopy/gruneisen/mesh.py",
+          "phonopy/harmonic/derivative_dynmat.py",
+          "phonopy/harmonic/displacement.py",
+          "phonopy/harmonic/dynamical_matrix.py",
+          "phonopy/harmonic/dynmat_to_fc.py",
+          "phonopy/harmonic/force_constants.py",
+          "phonopy/interface/abacus.py",
+          "phonopy/interface/abinit.py",
+          "phonopy/interface/aims.py",
+          "phonopy/interface/alm.py",
+          "phonopy/interface/calculator.py",
+          "phonopy/interface/castep.py",
+          "phonopy/interface/cif.py",
+          "phonopy/interface/cp2k.py",
+          "phonopy/interface/crystal.py",
+          "phonopy/interface/dftbp.py",
+          "phonopy/interface/elk.py",
+          "phonopy/interface/exciting.py",
+          "phonopy/interface/fc_calculator.py",
+          "phonopy/interface/fleur.py",
+          "phonopy/interface/lammps.py",
+          "phonopy/interface/mlp.py",
+          "phonopy/interface/octopus.py",
+          "phonopy/interface/phonopy_yaml.py",
+          "phonopy/interface/pwmat.py",
+          "phonopy/interface/pypolymlp.py",
+          "phonopy/interface/qe.py",
+          "phonopy/interface/qlm.py",
+          "phonopy/interface/siesta.py",
+          "phonopy/interface/symfc.py",
+          "phonopy/interface/turbomole.py",
+          "phonopy/interface/vasp.py",
+          "phonopy/interface/wien2k.py",
+          "phonopy/phonon/animation.py",
+          "phonopy/phonon/band_structure.py",
+          "phonopy/phonon/character_table.py",
+          "phonopy/phonon/degeneracy.py",
+          "phonopy/phonon/dos.py",
+          "phonopy/phonon/grid.py",
+          "phonopy/phonon/group_velocity.py",
+          "phonopy/phonon/irreps.py",
+          "phonopy/phonon/mesh.py",
+          "phonopy/phonon/modulation.py",
+          "phonopy/phonon/moment.py",
+          "phonopy/phonon/plot.py",
+          "phonopy/phonon/qpoints.py",
+          "phonopy/phonon/random_displacements.py",
+          "phonopy/phonon/spectrum.py",
+          "phonopy/phonon/tetrahedron_mesh.py",
+          "phonopy/phonon/tetrahedron_method.py",
+          "phonopy/phonon/thermal_displacement.py",
+          "phonopy/phonon/thermal_properties.py",
+          "phonopy/physical_units.py",
+          "phonopy/qha/anisotropic.py",
+          "phonopy/qha/anisotropic_dataset.py",
+          "phonopy/qha/anisotropic_output.py",
+          "phonopy/qha/anisotropic_plot.py",
+          "phonopy/qha/calc.py",
+          "phonopy/qha/core.py",
+          "phonopy/qha/electron.py",
+          "phonopy/qha/electron_kpoint_sum.py",
+          "phonopy/qha/electron_states.py",
+          "phonopy/qha/eos.py",
+          "phonopy/qha/free_energy_io.py",
+          "phonopy/qha/lattice.py",
+          "phonopy/qha/lattice_sampling.py",
+          "phonopy/qha/lattice_smoothing.py",
+          "phonopy/qha/output.py",
+          "phonopy/qha/plot.py",
+          "phonopy/qha/qha.py",
+          "phonopy/qha/thermal.py",
+          "phonopy/scripts/phonopy.py",
+          "phonopy/scripts/phonopy_anisotropic_qha.py",
+          "phonopy/scripts/phonopy_anisotropic_qha_dataset.py",
+          "phonopy/scripts/phonopy_bandplot.py",
+          "phonopy/scripts/phonopy_calc_convert.py",
+          "phonopy/scripts/phonopy_collect.py",
+          "phonopy/scripts/phonopy_crystal_born.py",
+          "phonopy/scripts/phonopy_gruneisen.py",
+          "phonopy/scripts/phonopy_gruneisenplot.py",
+          "phonopy/scripts/phonopy_init.py",
+          "phonopy/scripts/phonopy_load.py",
+          "phonopy/scripts/phonopy_mlpsscha.py",
+          "phonopy/scripts/phonopy_octopus_born.py",
+          "phonopy/scripts/phonopy_pdosplot.py",
+          "phonopy/scripts/phonopy_propplot.py",
+          "phonopy/scripts/phonopy_qe_born.py",
+          "phonopy/scripts/phonopy_qha.py",
+          "phonopy/scripts/phonopy_strain_cells.py",
+          "phonopy/scripts/phonopy_symmetry.py",
+          "phonopy/scripts/phonopy_tdplot.py",
+          "phonopy/scripts/phonopy_vasp_born.py",
+          "phonopy/scripts/phonopy_vasp_efe.py",
+          "phonopy/scripts/phonopy_vasp_mlp_dataset.py",
+          "phonopy/spectrum/dynamic_structure_factor.py",
+          "phonopy/spectrum/velocity.py",
+          "phonopy/sscha/core.py",
+          "phonopy/sscha/output.py",
+          "phonopy/sscha/trace.py",
+          "phonopy/structure/atomic_data.py",
+          "phonopy/structure/atoms.py",
+          "phonopy/structure/brillouin_zone.py",
+          "phonopy/structure/cells.py",
+          "phonopy/structure/dataset.py",
+          "phonopy/structure/mixture.py",
+          "phonopy/structure/snf.py",
+          "phonopy/structure/symmetry.py",
+          "phonopy/unfolding/core.py",
+          "phonopy/units.py",
+          "phonopy/utils.py"
+        ],
+        "source_file_sha256": {
+          "phonopy/__init__.py": "8a64890425387146d1b2c50897e3c9a1aefbc51b4fa7b4ffdfbff15d73d8382d",
+          "phonopy/_lang.py": "cfc77936f2e8237215875f983ccb1628b3391f5984f5d05535513b894468e81d",
+          "phonopy/api_gruneisen.py": "14d3213039f5391392380566c738554ca15eec7dec21fd04f0ccd1e0526690da",
+          "phonopy/api_phonopy.py": "58e580c4083ae3879f6889798d17375f4f8571015c97e98694bf195d5707fc76",
+          "phonopy/api_qha.py": "7ed3b2aad713736fdc78c92483272bbc2c919e59f9ce44548f7da1f921b9fe62",
+          "phonopy/cui/collect_cell_info.py": "03e5837e517b22493c0028d1929d78fded670eeae248f920f92a6922d6d12848",
+          "phonopy/cui/create_force_sets.py": "b69d9415ba79a1e6eb139dcc6b340f08e359dc3ab0afc67b063cd5007931c0b7",
+          "phonopy/cui/load.py": "802f5660c232204658124c07c25b5bafd52bba7b443973675c7c6b7ae306ef1a",
+          "phonopy/cui/load_helper.py": "df7a6bc91f8ee18d7f5176572e300be899468383e9660d8133d665666028b438",
+          "phonopy/cui/phonopy_anisotropic_qha_dataset_script.py": "3cd79b1bd05823f0da13eac29ec8df540d4d7f2cdb855def9614ca9bf595cdd7",
+          "phonopy/cui/phonopy_anisotropic_qha_script.py": "5bdaf6d7b093185fe914278faad055f02c2c9c690b373a9efc4e11483659c328",
+          "phonopy/cui/phonopy_argparse.py": "bdb8e4ebc068aaa667fd484b33deadff9af178479f5981e3d2d85f66f00cbda3",
+          "phonopy/cui/phonopy_bandplot_script.py": "25ad7531f29542de2185b8aed7e0e299cae9d7d0972c277fbcdc17fefb8454f0",
+          "phonopy/cui/phonopy_gruneisen_script.py": "203eb506080bda3b5045351faf179c66795bf0a856bb69fa88321a8626b52120",
+          "phonopy/cui/phonopy_mlpsscha_script.py": "97072a2343aea20d01409109e7c5044076d5bd3c11c432f06ef8a11739bafcca",
+          "phonopy/cui/phonopy_qe_born_script.py": "b85ee922bf237cc7d5fe00eca6d0891a546c02d6e663f01bf84eb2d838157262",
+          "phonopy/cui/phonopy_qha_script.py": "313d2fa0d37a24c1d49598f82c5408d3080aae5ce7f7d1b9109e3349a297ce10",
+          "phonopy/cui/phonopy_script.py": "5ad556e2f86b3623ad82b78c1feb6d07d97f6209d9ba8f1d7bbc6486a2b8dcf4",
+          "phonopy/cui/phonopy_strain_cells_script.py": "4d11d8bbb77053253096360cab84d4d0bd3c3c5e0476a6d89fd6f4f5880a5946",
+          "phonopy/cui/phonopy_vasp_efe_script.py": "62a70d5d9a71982a064641bb2220a8f80348928acc38cff94961bf89658b5313",
+          "phonopy/cui/settings.py": "83bf6dbdf1ecd8f8e7cd2d68117844c87dccaab53607e8c110c3d617cbaa34c4",
+          "phonopy/cui/show_symmetry.py": "8711e13ad481e118383cd055c8953ae2df73ad18ed82ae4809327fac5cfe5e45",
+          "phonopy/exception.py": "59ba99ac41dd8adc46d9a7352c0ec2e56b18f85756a90134b2aa5ccc60ccb498",
+          "phonopy/file_IO.py": "6bbc37f1e70705863187cb4e5d3e4e29509341b24f7c2719074f0e672c3713f5",
+          "phonopy/gruneisen/band_structure.py": "2738d6c2a289693c9dc289756918c28c03ef6eeb18250a1aa00baa0273d8f3a0",
+          "phonopy/gruneisen/core.py": "1cbbe986f93998bcb5eef5e34fc7d6a2dee8b94f0be5e1e55b893883e5c41eab",
+          "phonopy/gruneisen/mesh.py": "36abf0bee4df88d29fa9338499aa26cacaed67f0d052efba78baf279cb606985",
+          "phonopy/harmonic/derivative_dynmat.py": "f6b127c315d0f329b119b8338adb86c9ae409938f2c0bb3e1f3029edbef4354d",
+          "phonopy/harmonic/displacement.py": "481166e6dd029ca324c4cc6f30669125d80c588b9e488c472db2f2758a1f7d97",
+          "phonopy/harmonic/dynamical_matrix.py": "b8095fb9fdbb4dcb89f700b563253b00fdf361c9e7e1938a4944cd925e882bde",
+          "phonopy/harmonic/dynmat_to_fc.py": "8a25ef021c479bdb209dd69634efda989428a5d02aaefe290aace8d8ebbf31c0",
+          "phonopy/harmonic/force_constants.py": "4d038c50d02a7d1c483acaa2c17dd9eaa662de91967d344ad60f3da97b72d4e5",
+          "phonopy/interface/abacus.py": "09bb6a859c3d52f864905a44a79c9e3a4a8dfc17347039c310591424dfd627f1",
+          "phonopy/interface/abinit.py": "5860fe03339dd3882c5f84d943501ab9fa5dbf889e8bd100cca7bbd4a2360eb6",
+          "phonopy/interface/aims.py": "9a819e98633d3c6e0d393e3470f197952f470ad4b53516b19127e5b2316b10ee",
+          "phonopy/interface/alm.py": "443d3df88ae03c1207fac9b1917c302cf32926a6c04c4cb9055c4a1ff610de6f",
+          "phonopy/interface/calculator.py": "9534ef0f30022eeb8448f8c2f3969a6da763e110d00431370be14f0a30f4b576",
+          "phonopy/interface/castep.py": "b4f664725f0d819752d421db2ab582ff3d97a2d4acd68e0809c1195ed4fea65f",
+          "phonopy/interface/cif.py": "46bf93ab0894f266578f77aee9bd20c60db46f862bbe3af56cd6bc5d7b8e7f40",
+          "phonopy/interface/cp2k.py": "0bbaf9489fe899649fe4b93756f8b983b8e3bd1c0c01a888387430763f5ae471",
+          "phonopy/interface/crystal.py": "c83cda3b0c3dafa1e38109530494fafb707f40c5fb6d043deb8e44949cb26d5b",
+          "phonopy/interface/dftbp.py": "873c286a6f2d5babd452e9a9e0fb6fad4d504e79fd45f9d2ea4738711fa1750c",
+          "phonopy/interface/elk.py": "3467260d0db24ad6d87e2d18a5832d011dcfad72234efbcea0fb4fd74c4620ac",
+          "phonopy/interface/exciting.py": "c4aa89f8b53752aad888bf7a47eeb9cce11e731db71d918e7a10fdeccff8f16d",
+          "phonopy/interface/fc_calculator.py": "3c30b557f308bdad85970f75043a215af4a83e1ea4205407d3830f856972b3ed",
+          "phonopy/interface/fleur.py": "2cae068f37c34d29dd1eb2c3794578cfc0021461409b9adbf21394ba6e718aac",
+          "phonopy/interface/lammps.py": "88c34a1702cd739f8e227ad645dd1c89a45ab83fb7a83e6f442e78ec466b9192",
+          "phonopy/interface/mlp.py": "1e1deaa1d34047958ee9257330d1b5844ff3ab68288042bac8b9ab5aaa2c7b84",
+          "phonopy/interface/octopus.py": "aee63e2fca809525828e2e4d15e93acd4a2ccafc30e8f69e2e6394e19724da85",
+          "phonopy/interface/phonopy_yaml.py": "dff28405e91c05d8c7e0e9ffde33cb9597dafa91f262e95ae43e0199236f0dd8",
+          "phonopy/interface/pwmat.py": "23a71c25af6fcd1bb218118410b7c337e9931bafcdb0a6bdb2fae29e7c8624d6",
+          "phonopy/interface/pypolymlp.py": "5af6d5c599cdcbdcd17f1742c1c7139c1676e50cc0381f15b7bc3dc51f7e08e4",
+          "phonopy/interface/qe.py": "ccb116877f873b2daeec95cf590aae30d6880f967fbea3a517d10983b94c3653",
+          "phonopy/interface/qlm.py": "2866307b469a24ece1d7a5e23df05992a79b6fa0b4a9614fc00a6d90f477f281",
+          "phonopy/interface/siesta.py": "342b7d14c107d96de87290c0b7e36f3dfd34022ebfd9b58f7c387c7aea7ed4d1",
+          "phonopy/interface/symfc.py": "8cd732a19cbbe7a76b9c9ffe1e0ca7ad21ad8e467b342359f8878788b8c5df0e",
+          "phonopy/interface/turbomole.py": "88cdf592afe4dba61da88bfe4fd1f30aa723b05a3816fee15fa20167c898a20d",
+          "phonopy/interface/vasp.py": "8b29b281c3d27d8963c5f1a6aebf5b66c5017233902501061023bbc4766c8cf1",
+          "phonopy/interface/wien2k.py": "03510a6492e9c4f1402057e7f0e806f071d0a5a546fddd62aabe4dbd920dc80c",
+          "phonopy/phonon/animation.py": "241cb535a2ac7ee2ac7c0d725ceae591716d15fdf9341d247310049e522ea17d",
+          "phonopy/phonon/band_structure.py": "cca01da3200d4554e24a99c13e3aadd0757fa9a74cf1b5e32692366dcfe01281",
+          "phonopy/phonon/character_table.py": "aa32f330de2f0ef8cd754e5f41db3365d76c78ceed2910d90cb931d784dcc192",
+          "phonopy/phonon/degeneracy.py": "fb73226cc5220d64d57e5f5e30d1f4c82de5211e936308391a34564751224250",
+          "phonopy/phonon/dos.py": "c6f44899cffbf71e890e354abb1088d914d552ac861c42dff4d31d27fe5ceb66",
+          "phonopy/phonon/grid.py": "b01a3da5120d4860beab40e748274518618539363cc51a45b5d4a6cdff2dc529",
+          "phonopy/phonon/group_velocity.py": "ccd9082b644489080c41d1ef849bd50a7136ce28ee34854fd7f75492b7578298",
+          "phonopy/phonon/irreps.py": "52f8412b58c4b89a690f9f4512d415e78b9b0f28c91accec0b09dcfe146421a2",
+          "phonopy/phonon/mesh.py": "6466b6bf2f68cdc3a966734ed3808d5be3a8c9c88573e1e4212157e47e3df0fc",
+          "phonopy/phonon/modulation.py": "96e60a5187372d2cf6dd107dbde9c0a36c5c2e2791429a591743dfccbc739f1d",
+          "phonopy/phonon/moment.py": "422678efac217a3dee907e577f1eb63cf209c4d8ef2e2e4b3720c64f511b391c",
+          "phonopy/phonon/plot.py": "9bceb9d4e0ff4358ef27e49ad38f8b7fe4d84d0d083fb240ca375c5abc9eb139",
+          "phonopy/phonon/qpoints.py": "d6e170b76df5da4f949407c79441f3c741bfb57c78b3bb560e959fc70e998dd7",
+          "phonopy/phonon/random_displacements.py": "782ef070a93de0d2b3b50463b36869528377e6b3e1e7e444774e91b5c49f5f8e",
+          "phonopy/phonon/spectrum.py": "ce4598a68270d588a69d7d2260977b12a8c501bb3c3d287b0d6e82815a7efa88",
+          "phonopy/phonon/tetrahedron_mesh.py": "a01512b2b78dafeeb1689a2d8e8e45c2fcdbf49ca6dccbe7cae8758665c04f04",
+          "phonopy/phonon/tetrahedron_method.py": "1be2e49bf88848538bd2c466ff0d6ffb7ffac527fd4d878c24add73d539c14e6",
+          "phonopy/phonon/thermal_displacement.py": "7c5b9b0c049993057d1e293531d394334996f216e2f5fb4e68c6360457d9ff06",
+          "phonopy/phonon/thermal_properties.py": "d0a16794bb91cf4beda62bc2d3b1132a35e83294637861b81535992322a86568",
+          "phonopy/physical_units.py": "08f72f4d9c87fa1110fc3e1511b4496f212c7eca99f58d9d9ce1b0086a431025",
+          "phonopy/qha/anisotropic.py": "a8f6e486bffcb6c01f0efd55824c36d4eb37c6aef3edc1df5e0bb6a061ffbec2",
+          "phonopy/qha/anisotropic_dataset.py": "3031176f4af5a43be78afab87d0838501c1b080599d48387ddc4766e256ab45a",
+          "phonopy/qha/anisotropic_output.py": "6fdc4d21bb97fadeefbb663cc965d55f247788587159afba008d0c5666306d3c",
+          "phonopy/qha/anisotropic_plot.py": "3642e6a2ca702d25009e16812115f5dcb9d85e345cc8c85f38c216eb2a9a154e",
+          "phonopy/qha/calc.py": "78468ecbbc5c5cb605249f5544f45b585f4c110fa556cf17600296318ba5c9f5",
+          "phonopy/qha/core.py": "a9045b768b709e93e4652a9eb5bdc128daa98511998db5d4c2d1a5e5348ca788",
+          "phonopy/qha/electron.py": "5f2ba94f8e1d259a76cf863e12faedaba0b21cb13c58bacd4168162d88cba785",
+          "phonopy/qha/electron_kpoint_sum.py": "ffc5f7c24b67f52669dae43ce759e0d08d8b5da4f0f3b0ead34f3c5a5ffec196",
+          "phonopy/qha/electron_states.py": "e7611b1c1c56a8dac226f65258371bca17a78c3e0efb1d179da776f703ebe133",
+          "phonopy/qha/eos.py": "49143bf8dc5920b588700751713de667039504e55222b326a06509424527dcd5",
+          "phonopy/qha/free_energy_io.py": "1fcbf159fc04daa0f682a132be9835505d3dee21be29b3e42cf20414f4511ee3",
+          "phonopy/qha/lattice.py": "7dff265173ae08a50a18e5e49513fb350f9c1de4e4f15dd087eb627f86edb438",
+          "phonopy/qha/lattice_sampling.py": "57e7962bbe7e66f04bf5addc2349491e29a56f1e8b7922682aeec8e750e278c1",
+          "phonopy/qha/lattice_smoothing.py": "6689f7261ab957f01cd60762309da25c4fef262a8543253b6ef37c0a17bc91bb",
+          "phonopy/qha/output.py": "79dcbf54505ec4a9dc2e396f74bb7b67deeaa8614da18b6745e8ed1c74ecacfa",
+          "phonopy/qha/plot.py": "5289d4999870a4737b23ea1b1a35263468e7b0ad1192e66c82a342236c19e5a4",
+          "phonopy/qha/qha.py": "1664ff4e5a465520f8386cd79fa589d6c3133fbbd8269d5b87b7289f27638235",
+          "phonopy/qha/thermal.py": "fc133e0c45abef615dfbf04ca98a3449e50763ee3558a6b0faf84038f6de2f1c",
+          "phonopy/scripts/phonopy.py": "330524c4d2396205634d767fdc3740b1278aa6439c27182e09298df88e34b1a9",
+          "phonopy/scripts/phonopy_anisotropic_qha.py": "2bb8bc46d96222431a6d907c731cc5761d8d2dd11aa089d23e3e6efb88c3f90b",
+          "phonopy/scripts/phonopy_anisotropic_qha_dataset.py": "506b8539dbde17d981416c7ad124ba36bcc970f0b68362660034bdf00468922c",
+          "phonopy/scripts/phonopy_bandplot.py": "a497298511767542edc47b5e70ce1de7ff200f1011b2154d8941865d8e65c109",
+          "phonopy/scripts/phonopy_calc_convert.py": "7df71a8a01d7d2df2bac680a0232233dcd5323090c24a54f8085807a93b56103",
+          "phonopy/scripts/phonopy_collect.py": "00dc0d4019f366b66f5488a5140204f5b955d9745ccfddff7e92ee6dd0ddafa4",
+          "phonopy/scripts/phonopy_crystal_born.py": "20b088e689a42051632c4298a83b71b2825b07374f0a6ed4a356d33bd220c8ec",
+          "phonopy/scripts/phonopy_gruneisen.py": "9cd40dabfba2c0a852ab677b538f09aa6c9681fc9a97758768b1f9209895985e",
+          "phonopy/scripts/phonopy_gruneisenplot.py": "af094c03e10088414c716050982b1b1b1688b3c49f07ff61f17e0f3c0523ceef",
+          "phonopy/scripts/phonopy_init.py": "5d0546161fd7eb399a94640e367c76a331cc2abef63093407de32699cf2fb239",
+          "phonopy/scripts/phonopy_load.py": "56c6284e48bdae5f299b3a2f44f5afc11c58b9d73ee777f1c013f32bf0ea90b6",
+          "phonopy/scripts/phonopy_mlpsscha.py": "2a3e9a7fee5a13cf7a05aa76da96cab222b3b41d442ea298d0406c92c4911343",
+          "phonopy/scripts/phonopy_octopus_born.py": "46f93e90acc9499647011574864c388d42e0b04330e2b90744043d375d854fe9",
+          "phonopy/scripts/phonopy_pdosplot.py": "8b834ae753c16682a4757b58106571aae2e500fd6ccb71b585d29ceb8b24772f",
+          "phonopy/scripts/phonopy_propplot.py": "47f2743f0a00b6e047bc1874e9d8cd4f8292df138aa4881b915c2c0b0c650e95",
+          "phonopy/scripts/phonopy_qe_born.py": "62ba0148bc5d05c41dcbc7367f6198732eb160ecb3c7401c17e1a0c85145a383",
+          "phonopy/scripts/phonopy_qha.py": "0304269ad954090bc38eeee4935af7ceef6004e09d034c0e0d8a94ef7ec40c20",
+          "phonopy/scripts/phonopy_strain_cells.py": "17da7a471c454627dd9a4c13d0ce18c9c24c00981c1de0e9c1bea8ebc91d5e9a",
+          "phonopy/scripts/phonopy_symmetry.py": "9f5ebca12348ea819951b5448b6d5ab079fde6e1ad3491f3fc4e2cb71e34841e",
+          "phonopy/scripts/phonopy_tdplot.py": "91a2ae793710e23145be6f3d642e21709fae78329480ec438781eab6de068d66",
+          "phonopy/scripts/phonopy_vasp_born.py": "5fcf841731a10b22802563a609ab71b0e7f4951089b06a60b8d522c9e324d9aa",
+          "phonopy/scripts/phonopy_vasp_efe.py": "345f4cef88473d34e1de46a917d046d94e52bf99b65b33c0ef32927af6185f39",
+          "phonopy/scripts/phonopy_vasp_mlp_dataset.py": "a7792e1ea2c93e284dea0931430f0e1cb223e76f58b55125563e78581766aab6",
+          "phonopy/spectrum/dynamic_structure_factor.py": "7776a05073278ee92c45f0ea6f8d0515b3e47d498a8893d2b4f491f2961f8b50",
+          "phonopy/spectrum/velocity.py": "75edee88072cf37d7b4e5c451e5b5e2e8a2fab90e68a6d6c84aa7c76c740c41c",
+          "phonopy/sscha/core.py": "c0bec477c1535382f6bd3aa810c1472e21973111db39e144550b54669c4962ff",
+          "phonopy/sscha/output.py": "d64dff491f6d5f8e1853170c98e06a5d1f2dc1579f2fbaea59ee5e21614a6329",
+          "phonopy/sscha/trace.py": "64c52f86342cde9df460a7a99455456d7c28d5fb43c4585f1aff6de47440e9d2",
+          "phonopy/structure/atomic_data.py": "9a75b23ade5fb6ecc216965281a80fef9cf39102d5ecdc7ba77209424b570c57",
+          "phonopy/structure/atoms.py": "ea8d266ad30db9fc28e0981a02f5a562ccb5d4b14fb577acb9f4653faba9550e",
+          "phonopy/structure/brillouin_zone.py": "91beb6dd60a37fab63f25bde0afc463957e255058683f978f88aaa17b933d0b5",
+          "phonopy/structure/cells.py": "43ef15713bb055894a4a3b244688cd2efcea64c42901df578fbcf39e43b7dcb9",
+          "phonopy/structure/dataset.py": "20bd1e10b8a9e90c38014e411ac8713a3633e5478b2db5fa4e98755a37580e0a",
+          "phonopy/structure/mixture.py": "bb9db3d3f8d27f876e5ced5f6bd3c18da0c6f6787f8ada3a8de2c6392cebbbfe",
+          "phonopy/structure/snf.py": "faa1db0a6e90c98a18ec6e7f65f62aee71b9190c329eb9d45a1647bee486daa5",
+          "phonopy/structure/symmetry.py": "6a234cf54af0c9d085deee272c94a3a227dc6817c8a6f6242a383ade3d149b26",
+          "phonopy/unfolding/core.py": "dfaeb6e9c22213d8fe8ef3cbbdb4884e8121ace6c3b1cbd11f2d6d77f982d2f0",
+          "phonopy/units.py": "1d1e025f24fd76f824bf8715a081c05d4bf7f864379410e5f8b98fbc1088adc4",
+          "phonopy/utils.py": "19baf6be940865d4da6a81cffcb1eb53f2bb5570ae864f98ce151fbe08e627f7"
+        },
+        "source_version": "v4.5.0",
+        "source_commit": "6683c731a54b3aed2a739138a54138a6b2782013",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "phonopy_lattice_dynamics_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/phonopy_v4.5.0.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/phonopy_v4.5.0.json",
+        "source_sha256": "9af5c40d8d5c2735956ec7f936f7f25c5542d54fecad0522cd61bd563ad2e596",
+        "profile_sha256": "64db4d846627b22d27be79f586cc5285e69a353d6a04ac667a774f10e5132acb",
+        "boundary": "Phonopy 主对象、位移/力常数、网格、能带和热力学分析；排除 CLI 参数和各外部计算器的重复解析器。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 719,
+        "selected_tool_count": 15,
+        "selected_class_count": 7,
+        "selected_function_count": 8,
+        "selected_method_count": 49,
+        "selected_all_func": 57,
+        "missing_description_count": 6,
+        "excluded_tool_count": 704,
+        "capability_count": 3
+      }
+    }
+  }
+]

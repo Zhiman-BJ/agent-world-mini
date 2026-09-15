@@ -1,0 +1,61 @@
+[
+  {
+    "name": "spicelib", "index": 31,
+    "repository": "https://github.com/nunobrum/spicelib",
+    "documentation": "https://spicelib.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/spicelib/", "pypi_version": "1.6.3",
+    "tag": "1.6.3", "commit": "b20c2371bbe49ca58702aabd12817e9e4664578a",
+    "release_published_at": "2026-07-21T21:08:28Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "spicelib", "modules": ["spicelib"],
+    "description": "spicelib 是用于自动化 SPICE 仿真的 Python 工具库，提供网表和原理图编辑、参数步进、仿真任务调度、LTspice/ngspice/Xyce/QSpice 后端适配、日志与波形读取，以及 Monte Carlo、灵敏度和最坏情况分析。真正执行仿真需要安装相应外部求解器。",
+    "notes": ["PyPI 1.6.3 与 GitHub 最新正式 Release 标签 1.6.3 一致。", "本次仅静态整理 Python API；未启动 LTspice、ngspice、Xyce 或 QSpice，也不将后端进程成功写成已验证。"]
+  },
+  {
+    "name": "PySpice", "index": 32,
+    "repository": "https://github.com/FabriceSalvaire/PySpice",
+    "documentation": "https://pyspice.fabrice-salvaire.fr/",
+    "pypi": "https://pypi.org/project/PySpice/", "pypi_version": "1.5",
+    "tag": "v1.5", "commit": "bcd3aea7342824c4817f08a938d3d85c37344f45",
+    "release_published_at": "2021-05-15T23:01:53Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://github.com/FabriceSalvaire/PySpice/tree/v1.5", "release_api": "",
+    "selection_rule": "Latest PyPI version 1.5 and exact official repository tag v1.5 agree; the repository has no GitHub Release object for this tag.",
+    "directory": "pyspice", "modules": ["PySpice"],
+    "description": "PySpice 是以 Python 对象构建电子电路并调用 ngspice 或 Xyce 的接口库，提供元件、子电路、网表、工作点/DC/AC/瞬态分析配置、共享库或命令行仿真器适配和波形对象。电路求解依赖外部 ngspice/Xyce 安装及其版本兼容性。",
+    "notes": ["PyPI 最新版本 1.5 与官方仓库标签 v1.5 一致；没有对应 GitHub Release，发布日期采用 PyPI 首个文件上传时间。", "本次不加载 ngspice 共享库、不调用 Xyce，静态索引也不代表旧版依赖组合可在当前 Python 上运行。"]
+  },
+  {
+    "name": "lcapy", "index": 33,
+    "repository": "https://github.com/mph-/lcapy",
+    "documentation": "https://lcapy.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/lcapy/", "pypi_version": "1.26",
+    "tag": "V1.26", "commit": "d8fe8ddb3e1fd4ec68ede3343b49100b79dc678f",
+    "release_published_at": "2025-09-28T07:30:33Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://github.com/mph-/lcapy/tree/V1.26", "release_api": "",
+    "selection_rule": "Latest PyPI version 1.26 and exact official repository tag V1.26 agree; the repository has no GitHub Release object.",
+    "directory": "lcapy", "modules": ["lcapy"],
+    "description": "Lcapy 是基于 SymPy 的线性电路符号分析库，可从网表构建电路、执行节点与回路分析、求传递函数、阻抗和导纳、极点零点、噪声与瞬态响应，并在时域、拉普拉斯域和频域之间转换。它适合解析推导及与数值 SPICE 结果交叉检查。",
+    "notes": ["PyPI 1.26 与官方仓库 annotated tag V1.26 一致；发布日期采用 PyPI 上传时间。", "本次静态索引不运行 LaTeX/Graphviz 等绘图工具，也不把符号表达式的数学正确性视为已验证。"]
+  },
+  {
+    "name": "sax", "index": 34,
+    "repository": "https://github.com/gdsfactory/sax",
+    "documentation": "https://gdsfactory.github.io/sax/",
+    "pypi": "https://pypi.org/project/sax/", "pypi_version": "0.18.2",
+    "tag": "0.18.2", "commit": "e0d8a493d6fe213c794439f315b6c99eea9980ce",
+    "release_published_at": "2026-06-09T16:44:18Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "sax", "source_root": "src", "modules": ["sax"],
+    "description": "SAX 是基于 JAX 的可微 S 参数电路仿真与优化库，使用函数和字典表示光子器件模型、网表、端口连接和散射矩阵，并提供多种电路求解后端、模型工厂、插值和损失函数。它用于频域电路级组合，不直接求解器件电磁场。",
+    "notes": ["PyPI 0.18.2 与 gdsfactory/sax 最新正式 Release 标签 0.18.2 一致；旧 flaport/sax 地址由 GitHub 重定向到当前官方仓库。", "本次只静态解析 Python 接口，不运行 JAX 编译、梯度优化或外部器件模型。"]
+  },
+  {
+    "name": "simphony", "index": 35,
+    "repository": "https://github.com/BYUCamachoLab/simphony",
+    "documentation": "https://simphonyphotonics.readthedocs.io/en/stable/",
+    "pypi": "https://pypi.org/project/simphony/", "pypi_version": "0.7.3",
+    "tag": "v0.7.3", "commit": "5a5e826fb58b2b5ce0355189b3e3b33e2bd8828c",
+    "release_published_at": "2025-10-28T01:28:53Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "simphony", "modules": ["simphony"],
+    "description": "Simphony 是光子集成电路级仿真库，以器件散射参数模型和端口连接构建网络，提供理想器件、SiPANN 与 SiEPIC 模型库、频率扫描及经典和量子线路辅助。它可读取或调用外部模型数据，但不替代 FDTD/FEM 等器件级电磁求解器。",
+    "notes": ["PyPI 0.7.3 与 GitHub 最新正式 Release v0.7.3 一致。", "仓库包含模型数据文件；本次只静态索引 Python 定义，不验证可选 SiPANN/Lumerical 插件或模型精度。"]
+  }
+]

@@ -1435,14 +1435,14 @@
         "repository": "https://github.com/nextnano-GmbH/nextnanopy",
         "documentation": "https://www.nextnano.com/docu/nextnanopy/",
         "pypi": "https://pypi.org/project/nextnanopy/",
-        "pypi_version": "1.3.1",
+        "pypi_version": "1.3.2",
         "tag": "v1.3.2",
         "commit": "5da921ff29f9861596c0906aba37ede8da7daf60",
         "release_published_at": "2026-09-10T14:18:12Z",
-        "checked_on": "2026-09-10",
+        "checked_on": "2026-09-15",
         "github_prerelease": false,
         "notes": [
-          "GitHub 最新 Release 为 v1.3.2，标签内 pyproject.toml 版本为 1.3.2；核查时 PyPI 最新版本仍为 1.3.1。",
+          "GitHub 最新 Release、标签内 pyproject.toml 与 PyPI 均为 1.3.2；PyPI 在 GitHub 发布后完成同步。",
           "未安装或执行 nextnano 仿真程序。"
         ],
         "release_url": "https://github.com/nextnano-GmbH/nextnanopy/releases/tag/v1.3.2",
@@ -1555,8 +1555,8 @@
         "profile_id": "nextnanopy_balanced_v1",
         "source_artifact": "seed_gen/pypi_outputs/ori_all/nextnanopy_v1.3.2.json",
         "profile_artifact": "seed_gen/pypi_selection_profiles/nextnanopy_v1.3.2.json",
-        "source_sha256": "cb6fdc26edb5b3647dab024ad8b6c94bdd0f12dbe9c7828344624fe8650e05e4",
-        "profile_sha256": "d4295aecd62645823421cf417e00fd0c3a75ae4a060c5c29f74053d5ed67f1ce",
+        "source_sha256": "cd31b36bb8d9ea79f93762b87bca63efdb3573028010b2a12cc7f0fc2f707b46",
+        "profile_sha256": "240fa6e15cbe3d6ede2f88471ae1ea837c2a7843e9b4ced59d322ba7c8f0068a",
         "boundary": "输入文件生命周期、配置、扫描编排、输出目录/文件读取和基本数据对象。排除内部解析器、产品专属重复别名、GDS/绘图、任意 shell 或脚本执行及自动优化。execute/execute_sweep/ExecutionPool.start 需要 nextnano 程序和许可；其余候选以本地文本/输出 fixture 检查。工厂和继承方法按源码归属保留，当前未执行运行验证。",
         "target_all_func": {
           "min": 50,

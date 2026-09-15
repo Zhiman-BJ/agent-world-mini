@@ -1,0 +1,1852 @@
+[
+  {
+    "global_id": "pypi_spicelib_31",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/nunobrum/spicelib",
+          "https://pypi.org/project/spicelib/",
+          "https://spicelib.readthedocs.io/en/latest/"
+        ],
+        "name": "spicelib",
+        "version": "1.6.3",
+        "index": 31
+      },
+      "description": "spicelib 是用于自动化 SPICE 仿真的 Python 工具库，提供网表和原理图编辑、参数步进、仿真任务调度、LTspice/ngspice/Xyce/QSpice 后端适配、日志与波形读取，以及 Monte Carlo、灵敏度和最坏情况分析。真正执行仿真需要安装相应外部求解器。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 9,
+        "function": 0,
+        "class_func": 79,
+        "all_func": 79
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "SpiceComponent",
+        "type": "class",
+        "module": "spicelib.editor.spice_components",
+        "input": "Component",
+        "description": "Represents a SPICE component in the netlist. It allows the manipulation of the parameters and the value of the component.",
+        "function": [
+          {
+            "name": "reset_attributes",
+            "description": "Update attributes of a component at a specific line in the netlist",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "re.match",
+                "description": "meta private: The match found"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Update attributes of a component at a specific line in the netlist  :raises NotImplementedError: When the component type is not recognized :raises UnrecognizedSyntaxError: When the line doesn't match the expected REGEX. :return: The match found :rtype: re.match  :meta private:"
+          },
+          {
+            "name": "rewrite_lines",
+            "description": "Write the SPICE representation of the component into a stream",
+            "input": {
+              "self": null,
+              "stream": {
+                "type": "io.StringIO",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "Number of characters written"
+              }
+            },
+            "ori_input": "self, stream: io.StringIO",
+            "ori_description": "Write the SPICE representation of the component into a stream  :return: Number of characters written :rtype: int"
+          },
+          {
+            "name": "set_value",
+            "description": "Informs the netlist that the value of the component has changed",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, value",
+            "ori_description": "Informs the netlist that the value of the component has changed"
+          },
+          {
+            "name": "set_parameters",
+            "description": "Informs the netlist that the parameters of the component have changed",
+            "input": {
+              "self": null,
+              "params": {
+                "type": "**params",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **params",
+            "ori_description": "Informs the netlist that the parameters of the component have changed"
+          },
+          {
+            "name": "set_parameter",
+            "description": "Informs the netlist that a parameter of the component has changed",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "str",
+                "description": ""
+              },
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, key: str, value",
+            "ori_description": "Informs the netlist that a parameter of the component has changed"
+          },
+          {
+            "name": "write_lines",
+            "description": "Get the SPICE representation of the component as a string. This creates a new line from the attributes alone",
+            "input": {
+              "self": null,
+              "stream": {
+                "type": "io.StringIO",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "int",
+                "description": "number of characters written"
+              }
+            },
+            "ori_input": "self, stream: io.StringIO",
+            "ori_description": "Get the SPICE representation of the component as a string. This creates a new line from the attributes alone  :return: number of characters written :rtype: int"
+          }
+        ]
+      },
+      {
+        "name": "SpiceEditor",
+        "type": "class",
+        "module": "spicelib.editor.spice_editor",
+        "input": "SpiceFile",
+        "description": "Provides interfaces to manipulate SPICE netlist files. The class doesn't update the netlist file itself. After implementing the modifications, the user should call the \"save_netlist\" method to write a new netlist file.  :param netlist_file: Name of the .NET file to parse :param encoding: Forcing the encoding to be used on the circuit netlist file read. Defaults to 'autodetect' which will call a function that tries to detect the encoding automatically. This, however, is not 100% foolproof. :keyword create_blank: Create a blank '.net' file when 'netlist_file' not exist. False by default :keyword include_file: If an include file is being parsed, the control of the ending .END statement is suppressed.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "netlist_file": {
+                "type": "Path | str",
+                "description": ""
+              },
+              "encoding": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, netlist_file: Path | str, encoding = 'autodetect', **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "reset_netlist",
+            "description": "Reset the netlist state and reload or reinitialize its content.  :keyword create_blank: Create a blank '.net' file when 'netlist_file' not exist. :keyword include_file: If an include file is being parsed, the control of the ending .END statement is suppressed. This is useful when parsing include files, which do not have an .END statement, but are just a part of the netlist.",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "True if successful, False otherwise."
+              }
+            },
+            "ori_input": "self, **kwargs",
+            "ori_description": "Reset the netlist state and reload or reinitialize its content.  :keyword create_blank: Create a blank '.net' file when 'netlist_file' not exist. :keyword include_file: If an include file is being parsed, the control of the ending .END statement is suppressed. This is useful when parsing include files, which do not have an .END statement, but are just a part of the netlist. :return: True if successful, False otherwise."
+          },
+          {
+            "name": "get_control_sections",
+            "description": "Returns a list representing the control sections in the netlist. Control sections are all anonymous, so they do not have a name, just an index. They are also not parsed, they are just a list of strings (with embedded newlines).",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "list of control section strings. These strings have each multiple lines, start with ``.CONTROL`` and end with ``.ENDC``."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns a list representing the control sections in the netlist. Control sections are all anonymous, so they do not have a name, just an index. They are also not parsed, they are just a list of strings (with embedded newlines).  :return: list of control section strings. These strings have each multiple lines, start with ``.CONTROL`` and end with ``.ENDC``."
+          },
+          {
+            "name": "add_control_section",
+            "description": "Adds a control section to the netlist. The instruction should be a multi-line string that starts with '.CONTROL' and ends with '.ENDC'. It will be added as a ControlEditor object to the netlist.  You can also use the `add_instruction()` method, but that method has less checking of the format.",
+            "input": {
+              "self": null,
+              "instruction": {
+                "type": "str",
+                "description": "control section instruction"
+              }
+            },
+            "output": null,
+            "ori_input": "self, instruction: str",
+            "ori_description": "Adds a control section to the netlist. The instruction should be a multi-line string that starts with '.CONTROL' and ends with '.ENDC'. It will be added as a ControlEditor object to the netlist.  You can also use the `add_instruction()` method, but that method has less checking of the format.  :param instruction: control section instruction :raises ValueError: if the instruction does not start with ``.CONTROL`` or does not end with ``.ENDC``"
+          },
+          {
+            "name": "remove_control_section",
+            "description": "Removes a control section from the netlist, based on the index in `get_control_sections()`. You can also use `remove_instruction()`, but there, the given text must match the entire control section.",
+            "input": {
+              "self": null,
+              "index": {
+                "type": "int",
+                "description": "index of the control section to remove, according to `get_control_sections()`"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "True if the control section was found and removed, False otherwise"
+              }
+            },
+            "ori_input": "self, index: int = 0",
+            "ori_description": "Removes a control section from the netlist, based on the index in `get_control_sections()`. You can also use `remove_instruction()`, but there, the given text must match the entire control section.  :param index: index of the control section to remove, according to `get_control_sections()` :returns: True if the control section was found and removed, False otherwise"
+          },
+          {
+            "name": "run",
+            "description": ".. deprecated:: 1.0 Use the `run` method from the `SimRunner` class instead.  Convenience function for maintaining legacy with legacy code. Runs the SPICE simulation.",
+            "input": {
+              "self": null,
+              "wait_resource": {
+                "type": "bool",
+                "description": ""
+              },
+              "callback": {
+                "type": "CallbackType | None",
+                "description": ""
+              },
+              "timeout": {
+                "type": "float | None",
+                "description": ""
+              },
+              "run_filename": {
+                "type": "str | None",
+                "description": ""
+              },
+              "simulator": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, wait_resource: bool = True, callback: CallbackType | None = None, timeout: float | None = None, run_filename: str | None = None, simulator = None",
+            "ori_description": ".. deprecated:: 1.0 Use the `run` method from the `SimRunner` class instead.  Convenience function for maintaining legacy with legacy code. Runs the SPICE simulation."
+          },
+          {
+            "name": "add_library_search_paths",
+            "description": ".. deprecated:: 1.1.4 Use the class method `set_custom_library_paths()` instead.  Adds search paths for libraries. By default, the local directory and the ~username/\"Documents/LTspiceXVII/lib/sub will be searched forehand. Only when a library is not found in these paths then the paths added by this method will be searched.",
+            "input": {
+              "cls": null,
+              "paths": {
+                "type": "*paths",
+                "description": "Path to add to the Search path"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Nothing"
+              }
+            },
+            "ori_input": "cls, *paths",
+            "ori_description": ".. deprecated:: 1.1.4 Use the class method `set_custom_library_paths()` instead.  Adds search paths for libraries. By default, the local directory and the ~username/\"Documents/LTspiceXVII/lib/sub will be searched forehand. Only when a library is not found in these paths then the paths added by this method will be searched.  :param paths: Path to add to the Search path :type paths: str :return: Nothing"
+          }
+        ]
+      },
+      {
+        "name": "SimRunner",
+        "type": "class",
+        "module": "spicelib.sim.sim_runner",
+        "input": "AnyRunner",
+        "description": "The SimRunner class implements all the methods required for launching batches of Spice simulations.  It is iterable, but with a catch: The iteration will only return the completed tasks (succeeded or not), in the order they were completed. If all completed tasks have been returned, and there are still running tasks, it will wait for the completion of the next task. If you used no callbacks, the result is a tuple with the raw and log file names. If you used callbacks, it will return the return code of the callback function, or None if there was an error. Also see `sim_info()` for more details on the completed tasks.  :param simulator: Forcing a given simulator executable. :type simulator: Simulator, optional :param parallel_sims: Defines the number of parallel simulations that can be executed at the same time. Ideally this number should be aligned to the number of CPUs (processor cores) available on the machine. :type parallel_sims: int, optional :param timeout: Timeout parameter as specified on the OS subprocess.run() function. Default is 600 seconds, i.e. 10 minutes. For no timeout, set to None. :type timeout: float, optional :param verbose: If True, it enables a richer printout of the program execution. :type verbose: bool, optional :param output_folder: specifying which directory shall be used for simulation files (raw and log files). :type output_folder: str, optional :param cwd: The current working directory to run the command in. If None, no change will be done of the working directory. :type cwd: str or pathlib.Path, optional  :raises FileNotFoundError: When the file is not found. !This will be changed.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "simulator": {
+                "type": "",
+                "description": ""
+              },
+              "parallel_sims": {
+                "type": "int",
+                "description": ""
+              },
+              "timeout": {
+                "type": "float",
+                "description": ""
+              },
+              "verbose": {
+                "type": "",
+                "description": ""
+              },
+              "output_folder": {
+                "type": "str | Path | None",
+                "description": ""
+              },
+              "cwd": {
+                "type": "str | Path | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *, simulator = None, parallel_sims: int = 4, timeout: float = 600.0, verbose = False, output_folder: str | Path | None = None, cwd: str | Path | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "set_simulator",
+            "description": "Manually overriding the simulator to be used.",
+            "input": {
+              "self": null,
+              "spice_tool": {
+                "type": "type[Simulator]",
+                "description": "String containing the path to the spice tool to be used, or alternatively the Simulator object."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Nothing"
+              }
+            },
+            "ori_input": "self, spice_tool: type[Simulator]",
+            "ori_description": "Manually overriding the simulator to be used.  :param spice_tool: String containing the path to the spice tool to be used, or alternatively the Simulator object. :return: Nothing"
+          },
+          {
+            "name": "clear_command_line_switches",
+            "description": "Clear all the command line switches added previously",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Clear all the command line switches added previously"
+          },
+          {
+            "name": "add_command_line_switch",
+            "description": "Used to add an extra command line argument such as '-I<path>' to add symbol search path or '-FastAccess' to convert the raw file into Fast Access. The argument is a string as is defined in the command line documentation of the used simulator. It is preferred that you use the Simulator's class `valid_switch()` method for validation of the switch.",
+            "input": {
+              "self": null,
+              "switch": {
+                "type": "str",
+                "description": "switch to be added. See Command Line Switches documentation of the used simulator."
+              },
+              "path": {
+                "type": "str, optional",
+                "description": "path to the file related to the switch being given."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Nothing"
+              }
+            },
+            "ori_input": "self, switch, path = ''",
+            "ori_description": "Used to add an extra command line argument such as '-I<path>' to add symbol search path or '-FastAccess' to convert the raw file into Fast Access. The argument is a string as is defined in the command line documentation of the used simulator. It is preferred that you use the Simulator's class `valid_switch()` method for validation of the switch.  :param switch: switch to be added. See Command Line Switches documentation of the used simulator. :type switch: str :param path: path to the file related to the switch being given. :type path: str, optional :returns: Nothing"
+          },
+          {
+            "name": "run",
+            "description": "Executes a simulation run with the conditions set by the user. Conditions are set by the set_parameter, set_component_value or add_instruction functions.",
+            "input": {
+              "self": null,
+              "netlist": {
+                "type": "str | Path | BaseEditor",
+                "description": "The name of the netlist can be optionally overridden if the user wants to have a better control of how the simulations files are generated."
+              },
+              "wait_resource": {
+                "type": "bool",
+                "description": "Setting this parameter to False will force the simulation to start immediately, irrespective of the number of simulations already active. By default, the SimRunner class uses only four processors. This number can be overridden by setting the parameter ´parallel_sims´ to a different number. If there are more than ´parallel_sims´ simulations being done, the new one will be placed on hold till one of the other simulations are finished."
+              },
+              "callback": {
+                "type": "CallbackType",
+                "description": "The user can optionally give a callback function for when the simulation finishes so that processing can be done immediately. The callback can either be a function or a class derived from ProcessCallback. A callback function must receive two at least input parameters that correspond the raw and log files created by the simulation. These need to be the first two parameters of the callback function. The other parameters are passed as a dictionary or a tuple in the callback_args parameter. If the callback is a class derived from ProcessCallback, then the callback is executed in a separate process. The callback function must be defined in the callback() method of the class. As for the callback function, the first two parameters are the raw and log files. The other parameters are passed as dictionary in the callback_args parameter."
+              },
+              "callback_args": {
+                "type": "CallbackArgsType",
+                "description": "The callback function arguments. This parameter is passed as keyword arguments to the callback function."
+              },
+              "switches": {
+                "type": "list | None",
+                "description": "Command line switches override"
+              },
+              "timeout": {
+                "type": "float | None",
+                "description": "Timeout to be used in waiting for resources. Default time is value defined in this class constructor."
+              },
+              "run_filename": {
+                "type": "str | None",
+                "description": "Name to be used for the log and raw file."
+              },
+              "callback_on_error": {
+                "type": "bool",
+                "description": "If False (default), the callback function is not called if the simulation fails. If True, the callback function is called even if the simulation fails. Know that in that case it is not guaranteed that the raw and log files will be available."
+              },
+              "exe_log": {
+                "type": "bool",
+                "description": "If True, the simulator's execution console messages will be written to a log file (named ...exe.log) instead of console. This is especially useful when running under wine or when running simultaneous tasks."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The task object of type RunTask. For internal use only."
+              }
+            },
+            "ori_input": "self, netlist: str | Path | BaseEditor, *, wait_resource: bool = True, callback: CallbackType = None, callback_args: CallbackArgsType = None, switches: list | None = None, timeout: float | None = None, run_filename: str | None = None, callback_on_error: bool = False, exe_log: bool = False",
+            "ori_description": "Executes a simulation run with the conditions set by the user. Conditions are set by the set_parameter, set_component_value or add_instruction functions.  :param netlist: The name of the netlist can be optionally overridden if the user wants to have a better control of how the simulations files are generated. :param wait_resource: Setting this parameter to False will force the simulation to start immediately, irrespective of the number of simulations already active. By default, the SimRunner class uses only four processors. This number can be overridden by setting the parameter ´parallel_sims´ to a different number. If there are more than ´parallel_sims´ simulations being done, the new one will be placed on hold till one of the other simulations are finished. :param callback: The user can optionally give a callback function for when the simulation finishes so that processing can be done immediately. The callback can either be a function or a class derived from ProcessCallback. A callback function must receive two at least input parameters that correspond the raw and log files created by the simulation. These need to be the first two parameters of the callback function. The other parameters are passed as a dictionary or a tuple in the callback_args parameter. If the callback is a class derived from ProcessCallback, then the callback is executed in a separate process. The callback function must be defined in the callback() method of the class. As for the callback function, the first two parameters are the raw and log files. The other parameters are passed as dictionary in the callback_args parameter.  :param callback_args: The callback function arguments. This parameter is passed as keyword arguments to the callback function. :param switches: Command line switches override :param timeout: Timeout to be used in waiting for resources. Default time is value defined in this class constructor. :param run_filename: Name to be used for the log and raw file. :param callback_on_error: If False (default), the callback function is not called if the simulation fails. If True, the callback function is called even if the simulation fails. Know that in that case it is not guaranteed that the raw and log files will be available. :param exe_log: If True, the simulator's execution console messages will be written to a log file (named ...exe.log) instead of console. This is especially useful when running under wine or when running simultaneous tasks. :returns: The task object of type RunTask. For internal use only."
+          },
+          {
+            "name": "run_now",
+            "description": "Executes a simulation run with the conditions set by the user. Conditions are set by the `set_parameter`, `set_component_value` or `add_instruction functions`.",
+            "input": {
+              "self": null,
+              "netlist": {
+                "type": "str | Path | BaseEditor",
+                "description": "The name of the netlist can be optionally overridden if the user wants to have a better control of how the simulations files are generated."
+              },
+              "switches": {
+                "type": "list",
+                "description": "Command line switches override"
+              },
+              "run_filename": {
+                "type": "str | None",
+                "description": "Name to be used for the log and raw file."
+              },
+              "timeout": {
+                "type": "float | None",
+                "description": "Timeout to be used in waiting for resources. Default time is value defined in this class constructor."
+              },
+              "exe_log": {
+                "type": "bool",
+                "description": "If True, the simulator's execution console messages will be written to a log file (named ...exe.log) instead of console. This is especially useful when running under wine or when running simultaneous tasks."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "the raw and log filenames"
+              }
+            },
+            "ori_input": "self, netlist: str | Path | BaseEditor, *, switches = None, run_filename: str | None = None, timeout: float | None = None, exe_log: bool = False",
+            "ori_description": "Executes a simulation run with the conditions set by the user. Conditions are set by the `set_parameter`, `set_component_value` or `add_instruction functions`.  :param netlist: The name of the netlist can be optionally overridden if the user wants to have a better control of how the simulations files are generated. :param switches: Command line switches override :type switches: list :param run_filename: Name to be used for the log and raw file. :param timeout: Timeout to be used in waiting for resources. Default time is value defined in this class constructor. :param exe_log: If True, the simulator's execution console messages will be written to a log file (named ...exe.log) instead of console. This is especially useful when running under wine or when running simultaneous tasks. :returns: the raw and log filenames"
+          },
+          {
+            "name": "active_threads",
+            "description": "Returns the number of active simulation runs",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Returns the number of active simulation runs"
+          },
+          {
+            "name": "update_completed",
+            "description": "This function updates the `active_tasks` and `completed_tasks` lists. It moves the finished task from the `active_tasks` list to the `completed_tasks` list. It should be called periodically to update the status of the simulations.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "Nothing",
+                "description": "meta private:"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "This function updates the `active_tasks` and `completed_tasks` lists. It moves the finished task from the `active_tasks` list to the `completed_tasks` list. It should be called periodically to update the status of the simulations.  :returns: Nothing :meta private:"
+          },
+          {
+            "name": "wait_completion",
+            "description": "This function will wait for the execution of all scheduled simulations to complete.",
+            "input": {
+              "self": null,
+              "timeout": {
+                "type": "float | None",
+                "description": "Cancels the wait after the number of seconds specified by the timeout. This timeout is reset everytime that a simulation is completed. The difference between this timeout and the one defined in the SimRunner instance, is that the latter is implemented by the subprocess class, and this one just cancels the wait."
+              },
+              "abort_all_on_timeout": {
+                "type": "bool",
+                "description": "attempts to stop all LTSpice processes if timeout is expired."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "True if all simulations were executed successfully"
+              }
+            },
+            "ori_input": "self, timeout: float | None = None, abort_all_on_timeout: bool = False",
+            "ori_description": "This function will wait for the execution of all scheduled simulations to complete.  :param timeout: Cancels the wait after the number of seconds specified by the timeout. This timeout is reset everytime that a simulation is completed. The difference between this timeout and the one defined in the SimRunner instance, is that the latter is implemented by the subprocess class, and this one just cancels the wait. :param abort_all_on_timeout: attempts to stop all LTSpice processes if timeout is expired. :returns: True if all simulations were executed successfully"
+          },
+          {
+            "name": "cleanup_files",
+            "description": "Will delete all log and raw files that were created by the script. This should only be executed at the end of data processing.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Will delete all log and raw files that were created by the script. This should only be executed at the end of data processing."
+          },
+          {
+            "name": "file_cleanup",
+            "description": ".. deprecated:: 1.0 Use `cleanup_files()` instead.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ".. deprecated:: 1.0 Use `cleanup_files()` instead."
+          },
+          {
+            "name": "tasks",
+            "description": "Returns an iterator which iterates all completed tasks",
+            "input": {
+              "self": null,
+              "conditions": {
+                "type": "IteratorFilterType",
+                "description": "Filter to be used in the iterator. See TaskIterator conditions parameter documentation."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Iterator[RunTask]"
+              }
+            },
+            "ori_input": "self, conditions: IteratorFilterType = None",
+            "ori_description": "Returns an iterator which iterates all completed tasks  :param conditions: Filter to be used in the iterator. See TaskIterator conditions parameter documentation. :return: Iterator[RunTask]"
+          },
+          {
+            "name": "create_raw_file_with",
+            "description": "Creates a new raw_file, with traces belonging to different runs. The type of the raw file is the same as the first raw file that is matching the conditions. See filter_completed_tasks() method.",
+            "input": {
+              "self": null,
+              "raw_filename": {
+                "type": "Path | str",
+                "description": "The new RAW filename"
+              },
+              "save": {
+                "type": "list[str]",
+                "description": "A list with traces that are going to be saved in the new raw file"
+              },
+              "conditions": {
+                "type": "IteratorFilterType",
+                "description": "A filter as specified on the TaskIterator class"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "True if the raw file was created successfully and includes ALL runs, False otherwise"
+              }
+            },
+            "ori_input": "self, raw_filename: Path | str, save: list[str], conditions: IteratorFilterType",
+            "ori_description": "Creates a new raw_file, with traces belonging to different runs. The type of the raw file is the same as the first raw file that is matching the conditions. See filter_completed_tasks() method.  :param raw_filename: The new RAW filename :param save: A list with traces that are going to be saved in the new raw file :param conditions: A filter as specified on the TaskIterator class :return: True if the raw file was created successfully and includes ALL runs, False otherwise"
+          },
+          {
+            "name": "export_sim_log",
+            "description": "Exports the simulation log to a file.",
+            "input": {
+              "self": null,
+              "logfile": {
+                "type": "Path | str",
+                "description": "The path to the log file"
+              }
+            },
+            "output": null,
+            "ori_input": "self, logfile: Path | str",
+            "ori_description": "Exports the simulation log to a file.  :param logfile: The path to the log file"
+          }
+        ]
+      },
+      {
+        "name": "SimStepper",
+        "type": "class",
+        "module": "spicelib.sim.sim_stepping",
+        "input": "AnyRunner",
+        "description": "This class is intended to be used for simulations with many parameter sweeps. This provides a more user-friendly interface than the SpiceEditor/SimRunner class when there are many parameters to be stepped.  Using the SpiceEditor/SimRunner classes a loop needs to be added for each dimension of the simulations. A typical usage would be as follows:  .. code-block:: python  netlist = SpiceEditor(\"my_circuit.asc\") runner = SimRunner(parallel_sims=4) for dmodel in (\"BAT54\", \"BAT46WJ\") netlist.set_element_model(\"D1\", model) # Sets the Diode D1 model for res_value1 in sweep(2.2, 2,4, 0.2): # Steps from 2.2 to 2.4 with 0.2 increments netlist.set_component_value('R1', res_value1) # Updates the resistor R1 value to be 3.3k for temperature in sweep(0, 80, 20): # Makes temperature step from 0 to 80 degrees in 20 degree steps netlist.set_parameters(temp=80) # Sets the simulation temperature to be 80 degrees for res_value2 in (10, 25, 32): netlist.set_component_value('R2', res_value2) # Updates the resistor R2 value to be 3.3k runner.run(netlist)  runner.wait_completion() # Waits for the Spice simulations to complete  With SimStepper the same thing can be done as follows, resulting in a cleaner code:  .. code-block:: python  netlist = SpiceEditor(\"my_circuit.asc\") Stepper = SimStepper(netlist, SimRunner(parallel_sims=4, output_folder=\"./output\")) Stepper.add_model_sweep('D1', \"BAT54\", \"BAT46WJ\") Stepper.add_component_sweep('R1', sweep(2.2, 2,4, 0.2)) # Steps from 2.2 to 2.4 with 0.2 increments Stepper.add_parameter_sweep('temp', sweep(0, 80, 20)) # Makes temperature step from 0 to 80 degrees in 20 # degree steps Stepper.add_component_sweep('R2', (10, 25, 32)) # Updates the resistor R2 value to be 3.3k Stepper.run_all()  Another advantage of using SimStepper is that it can optionally use the .SAVEBIAS in the first simulation and then use the .LOADBIAS command at the subsequent ones to speed up the simulation times.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "editor": {
+                "type": "SpiceEditor",
+                "description": ""
+              },
+              "runner": {
+                "type": "AnyRunner",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, editor: SpiceEditor, runner: AnyRunner",
+            "ori_description": ""
+          },
+          {
+            "name": "add_instruction",
+            "description": "",
+            "input": {
+              "self": null,
+              "instruction": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, instruction: str",
+            "ori_description": ""
+          },
+          {
+            "name": "add_instructions",
+            "description": "",
+            "input": {
+              "self": null,
+              "instructions": {
+                "type": "*instructions",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *instructions",
+            "ori_description": ""
+          },
+          {
+            "name": "set_parameters",
+            "description": "",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "set_parameter",
+            "description": "",
+            "input": {
+              "self": null,
+              "param": {
+                "type": "str",
+                "description": ""
+              },
+              "value": {
+                "type": "ValueType",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, param: str, value: ValueType",
+            "ori_description": ""
+          },
+          {
+            "name": "set_component_values",
+            "description": "",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "set_component_value",
+            "description": "",
+            "input": {
+              "self": null,
+              "device": {
+                "type": "str",
+                "description": ""
+              },
+              "value": {
+                "type": "ValueType",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, device: str, value: ValueType",
+            "ori_description": ""
+          },
+          {
+            "name": "set_element_model",
+            "description": "",
+            "input": {
+              "self": null,
+              "element": {
+                "type": "str",
+                "description": ""
+              },
+              "model": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, element: str, model: str",
+            "ori_description": ""
+          },
+          {
+            "name": "add_param_sweep",
+            "description": "Adds a dimension to the simulation, where the param is swept.",
+            "input": {
+              "self": null,
+              "param": {
+                "type": "str",
+                "description": ""
+              },
+              "iterable": {
+                "type": "Iterable",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, param: str, iterable: Iterable",
+            "ori_description": "Adds a dimension to the simulation, where the param is swept."
+          },
+          {
+            "name": "add_value_sweep",
+            "description": "Adds a dimension to the simulation, where a component value is swept.",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "str",
+                "description": ""
+              },
+              "iterable": {
+                "type": "Iterable",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, comp: str, iterable: Iterable",
+            "ori_description": "Adds a dimension to the simulation, where a component value is swept."
+          },
+          {
+            "name": "add_model_sweep",
+            "description": "Adds a dimension to the simulation, where a component model is swept.",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "str",
+                "description": ""
+              },
+              "iterable": {
+                "type": "Iterable",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, comp: str, iterable: Iterable",
+            "ori_description": "Adds a dimension to the simulation, where a component model is swept."
+          },
+          {
+            "name": "total_number_of_simulations",
+            "description": "Returns the total number of simulations foreseen.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Returns the total number of simulations foreseen."
+          },
+          {
+            "name": "run_all",
+            "description": "Runs all sweeps configured with the methods:  - add_value_sweep() - add_model_sweep() - add_param_sweep()  This function will call the SimRunner run method for each combination of the sweeps defined. The parameters are mostly the same as in the SimRunner.run() method, except the filenamer and wait_completion parameters.",
+            "input": {
+              "self": null,
+              "callback": {
+                "type": "CallbackType",
+                "description": "See the SimRunner run method."
+              },
+              "callback_args": {
+                "type": "CallbackArgsType",
+                "description": "See the SimRunner run method."
+              },
+              "switches": {
+                "type": "list | None",
+                "description": "Command line switches override"
+              },
+              "timeout": {
+                "type": "float | None",
+                "description": "See the SimRunner run method."
+              },
+              "wait_completion": {
+                "type": "bool",
+                "description": "See the SimRunner run method."
+              },
+              "filenamer": {
+                "type": "Callable[[dict[str, str]], str] | None",
+                "description": "A function that receives a dictionary in keyword form (``**dict``) and returns a string. This string will be passed to the run_filename parameter on the SimRunner run method. It is important that the function assures a unique filename per simulation."
+              },
+              "exe_log": {
+                "type": "bool",
+                "description": "See the SimRunner run method."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Nothing"
+              }
+            },
+            "ori_input": "self, callback: CallbackType = None, callback_args: CallbackArgsType = None, switches: list | None = None, timeout: float | None = None, wait_completion: bool = True, filenamer: Callable[[dict[str, str]], str] | None = None, exe_log: bool = False",
+            "ori_description": "Runs all sweeps configured with the methods:  - add_value_sweep() - add_model_sweep() - add_param_sweep()  This function will call the SimRunner run method for each combination of the sweeps defined. The parameters are mostly the same as in the SimRunner.run() method, except the filenamer and wait_completion parameters.  :param callback: See the SimRunner run method. :param callback_args: See the SimRunner run method. :param switches: Command line switches override :param timeout: See the SimRunner run method. :param wait_completion: See the SimRunner run method. :param filenamer: A function that receives a dictionary in keyword form (``**dict``) and returns a string. This string will be passed to the run_filename parameter on the SimRunner run method. It is important that the function assures a unique filename per simulation. :param exe_log: See the SimRunner run method. :returns: Nothing"
+          }
+        ]
+      },
+      {
+        "name": "RawRead",
+        "type": "class",
+        "module": "spicelib.raw.raw_read",
+        "input": "PlotInterface",
+        "description": "Class for reading Spice wave Files. It can read all types of Files, and can handle multiple plots in 1 file. If stepped data is detected, it will also try to read the corresponding LOG file so to retrieve the stepped data.  :param raw_filename: The file containing the RAW data to be read :type raw_filename: str or pathlib.Path :param traces_to_read: A string or a list containing the list of traces to be read. If None is provided, only the header is read and all trace data is discarded. If a '*' wildcard is given or no parameter at all then all traces are read. :type traces_to_read: str, list or tuple :param dialect: The simulator used. Please select from [\"ltspice\",\"qspice\",\"ngspice\",\"xyce\"]. If not specified, dialect will be auto detected. This is likely only needed for older versions of ngspice and xyce. ltspice and qspice can reliably be auto detected. :type dialect: str | None  :param verbose: If True, then the class will log debug information. Defaults to True. :type verbose: bool  :raises SpiceReadException: in case of a syntax error in the RAW file, or if the encoding is not recognized.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initializes the RawRead object and reads the RAW file.",
+            "input": {
+              "self": null,
+              "raw_filename": {
+                "type": "str | Path",
+                "description": ""
+              },
+              "traces_to_read": {
+                "type": "None | str | list[str] | tuple[str, ...]",
+                "description": ""
+              },
+              "dialect": {
+                "type": "str | None",
+                "description": ""
+              },
+              "verbose": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, raw_filename: str | Path, traces_to_read: None | str | list[str] | tuple[str, ...] = None, dialect: str | None = None, verbose: bool = True",
+            "ori_description": "Initializes the RawRead object and reads the RAW file."
+          },
+          {
+            "name": "plots",
+            "description": "List of plots in the RAW file. Each plot is an instance of a class that inherits from PlotData. Note that all properties and methods of plots[0] are also available directly in the RawRead class.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "List of plots in the RAW file. Each plot is an instance of a class that inherits from PlotData. Note that all properties and methods of plots[0] are also available directly in the RawRead class."
+          },
+          {
+            "name": "nVariables",
+            "description": "Number of variables in the RAW file",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Number of variables in the RAW file"
+          },
+          {
+            "name": "nPoints",
+            "description": "Number of points in the RAW file",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Number of points in the RAW file"
+          },
+          {
+            "name": "flags",
+            "description": "List of Flags that are used in this plot. See :doc:`../varia/raw_file` for details.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "List of Flags that are used in this plot. See :doc:`../varia/raw_file` for details."
+          },
+          {
+            "name": "steps",
+            "description": "List of steps in the RAW file, if it exists. If the RAW file does not contain stepped data, this will be None. If the RAW file contains stepped data, this will be a list of step numbers.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "List of steps in the RAW file, if it exists. If the RAW file does not contain stepped data, this will be None. If the RAW file contains stepped data, this will be a list of step numbers."
+          },
+          {
+            "name": "get_raw_property",
+            "description": "Get a property. By default, it returns all properties defined in the RAW file.",
+            "input": {
+              "self": null,
+              "property_name": {
+                "type": "str",
+                "description": "name of the property to retrieve. If None, all properties are returned."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Property object"
+              }
+            },
+            "ori_input": "self, property_name = None",
+            "ori_description": "Get a property. By default, it returns all properties defined in the RAW file.  :param property_name: name of the property to retrieve. If None, all properties are returned. :type property_name: str :returns: Property object :raises: ValueError if the property doesn't exist"
+          },
+          {
+            "name": "get_plot_names",
+            "description": "Returns a list of plot names in the RAW file.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of plot names"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns a list of plot names in the RAW file.  :return: List of plot names"
+          },
+          {
+            "name": "get_trace_names",
+            "description": "Returns a list of exiting trace names of the RAW file.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "trace names"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns a list of exiting trace names of the RAW file.  :return: trace names"
+          },
+          {
+            "name": "get_trace",
+            "description": "Retrieves the trace with the requested name (trace_ref).",
+            "input": {
+              "self": null,
+              "trace_ref": {
+                "type": "str | int",
+                "description": "Name of the trace or the index of the trace"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "An object containing the requested trace"
+              }
+            },
+            "ori_input": "self, trace_ref: str | int",
+            "ori_description": "Retrieves the trace with the requested name (trace_ref).  :param trace_ref: Name of the trace or the index of the trace :return: An object containing the requested trace :raises IndexError: When a trace is not found"
+          },
+          {
+            "name": "get_wave",
+            "description": "Retrieves the trace data with the requested name (trace_ref), optionally providing the step number.",
+            "input": {
+              "self": null,
+              "trace_ref": {
+                "type": "str | int",
+                "description": "Name of the trace or the index of the trace"
+              },
+              "step": {
+                "type": "int",
+                "description": "Optional parameter specifying which step to retrieve."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A numpy array containing the requested waveform."
+              }
+            },
+            "ori_input": "self, trace_ref: str | int, step: int = 0",
+            "ori_description": "Retrieves the trace data with the requested name (trace_ref), optionally providing the step number.  :param trace_ref: Name of the trace or the index of the trace :param step: Optional parameter specifying which step to retrieve. :return: A numpy array containing the requested waveform. :raises IndexError: When a trace is not found"
+          },
+          {
+            "name": "get_time_axis",
+            "description": ".. deprecated:: 1.0 Use `get_axis()` method instead.  This function is equivalent to get_trace('time').get_time_axis(step) instruction. It's workaround on a LTSpice issue when using 2nd Order compression, where some values on the time trace have a negative value.",
+            "input": {
+              "self": null,
+              "step": {
+                "type": "int",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, step: int = 0",
+            "ori_description": ".. deprecated:: 1.0 Use `get_axis()` method instead.  This function is equivalent to get_trace('time').get_time_axis(step) instruction. It's workaround on a LTSpice issue when using 2nd Order compression, where some values on the time trace have a negative value."
+          },
+          {
+            "name": "get_axis",
+            "description": "This function is equivalent to get_trace(0).get_wave(step) instruction. It also implements a workaround on a LTSpice issue when using 2nd Order compression, where some values on the time trace have a negative value.",
+            "input": {
+              "self": null,
+              "step": {
+                "type": "int",
+                "description": "Step number, defaults to 0"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Array with the X axis"
+              }
+            },
+            "ori_input": "self, step: int = 0",
+            "ori_description": "This function is equivalent to get_trace(0).get_wave(step) instruction. It also implements a workaround on a LTSpice issue when using 2nd Order compression, where some values on the time trace have a negative value.  :param step: Step number, defaults to 0 :raises RuntimeError: if the RAW file does not have an axis. :return: Array with the X axis"
+          },
+          {
+            "name": "get_len",
+            "description": "Returns the length of the data at the give step index.",
+            "input": {
+              "self": null,
+              "step": {
+                "type": "int",
+                "description": "the step index, defaults to 0"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The number of data points"
+              }
+            },
+            "ori_input": "self, step: int = 0",
+            "ori_description": "Returns the length of the data at the give step index.  :param step: the step index, defaults to 0 :return: The number of data points"
+          },
+          {
+            "name": "get_steps",
+            "description": "Returns the steps that correspond to the query set in the `**kwargs` parameters. Example: ::  raw_read.get_steps(V5=1.2, TEMP=25)  This will return all steps in which the voltage source V5 was set to 1.2V and the TEMP parameter is 24 degrees. This feature is only possible if a .log file with the same name as the .raw file exists in the same directory. Note: the correspondence between step numbers and .STEP information is stored on the .log file.  :key kwargs: key-value arguments in which the key correspond to a stepped parameter or source name, and the value is the stepped value.",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The steps that match the query"
+              }
+            },
+            "ori_input": "self, **kwargs",
+            "ori_description": "Returns the steps that correspond to the query set in the `**kwargs` parameters. Example: ::  raw_read.get_steps(V5=1.2, TEMP=25)  This will return all steps in which the voltage source V5 was set to 1.2V and the TEMP parameter is 24 degrees. This feature is only possible if a .log file with the same name as the .raw file exists in the same directory. Note: the correspondence between step numbers and .STEP information is stored on the .log file.  :key kwargs: key-value arguments in which the key correspond to a stepped parameter or source name, and the value is the stepped value.  :return: The steps that match the query"
+          },
+          {
+            "name": "export",
+            "description": "Returns a native python class structure with the requested trace data and steps. It consists of an ordered dictionary where the columns are the keys and the values are lists with the data.  This function is used by the export functions.",
+            "input": {
+              "self": null,
+              "columns": {
+                "type": "list | None",
+                "description": "List of traces to use as columns. Default is all traces"
+              },
+              "step": {
+                "type": "int | list[int]",
+                "description": "Step number to retrieve. If not given, it will return all steps"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional arguments to pass to the pandas.DataFrame constructor"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A pandas DataFrame"
+              }
+            },
+            "ori_input": "self, columns: list | None = None, step: int | list[int] = -1, **kwargs",
+            "ori_description": "Returns a native python class structure with the requested trace data and steps. It consists of an ordered dictionary where the columns are the keys and the values are lists with the data.  This function is used by the export functions.  :param step: Step number to retrieve. If not given, it will return all steps :param columns: List of traces to use as columns. Default is all traces :param kwargs: Additional arguments to pass to the pandas.DataFrame constructor :type kwargs: ``**dict`` :return: A pandas DataFrame"
+          },
+          {
+            "name": "to_dataframe",
+            "description": "Returns a pandas DataFrame with the requested data.",
+            "input": {
+              "self": null,
+              "columns": {
+                "type": "list | None",
+                "description": "List of traces to use as columns. Default is all traces"
+              },
+              "step": {
+                "type": "int | list[int]",
+                "description": "Step number to retrieve. If not given, it"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional arguments to pass to the pandas.DataFrame constructor"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "pandas.DataFrame",
+                "description": "A pandas DataFrame"
+              }
+            },
+            "ori_input": "self, columns: list | None = None, step: int | list[int] = -1, **kwargs",
+            "ori_description": "Returns a pandas DataFrame with the requested data.  :param step: Step number to retrieve. If not given, it :param columns: List of traces to use as columns. Default is all traces :param kwargs: Additional arguments to pass to the pandas.DataFrame constructor :type kwargs: ``**dict`` :return: A pandas DataFrame :rtype: pandas.DataFrame"
+          },
+          {
+            "name": "to_csv",
+            "description": "Saves the data to a CSV file.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str | Path",
+                "description": "Name of the file to save the data to"
+              },
+              "columns": {
+                "type": "list[str] | None",
+                "description": "List of traces to use as columns. Default is all traces"
+              },
+              "step": {
+                "type": "int | list[int]",
+                "description": "Step number to retrieve. If not given, it"
+              },
+              "separator": {
+                "type": "str",
+                "description": "separator to use in the CSV file"
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional arguments to pass to the pandas.DataFrame.to_csv function"
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str | Path, columns: list[str] | None = None, step: int | list[int] = -1, separator = ',', **kwargs",
+            "ori_description": "Saves the data to a CSV file.  :param filename: Name of the file to save the data to :param columns: List of traces to use as columns. Default is all traces :param step: Step number to retrieve. If not given, it :param separator: separator to use in the CSV file :type separator: str :param kwargs: Additional arguments to pass to the pandas.DataFrame.to_csv function :type kwargs: ``**dict``"
+          }
+        ]
+      },
+      {
+        "name": "LogfileData",
+        "type": "class",
+        "module": "spicelib.log.logfile_data",
+        "input": "",
+        "description": "This is a subclass of LTSpiceLogReader that is used to analyse the log file of a simulation. The super class constructor is bypassed and only their attributes are initialized",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "step_set": {
+                "type": "dict | None",
+                "description": ""
+              },
+              "dataset": {
+                "type": "dict | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, step_set: dict | None = None, dataset: dict | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "has_steps",
+            "description": "Returns true if the simulation has steps",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "bool",
+                "description": "True if the simulation has steps"
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns true if the simulation has steps :return: True if the simulation has steps :rtype: bool"
+          },
+          {
+            "name": "get_step_vars",
+            "description": "Returns the stepped variable names on the log file.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of step variables."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns the stepped variable names on the log file. :return: List of step variables."
+          },
+          {
+            "name": "get_measure_names",
+            "description": "Returns the names of the measurements read from the log file.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "List of measurement names."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Returns the names of the measurements read from the log file. :return: List of measurement names."
+          },
+          {
+            "name": "get_measure_value",
+            "description": "Returns a measure value on a given step.",
+            "input": {
+              "self": null,
+              "measure": {
+                "type": "str",
+                "description": "name of the measurement to get. This is case insensitive."
+              },
+              "step": {
+                "type": "int | slice",
+                "description": "optional step number or slice if the simulation has no steps."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "additional arguments that can be translated into step conditions"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "measurement value"
+              }
+            },
+            "ori_input": "self, measure: str, step: int | slice = None, **kwargs",
+            "ori_description": "Returns a measure value on a given step.  :param measure: name of the measurement to get. This is case insensitive. :param step: optional step number or slice if the simulation has no steps. :param kwargs: additional arguments that can be translated into step conditions :return: measurement value"
+          },
+          {
+            "name": "get_measure_values_at_steps",
+            "description": "Returns the measurements taken at a list of steps provided by the steps list.",
+            "input": {
+              "self": null,
+              "measure": {
+                "type": "str",
+                "description": "name of the measurement to get. This is case-insensitive."
+              },
+              "steps": {
+                "type": "int | Iterable | None",
+                "description": "step number, or list of step numbers."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "measurement or list of measurements."
+              }
+            },
+            "ori_input": "self, measure: str, steps: int | Iterable | None",
+            "ori_description": "Returns the measurements taken at a list of steps provided by the steps list.  :param measure: name of the measurement to get. This is case-insensitive. :param steps: step number, or list of step numbers. :return: measurement or list of measurements."
+          },
+          {
+            "name": "max_measure_value",
+            "description": "Returns the maximum value of a measurement.",
+            "input": {
+              "self": null,
+              "measure": {
+                "type": "str",
+                "description": "name of the measurement to get. This is case insensitive."
+              },
+              "steps": {
+                "type": "None | int | Iterable",
+                "description": "step number, or list of step numbers."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float or int",
+                "description": "maximum value of the measurement"
+              }
+            },
+            "ori_input": "self, measure: str, steps: None | int | Iterable = None",
+            "ori_description": "Returns the maximum value of a measurement.  :param measure: name of the measurement to get. This is case insensitive. :type measure: str :param steps: step number, or list of step numbers. :type steps: Optional, int or list :return: maximum value of the measurement :rtype: float or int"
+          },
+          {
+            "name": "min_measure_value",
+            "description": "Returns the minimum value of a measurement.",
+            "input": {
+              "self": null,
+              "measure": {
+                "type": "str",
+                "description": "name of the measurement to get. This is case insensitive."
+              },
+              "steps": {
+                "type": "None | int | Iterable",
+                "description": "step number, or list of step numbers."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float or int",
+                "description": "minimum value of the measurement"
+              }
+            },
+            "ori_input": "self, measure: str, steps: None | int | Iterable = None",
+            "ori_description": "Returns the minimum value of a measurement.  :param measure: name of the measurement to get. This is case insensitive. :type measure: str :param steps: step number, or list of step numbers. :type steps: Optional: int or list :return: minimum value of the measurement :rtype: float or int"
+          },
+          {
+            "name": "avg_measure_value",
+            "description": "Returns the average value of a measurement.",
+            "input": {
+              "self": null,
+              "measure": {
+                "type": "str",
+                "description": "name of the measurement to get. This is case insensitive."
+              },
+              "steps": {
+                "type": "None | int | Iterable",
+                "description": "step number, or list of step numbers."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "float or int",
+                "description": "average value of the measurement"
+              }
+            },
+            "ori_input": "self, measure: str, steps: None | int | Iterable = None",
+            "ori_description": "Returns the average value of a measurement.  :param measure: name of the measurement to get. This is case insensitive. :type measure: str :param steps: step number, or list of step numbers. :type steps: Optional: int or list :return: average value of the measurement :rtype: float or int"
+          },
+          {
+            "name": "export_data",
+            "description": "Exports the measurement information to a tab separated value (.tsv) format. If step data is found, it is included in the exported file.  When using export data together with SpiceBatch.py classes, it may be helpful to append data to an existing file. For this purpose, the user can user the append_with_line_prefix argument to indicate that an append should be done. And in this case, the user must provide a string that will identify the LTSpice batch run.",
+            "input": {
+              "self": null,
+              "export_file": {
+                "type": "str",
+                "description": "path to the file containing the information"
+              },
+              "encoding": {
+                "type": "str",
+                "description": "encoding to be used in the file"
+              },
+              "append_with_line_prefix": {
+                "type": "str",
+                "description": "user information to be written in the file in case an append is to be made."
+              },
+              "value_separator": {
+                "type": "str",
+                "description": "character to be used to separate values"
+              },
+              "line_terminator": {
+                "type": "str",
+                "description": "Line terminator character"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Nothing"
+              }
+            },
+            "ori_input": "self, export_file: str, encoding = None, append_with_line_prefix = None, value_separator: str = '\\t', line_terminator: str = '\\n'",
+            "ori_description": "Exports the measurement information to a tab separated value (.tsv) format. If step data is found, it is included in the exported file.  When using export data together with SpiceBatch.py classes, it may be helpful to append data to an existing file. For this purpose, the user can user the append_with_line_prefix argument to indicate that an append should be done. And in this case, the user must provide a string that will identify the LTSpice batch run.  :param export_file: path to the file containing the information :param optional encoding: encoding to be used in the file :type encoding: str :param optional append_with_line_prefix: user information to be written in the file in case an append is to be made. :type append_with_line_prefix: str :param optional value_separator: character to be used to separate values :param optional line_terminator: Line terminator character :return: Nothing"
+          }
+        ]
+      },
+      {
+        "name": "Montecarlo",
+        "type": "class",
+        "module": "spicelib.sim.tookit.montecarlo",
+        "input": "ToleranceDeviations",
+        "description": "Class to automate Montecarlo simulations, where component values and parameters are replaced by a random distribution (either a gaussian or a uniform distribution).  This is a statistical method, hence, it needs a considerable number of simulations to achieve a final gaussian distribution in order to apply this method. If the number of parameters and component values is low, it is better to use a Worst-Case approach.  Like the Worst-Case and Sensitivity analysis, there are two possible approaches to use this class:  Class to automate Worst-Case simulations, where all possible combinations of maximum and minimums possible values of component values and parameters are done.  It is advised to use this algorithm when the number of parameters to be varied is reduced. Typically less than 10 or 12. A higher number will translate into a huge number of simulations. For more than 1000 simulations, it is better to use a statistical method such as the Montecarlo.  Like the Worst-Case and Sensitivity analysis, there are two possible approaches to use this class:  1. Preparing a testbench where all combinations are managed directly by the simulator, replacing parameters and component values by formulas and using a .STEP primitive to cycle through all possible combinations.  2. Launching each simulation separately where the running python script manages all parameter value variations.  The first approach is normally faster, but not possible in all simulators. The second approach is a valid backup when every single simulation takes too long, or when it is prone to crashes and stalls.",
+        "function": [
+          {
+            "name": "prepare_testbench",
+            "description": "Prepares the simulation by setting the tolerances for the components :keyword num_runs: Number of runs to be performed. Default is 1000.",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Nothing"
+              }
+            },
+            "ori_input": "self, **kwargs",
+            "ori_description": "Prepares the simulation by setting the tolerances for the components :keyword num_runs: Number of runs to be performed. Default is 1000. :return: Nothing"
+          },
+          {
+            "name": "run_analysis",
+            "description": "This method runs the analysis without updating the netlist. It will update component values and parameters according to their deviation type and call the simulation. The advantage of this method is that it doesn't require adding random functions to the netlist. The number of times the simulation is done is specified on the argument num_runs.",
+            "input": {
+              "self": null,
+              "callback": {
+                "type": "CallbackType",
+                "description": ""
+              },
+              "callback_args": {
+                "type": "CallbackArgsType",
+                "description": ""
+              },
+              "switches": {
+                "type": "list | None",
+                "description": ""
+              },
+              "timeout": {
+                "type": "float",
+                "description": ""
+              },
+              "num_runs": {
+                "type": "int",
+                "description": ""
+              },
+              "exe_log": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, callback: CallbackType = None, callback_args: CallbackArgsType = None, switches: list | None = None, timeout: float = None, num_runs: int = 1000, exe_log: bool = True",
+            "ori_description": "This method runs the analysis without updating the netlist. It will update component values and parameters according to their deviation type and call the simulation. The advantage of this method is that it doesn't require adding random functions to the netlist. The number of times the simulation is done is specified on the argument num_runs."
+          },
+          {
+            "name": "analyse_measurement",
+            "description": "Returns the measurement data for the given measurement name. If the measurement is not found, it returns None Note: It is up to the user to make the statistics on the data. The traditional way is to use the numpy package to calculate the mean and standard deviation of the data. It is also usual to consider max and min as 3 sigma, which is 99.7% of the data.",
+            "input": {
+              "self": null,
+              "meas_name": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, meas_name: str",
+            "ori_description": "Returns the measurement data for the given measurement name. If the measurement is not found, it returns None Note: It is up to the user to make the statistics on the data. The traditional way is to use the numpy package to calculate the mean and standard deviation of the data. It is also usual to consider max and min as 3 sigma, which is 99.7% of the data."
+          }
+        ]
+      },
+      {
+        "name": "QuickSensitivityAnalysis",
+        "type": "class",
+        "module": "spicelib.sim.tookit.quick_sensitivity_analysis",
+        "input": "ToleranceDeviations",
+        "description": "Class to automate Sensitivity simulations",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "circuit_file": {
+                "type": "str | BaseEditor",
+                "description": ""
+              },
+              "runner": {
+                "type": "AnyRunner | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, circuit_file: str | BaseEditor, runner: AnyRunner | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "prepare_testbench",
+            "description": "Prepares the simulation by setting the tolerances for each component",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": "Prepares the simulation by setting the tolerances for each component"
+          },
+          {
+            "name": "get_sensitivity_data",
+            "description": "Returns the sensitivity data for a given component and measurement in terms of percentage of the total error. This quick approach is not very accurate, but it is fast. It assumes that the system is linear and that the maximum error is the sum of the absolute error of each component. This is a rough approximation, but it is good enough for a quick analysis. For more accurate results, use the Worst Case Analysis, which requires more simulation runs but gives a more accurate result. The best compromise, is to start with the quick analysis and then use the Worst Case Analysis to refine the results with only the components that have a significant contribution to the error.",
+            "input": {
+              "self": null,
+              "ref": {
+                "type": "str",
+                "description": "The reference component, or '*' to return a dictionary with all the components"
+              },
+              "measure": {
+                "type": "str",
+                "description": "The measurement to be analysed"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The sensitivity data in percentage of the total error for the reference component"
+              }
+            },
+            "ori_input": "self, ref: str, measure: str",
+            "ori_description": "Returns the sensitivity data for a given component and measurement in terms of percentage of the total error. This quick approach is not very accurate, but it is fast. It assumes that the system is linear and that the maximum error is the sum of the absolute error of each component. This is a rough approximation, but it is good enough for a quick analysis. For more accurate results, use the Worst Case Analysis, which requires more simulation runs but gives a more accurate result. The best compromise, is to start with the quick analysis and then use the Worst Case Analysis to refine the results with only the components that have a significant contribution to the error. :param ref: The reference component, or '*' to return a dictionary with all the components :param measure: The measurement to be analysed :return: The sensitivity data in percentage of the total error for the reference component"
+          },
+          {
+            "name": "run_analysis",
+            "description": "",
+            "input": {
+              "self": null,
+              "callback": {
+                "type": "CallbackType",
+                "description": ""
+              },
+              "callback_args": {
+                "type": "CallbackArgsType",
+                "description": ""
+              },
+              "switches": {
+                "type": "list | None",
+                "description": ""
+              },
+              "timeout": {
+                "type": "float | None",
+                "description": ""
+              },
+              "exe_log": {
+                "type": "bool | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, callback: CallbackType = None, callback_args: CallbackArgsType = None, switches: list | None = None, timeout: float | None = None, exe_log: bool | None = True",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "WorstCaseAnalysis",
+        "type": "class",
+        "module": "spicelib.sim.tookit.worst_case",
+        "input": "ToleranceDeviations",
+        "description": "Class to automate Worst-Case simulations, where all possible combinations of maximum and minimums possible values of component values and parameters are done.  It is advised to use this algorithm when the number of parameters to be varied is reduced. Typically less than 10 or 12. A higher number will translate into a huge number of simulations. For more than 1000 simulations, it is better to use a statistical method such as the Montecarlo.  Like the Montecarlo and Sensitivity analysis, there are two possible approaches to use this class:  1. Preparing a testbench where all combinations are managed directly by the simulator, replacing parameters and component values by formulas and using a .STEP primitive to cycle through all possible combinations.  2. Launching each simulation separately where the running python script manages all parameter value variations.  The first approach is normally faster, but not possible in all simulators. The second approach is a valid backup when every single simulation takes too long, or when it is prone to crashes and stalls.",
+        "function": [
+          {
+            "name": "prepare_testbench",
+            "description": "Prepares the simulation by setting the tolerances for the components",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": "Prepares the simulation by setting the tolerances for the components"
+          },
+          {
+            "name": "run_analysis",
+            "description": "This method runs the analysis without updating the netlist. It will update component values and parameters according to their deviation type and call the simulation. The advantage of this method is that it doesn't require adding random functions to the netlist.",
+            "input": {
+              "self": null,
+              "callback": {
+                "type": "CallbackType",
+                "description": ""
+              },
+              "callback_args": {
+                "type": "CallbackArgsType",
+                "description": ""
+              },
+              "switches": {
+                "type": "list | None",
+                "description": ""
+              },
+              "timeout": {
+                "type": "float",
+                "description": ""
+              },
+              "exe_log": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, callback: CallbackType = None, callback_args: CallbackArgsType = None, switches: list | None = None, timeout: float = None, exe_log: bool = True",
+            "ori_description": "This method runs the analysis without updating the netlist. It will update component values and parameters according to their deviation type and call the simulation. The advantage of this method is that it doesn't require adding random functions to the netlist."
+          },
+          {
+            "name": "get_min_max_measure_value",
+            "description": "Returns the minimum and maximum values of a measurement. See SPICE .MEAS primitive documentation.",
+            "input": {
+              "self": null,
+              "meas_name": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, meas_name: str",
+            "ori_description": "Returns the minimum and maximum values of a measurement. See SPICE .MEAS primitive documentation."
+          },
+          {
+            "name": "make_sensitivity_analysis",
+            "description": "Makes a sensitivity analysis for a given measurement and reference component. The sensitivity is a percentage of the component error contribution over the total error. As supplement a second value is given that is the standard deviation of the error contribution of the component across all sensitivity analysis simulations.  If no reference is given, it will return a dictionary where the key is the component reference and the value is the tuple with (sensitivity, standard_deviation) in percent values of the total error.  Returns None, if no data still exists for the sensitivity analysis.",
+            "input": {
+              "self": null,
+              "measure": {
+                "type": "str",
+                "description": "measurement name. See SPICE .MEAS primitive"
+              },
+              "ref": {
+                "type": "str",
+                "description": "Optional component reference in the netlist"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Tuple with sensitivity and a standard deviation or dictionary of tuples."
+              }
+            },
+            "ori_input": "self, measure: str, ref: str = '*'",
+            "ori_description": "Makes a sensitivity analysis for a given measurement and reference component. The sensitivity is a percentage of the component error contribution over the total error. As supplement a second value is given that is the standard deviation of the error contribution of the component across all sensitivity analysis simulations.  If no reference is given, it will return a dictionary where the key is the component reference and the value is the tuple with (sensitivity, standard_deviation) in percent values of the total error.  Returns None, if no data still exists for the sensitivity analysis.  :param measure: measurement name. See SPICE .MEAS primitive :param ref: Optional component reference in the netlist :returns: Tuple with sensitivity and a standard deviation or dictionary of tuples."
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/nunobrum/spicelib",
+        "documentation": "https://spicelib.readthedocs.io/en/latest/",
+        "pypi": "https://pypi.org/project/spicelib/",
+        "pypi_version": "1.6.3",
+        "tag": "1.6.3",
+        "commit": "b20c2371bbe49ca58702aabd12817e9e4664578a",
+        "release_published_at": "2026-07-21T21:08:28Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 1.6.3 与 GitHub 最新正式 Release 标签 1.6.3 一致。",
+          "本次仅静态整理 Python API；未启动 LTspice、ngspice、Xyce 或 QSpice，也不将后端进程成功写成已验证。"
+        ],
+        "release_url": "https://github.com/nunobrum/spicelib/releases/tag/1.6.3",
+        "release_api": "https://api.github.com/repos/nunobrum/spicelib/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/spicelib",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "spicelib"
+        ],
+        "source_files": [
+          "spicelib/__init__.py",
+          "spicelib/client_server/__init__.py",
+          "spicelib/client_server/sim_client.py",
+          "spicelib/client_server/sim_server.py",
+          "spicelib/client_server/srv_sim_runner.py",
+          "spicelib/editor/__init__.py",
+          "spicelib/editor/asc_editor.py",
+          "spicelib/editor/asy_reader.py",
+          "spicelib/editor/base_editor.py",
+          "spicelib/editor/base_schematic.py",
+          "spicelib/editor/base_subcircuit.py",
+          "spicelib/editor/editor_errors.py",
+          "spicelib/editor/ltspice_utils.py",
+          "spicelib/editor/primitives.py",
+          "spicelib/editor/qsch_editor.py",
+          "spicelib/editor/spice_components.py",
+          "spicelib/editor/spice_editor.py",
+          "spicelib/editor/spice_file.py",
+          "spicelib/editor/spice_subcircuit.py",
+          "spicelib/editor/spice_subcircuit_instance.py",
+          "spicelib/editor/spice_utils.py",
+          "spicelib/editor/updates.py",
+          "spicelib/log/__init__.py",
+          "spicelib/log/logfile_data.py",
+          "spicelib/log/ltsteps.py",
+          "spicelib/log/qspice_log_reader.py",
+          "spicelib/log/semi_dev_op_reader.py",
+          "spicelib/raw/__init__.py",
+          "spicelib/raw/plot_data.py",
+          "spicelib/raw/plot_interface.py",
+          "spicelib/raw/raw_classes.py",
+          "spicelib/raw/raw_read.py",
+          "spicelib/raw/raw_write.py",
+          "spicelib/scripts/asc_to_qsch.py",
+          "spicelib/scripts/histogram.py",
+          "spicelib/scripts/ltsteps.py",
+          "spicelib/scripts/raw_convert.py",
+          "spicelib/scripts/rawplot.py",
+          "spicelib/scripts/readme_update.py",
+          "spicelib/scripts/run_server.py",
+          "spicelib/sim/__init__.py",
+          "spicelib/sim/process_callback.py",
+          "spicelib/sim/run_task.py",
+          "spicelib/sim/sim_runner.py",
+          "spicelib/sim/sim_stepping.py",
+          "spicelib/sim/simulator.py",
+          "spicelib/sim/tookit/__init__.py",
+          "spicelib/sim/tookit/fast_worst_case.py",
+          "spicelib/sim/tookit/montecarlo.py",
+          "spicelib/sim/tookit/quick_sensitivity_analysis.py",
+          "spicelib/sim/tookit/sim_analysis.py",
+          "spicelib/sim/tookit/tolerance_deviations.py",
+          "spicelib/sim/tookit/worst_case.py",
+          "spicelib/simulators/__init__.py",
+          "spicelib/simulators/ltspice_simulator.py",
+          "spicelib/simulators/ngspice_simulator.py",
+          "spicelib/simulators/qspice_simulator.py",
+          "spicelib/simulators/xyce_simulator.py",
+          "spicelib/utils/detect_encoding.py",
+          "spicelib/utils/file_search.py",
+          "spicelib/utils/float_unit.py",
+          "spicelib/utils/sweep_iterators.py",
+          "spicelib/utils/windows_short_names.py"
+        ],
+        "source_file_sha256": {
+          "spicelib/__init__.py": "5a3104da65a088a735ba97bb3d1cb66c083917bc60264d6fd3831d9550c34dfb",
+          "spicelib/client_server/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "spicelib/client_server/sim_client.py": "fbd320d3da967d5aee89a418e27b66e911e68cff99c4662ecdb95813df9cab09",
+          "spicelib/client_server/sim_server.py": "9afdfab79ded1fef98f73fb438a4f29907534d033f68888e5c8fb18850dc766d",
+          "spicelib/client_server/srv_sim_runner.py": "49d50484a2d4443055001fcab4ac2451220266ba6e9adc53407ea7ec6f563a53",
+          "spicelib/editor/__init__.py": "4d8e5f8420681a7bf5b4a341ea5c19b4f2ec4ca9c1a618eb8a42248c97e16dbb",
+          "spicelib/editor/asc_editor.py": "924e2c4fe612aa3cbbefacd33b455436ce140dcfb67d207f2e98679c5b48fc90",
+          "spicelib/editor/asy_reader.py": "07e12a204b70042470d97bf741e12c4bae11a1de696ca47f6a20aa1068c39464",
+          "spicelib/editor/base_editor.py": "3208e8887da8d960edf40588ff0eec3bfcd92ae3765f9ceef931d832d16d71cf",
+          "spicelib/editor/base_schematic.py": "8a16d56b8666d4ad6254bc4dfe6e4070228f6e64c1b7bf6acf09a0de5256c59b",
+          "spicelib/editor/base_subcircuit.py": "fe0a6820227e3e8f81853c10d145cbf7191af5e5a1541f875307d5ad4daed9a9",
+          "spicelib/editor/editor_errors.py": "74cd1a332296d3bb817e0e187c6b6b66111b96f3ba999078e33567d8d1015c7d",
+          "spicelib/editor/ltspice_utils.py": "416c706f27914e18274321948c3c16a6330ffe447a7065859180f1362e5e9b3e",
+          "spicelib/editor/primitives.py": "8296eb27eb79d142df7c0dbe9f5290978351b697ce8ed21812b06a800db55085",
+          "spicelib/editor/qsch_editor.py": "a0e99354771bb7d32a46fd2f29d262d6b35cd3a0ae650c53f04bcd7bf8da7792",
+          "spicelib/editor/spice_components.py": "3a5bb9c9b6e1b6898a4c52d926890fa417811bf1d36687d63d10cf0c82ee2884",
+          "spicelib/editor/spice_editor.py": "482739e4a3f9ee7285b9db17c8d0f78f48405731b17c8bcbbcb39bb29863bb88",
+          "spicelib/editor/spice_file.py": "a3d9b4e76308a261fcd46b09db7a2398a693e2114c650282b87da9660d28ad2a",
+          "spicelib/editor/spice_subcircuit.py": "d48460ed5d7af9f324b658a266a8ca1000cdb94e7d44250c955a285dbb916e68",
+          "spicelib/editor/spice_subcircuit_instance.py": "3fdd4186194abaa9a80aa824562a87bb6f187265b57a75a5ad9fe0d4f493f091",
+          "spicelib/editor/spice_utils.py": "658967e0483a8a16c3c016aba51694fd2cbcc45244b79b292dd3ae086d5e11c9",
+          "spicelib/editor/updates.py": "1aefc5af98426667f1dc56acf096f1f334da07a6bdb187676a4e2d022169b7bc",
+          "spicelib/log/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "spicelib/log/logfile_data.py": "5b4a7bb4d298ed0bc237c085a8b8ae06df9776c4bd7cd04ef5a0e35b1e187be6",
+          "spicelib/log/ltsteps.py": "b7ad6a78dfc9d586455bc7df27409ce8e64bfa6e13029b03d7c418b15fe7bcc3",
+          "spicelib/log/qspice_log_reader.py": "469e14befeb89bd4c724c1f8e3f4c86410708248251c14e53bcf1c225185ac23",
+          "spicelib/log/semi_dev_op_reader.py": "74e43d54e08647bcf75ee425b8c0c320b9eff1577383e374ddb0aad1450ef815",
+          "spicelib/raw/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "spicelib/raw/plot_data.py": "f243b8f94e11a92cf9fd90f644eb6cd4072e5044f98f0eaa2a54efee933ae575",
+          "spicelib/raw/plot_interface.py": "8edbdd022e8879e08a3d49db87a5667e198fc565adfa6c7e1b0f45ec6c129573",
+          "spicelib/raw/raw_classes.py": "f9c46c18b07d11ab6c704bf76598e43b728eddfa2885298d9195fd241a9c8dd4",
+          "spicelib/raw/raw_read.py": "afd3aa249ddc82c2323a1d64e7e5182fdde381cf7056fcf15a7d8f94609d6c21",
+          "spicelib/raw/raw_write.py": "f19e25d41ceb36ac3e446422277387ad76b41bbd429247786598f3337826f10e",
+          "spicelib/scripts/asc_to_qsch.py": "21f0711b3a51a2bfa4f5852ac17471fd48b032a45de79e293f81429a3294fad3",
+          "spicelib/scripts/histogram.py": "b8267a79cb3574b9e067ce01c20417cf4c9789d87954bfc546da7135c890a547",
+          "spicelib/scripts/ltsteps.py": "96e4b69a3067bdd46f635e0b8ff61ee69b505fbcc5de8c9ec3491a502db78b84",
+          "spicelib/scripts/raw_convert.py": "1c60257d1dad8ff7b1f17f713f56f6c0de649ad82ae838d9e3c4498a6afcb4c0",
+          "spicelib/scripts/rawplot.py": "8e9b1ebdee752c22ace02cf53b2043fce430689e03de9faaa0f931c3da463422",
+          "spicelib/scripts/readme_update.py": "191f55f48d5854746ca21fcfd3c1abf6b30383cf63b795488d2a4bc0705a0325",
+          "spicelib/scripts/run_server.py": "e1c68bf5e59616949ff820227b738a7f7af0f654c4a5d96ffa43ca288ba84ff2",
+          "spicelib/sim/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "spicelib/sim/process_callback.py": "adbce3825ebb82e1798e7c5317fcddfcb8f281ed454e6c5411ca4a0f6dff0a12",
+          "spicelib/sim/run_task.py": "66cba8d399b14cfe00768a97976f886929abab4bc5f4976793a9d79c0f1567d7",
+          "spicelib/sim/sim_runner.py": "0a9da986c857eec046061286f461559a0fc92ae3bfaa12003fc7d77345453f2c",
+          "spicelib/sim/sim_stepping.py": "43d14d263f5a6d24af1b925e60ecffec2a7c914cfa86c317ae201051f5b640de",
+          "spicelib/sim/simulator.py": "1f37c8a5495154924a991371a014765849d14f04ad2ec37d03e23c35fdb19a6b",
+          "spicelib/sim/tookit/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "spicelib/sim/tookit/fast_worst_case.py": "e347bea242debfc0f3f196df56c366e151f7ef9916b2eb2e29fe0e60c40d329d",
+          "spicelib/sim/tookit/montecarlo.py": "3cda931919251968aac08c837fc247a91fcd152b8d2f9290a6a3931b9be52a17",
+          "spicelib/sim/tookit/quick_sensitivity_analysis.py": "e8236a4a63d3b46674ffd34873c35b21a69a2cf0f11aa22d230be5fcd83872f7",
+          "spicelib/sim/tookit/sim_analysis.py": "dacc4221cd907065ca37007079ca8ccd4086c4fee469a1427fa3bc7426350956",
+          "spicelib/sim/tookit/tolerance_deviations.py": "fdcac28482f9823560704b1d02822ca04a67b2d039e33f4b310865041c20fd52",
+          "spicelib/sim/tookit/worst_case.py": "7ddf34bc489a1b2161bd24f8b9416bb11434e3524d4904f7fde434cf40cc39ba",
+          "spicelib/simulators/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "spicelib/simulators/ltspice_simulator.py": "9937011a576843518c2146b8dc65e88a42ac6663f2b8a6a08882fbbdea6f0894",
+          "spicelib/simulators/ngspice_simulator.py": "24ab4a0a0d5376493bd67c6414b2e66219d6ff58ea286625b529d25fe8742318",
+          "spicelib/simulators/qspice_simulator.py": "ddb7d667db4711eb78e7ce2a6a60db9b6d7f4a08276fcd98562d339d76c8560f",
+          "spicelib/simulators/xyce_simulator.py": "f776588498e7fd6f505acb218fd77f74aa4c3186b4bd505003fc33bf73883351",
+          "spicelib/utils/detect_encoding.py": "0ec76dcc507e2d89a5abe0b5bb7eeb08acb7ea626e2ab70e029bd4262403cee4",
+          "spicelib/utils/file_search.py": "9f1e8487de46ba221d1fb03f16a2a1fc3995b6a25565d76cfdbcedcf452cb048",
+          "spicelib/utils/float_unit.py": "de0c66ce189de29f00258d417e8b47cd6877fabd2ab695925a3a934f6a071ad2",
+          "spicelib/utils/sweep_iterators.py": "5e4aaa85c9786ffa2aa1c0d5d360a61a6017d3683920a2a2268e305358a9e2f1",
+          "spicelib/utils/windows_short_names.py": "ee1af386d6f3b669ff831baf59f4e998a99406869e64ccef0231715b05c070e5"
+        },
+        "source_version": "1.6.3",
+        "source_commit": "b20c2371bbe49ca58702aabd12817e9e4664578a",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "spicelib_automation_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/spicelib_1.6.3.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/spicelib_1.6.3.json",
+        "source_sha256": "3176785977db74ed5706f6030899769860dd03f5b041dac97f43d2c61782cbfd",
+        "profile_sha256": "7c80edde8556852196d06dd7fe25d45648d56729445f5c66b7f461025f2ce8c9",
+        "boundary": "SPICE 网表编辑、参数步进、外部仿真任务、波形/日志读取和统计分析；排除 GUI、客户端服务器和特定厂商文件细节。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 158,
+        "selected_tool_count": 9,
+        "selected_class_count": 9,
+        "selected_function_count": 0,
+        "selected_method_count": 79,
+        "selected_all_func": 79,
+        "missing_description_count": 13,
+        "excluded_tool_count": 149,
+        "capability_count": 3
+      }
+    }
+  }
+]

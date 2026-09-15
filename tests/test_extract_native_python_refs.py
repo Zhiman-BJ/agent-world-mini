@@ -5,7 +5,11 @@ import unittest
 from pathlib import Path
 
 from seed_gen.scripts.extract_native_python_refs import (
-    extract_gmsh, extract_klayout_stub, gmsh_function, klayout_function,
+    extract_cantera_stubs,
+    extract_gmsh,
+    extract_klayout_stub,
+    gmsh_function,
+    klayout_function,
 )
 
 
@@ -73,6 +77,24 @@ def enlarge(self, distance: int) -> Box:
         self.assertGreater(len(signatures["variants"]), 1)
         self.assertIn(signatures["representative_signature"], [v["ori_input"] for v in signatures["variants"]])
         self.assertNotIn("__add__", methods)
+
+    @unittest.skipUnless(
+        Path("seed_pypi_raw/cantera/interfaces/cython/cantera/thermo.pyi").is_file(),
+        "release checkout unavailable",
+    )
+    def test_cantera_release_pairs_typed_stubs_with_cython_docs(self):
+        tools, files, metadata = extract_cantera_stubs(Path("seed_pypi_raw/cantera"))
+        index = {(tool["module"], tool["name"]): tool for tool in tools}
+        thermo = index["cantera.thermo", "ThermoPhase"]
+        species = index["cantera.thermo", "Species"]
+        from_dict = next(method for method in species["function"] if method["name"] == "from_dict")
+
+        self.assertIn("thermodynamic state", thermo["description"].lower())
+        self.assertEqual(from_dict["input"]["data"]["type"], "_SpeciesInput")
+        self.assertIn("YAML representation", from_dict["input"]["data"]["description"])
+        self.assertIn("interfaces/cython/cantera/thermo.pyi", files)
+        self.assertIn("cantera.thermo.ThermoPhase.species", metadata["native_overloads"])
+        self.assertGreater(metadata["documented_native_symbol_count"], 0)
 
 
 if __name__ == "__main__":

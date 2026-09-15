@@ -1,0 +1,1526 @@
+[
+  {
+    "global_id": "pypi_matminer_18",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/hackingmaterials/matminer",
+          "https://pypi.org/project/matminer/",
+          "https://hackingmaterials.github.io/matminer/"
+        ],
+        "name": "matminer",
+        "version": "v0.10.1",
+        "index": 18
+      },
+      "description": "matminer 是材料信息学特征工程和数据集工具包，提供结构、组成、局部环境和工艺信息的描述符生成器、数据集读取以及表格化转换，可把 pymatgen 或 ASE 对象转为机器学习特征。模型训练和数据集质量需另行验证。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 16,
+        "function": 6,
+        "class_func": 59,
+        "all_func": 65
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "load_dataset",
+        "type": "function",
+        "module": "matminer.datasets.dataset_retrieval",
+        "description": "Loads a dataframe containing the dataset specified with the 'name' field.  Dataset file is stored/loaded from data_home if specified, otherwise at the MATMINER_DATA environment variable if set or at matminer/datasets by default.",
+        "input": {
+          "name": {
+            "type": "str",
+            "description": "keyword specifying what dataset to load, run matminer.datasets.get_available_datasets() for options"
+          },
+          "data_home": {
+            "type": "str",
+            "description": "path to folder to look for dataset file"
+          },
+          "download_if_missing": {
+            "type": "bool",
+            "description": "whether to download the dataset if is not found on disk"
+          },
+          "pbar": {
+            "type": "bool",
+            "description": "If true, show progress bar for loading dataset."
+          }
+        },
+        "output": null,
+        "ori_input": "name, data_home = None, download_if_missing = True, pbar = False",
+        "ori_description": "Loads a dataframe containing the dataset specified with the 'name' field.  Dataset file is stored/loaded from data_home if specified, otherwise at the MATMINER_DATA environment variable if set or at matminer/datasets by default.  Args: name (str): keyword specifying what dataset to load, run matminer.datasets.get_available_datasets() for options  data_home (str): path to folder to look for dataset file  download_if_missing (bool): whether to download the dataset if is not found on disk  pbar (bool): If true, show progress bar for loading dataset.  Returns: (pd.DataFrame, tuple -> (pd.DataFrame, pd.DataFrame) if return_lumo = True)"
+      },
+      {
+        "name": "get_available_datasets",
+        "type": "function",
+        "module": "matminer.datasets.dataset_retrieval",
+        "description": "Function for retrieving the datasets available within matminer.",
+        "input": {
+          "print_format": {
+            "type": "None, str",
+            "description": "None, \"short\", \"medium\", or \"long\":"
+          },
+          "sort_method": {
+            "type": "str",
+            "description": "By what metric to sort the datasets when retrieving their information."
+          }
+        },
+        "output": null,
+        "ori_input": "print_format = 'medium', sort_method = 'alphabetical'",
+        "ori_description": "Function for retrieving the datasets available within matminer.  Args: print_format (None, str): None, \"short\", \"medium\", or \"long\": None: Don't print anything \"short\": only the dataset names \"medium\": dataset names and their descriptions \"long\": All dataset info associated with the dataset  sort_method (str): By what metric to sort the datasets when retrieving their information.  alphabetical: sorts by dataset name, num_entries: sorts by number of dataset entries  Returns: (list)"
+      },
+      {
+        "name": "get_dataset_columns",
+        "type": "function",
+        "module": "matminer.datasets.dataset_retrieval",
+        "description": "Convenience function for getting dataset column list",
+        "input": {
+          "dataset_name": {
+            "type": "str",
+            "description": "name of the dataset being queried"
+          }
+        },
+        "output": null,
+        "ori_input": "dataset_name",
+        "ori_description": "Convenience function for getting dataset column list  Args: dataset_name (str): name of the dataset being queried  Returns: (list)"
+      },
+      {
+        "name": "get_dataset_description",
+        "type": "function",
+        "module": "matminer.datasets.dataset_retrieval",
+        "description": "Convenience function for getting dataset description",
+        "input": {
+          "dataset_name": {
+            "type": "str",
+            "description": "name of the dataset being queried"
+          }
+        },
+        "output": null,
+        "ori_input": "dataset_name",
+        "ori_description": "Convenience function for getting dataset description  Args: dataset_name (str): name of the dataset being queried  Returns: (str)"
+      },
+      {
+        "name": "get_all_dataset_info",
+        "type": "function",
+        "module": "matminer.datasets.dataset_retrieval",
+        "description": "Helper function to get all info for a particular dataset, including: - Citation info - Bibtex-formatted references - Dataset columns and their descriptions - The dataset description - The number of entries in the dataset",
+        "input": {
+          "dataset_name": {
+            "type": "str",
+            "description": "Name of the dataset querying info"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "output_str (str)",
+            "description": "All metadata associated with the dataset, in a formatted string."
+          }
+        },
+        "ori_input": "dataset_name",
+        "ori_description": "Helper function to get all info for a particular dataset, including: - Citation info - Bibtex-formatted references - Dataset columns and their descriptions - The dataset description - The number of entries in the dataset  Args: dataset_name (str): Name of the dataset querying info  Returns: output_str (str): All metadata associated with the dataset, in a formatted string."
+      },
+      {
+        "name": "store_dataframe_as_json",
+        "type": "function",
+        "module": "matminer.utils.io",
+        "description": "Store pandas dataframe as a json file.  Automatically encodes pymatgen objects as dictionaries.",
+        "input": {
+          "dataframe": {
+            "type": "Pandas.Dataframe",
+            "description": "A pandas dataframe."
+          },
+          "filename": {
+            "type": "str",
+            "description": "Path to json file."
+          },
+          "compression": {
+            "type": "str or None",
+            "description": "A compression mode. Valid options are \"gz\", \"bz2\", and None. Defaults to None. If the filename does not end in with the correct suffix it will be added automatically."
+          },
+          "orient": {
+            "type": "str",
+            "description": "Determines the format in which the dictionary data is stored. This takes the same set of arguments as the `orient` option in `pandas.DataFrame.to_dict()` function. 'split' is recommended as it is relatively space efficient and preserves the dtype of the index."
+          },
+          "pbar": {
+            "type": "bool",
+            "description": "If True, shows a progress bar for encoding objects to compatible json format (normally the rate-limiting step)."
+          }
+        },
+        "output": null,
+        "ori_input": "dataframe, filename, compression = None, orient = 'split', pbar = True",
+        "ori_description": "Store pandas dataframe as a json file.  Automatically encodes pymatgen objects as dictionaries.  Args: dataframe (Pandas.Dataframe): A pandas dataframe. filename (str): Path to json file. compression (str or None): A compression mode. Valid options are \"gz\", \"bz2\", and None. Defaults to None. If the filename does not end in with the correct suffix it will be added automatically. orient (str): Determines the format in which the dictionary data is stored. This takes the same set of arguments as the `orient` option in `pandas.DataFrame.to_dict()` function. 'split' is recommended as it is relatively space efficient and preserves the dtype of the index. pbar (bool): If True, shows a progress bar for encoding objects to compatible json format (normally the rate-limiting step)."
+      },
+      {
+        "name": "ElementFraction",
+        "type": "class",
+        "module": "matminer.featurizers.composition.element",
+        "input": "BaseFeaturizer",
+        "description": "Class to calculate the atomic fraction of each element in a composition.  Generates a vector where each index represents an element in atomic number order.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "",
+                "description": "Pymatgen Composition object"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "vector (list of floats)",
+                "description": "fraction of each element in a composition"
+              }
+            },
+            "ori_input": "self, comp",
+            "ori_description": "Args: comp: Pymatgen Composition object  Returns: vector (list of floats): fraction of each element in a composition"
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "ElementProperty",
+        "type": "class",
+        "module": "matminer.featurizers.composition.composite",
+        "input": "BaseFeaturizer",
+        "description": "Class to calculate elemental property attributes.  To initialize quickly, use the from_preset() method.  Features: Based on the statistics of the data_source chosen, computed by element stoichiometry. The format generally is:  \"{data source} {statistic} {property}\"  For example:  \"PymatgenData range X\" # Range of electronegativity from Pymatgen data  For a list of all statistics, see the PropertyStats documentation; for a list of all attributes available for a given data_source, see the documentation for the data sources (e.g., PymatgenData, MagpieData, MatscholarElementData, etc.).  Args: data_source (AbstractData or str): source from which to retrieve element property data (or use str for preset: \"pymatgen\", \"magpie\", or \"deml\") features (list of strings): List of elemental properties to use (these must be supported by data_source) stats (list of strings): a list of weighted statistics to compute to for each property (see PropertyStats for available stats) impute_nan (bool): if True, the features for the elements that are missing from the data_source or are NaNs are replaced by the average of each features over the available elements.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "data_source": {
+                "type": "",
+                "description": ""
+              },
+              "features": {
+                "type": "",
+                "description": ""
+              },
+              "stats": {
+                "type": "",
+                "description": ""
+              },
+              "impute_nan": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, data_source, features, stats, impute_nan = True",
+            "ori_description": ""
+          },
+          {
+            "name": "from_preset",
+            "description": "Return ElementProperty from a preset string",
+            "input": {
+              "cls": null,
+              "preset_name": {
+                "type": "",
+                "description": "(str) can be one of \"magpie\", \"deml\", \"matminer\", \"matscholar_el\", or \"megnet_el\"."
+              },
+              "impute_nan": {
+                "type": "bool",
+                "description": "if True, the features for the elements that are missing from the data_source or are NaNs are replaced by the average of each features over the available elements."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "ElementProperty based on the preset name."
+              }
+            },
+            "ori_input": "cls, preset_name, impute_nan = True",
+            "ori_description": "Return ElementProperty from a preset string Args: preset_name: (str) can be one of \"magpie\", \"deml\", \"matminer\", \"matscholar_el\", or \"megnet_el\". impute_nan (bool): if True, the features for the elements that are missing from the data_source or are NaNs are replaced by the average of each features over the available elements.  Returns: ElementProperty based on the preset name."
+          },
+          {
+            "name": "featurize",
+            "description": "Get elemental property attributes",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "",
+                "description": "Pymatgen composition object"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "all_attributes",
+                "description": "Specified property statistics of features"
+              }
+            },
+            "ori_input": "self, comp",
+            "ori_description": "Get elemental property attributes  Args: comp: Pymatgen composition object  Returns: all_attributes: Specified property statistics of features"
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "CationProperty",
+        "type": "class",
+        "module": "matminer.featurizers.composition.ion",
+        "input": "ElementProperty",
+        "description": "Features based on properties of cations in a material  Requires that oxidation states have already been determined. Property statistics weighted by composition.  Features: Based on the statistics of the data_source chosen, computed by element stoichiometry. The format generally is:  \"{data source} {statistic} {property}\"  For example:  \"DemlData range magn_moment\" # Range of magnetic moment via Deml et al. data  For a list of all statistics, see the PropertyStats documentation; for a list of all attributes available for a given data_source, see the documentation for the data sources (e.g., PymatgenData, MagpieData, MatscholarElementData, etc.).",
+        "function": [
+          {
+            "name": "from_preset",
+            "description": "",
+            "input": {
+              "cls": null,
+              "preset_name": {
+                "type": "",
+                "description": ""
+              },
+              "impute_nan": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, preset_name, impute_nan = True",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, comp",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "AtomicOrbitals",
+        "type": "class",
+        "module": "matminer.featurizers.composition.orbital",
+        "input": "BaseFeaturizer",
+        "description": "Determine HOMO/LUMO features based on a composition.  The highest occupied molecular orbital (HOMO) and lowest unoccupied molecular orbital (LUMO) are estiated from the atomic orbital energies of the composition. The atomic orbital energies are from NIST: https://www.nist.gov/pml/data/atomic-reference-data-electronic-structure-calculations  Warning: For compositions with inter-species fractions greater than 10,000 (e.g. dilute alloys such as FeC0.00001) the composition will be truncated (to Fe in this example). In such extreme cases, the truncation likely reflects the true physics of the situation (i.e. that the dilute element does not significantly contribute orbital character to the band structure), but the user should be aware of this behavior.",
+        "function": [
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "",
+                "description": "(Composition) pymatgen Composition object"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "HOMO_character",
+                "description": "(str) orbital symbol ('s', 'p', 'd', or 'f') HOMO_element: (str) symbol of element for HOMO HOMO_energy: (float in eV) absolute energy of HOMO LUMO_character: (str) orbital symbol ('s', 'p', 'd', or 'f') LUMO_element: (str) symbol of element for LUMO LUMO_energy: (float in eV) absolute energy of LUMO gap_AO: (float in eV) the estimated bandgap from HOMO and LUMO energeis"
+              }
+            },
+            "ori_input": "self, comp",
+            "ori_description": "Args: comp: (Composition) pymatgen Composition object  Returns: HOMO_character: (str) orbital symbol ('s', 'p', 'd', or 'f') HOMO_element: (str) symbol of element for HOMO HOMO_energy: (float in eV) absolute energy of HOMO LUMO_character: (str) orbital symbol ('s', 'p', 'd', or 'f') LUMO_element: (str) symbol of element for LUMO LUMO_energy: (float in eV) absolute energy of LUMO gap_AO: (float in eV) the estimated bandgap from HOMO and LUMO energeis"
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "CohesiveEnergy",
+        "type": "class",
+        "module": "matminer.featurizers.composition.thermo",
+        "input": "BaseFeaturizer",
+        "description": "Cohesive energy per atom using elemental cohesive energies and formation energy.  Get cohesive energy per atom of a compound by adding known elemental cohesive energies from the formation energy of the compound.  Parameters: mapi_key (str): Materials API key for looking up formation energy by composition alone (if you don't set the formation energy yourself).",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "mapi_key": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mapi_key = None",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "",
+                "description": "(pymatgen.Composition): A composition"
+              },
+              "formation_energy_per_atom": {
+                "type": "",
+                "description": "(float) the formation energy per atom of your compound. If not set, will look up the most stable formation energy from the Materials Project database."
+              }
+            },
+            "output": null,
+            "ori_input": "self, comp, formation_energy_per_atom = None",
+            "ori_description": "Args: comp: (pymatgen.Composition): A composition formation_energy_per_atom: (float) the formation energy per atom of your compound. If not set, will look up the most stable formation energy from the Materials Project database."
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Miedema",
+        "type": "class",
+        "module": "matminer.featurizers.composition.alloy",
+        "input": "BaseFeaturizer",
+        "description": "Formation enthalpies of intermetallic compounds, from Miedema et al.  Calculate the formation enthalpies of the intermetallic compound, solid solution and amorphous phase of a given composition, based on semi-empirical Miedema model (and some extensions), particularly for transitional metal alloys.  Support elemental, binary and multicomponent alloys. For elemental/binary alloys, the formulation is based on the original works by Miedema et al. in 1980s; For multicomponent alloys, the formulation is basically the linear combination of sub-binary systems. This is reported to work well for ternary alloys, but needs to be careful with quaternary alloys and more.  Args: struct_types (str or [str]): default='all' 'inter': intermetallic compound; 'ss': solid solution 'amor': amorphous phase; 'all': same for ['inter', 'ss', 'amor'] ['inter', 'ss']: amorphous phase and solid solution ss_types (str or [str]): only for ss, default='min' 'fcc': fcc solid solution; 'bcc': bcc solid solution 'hcp': hcp solid solution; 'no_latt': solid solution with no specific structure type 'min': min value of ['fcc', 'bcc', 'hcp', 'no_latt'] 'all': same for ['fcc', 'bcc', 'hcp', 'no_latt'] ['fcc', 'bcc']: fcc and bcc solid solutions data_source (str): source of dataset, default='Miedema' 'Miedema': 'Miedema.csv' placed in \"matminer/utils/data_files/\", containing the following model parameters for 73 elements: 'molar_volume', 'electron_density', 'electronegativity' 'valence_electrons', 'a_const', 'R_const', 'H_trans' 'compressibility', 'shear_modulus', 'melting_point' 'structural_stability'. Please see the references for details. impute_nan (bool): if True, the features for the elements that are missing from the data_source or are NaNs are replaced by the average of each features over the available elements. Returns: (list of floats) Miedema formation enthalpies (eV/atom) for input struct_types: -Miedema_deltaH_inter: for intermetallic compound -Miedema_deltaH_ss: for solid solution, can include 'fcc', 'bcc', 'hcp', 'no_latt', 'min' based on input ss_types -Miedema_deltaH_amor: for amorphous phase",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "struct_types": {
+                "type": "",
+                "description": ""
+              },
+              "ss_types": {
+                "type": "",
+                "description": ""
+              },
+              "data_source": {
+                "type": "",
+                "description": ""
+              },
+              "impute_nan": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, struct_types = 'all', ss_types = 'min', data_source = 'Miedema', impute_nan = True",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "Get Miedema formation enthalpies of target structures: inter, amor, ss (can be further divided into 'min', 'fcc', 'bcc', 'hcp', 'no_latt' for different lattice_types)",
+            "input": {
+              "self": null,
+              "comp": {
+                "type": "",
+                "description": "Pymatgen composition object"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "miedema (list of floats)",
+                "description": "formation enthalpies of target structures"
+              }
+            },
+            "ori_input": "self, comp",
+            "ori_description": "Get Miedema formation enthalpies of target structures: inter, amor, ss (can be further divided into 'min', 'fcc', 'bcc', 'hcp', 'no_latt' for different lattice_types) Args: comp: Pymatgen composition object Returns: miedema (list of floats): formation enthalpies of target structures"
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "DensityFeatures",
+        "type": "class",
+        "module": "matminer.featurizers.structure.order",
+        "input": "BaseFeaturizer",
+        "description": "Calculates density and density-like features  Features: - density - volume per atom - (\"vpa\"), and packing fraction",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "desired_features": {
+                "type": "",
+                "description": "[str] - choose from \"density\", \"vpa\", \"packing fraction\""
+              }
+            },
+            "output": null,
+            "ori_input": "self, desired_features = None",
+            "ori_description": "Args: desired_features: [str] - choose from \"density\", \"vpa\", \"packing fraction\""
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "s": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, s",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "GlobalSymmetryFeatures",
+        "type": "class",
+        "module": "matminer.featurizers.structure.symmetry",
+        "input": "BaseFeaturizer",
+        "description": "Determines symmetry features, e.g. spacegroup number and crystal system  Features: - Spacegroup number - Crystal system (1 of 7) - Centrosymmetry (has inversion symmetry) - Number of symmetry ops, obtained from the spacegroup",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "desired_features": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, desired_features = None",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "s": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, s",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "RadialDistributionFunction",
+        "type": "class",
+        "module": "matminer.featurizers.structure.rdf",
+        "input": "BaseFeaturizer",
+        "description": "Calculate the radial distribution function (RDF) of a crystal structure.  Features: - Radial distribution function. Each feature is the \"density\" of the distribution at a certain radius.  Args: cutoff: (float) Angstrom distance up to which to calculate the RDF. bin_size: (float) size in Angstrom of each bin of the (discrete) RDF.  Attributes: bin_distances (np.Ndarray): The distances each bin represents. Can be used for graphing the RDF.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "cutoff": {
+                "type": "",
+                "description": ""
+              },
+              "bin_size": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cutoff = 20.0, bin_size = 0.1",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "Get RDF of the input structure.",
+            "input": {
+              "self": null,
+              "s": {
+                "type": "Structure",
+                "description": "Pymatgen Structure object."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "rdf",
+                "description": "(iterable) the first element is the normalized RDF, whereas the second element is the inner radius of the RDF bin."
+              }
+            },
+            "ori_input": "self, s",
+            "ori_description": "Get RDF of the input structure. Args: s (Structure): Pymatgen Structure object.  Returns: rdf: (iterable) the first element is the normalized RDF, whereas the second element is the inner radius of the RDF bin."
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "SiteStatsFingerprint",
+        "type": "class",
+        "module": "matminer.featurizers.structure.sites",
+        "input": "BaseFeaturizer",
+        "description": "Computes statistics of properties across all sites in a structure.  This featurizer first uses a site featurizer class (see site.py for options) to compute features of each site in a structure, and then computes features of the entire structure by measuring statistics of each attribute. Can optionally compute the statistics of only sites with certain ranges of oxidation states (e.g., only anions).  Features: - Returns each statistic of each site feature",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "site_featurizer": {
+                "type": "BaseFeaturizer",
+                "description": "a site-based featurizer"
+              },
+              "stats": {
+                "type": "[str]",
+                "description": "list of weighted statistics to compute for each feature. If stats is None, a list is returned for each features that contains the calculated feature for each site in the structure. *Note for nth mode, stat must be 'n*_mode'; e.g. stat='2nd_mode'"
+              },
+              "min_oxi": {
+                "type": "int",
+                "description": "minimum site oxidation state for inclusion (e.g., zero means metals/cations only)"
+              },
+              "max_oxi": {
+                "type": "int",
+                "description": "maximum site oxidation state for inclusion"
+              },
+              "covariance": {
+                "type": "bool",
+                "description": "Whether to compute the covariance of site features"
+              }
+            },
+            "output": null,
+            "ori_input": "self, site_featurizer, stats = ('mean', 'std_dev'), min_oxi = None, max_oxi = None, covariance = False",
+            "ori_description": "Args: site_featurizer (BaseFeaturizer): a site-based featurizer stats ([str]): list of weighted statistics to compute for each feature. If stats is None, a list is returned for each features that contains the calculated feature for each site in the structure. *Note for nth mode, stat must be 'n*_mode'; e.g. stat='2nd_mode' min_oxi (int): minimum site oxidation state for inclusion (e.g., zero means metals/cations only) max_oxi (int): maximum site oxidation state for inclusion covariance (bool): Whether to compute the covariance of site features"
+          },
+          {
+            "name": "fit",
+            "description": "Fit the SiteStatsFeaturizer using the fitting function of the underlying site featurizer. Only applicable if the site featurizer is fittable. See the \".fit()\" method of the site_featurizer used to construct the class for more information.",
+            "input": {
+              "self": null,
+              "X": {
+                "type": "Iterable",
+                "description": ""
+              },
+              "y": {
+                "type": "optional, Iterable",
+                "description": ""
+              },
+              "fit_kwargs": {
+                "type": "**fit_kwargs",
+                "description": "Keyword arguments used by the fit function of the site featurizer class."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "self (SiteStatsFeaturizer)"
+              }
+            },
+            "ori_input": "self, X, y = None, **fit_kwargs",
+            "ori_description": "Fit the SiteStatsFeaturizer using the fitting function of the underlying site featurizer. Only applicable if the site featurizer is fittable. See the \".fit()\" method of the site_featurizer used to construct the class for more information. Args: X (Iterable): y (optional, Iterable): **fit_kwargs: Keyword arguments used by the fit function of the site featurizer class. Returns: self (SiteStatsFeaturizer)"
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "s": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, s",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "from_preset",
+            "description": "Create a SiteStatsFingerprint class according to a preset",
+            "input": {
+              "cls": null,
+              "preset": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, preset, **kwargs",
+            "ori_description": "Create a SiteStatsFingerprint class according to a preset  Args: preset (str) - Name of preset kwargs - Options for SiteStatsFingerprint"
+          }
+        ]
+      },
+      {
+        "name": "AGNIFingerprints",
+        "type": "class",
+        "module": "matminer.featurizers.site.fingerprint",
+        "input": "BaseFeaturizer",
+        "description": "Product integral of RDF and Gaussian window function, from `Botu et al <http://pubs.acs.org/doi/abs/10.1021/acs.jpcc.6b10908>`_.  Integral of the product of the radial distribution function and a Gaussian window function. Originally used by `Botu et al <http://pubs.acs.org/doi/abs/10.1021/acs.jpcc.6b10908>`_ to fit empiricial potentials. These features come in two forms: atomic fingerprints and direction-resolved fingerprints. Atomic fingerprints describe the local environment of an atom and are computed using the function: :math:`A_i(\\eta) = \\sum\\limits_{i \\ne j} e^{-(\\frac{r_{ij}}{\\eta})^2} f(r_{ij})` where :math:`i` is the index of the atom, :math:`j` is the index of a neighboring atom, :math:`\\eta` is a scaling function, :math:`r_{ij}` is the distance between atoms :math:`i` and :math:`j`, and :math:`f(r)` is a cutoff function where :math:`f(r) = 0.5[\\cos(\\frac{\\pi r_{ij}}{R_c}) + 1]` if :math:`r < R_c` and :math:`0` otherwise. The direction-resolved fingerprints are computed using :math:`V_i^k(\\eta) = \\sum\\limits_{i \\ne j} \\frac{r_{ij}^k}{r_{ij}} e^{-(\\frac{r_{ij}}{\\eta})^2} f(r_{ij})` where :math:`r_{ij}^k` is the :math:`k^{th}` component of :math:`\\bold{r}_i - \\bold{r}_j`. Parameters: TODO: Differentiate between different atom types (maybe as another class)",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "directions": {
+                "type": "iterable",
+                "description": "List of directions for the fingerprints. Can be one or more of 'None`, 'x', 'y', or 'z'"
+              },
+              "etas": {
+                "type": "iterable of floats",
+                "description": "List of which window widths to compute"
+              },
+              "cutoff": {
+                "type": "float",
+                "description": "Cutoff distance (Angstroms)"
+              }
+            },
+            "output": null,
+            "ori_input": "self, directions = (None, 'x', 'y', 'z'), etas = None, cutoff = 8",
+            "ori_description": "Args: directions (iterable): List of directions for the fingerprints. Can be one or more of 'None`, 'x', 'y', or 'z' etas (iterable of floats): List of which window widths to compute cutoff (float): Cutoff distance (Angstroms)"
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "struct": {
+                "type": "",
+                "description": ""
+              },
+              "idx": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, struct, idx",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "ChemicalSRO",
+        "type": "class",
+        "module": "matminer.featurizers.site.chemical",
+        "input": "BaseFeaturizer",
+        "description": "Chemical short range ordering, deviation of local site and nominal structure compositions  Chemical SRO features to evaluate the deviation of local chemistry with the nominal composition of the structure.  A local bonding preference is computed using f_el = N_el/(sum of N_el) - c_el, where N_el is the number of each element type in the neighbors around the target site, sum of N_el is the sum of all possible element types (coordination number), and c_el is the composition of the specific element in the entire structure. A positive f_el indicates the \"bonding\" with the specific element is favored, at least in the target site; A negative f_el indicates the \"bonding\" is not favored, at least in the target site.  Note that ChemicalSRO is only featurized for elements identified by \"fit\" (see following), thus \"fit\" must be called before \"featurize\", or else an error will be raised.  Features: CSRO__[nn method]_[element] - The Chemical SRO of a site computed based on neighbors determined with a certain NN-detection method for a certain element.",
+        "function": [
+          {
+            "name": "from_preset",
+            "description": "Use one of the standard instances of a given NearNeighbor class.",
+            "input": {
+              "preset": {
+                "type": "str",
+                "description": "preset type (\"VoronoiNN\", \"JmolNN\", \"MiniumDistanceNN\", \"MinimumOKeeffeNN\", or \"MinimumVIRENN\")."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "allow to pass args to the NearNeighbor class."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "ChemicalSRO from a preset."
+              }
+            },
+            "ori_input": "preset, **kwargs",
+            "ori_description": "Use one of the standard instances of a given NearNeighbor class. Args: preset (str): preset type (\"VoronoiNN\", \"JmolNN\", \"MiniumDistanceNN\", \"MinimumOKeeffeNN\", or \"MinimumVIRENN\"). **kwargs: allow to pass args to the NearNeighbor class. Returns: ChemicalSRO from a preset."
+          },
+          {
+            "name": "fit",
+            "description": "Identify elements to be included in the following featurization, by intersecting the elements present in the passed structures with those explicitly included (or excluded) in __init__. Only elements in the self.el_list_ will be featurized. Besides, compositions of the passed structures will also be \"stored\" in a dict of self.el_amt_dict_, avoiding repeated calculation of composition when featurizing multiple sites in the same structure.",
+            "input": {
+              "self": null,
+              "X": {
+                "type": "array-like",
+                "description": "containing Pymatgen structures and sites, supports multiple choices: -2D array-like object: e.g. [[struct, site], [struct, site], …] np.array([[struct, site], [struct, site], …]) -Pandas dataframe: e.g. df[['struct', 'site']]"
+              },
+              "y": {
+                "type": "",
+                "description": "unused (added for consistency with overridden method signature)"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "self"
+              }
+            },
+            "ori_input": "self, X, y = None",
+            "ori_description": "Identify elements to be included in the following featurization, by intersecting the elements present in the passed structures with those explicitly included (or excluded) in __init__. Only elements in the self.el_list_ will be featurized. Besides, compositions of the passed structures will also be \"stored\" in a dict of self.el_amt_dict_, avoiding repeated calculation of composition when featurizing multiple sites in the same structure. Args: X (array-like): containing Pymatgen structures and sites, supports multiple choices: -2D array-like object: e.g. [[struct, site], [struct, site], …] np.array([[struct, site], [struct, site], …]) -Pandas dataframe: e.g. df[['struct', 'site']] y : unused (added for consistency with overridden method signature) Returns: self"
+          },
+          {
+            "name": "featurize",
+            "description": "Get CSRO features of site with given index in input structure.",
+            "input": {
+              "self": null,
+              "struct": {
+                "type": "Structure",
+                "description": "Pymatgen Structure object."
+              },
+              "idx": {
+                "type": "int",
+                "description": "index of target site in structure."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "(list of floats)",
+                "description": "Chemical SRO features for each element."
+              }
+            },
+            "ori_input": "self, struct, idx",
+            "ori_description": "Get CSRO features of site with given index in input structure. Args: struct (Structure): Pymatgen Structure object. idx (int): index of target site in structure. Returns: (list of floats): Chemical SRO features for each element."
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "BondOrientationalParameter",
+        "type": "class",
+        "module": "matminer.featurizers.site.bonding",
+        "input": "BaseFeaturizer",
+        "description": "Averages of spherical harmonics of local neighbors  Bond Orientational Parameters (BOPs) describe the local environment around an atom by considering the local symmetry of the bonds as computed using spherical harmonics. To create descriptors that are invariant to rotating the coordinate system, we use the average of all spherical harmonics of a certain degree - following the approach of `Steinhardt et al. <https://link.aps.org/doi/10.1103/PhysRevB.28.784>`_. We weigh the contributions of each neighbor with the solid angle of the Voronoi tessellation (see `Mickel et al. <https://aip.scitation.org/doi/abs/10.1063/1.4774084>_` for further discussion). The weighing scheme makes these descriptors vary smoothly with small distortions of a crystal structure.  In addition to the average spherical harmonics, this class can also compute the :math:`W` and :math:`\\hat{W}` parameters proposed by `Steinhardt et al. <https://link.aps.org/doi/10.1103/PhysRevB.28.784>`_.  Attributes: BOOP Q l=<n> - Average spherical harmonic for a certain degree, n. BOOP W l=<n> - W parameter for a certain degree of spherical harmonic, n. BOOP What l=<n> - :math:`\\hat{W}` parameter for a certain degree of spherical harmonic, n.  References: `Steinhardt et al., _PRB_ (1983) <https://link.aps.org/doi/10.1103/PhysRevB.28.784>`_ `Seko et al., _PRB_ (2017) <http://link.aps.org/doi/10.1103/PhysRevB.95.144110>`_",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Initialize the featurizer",
+            "input": {
+              "self": null,
+              "max_l": {
+                "type": "",
+                "description": ""
+              },
+              "compute_w": {
+                "type": "",
+                "description": ""
+              },
+              "compute_w_hat": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, max_l = 10, compute_w = False, compute_w_hat = False",
+            "ori_description": "Initialize the featurizer  Args: max_l (int) - Maximum spherical harmonic to consider compute_w (bool) - Whether to compute Ws as well compute_w_hat (bool) - Whether to compute What"
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "strc": {
+                "type": "",
+                "description": ""
+              },
+              "idx": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, strc, idx",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "BaseFeaturizer",
+        "type": "class",
+        "module": "matminer.featurizers.base",
+        "input": "BaseEstimator, TransformerMixin, ABC",
+        "description": "Abstract class to calculate features from raw materials input data such a compound formula or a pymatgen crystal structure or bandstructure object.  ## Using a BaseFeaturizer Class  There are multiple ways for running the featurize routines:  `featurize`: Featurize a single entry `featurize_many`: Featurize a list of entries `featurize_dataframe`: Compute features for many entries, store results as columns in a dataframe  Some featurizers require first calling the `fit` method before the featurization methods can function. Generally, you pass the dataset to fit to determine which features a featurizer should compute. For example, a featurizer that returns the partial radial distribution function may need to know which elements are present in a dataset.  You can also use the `precheck` and `precheck_dataframe` methods to ensure a featurizer is in scope for a given sample (or dataset) before featurizing.  You can also employ the featurizer as part of a ScikitLearn Pipeline object. For these cases, ScikitLearn calls the `transform` function of the `BaseFeaturizer` which is a less-featured wrapper of `featurize_many`. You would then provide your input data as an array to the Pipeline, which would output the features as an array.  Beyond the featurizing capability, BaseFeaturizer also includes methods for retrieving proper references for a featurizer. The `citations` function returns a list of papers that should be cited. The `implementors` function returns a list of people who wrote the featurizer, so that you know who to contact with questions.  ## Implementing a New BaseFeaturizer Class  These operations must be implemented for each new featurizer: `featurize` - Takes a single material as input, returns the features of that material. `feature_labels` - Generates a human-meaningful name for each of the features. `citations` - Returns a list of citations in BibTeX format `implementors` - Returns a list of people who contributed to writing a paper.  None of these operations should change the state of the featurizer. I.e., running each method twice should not produce different results, no class attributes should be changed, and running one operation should not affect the output of another.  All options of the featurizer must be set by the `__init__` function. All options must be listed as keyword arguments with default values, and the value must be saved as a class attribute with the same name (e.g., argument `n` should be stored in `self.n`). These requirements are necessary for compatibility with the `get_params` and `set_params` methods of `BaseEstimator`, which enable easy interoperability with ScikitLearn  Depending on the complexity of your featurizer, it may be worthwhile to implement a `from_preset` class method. The `from_preset` method takes the name of a preset and returns an instance of the featurizer with some hard-coded set of inputs. The `from_preset` option is particularly useful for defining the settings used by papers in the literature.  Optionally, you can implement the `fit` operation if there are attributes of your featurizer that must be set for the featurizer to work. Any variables that are set by fitting should be stored as class attributes that end with an underscore. (This follows the pattern used by ScikitLearn).  Another option to consider is whether it is worth making any utility operations for your featurizer. `featurize` must return a list of features, but this may not be the most natural representation for your features (e.g., a `dict` could be better). Making a separate function for computing features in this natural representation and having the `featurize` function call this method and then convert the data into a list is a recommended approach. Users who want to compute the representation in the natural form can use the utility function and users who want the data in a ML-ready format (list) can call `featurize`. See `PartialRadialDistributionFunction` for an example of this concept.  An additional factor to consider is the chunksize for data parallelisation. For lightweight computational tasks, the overhead associated with passing data from `multiprocessing.Pool.map()` to the function being parallelized can increase the time taken for all tasks to be completed. By setting the `self._chunksize` argument, the overhead associated with passing data to the tasks can be reduced. Note that there is only an advantage to using chunksize when the time taken to pass the data from `map` to the function call is within several orders of magnitude to that of the function call itself. By default, we allow the Python multiprocessing library to determine the chunk size automatically based on the size of the list being featurized. You may want to specify a small chunk size for computationally-expensive featurizers, which will enable better distribution of tasks across threads. In contrast, for more lightweight featurizers, it is recommended that the implementor trial a range of chunksize values to find the optimum. As a general rule of thumb, if the featurize function takes 0.1 seconds or less, a chunksize of around 30 will perform best.  ## Documenting a BaseFeaturizer  The class documentation for each featurizer must contain a description of the options and the features that will be computed. The options of the class must all be defined in the `__init__` function of the class, and we recommend documenting them using the [Google style](https://google.github.io/styleguide/pyguide.html).  For auto-generated documentation purposes, the first line of the featurizer doc should come under the class declaration (not under __init__) and should be a one line summary of the featurizer.  We recommend starting the class documentation with a high-level overview of the features. For example, mention what kind of characteristics of the material they describe and refer the reader to a paper that describes these features well (use a hyperlink if possible, so that the readthedocs will link to that paper). Then, describe each of the individual features in a block named \"Features\". It is necessary here to give the user enough information for user to map a feature name what it means. The objective in this part is to allow people to understand what each column of their dataframe is without having to read the Python code. You do not need to explain all of the math/algorithms behind each feature for them to be able to reproduce the feature, just to get an idea what it is.",
+        "function": [
+          {
+            "name": "set_n_jobs",
+            "description": "Set the number of concurrent jobs to spawn during featurization.",
+            "input": {
+              "self": null,
+              "n_jobs": {
+                "type": "int",
+                "description": "Number of threads in multiprocessing pool."
+              }
+            },
+            "output": null,
+            "ori_input": "self, n_jobs: int",
+            "ori_description": "Set the number of concurrent jobs to spawn during featurization.  Args: n_jobs (int): Number of threads in multiprocessing pool.  Note: It seems multiprocessing can be the cause of out-of-memory (OOM) errors, especially when trying to featurize large structures on HPC nodes with strict memory limits. Using featurizer.set_n_jobs(1) has been known to help as a workaround."
+          },
+          {
+            "name": "precheck_dataframe",
+            "description": "Precheck an entire dataframe. Subclasses wanting to use precheck functionality should not override this method, they should override precheck (unless the entire df determines whether single entries pass or fail a precheck).  Prechecking should be a quick and useful way to check that for a particular dataframe (set of featurizer inputs), the featurizer is:  1. in scope, and/or... 2. robust to errors and/or... 3. any other reason you would not practically want to use this featurizer in on this dataframe.  By prechecking before featurizing, you can avoid applying featurizers to data that will ultimately fail, return unreliable numbers, or are out of scope. Prechecking is also a good time to throw/observe warnings (such as long runtime warnings!).",
+            "input": {
+              "self": null,
+              "df": {
+                "type": "pd.DataFrame",
+                "description": "A dataframe"
+              },
+              "col_id": {
+                "type": "str or [str]",
+                "description": "column label containing objects to featurize. Can be multiple labels if the featurize function requires multiple inputs."
+              },
+              "return_frac": {
+                "type": "bool",
+                "description": "If True, returns the fraction of entries passing the precheck (e.g., 0.5). Else, returns a dataframe. inplace (bool); Only relevant if return_frac=False. If inplace=True, the input dataframe is modified in memory with a boolean column for precheck. Otherwise, a new df with this column is returned."
+              },
+              "inplace": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "(bool, pd.DataFrame)",
+                "description": "If return_frac=True, returns the fraction of entries passing the precheck. Else, returns the dataframe with an extra boolean column added for the precheck."
+              }
+            },
+            "ori_input": "self, df, col_id, return_frac = True, inplace = False",
+            "ori_description": "Precheck an entire dataframe. Subclasses wanting to use precheck functionality should not override this method, they should override precheck (unless the entire df determines whether single entries pass or fail a precheck).  Prechecking should be a quick and useful way to check that for a particular dataframe (set of featurizer inputs), the featurizer is:  1. in scope, and/or... 2. robust to errors and/or... 3. any other reason you would not practically want to use this featurizer in on this dataframe.  By prechecking before featurizing, you can avoid applying featurizers to data that will ultimately fail, return unreliable numbers, or are out of scope. Prechecking is also a good time to throw/observe warnings (such as long runtime warnings!).  Args: df (pd.DataFrame): A dataframe col_id (str or [str]): column label containing objects to featurize. Can be multiple labels if the featurize function requires multiple inputs. return_frac (bool): If True, returns the fraction of entries passing the precheck (e.g., 0.5). Else, returns a dataframe. inplace (bool); Only relevant if return_frac=False. If inplace=True, the input dataframe is modified in memory with a boolean column for precheck. Otherwise, a new df with this column is returned.  Returns: (bool, pd.DataFrame): If return_frac=True, returns the fraction of entries passing the precheck. Else, returns the dataframe with an extra boolean column added for the precheck."
+          },
+          {
+            "name": "fit",
+            "description": "Update the parameters of this featurizer based on available data",
+            "input": {
+              "self": null,
+              "X": {
+                "type": "",
+                "description": ""
+              },
+              "y": {
+                "type": "",
+                "description": ""
+              },
+              "fit_kwargs": {
+                "type": "**fit_kwargs",
+                "description": ""
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "self"
+              }
+            },
+            "ori_input": "self, X, y = None, **fit_kwargs",
+            "ori_description": "Update the parameters of this featurizer based on available data  Args: X - [list of tuples], training data Returns: self"
+          },
+          {
+            "name": "transform",
+            "description": "Compute features for a list of inputs",
+            "input": {
+              "self": null,
+              "X": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, X",
+            "ori_description": "Compute features for a list of inputs"
+          },
+          {
+            "name": "featurize_dataframe",
+            "description": "Compute features for all entries contained in input dataframe.",
+            "input": {
+              "self": null,
+              "df": {
+                "type": "Pandas dataframe",
+                "description": "Dataframe containing input data."
+              },
+              "col_id": {
+                "type": "str or list of str",
+                "description": "column label containing objects to featurize. Can be multiple labels if the featurize function requires multiple inputs."
+              },
+              "ignore_errors": {
+                "type": "bool",
+                "description": "Returns NaN for dataframe rows where exceptions are thrown if True. If False, exceptions are thrown as normal. return_errors (bool). Returns the errors encountered for each row in a separate `XFeaturizer errors` column if True. Requires ignore_errors to be True."
+              },
+              "return_errors": {
+                "type": "",
+                "description": ""
+              },
+              "inplace": {
+                "type": "bool",
+                "description": "If True, adds columns to the original object in memory and returns None. Else, returns the updated object. Should be identical to pandas inplace behavior."
+              },
+              "multiindex": {
+                "type": "bool",
+                "description": "If True, use a Featurizer - Feature 2-level index using the MultiIndex capabilities of pandas. If done inplace, multiindex featurization will overwrite the original dataframe's column index."
+              },
+              "pbar": {
+                "type": "bool",
+                "description": "Shows a progress bar if True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "updated dataframe."
+              }
+            },
+            "ori_input": "self, df, col_id, ignore_errors = False, return_errors = False, inplace = False, multiindex = False, pbar = True",
+            "ori_description": "Compute features for all entries contained in input dataframe.  Args: df (Pandas dataframe): Dataframe containing input data. col_id (str or list of str): column label containing objects to featurize. Can be multiple labels if the featurize function requires multiple inputs. ignore_errors (bool): Returns NaN for dataframe rows where exceptions are thrown if True. If False, exceptions are thrown as normal. return_errors (bool). Returns the errors encountered for each row in a separate `XFeaturizer errors` column if True. Requires ignore_errors to be True. inplace (bool): If True, adds columns to the original object in memory and returns None. Else, returns the updated object. Should be identical to pandas inplace behavior. multiindex (bool): If True, use a Featurizer - Feature 2-level index using the MultiIndex capabilities of pandas. If done inplace, multiindex featurization will overwrite the original dataframe's column index. pbar (bool): Shows a progress bar if True.  Returns: updated dataframe."
+          },
+          {
+            "name": "featurize_many",
+            "description": "Featurize a list of entries.  If `featurize` takes multiple inputs, supply inputs as a list of tuples.  Featurize_many supports entries as a list, tuple, numpy array, Pandas Series, or Pandas DataFrame.",
+            "input": {
+              "self": null,
+              "entries": {
+                "type": "list-like object",
+                "description": "A list of entries to be featurized."
+              },
+              "ignore_errors": {
+                "type": "bool",
+                "description": "Returns NaN for entries where exceptions are thrown if True. If False, exceptions are thrown as normal."
+              },
+              "return_errors": {
+                "type": "bool",
+                "description": "If True, returns the feature list as determined by ignore_errors with traceback strings added as an extra 'feature'. Entries which featurize without exceptions have this extra feature set to NaN."
+              },
+              "pbar": {
+                "type": "bool",
+                "description": "Show a progress bar for featurization if True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "(list) features for each entry."
+              }
+            },
+            "ori_input": "self, entries, ignore_errors = False, return_errors = False, pbar = True",
+            "ori_description": "Featurize a list of entries.  If `featurize` takes multiple inputs, supply inputs as a list of tuples.  Featurize_many supports entries as a list, tuple, numpy array, Pandas Series, or Pandas DataFrame.  Args: entries (list-like object): A list of entries to be featurized. ignore_errors (bool): Returns NaN for entries where exceptions are thrown if True. If False, exceptions are thrown as normal. return_errors (bool): If True, returns the feature list as determined by ignore_errors with traceback strings added as an extra 'feature'. Entries which featurize without exceptions have this extra feature set to NaN. pbar (bool): Show a progress bar for featurization if True.  Returns: (list) features for each entry."
+          },
+          {
+            "name": "featurize",
+            "description": "Main featurizer function, which has to be implemented in any derived featurizer subclass.",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "*x",
+                "description": "input data to featurize (type depends on featurizer)."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "(list) one or more features."
+              }
+            },
+            "ori_input": "self, *x",
+            "ori_description": "Main featurizer function, which has to be implemented in any derived featurizer subclass.  Args: x: input data to featurize (type depends on featurizer).  Returns: (list) one or more features."
+          },
+          {
+            "name": "feature_labels",
+            "description": "Generate attribute names.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "([str]) attribute labels."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Generate attribute names.  Returns: ([str]) attribute labels."
+          }
+        ]
+      },
+      {
+        "name": "MultipleFeaturizer",
+        "type": "class",
+        "module": "matminer.featurizers.base",
+        "input": "BaseFeaturizer",
+        "description": "Class to run multiple featurizers on the same input data.  All featurizers must take the same kind of data as input to the featurize function.  Args: featurizers (list of BaseFeaturizer): A list of featurizers to run. iterate_over_entries (bool): Whether to iterate over the entries or featurizers. Iterating over entries will enable increased caching but will only display a single progress bar for all featurizers. If set to False, iteration will be performed over featurizers, resulting in reduced caching but individual progress bars for each featurizer.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "featurizers": {
+                "type": "",
+                "description": ""
+              },
+              "iterate_over_entries": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, featurizers, iterate_over_entries = True",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "*x",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *x",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "fit",
+            "description": "",
+            "input": {
+              "self": null,
+              "X": {
+                "type": "",
+                "description": ""
+              },
+              "y": {
+                "type": "",
+                "description": ""
+              },
+              "fit_kwargs": {
+                "type": "**fit_kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, X, y = None, **fit_kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize_many",
+            "description": "",
+            "input": {
+              "self": null,
+              "entries": {
+                "type": "",
+                "description": ""
+              },
+              "ignore_errors": {
+                "type": "",
+                "description": ""
+              },
+              "return_errors": {
+                "type": "",
+                "description": ""
+              },
+              "pbar": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, entries, ignore_errors = False, return_errors = False, pbar = True",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "ConversionFeaturizer",
+        "type": "class",
+        "module": "matminer.featurizers.conversions",
+        "input": "BaseFeaturizer",
+        "description": "Abstract class to perform data conversions.  Featurizers subclassing this class do not produce machine learning-ready features but instead are used to pre-process data. As Featurizers, the conversion process can take advantage of the parallelisation implemented in ScikitLearn.  Note that `feature_labels` are set dynamically and may depend on the column id of the data being featurized. As such, `feature_labels` may differ before and after featurization.  ConversionFeaturizers differ from other Featurizers in that the user can can specify the column in which to write the converted data. The output column is controlled through `target_col_id`. ConversionFeaturizers also have the ability to overwrite data in existing columns. This is controlled by the `overwrite_data` option. \"in place\" conversion of data can be achieved by setting `target_col_id=None` and `overwrite_data=True`. See the docstring below for more details.  Args: target_col_id (str or None): The column in which the converted data will be written. If the column already exists then an error will be thrown unless `overwrite_data` is set to `True`. If `target_col_id` begins with an underscore the data will be written to the column: `\"{}_{}\".format(col_id, target_col_id[1:])`, where `col_id` is the column being featurized. If `target_col_id` is set to None then the data will be written \"in place\" to the `col_id` column (this will only work if `overwrite_data=True`). overwrite_data (bool): Overwrite any data in `target_col_id` if it exists.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "target_col_id": {
+                "type": "",
+                "description": ""
+              },
+              "overwrite_data": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, target_col_id, overwrite_data",
+            "ori_description": ""
+          },
+          {
+            "name": "featurize_dataframe",
+            "description": "Perform the data conversion and set the target column dynamically.  `target_col_id`, and accordingly `feature_labels`, may depend on the column id of the data being featurized. As such, `target_col_id` is first set dynamically before the `BaseFeaturizer.featurize_dataframe()` super method is called.",
+            "input": {
+              "self": null,
+              "df": {
+                "type": "Pandas.DataFrame",
+                "description": "Dataframe containing input data."
+              },
+              "col_id": {
+                "type": "str or list of str",
+                "description": "column label containing objects to featurize. Can be multiple labels if the featurize function requires multiple inputs."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional keyword arguments that will be passed through to `BaseFeaturizer.featurize_dataframe()`."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "(Pandas.Dataframe)",
+                "description": "The updated dataframe."
+              }
+            },
+            "ori_input": "self, df, col_id, **kwargs",
+            "ori_description": "Perform the data conversion and set the target column dynamically.  `target_col_id`, and accordingly `feature_labels`, may depend on the column id of the data being featurized. As such, `target_col_id` is first set dynamically before the `BaseFeaturizer.featurize_dataframe()` super method is called.  Args: df (Pandas.DataFrame): Dataframe containing input data. col_id (str or list of str): column label containing objects to featurize. Can be multiple labels if the featurize function requires multiple inputs. **kwargs: Additional keyword arguments that will be passed through to `BaseFeaturizer.featurize_dataframe()`.  Returns: (Pandas.Dataframe): The updated dataframe."
+          },
+          {
+            "name": "featurize",
+            "description": "",
+            "input": {
+              "self": null,
+              "x": {
+                "type": "*x",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *x",
+            "ori_description": ""
+          },
+          {
+            "name": "feature_labels",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/hackingmaterials/matminer",
+        "documentation": "https://hackingmaterials.github.io/matminer/",
+        "pypi": "https://pypi.org/project/matminer/",
+        "pypi_version": "0.10.1",
+        "tag": "v0.10.1",
+        "commit": "25cd8f2778d73e54f80b38ee1983a28643368118",
+        "release_published_at": "2026-04-14T22:15:48Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 与 GitHub Release 均为 0.10.1；仓库标签 v0.10.1 指向提交 25cd8f。",
+          "精选时应避免把大量同类 featurizer 全部纳入，保留代表性组成/结构/站点特征。"
+        ],
+        "release_url": "https://github.com/hackingmaterials/matminer/releases/tag/v0.10.1",
+        "release_api": "https://api.github.com/repos/hackingmaterials/matminer/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/matminer",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "matminer"
+        ],
+        "source_files": [
+          "src/matminer/__init__.py",
+          "src/matminer/data_retrieval/__init__.py",
+          "src/matminer/data_retrieval/retrieve_AFLOW.py",
+          "src/matminer/data_retrieval/retrieve_Citrine.py",
+          "src/matminer/data_retrieval/retrieve_MDF.py",
+          "src/matminer/data_retrieval/retrieve_MP.py",
+          "src/matminer/data_retrieval/retrieve_MPDS.py",
+          "src/matminer/data_retrieval/retrieve_MongoDB.py",
+          "src/matminer/data_retrieval/retrieve_base.py",
+          "src/matminer/datasets/__init__.py",
+          "src/matminer/datasets/convenience_loaders.py",
+          "src/matminer/datasets/dataset_retrieval.py",
+          "src/matminer/datasets/utils.py",
+          "src/matminer/featurizers/__init__.py",
+          "src/matminer/featurizers/bandstructure.py",
+          "src/matminer/featurizers/base.py",
+          "src/matminer/featurizers/composition/__init__.py",
+          "src/matminer/featurizers/composition/alloy.py",
+          "src/matminer/featurizers/composition/composite.py",
+          "src/matminer/featurizers/composition/element.py",
+          "src/matminer/featurizers/composition/ion.py",
+          "src/matminer/featurizers/composition/orbital.py",
+          "src/matminer/featurizers/composition/packing.py",
+          "src/matminer/featurizers/composition/thermo.py",
+          "src/matminer/featurizers/conversions.py",
+          "src/matminer/featurizers/dos.py",
+          "src/matminer/featurizers/function.py",
+          "src/matminer/featurizers/site/__init__.py",
+          "src/matminer/featurizers/site/bonding.py",
+          "src/matminer/featurizers/site/chemical.py",
+          "src/matminer/featurizers/site/external.py",
+          "src/matminer/featurizers/site/fingerprint.py",
+          "src/matminer/featurizers/site/misc.py",
+          "src/matminer/featurizers/site/rdf.py",
+          "src/matminer/featurizers/structure/__init__.py",
+          "src/matminer/featurizers/structure/bonding.py",
+          "src/matminer/featurizers/structure/composite.py",
+          "src/matminer/featurizers/structure/matrix.py",
+          "src/matminer/featurizers/structure/misc.py",
+          "src/matminer/featurizers/structure/order.py",
+          "src/matminer/featurizers/structure/rdf.py",
+          "src/matminer/featurizers/structure/sites.py",
+          "src/matminer/featurizers/structure/symmetry.py",
+          "src/matminer/featurizers/utils/__init__.py",
+          "src/matminer/featurizers/utils/grdf.py",
+          "src/matminer/featurizers/utils/oxidation.py",
+          "src/matminer/featurizers/utils/stats.py",
+          "src/matminer/utils/__init__.py",
+          "src/matminer/utils/caching.py",
+          "src/matminer/utils/data.py",
+          "src/matminer/utils/data_files/__init__.py",
+          "src/matminer/utils/data_files/deml_elementdata.py",
+          "src/matminer/utils/flatten_dict.py",
+          "src/matminer/utils/io.py",
+          "src/matminer/utils/kernels.py",
+          "src/matminer/utils/pipeline.py",
+          "src/matminer/utils/utils.py",
+          "src/matminer/utils/warnings.py"
+        ],
+        "source_file_sha256": {
+          "src/matminer/__init__.py": "e8c913fa4da684afcbad677be71de20d70068188035c7e2e8b85e778c708cc30",
+          "src/matminer/data_retrieval/__init__.py": "e5ef634db0592e6c351785b31d897f49881db109ec18bde4eeefd0ebfe9b5809",
+          "src/matminer/data_retrieval/retrieve_AFLOW.py": "6beec28b4cd3512430229be17d3b17060c77ef1111982d7823cf9134bd0b192b",
+          "src/matminer/data_retrieval/retrieve_Citrine.py": "31418d6a8c11b8904cde6da2abc996d888bbc429bdb796168098bc965b2edaaf",
+          "src/matminer/data_retrieval/retrieve_MDF.py": "440c1ce90feaaa07d36cbb641a5fa242210e975707c913fe59b46c06f4dba13f",
+          "src/matminer/data_retrieval/retrieve_MP.py": "de30c437db2d2ed74881e9d590342f344b614e28bde4d9518200ea1a13830d4a",
+          "src/matminer/data_retrieval/retrieve_MPDS.py": "272ed303f746a2b502035a89bf5e1a0093e22a5f61b374ee8a3886a16959cdf7",
+          "src/matminer/data_retrieval/retrieve_MongoDB.py": "b68a9a2c2bdabf409f4213c6904c4b30d9735d1d0f69c81c43372f74d49fa9f7",
+          "src/matminer/data_retrieval/retrieve_base.py": "52247c4b209b14d3a94a404ce18b28441d48fb9ecbccef39a79737be3c2e8e69",
+          "src/matminer/datasets/__init__.py": "4b71544120609e5f0804f1f39a308ba8898414db51e4494f7e0a39fabfab0812",
+          "src/matminer/datasets/convenience_loaders.py": "027173faa76cbb8ec0a39a532e605b6f9764763fbb8144b64d1c823bc27d821f",
+          "src/matminer/datasets/dataset_retrieval.py": "8eca28e58b4c7c217fe9b6148693c0678187dc59a5d7dc3dd567cb6a7a0976d7",
+          "src/matminer/datasets/utils.py": "302ac52c6e74864265e4773d237df30b35ed9a4e9636c774bb7f4f5e01cb0f39",
+          "src/matminer/featurizers/__init__.py": "e5ef634db0592e6c351785b31d897f49881db109ec18bde4eeefd0ebfe9b5809",
+          "src/matminer/featurizers/bandstructure.py": "b55286640abd0742442ea46c6d51bd477d30b38948990f0a6d868278393fe50b",
+          "src/matminer/featurizers/base.py": "e941ab8959f2bd25faa9e3a1f5cc69181d3ec36f436e250ef037992d91a6a240",
+          "src/matminer/featurizers/composition/__init__.py": "40f456f2c992794e32f36af781249e4c9e3a8d75a44af5f24e6b9594a348577b",
+          "src/matminer/featurizers/composition/alloy.py": "ff01f11968cf2162eea1d7f86f629428709764a94186d3678f1cdab94a262a64",
+          "src/matminer/featurizers/composition/composite.py": "a7627f95fc85dae90099254c8aa55596f7a6e0c2a1250d08300f870c54b384c5",
+          "src/matminer/featurizers/composition/element.py": "921ee6c7f3735ba663f7866744f5c15d96795a052835eb03ef076233c6bb9f8f",
+          "src/matminer/featurizers/composition/ion.py": "05d37171a66f03a3fdcec4fb54eac486a7b589fc70760d0f772f0d1691f9dcb2",
+          "src/matminer/featurizers/composition/orbital.py": "e5ea63499da949bff13dd9ac8b558d0641c2854d28d2096e829505d7492c8826",
+          "src/matminer/featurizers/composition/packing.py": "3036caa9ed4ee15d0afdc5a24cd9f0684d9413af8aec971538c42b1a7cf9ed6a",
+          "src/matminer/featurizers/composition/thermo.py": "66520af0a5aedd93b57b3c3a0934260cda0250155800adc2cd2dc0c925fe8ecf",
+          "src/matminer/featurizers/conversions.py": "ea7a5137203ed9a50d5fba8717cd2bd4a47920694861c0b6269ccd0fbefce9b9",
+          "src/matminer/featurizers/dos.py": "0519696af8f8b26e750cee3e2ee32a29ea26ea11b51e99b43ca5cd65715d42ab",
+          "src/matminer/featurizers/function.py": "28a3394c29ec8b3ec9efa4075ffb5e7d116ce410a693267cde626b9c7651f5f3",
+          "src/matminer/featurizers/site/__init__.py": "e3a9b979e3bce7f73644dd20b7e2e9cc4404f179001b76585fce20ae310b37ef",
+          "src/matminer/featurizers/site/bonding.py": "defb4436d506c7657865b8dc9922f066c162b081ffae557135a232f491dddd5f",
+          "src/matminer/featurizers/site/chemical.py": "bb366adaa2ff493c447ad25f07fbba98229ee4c5f40976387e147d87f145b79e",
+          "src/matminer/featurizers/site/external.py": "33050a777229224a872c22dc044644a7ad43cd93c61aaa834a1c7ed97da693f8",
+          "src/matminer/featurizers/site/fingerprint.py": "a392466068dce6aa880c8b9604fcc0a580bdbb102d1f703bf32fa706fe9f2da9",
+          "src/matminer/featurizers/site/misc.py": "911df09a2563142f4b19b69c26d625c4c6b5db66ae31bc525e7e16f87b9fdce5",
+          "src/matminer/featurizers/site/rdf.py": "d4aa44e8dc718145c8b734c76b64f1914045c86385cfc698c47dcdf973e51a63",
+          "src/matminer/featurizers/structure/__init__.py": "ccb1d0a837b25d1fb895a7e896e2d635a6d7c9452c0c8cf0bece0f5bb7af1d95",
+          "src/matminer/featurizers/structure/bonding.py": "70a9ccae4f59e85a6be9dca2a96d0db21c7bb9d0d3f735a7030465ce8507f51e",
+          "src/matminer/featurizers/structure/composite.py": "d3acb1d287a0d3b91e8608b2e9c83fedc60fdcdf461e345ddceec23ae4ee7837",
+          "src/matminer/featurizers/structure/matrix.py": "df895bbb23771684f9a4b55bd54016a52bb98dd81e9b70d036d3ad62e7916c2a",
+          "src/matminer/featurizers/structure/misc.py": "e4cbb0e71c1b8e7db62a1e565e60a44ebcac31f203729ca6941a8155e57ba0e5",
+          "src/matminer/featurizers/structure/order.py": "ac0d2dcaa2d74a9ab42d29c09caaa9987aecd2b8204b846cf03d48bd169506c2",
+          "src/matminer/featurizers/structure/rdf.py": "a410e5605a606e4df6f773b5954fafa3606e7a67a2dc75f21a3f06778512af58",
+          "src/matminer/featurizers/structure/sites.py": "a014192325f28bbe9d32670821593ff2312b6066e2c4f90279fc84c002d2e9bc",
+          "src/matminer/featurizers/structure/symmetry.py": "93989b9c3d1bbb2bf45c7ba43e9489e39faee4a5700ae8eafdf9e59ad62288e8",
+          "src/matminer/featurizers/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "src/matminer/featurizers/utils/grdf.py": "15d1bdf0e6ec228ff53ceddc33d3027740da93f4c57f1898337a4d8daa7e09fa",
+          "src/matminer/featurizers/utils/oxidation.py": "5ab13dd9a64faee234cafdc3972c9bc59b00419329c76ad89f62c645a8711396",
+          "src/matminer/featurizers/utils/stats.py": "a9073e52edb6374a1f34c85f8c7d5f9b7562fbfa556cfb00fa783391d5a46901",
+          "src/matminer/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "src/matminer/utils/caching.py": "065ea921363c178f6d38887ac374ec62063159ce63841b931ecb1c5b4e0351b1",
+          "src/matminer/utils/data.py": "76e5c7b3d69f98bb94bbea9b6118fc4bbf587d818b625006d7c8c88c9d2c0349",
+          "src/matminer/utils/data_files/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "src/matminer/utils/data_files/deml_elementdata.py": "64131b672da2ad9221de0c7fc156663a160a3943f988784245d05b623910ef08",
+          "src/matminer/utils/flatten_dict.py": "52aaaafac2e5e6ca94c575c86e3ffb4faaadcd4741280ddd2268ec6544995405",
+          "src/matminer/utils/io.py": "e86d6f6cef02701ec75b8e0472647b62307be98776ec86519ce6fd3809682f4f",
+          "src/matminer/utils/kernels.py": "8a83d1e6a0e73f063a1a9753df096e64d86c4ffa3ca5ab092ba0b10354a2e6a6",
+          "src/matminer/utils/pipeline.py": "4ddd26ce52b01024f9155a42c8c26ef316906c6898d77d442315f851303274f0",
+          "src/matminer/utils/utils.py": "356b5759387bfea100cdbc328b82b45dd13e22d050f41b1f6d9bdac81967d4c2",
+          "src/matminer/utils/warnings.py": "a4e1514c179d3da8446092d60a152be0ad85f2f19a256e67fc534baea61f9cae"
+        },
+        "source_version": "v0.10.1",
+        "source_commit": "25cd8f2778d73e54f80b38ee1983a28643368118",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "matminer_feature_engineering_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/matminer_v0.10.1.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/matminer_v0.10.1.json",
+        "source_sha256": "685703c8d46cd88819cdb24adc8f3269adeb8e15527b609565807efaf01cc4c1",
+        "profile_sha256": "1312d923d947ab212fe5afcb23a83b1b27ee43fdbc9ad1c5ab681692969be785",
+        "boundary": "材料数据集加载和代表性组成、结构、位点特征工程；不展开数百个同类 featurizer、联网检索和测试工具。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 173,
+        "selected_tool_count": 22,
+        "selected_class_count": 16,
+        "selected_function_count": 6,
+        "selected_method_count": 59,
+        "selected_all_func": 65,
+        "missing_description_count": 40,
+        "excluded_tool_count": 151,
+        "capability_count": 4
+      }
+    }
+  }
+]

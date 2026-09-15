@@ -469,7 +469,7 @@
         "tag": "v5.3.5",
         "commit": "b2ee99842e119901349fdeee06b5bf61e01f450a",
         "release_published_at": "2024-01-31T15:09:04Z",
-        "checked_on": "2026-09-10",
+        "checked_on": "2026-09-15",
         "github_prerelease": false,
         "notes": [
           "PyPI 与 GitHub Release 均为 5.3.5；src/meshio/__about__.py 从已安装分发元数据读取版本，不包含固定版本值。官方 README 提供用法和格式说明，未找到独立官方 API 文档站，使用 README 链接。",
@@ -683,8 +683,8 @@
         "profile_id": "meshio_balanced_v1",
         "source_artifact": "seed_gen/pypi_outputs/ori_all/meshio_v5.3.5.json",
         "profile_artifact": "seed_gen/pypi_selection_profiles/meshio_v5.3.5.json",
-        "source_sha256": "5479c449e26f10f6d9787ad2dafdd310b94c4428a4f08d6afca0c6b9a6d084fa",
-        "profile_sha256": "0d82e0ba919a3bde1ea00edded62d2f86c8386e203274cd86c8131433dcd2267",
+        "source_sha256": "288544a1c2b11258144fbb61963aaa174260f6db772236c94d534491a0762954",
+        "profile_sha256": "918ada72468e34754b2bd37ec4737eb55dfc2a8e024ed94ad09d5fdd5d338a31",
         "boundary": "统一网格对象、点/单元字段和集合转换、通用文件读写及 XDMF 时间序列。通过通用 read/write 的 file_format 覆盖格式，不重复收录数十套格式实现；不凑足 50。",
         "target_all_func": {
           "min": 20,

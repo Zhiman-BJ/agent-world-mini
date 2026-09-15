@@ -1922,7 +1922,7 @@
         "tag": "v2.11.0.rc5",
         "commit": "43b41ca845184c47e22b72d144db7e7db8509377",
         "release_published_at": "2026-08-15T15:02:06Z",
-        "checked_on": "2026-09-10",
+        "checked_on": "2026-09-15",
         "github_prerelease": false,
         "notes": [
           "采用 GitHub releases/latest 返回的发布标签；标签含 rc5，但官方 prerelease=false，且该标签 CHANGES.md 对应 Version 2.11.0。保留实际标签，不改写成不存在的 v2.11.0 标签。",
@@ -1998,8 +1998,8 @@
         "profile_id": "devsim_balanced_v1",
         "source_artifact": "seed_gen/pypi_outputs/ori_all/devsim_v2.11.0.rc5.json",
         "profile_artifact": "seed_gen/pypi_selection_profiles/devsim_v2.11.0.rc5.json",
-        "source_sha256": "001a04c54979ab47d042c10dae38c872eb29ea70c3f4da6914fbf7128a58dc45",
-        "profile_sha256": "cd574312501ecc0a1d0084535a16b3e20fe17da3ceb870d04a8cb296a1fbc4d0",
+        "source_sha256": "c7692a33bc0308a157df19d29d9a3bbdd90af67f63d4af09d2eea88904a63077",
+        "profile_sha256": "eaebeba38870bb38b073d4c8295f0a088a0e5b33f7358ff2fcf73e4294af88ed",
         "boundary": "面向小型一维/二维器件的网格、材料参数、节点/边模型、方程、求解及结果检查，兼顾外部网格导入和简单电路耦合。排除 C++ 内部 API、Python UMFPACK 绑定、调试输出、手工矩阵装配和高阶元素长尾接口。需要 DEVSIM 原生运行库；当前仅静态筛选，数值验证待执行。",
         "target_all_func": {
           "min": 50,

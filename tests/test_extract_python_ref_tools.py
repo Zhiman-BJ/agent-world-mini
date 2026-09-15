@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import ast
+import tempfile
 import unittest
+from pathlib import Path
 
-from seed_gen.scripts.extract_python_ref_tools import _function_record
+from seed_gen.scripts.extract_python_ref_tools import _function_record, extract_file
 
 
 def parse_function(source: str) -> ast.FunctionDef:
@@ -135,6 +137,23 @@ def save(value: int) -> None:
 
         self.assertIsNone(record["output"])
         self.assertEqual(record["ori_input"], "value: int")
+
+    def test_duplicate_class_name_uses_last_runtime_definition(self):
+        source = '''
+class Duplicate:
+    """First definition."""
+
+class Duplicate:
+    """Runtime definition."""
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.py"
+            path.write_text(source, encoding="utf-8")
+            records = extract_file(path, "sample")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["name"], "Duplicate")
+        self.assertEqual(records[0]["description"], "Runtime definition.")
 
 
 if __name__ == "__main__":

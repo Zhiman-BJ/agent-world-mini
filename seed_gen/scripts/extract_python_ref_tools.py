@@ -355,8 +355,13 @@ def extract_file(source_path: Path, module: str) -> list[dict[str, Any]]:
     tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
     records: list[dict[str, Any]] = []
     selected_functions = _public_module_functions(tree.body)
+    selected_classes = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and not node.name.startswith("_")
+    }
     for node in tree.body:
-        if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
+        if isinstance(node, ast.ClassDef) and selected_classes.get(node.name) is node:
             records.append(
                 {
                     "name": node.name,

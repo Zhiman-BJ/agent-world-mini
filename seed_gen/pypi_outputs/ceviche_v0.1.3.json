@@ -1,0 +1,1818 @@
+[
+  {
+    "global_id": "pypi_ceviche_40",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/fancompute/ceviche",
+          "https://pypi.org/project/ceviche/",
+          "https://github.com/fancompute/ceviche#readme"
+        ],
+        "name": "ceviche",
+        "version": "v0.1.3",
+        "index": 40
+      },
+      "description": "ceviche 是支持自动微分的二维频域和时域电磁仿真库，提供 FDFD、FDTD、源、模式求解、场与模态重叠、有限差分算子、Jacobian 和优化器，可用于小型光子结构的梯度与逆设计研究。其实现面向研究原型，网格精度和边界设置需单独验证。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 6,
+        "function": 51,
+        "class_func": 14,
+        "all_func": 65
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "fdfd",
+        "type": "class",
+        "module": "ceviche.fdfd",
+        "input": "",
+        "description": "Base class for FDFD simulation",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "initialize with a given structure and source omega: angular frequency (rad/s) dL: grid cell size (m) eps_r: array containing relative permittivity npml: list of number of PML grid cells in [x, y] bloch_{x,y} phase difference across {x,y} boundaries for bloch periodic boundary conditions (default = 0 = periodic)",
+            "input": {
+              "self": null,
+              "omega": {
+                "type": "",
+                "description": ""
+              },
+              "dL": {
+                "type": "",
+                "description": ""
+              },
+              "eps_r": {
+                "type": "",
+                "description": ""
+              },
+              "npml": {
+                "type": "",
+                "description": ""
+              },
+              "bloch_phases": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, omega, dL, eps_r, npml, bloch_phases = None",
+            "ori_description": "initialize with a given structure and source omega: angular frequency (rad/s) dL: grid cell size (m) eps_r: array containing relative permittivity npml: list of number of PML grid cells in [x, y] bloch_{x,y} phase difference across {x,y} boundaries for bloch periodic boundary conditions (default = 0 = periodic)"
+          },
+          {
+            "name": "eps_r",
+            "description": "Defines some attributes when eps_r is set.",
+            "input": {
+              "self": null,
+              "new_eps": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, new_eps",
+            "ori_description": "Defines some attributes when eps_r is set."
+          },
+          {
+            "name": "solve",
+            "description": "Outward facing function (what gets called by user) that takes a source grid and returns the field components",
+            "input": {
+              "self": null,
+              "source_z": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, source_z",
+            "ori_description": "Outward facing function (what gets called by user) that takes a source grid and returns the field components"
+          }
+        ]
+      },
+      {
+        "name": "fdfd_ez",
+        "type": "class",
+        "module": "ceviche.fdfd",
+        "input": "fdfd",
+        "description": "FDFD class for linear Ez polarization",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "omega": {
+                "type": "",
+                "description": ""
+              },
+              "dL": {
+                "type": "",
+                "description": ""
+              },
+              "eps_r": {
+                "type": "",
+                "description": ""
+              },
+              "npml": {
+                "type": "",
+                "description": ""
+              },
+              "bloch_phases": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, omega, dL, eps_r, npml, bloch_phases = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "fdfd_hz",
+        "type": "class",
+        "module": "ceviche.fdfd",
+        "input": "fdfd",
+        "description": "FDFD class for linear Ez polarization",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "omega": {
+                "type": "",
+                "description": ""
+              },
+              "dL": {
+                "type": "",
+                "description": ""
+              },
+              "eps_r": {
+                "type": "",
+                "description": ""
+              },
+              "npml": {
+                "type": "",
+                "description": ""
+              },
+              "bloch_phases": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, omega, dL, eps_r, npml, bloch_phases = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "fdfd_mf_ez",
+        "type": "class",
+        "module": "ceviche.fdfd",
+        "input": "fdfd",
+        "description": "FDFD class for multifrequency linear Ez polarization. New variables: omega_mod: angular frequency of modulation (rad/s) delta: array of shape (Nfreq, Nx, Ny) containing pointwise modulation depth for each modulation harmonic (1,...,Nfreq) phi: array of same shape as delta containing pointwise modulation phase for each modulation harmonic Nsb: number of numerical sidebands to consider when solving for fields. This is not the same as the number of modulation frequencies Nfreq. For physically meaningful results, Nsb >= Nfreq.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "omega": {
+                "type": "",
+                "description": ""
+              },
+              "dL": {
+                "type": "",
+                "description": ""
+              },
+              "eps_r": {
+                "type": "",
+                "description": ""
+              },
+              "omega_mod": {
+                "type": "",
+                "description": ""
+              },
+              "delta": {
+                "type": "",
+                "description": ""
+              },
+              "phi": {
+                "type": "",
+                "description": ""
+              },
+              "Nsb": {
+                "type": "",
+                "description": ""
+              },
+              "npml": {
+                "type": "",
+                "description": ""
+              },
+              "bloch_phases": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, omega, dL, eps_r, omega_mod, delta, phi, Nsb, npml, bloch_phases = None",
+            "ori_description": ""
+          },
+          {
+            "name": "solve",
+            "description": "Outward facing function (what gets called by user) that takes a source grid and returns the field components",
+            "input": {
+              "self": null,
+              "source_z": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, source_z",
+            "ori_description": "Outward facing function (what gets called by user) that takes a source grid and returns the field components"
+          }
+        ]
+      },
+      {
+        "name": "fdfd_3d",
+        "type": "class",
+        "module": "ceviche.fdfd",
+        "input": "fdfd",
+        "description": "3D FDFD class (work in progress)",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "omega": {
+                "type": "",
+                "description": ""
+              },
+              "dL": {
+                "type": "",
+                "description": ""
+              },
+              "eps_r": {
+                "type": "",
+                "description": ""
+              },
+              "npml": {
+                "type": "",
+                "description": ""
+              },
+              "bloch_phases": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, omega, dL, eps_r, npml, bloch_phases = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "fdtd",
+        "type": "class",
+        "module": "ceviche.fdtd",
+        "input": "",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Makes an FDTD object eps_r: the relative permittivity (array > 1) if eps_r.shape = 3, it holds a single permittivity if eps_r.shape = 4, the last index is the batch index (running several simulations at once) dL: the grid size(s) (float/int or list of 3 floats/ints for dx, dy, dz) npml: the number of PML grids in each dimension (list of 3 ints)",
+            "input": {
+              "self": null,
+              "eps_r": {
+                "type": "",
+                "description": ""
+              },
+              "dL": {
+                "type": "",
+                "description": ""
+              },
+              "npml": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, eps_r, dL, npml",
+            "ori_description": "Makes an FDTD object eps_r: the relative permittivity (array > 1) if eps_r.shape = 3, it holds a single permittivity if eps_r.shape = 4, the last index is the batch index (running several simulations at once) dL: the grid size(s) (float/int or list of 3 floats/ints for dx, dy, dz) npml: the number of PML grids in each dimension (list of 3 ints)"
+          },
+          {
+            "name": "dL",
+            "description": "Resets the time step when dL is set.",
+            "input": {
+              "self": null,
+              "new_dL": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, new_dL",
+            "ori_description": "Resets the time step when dL is set."
+          },
+          {
+            "name": "npml",
+            "description": "Defines some attributes when npml is set.",
+            "input": {
+              "self": null,
+              "new_npml": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, new_npml",
+            "ori_description": "Defines some attributes when npml is set."
+          },
+          {
+            "name": "eps_r",
+            "description": "Defines some attributes when eps_r is set.",
+            "input": {
+              "self": null,
+              "new_eps": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, new_eps",
+            "ori_description": "Defines some attributes when eps_r is set."
+          },
+          {
+            "name": "forward",
+            "description": "one time step of FDTD",
+            "input": {
+              "self": null,
+              "Jx": {
+                "type": "",
+                "description": ""
+              },
+              "Jy": {
+                "type": "",
+                "description": ""
+              },
+              "Jz": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, Jx = None, Jy = None, Jz = None",
+            "ori_description": "one time step of FDTD"
+          },
+          {
+            "name": "initialize_fields",
+            "description": "Initializes: - the H, D, and E fields for updating - the integration terms needed to deal with PML - the curls of the fields",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Initializes: - the H, D, and E fields for updating - the integration terms needed to deal with PML - the curls of the fields"
+          }
+        ]
+      },
+      {
+        "name": "get_modes",
+        "type": "function",
+        "module": "ceviche.modes",
+        "description": "Solve for the modes of a waveguide cross section ARGUMENTS eps_cross: the permittivity profile of the waveguide omega: angular frequency of the modes dL: grid size of the cross section npml: number of PML points on each side of the cross section m: number of modes to solve for filtering: whether to filter out evanescent modes RETURNS vals: array of effective indeces of the modes vectors: array containing the corresponding mode profiles",
+        "input": {
+          "eps_cross": {
+            "type": "",
+            "description": ""
+          },
+          "omega": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "npml": {
+            "type": "",
+            "description": ""
+          },
+          "m": {
+            "type": "",
+            "description": ""
+          },
+          "filtering": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "eps_cross, omega, dL, npml, m = 1, filtering = True",
+        "ori_description": "Solve for the modes of a waveguide cross section ARGUMENTS eps_cross: the permittivity profile of the waveguide omega: angular frequency of the modes dL: grid size of the cross section npml: number of PML points on each side of the cross section m: number of modes to solve for filtering: whether to filter out evanescent modes RETURNS vals: array of effective indeces of the modes vectors: array containing the corresponding mode profiles"
+      },
+      {
+        "name": "insert_mode",
+        "type": "function",
+        "module": "ceviche.modes",
+        "description": "Solve for the modes in a cross section of epsr at the location defined by 'x' and 'y'  The mode is inserted into the 'target' array if it is suppled, if the target array is not supplied, then a target array is created with the same shape as epsr, and the mode is inserted into it.",
+        "input": {
+          "omega": {
+            "type": "",
+            "description": ""
+          },
+          "dx": {
+            "type": "",
+            "description": ""
+          },
+          "x": {
+            "type": "",
+            "description": ""
+          },
+          "y": {
+            "type": "",
+            "description": ""
+          },
+          "epsr": {
+            "type": "",
+            "description": ""
+          },
+          "target": {
+            "type": "",
+            "description": ""
+          },
+          "npml": {
+            "type": "",
+            "description": ""
+          },
+          "m": {
+            "type": "",
+            "description": ""
+          },
+          "filtering": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "omega, dx, x, y, epsr, target = None, npml = 0, m = 1, filtering = False",
+        "ori_description": "Solve for the modes in a cross section of epsr at the location defined by 'x' and 'y'  The mode is inserted into the 'target' array if it is suppled, if the target array is not supplied, then a target array is created with the same shape as epsr, and the mode is inserted into it."
+      },
+      {
+        "name": "solver_eigs",
+        "type": "function",
+        "module": "ceviche.modes",
+        "description": "solves for `Neigs` eigenmodes of A A: sparse linear operator describing modes Neigs: number of eigenmodes to return guess_value: estimate for the eigenvalues For more info, see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html",
+        "input": {
+          "A": {
+            "type": "",
+            "description": ""
+          },
+          "Neigs": {
+            "type": "",
+            "description": ""
+          },
+          "guess_value": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "A, Neigs, guess_value = 1.0",
+        "ori_description": "solves for `Neigs` eigenmodes of A A: sparse linear operator describing modes Neigs: number of eigenmodes to return guess_value: estimate for the eigenvalues For more info, see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html"
+      },
+      {
+        "name": "filter_modes",
+        "type": "function",
+        "module": "ceviche.modes",
+        "description": "Generic Filtering Function ARGUMENTS values: array of effective index values vectors: array of mode profiles filters: list of functions of `values` that return True for modes satisfying the desired filter condition RETURNS vals: array of filtered effective indeces of the modes vectors: array containing the corresponding, filtered mode profiles",
+        "input": {
+          "values": {
+            "type": "",
+            "description": ""
+          },
+          "vectors": {
+            "type": "",
+            "description": ""
+          },
+          "filters": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "values, vectors, filters = None",
+        "ori_description": "Generic Filtering Function ARGUMENTS values: array of effective index values vectors: array of mode profiles filters: list of functions of `values` that return True for modes satisfying the desired filter condition RETURNS vals: array of filtered effective indeces of the modes vectors: array containing the corresponding, filtered mode profiles"
+      },
+      {
+        "name": "normalize_modes",
+        "type": "function",
+        "module": "ceviche.modes",
+        "description": "Normalize each `vec` in `vectors` such that `sum(|vec|^2)=1` vectors: array with shape (n_points, n_vectors) NOTE: eigs already normalizes for you, so you technically dont need this function",
+        "input": {
+          "vectors": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "vectors",
+        "ori_description": "Normalize each `vec` in `vectors` such that `sum(|vec|^2)=1` vectors: array with shape (n_points, n_vectors) NOTE: eigs already normalizes for you, so you technically dont need this function"
+      },
+      {
+        "name": "Ez_to_H",
+        "type": "function",
+        "module": "ceviche.modes",
+        "description": "Converts the Ez output of mode solver to Hx and Hy components",
+        "input": {
+          "Ez": {
+            "type": "",
+            "description": ""
+          },
+          "omega": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "npml": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "Ez, omega, dL, npml",
+        "ori_description": "Converts the Ez output of mode solver to Hx and Hy components"
+      },
+      {
+        "name": "b_TFSF",
+        "type": "function",
+        "module": "ceviche.sources",
+        "description": "Returns a source vector for FDFD that will implement TFSF A: the FDFD system matrix inside_mask: a binary mask (vector) specifying the inside of the TFSF region theta: [0, 2pi] the angle of the source relative to y=0+  y ^ | | <-----|----- > x | | \\ v | theta see slide 32 of https://empossible.net/wp-content/uploads/2019/08/Lecture-4d-FDFD-Formulation.pdf",
+        "input": {
+          "fdfd": {
+            "type": "",
+            "description": ""
+          },
+          "inside_mask": {
+            "type": "",
+            "description": ""
+          },
+          "theta": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fdfd, inside_mask, theta",
+        "ori_description": "Returns a source vector for FDFD that will implement TFSF A: the FDFD system matrix inside_mask: a binary mask (vector) specifying the inside of the TFSF region theta: [0, 2pi] the angle of the source relative to y=0+  y ^ | | <-----|----- > x | | \\ v | theta see slide 32 of https://empossible.net/wp-content/uploads/2019/08/Lecture-4d-FDFD-Formulation.pdf"
+      },
+      {
+        "name": "compute_Q",
+        "type": "function",
+        "module": "ceviche.sources",
+        "description": "Compute the matrix used in PDF to get source",
+        "input": {
+          "inside_mask": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "inside_mask",
+        "ori_description": "Compute the matrix used in PDF to get source"
+      },
+      {
+        "name": "compute_f",
+        "type": "function",
+        "module": "ceviche.sources",
+        "description": "Compute the 'vacuum' field vector",
+        "input": {
+          "theta": {
+            "type": "",
+            "description": ""
+          },
+          "lambda0": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "theta, lambda0, dL, shape",
+        "ori_description": "Compute the 'vacuum' field vector"
+      },
+      {
+        "name": "solve_linear",
+        "type": "function",
+        "module": "ceviche.solvers",
+        "description": "Master function to call the others",
+        "input": {
+          "A": {
+            "type": "",
+            "description": ""
+          },
+          "b": {
+            "type": "",
+            "description": ""
+          },
+          "iterative_method": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "A, b, iterative_method = False",
+        "ori_description": "Master function to call the others"
+      },
+      {
+        "name": "jacobian",
+        "type": "function",
+        "module": "ceviche.jacobians",
+        "description": "Computes jacobian of `fun` with respect to argument number `argnum` using automatic differentiation",
+        "input": {
+          "fun": {
+            "type": "",
+            "description": ""
+          },
+          "argnum": {
+            "type": "",
+            "description": ""
+          },
+          "mode": {
+            "type": "",
+            "description": ""
+          },
+          "step_size": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fun, argnum = 0, mode = 'reverse', step_size = 1e-06",
+        "ori_description": "Computes jacobian of `fun` with respect to argument number `argnum` using automatic differentiation"
+      },
+      {
+        "name": "jacobian_reverse",
+        "type": "function",
+        "module": "ceviche.jacobians",
+        "description": "Compute jacobian of fun with respect to x using reverse mode differentiation",
+        "input": {
+          "fun": {
+            "type": "",
+            "description": ""
+          },
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fun, x",
+        "ori_description": "Compute jacobian of fun with respect to x using reverse mode differentiation"
+      },
+      {
+        "name": "jacobian_forward",
+        "type": "function",
+        "module": "ceviche.jacobians",
+        "description": "Compute jacobian of fun with respect to x using forward mode differentiation",
+        "input": {
+          "fun": {
+            "type": "",
+            "description": ""
+          },
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fun, x",
+        "ori_description": "Compute jacobian of fun with respect to x using forward mode differentiation"
+      },
+      {
+        "name": "jacobian_numerical",
+        "type": "function",
+        "module": "ceviche.jacobians",
+        "description": "numerically differentiate `fn` w.r.t. its argument `x`",
+        "input": {
+          "fn": {
+            "type": "",
+            "description": ""
+          },
+          "x": {
+            "type": "",
+            "description": ""
+          },
+          "step_size": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fn, x, step_size = 1e-07",
+        "ori_description": "numerically differentiate `fn` w.r.t. its argument `x`"
+      },
+      {
+        "name": "adam_optimize",
+        "type": "function",
+        "module": "ceviche.optimizers",
+        "description": "Performs Nsteps steps of ADAM minimization of function `objective` with gradient `jac`. The `bounds` are set abruptly by rejecting an update step out of bounds.",
+        "input": {
+          "objective": {
+            "type": "",
+            "description": ""
+          },
+          "params": {
+            "type": "",
+            "description": ""
+          },
+          "jac": {
+            "type": "",
+            "description": ""
+          },
+          "step_size": {
+            "type": "",
+            "description": ""
+          },
+          "Nsteps": {
+            "type": "",
+            "description": ""
+          },
+          "bounds": {
+            "type": "",
+            "description": ""
+          },
+          "direction": {
+            "type": "",
+            "description": ""
+          },
+          "beta1": {
+            "type": "",
+            "description": ""
+          },
+          "beta2": {
+            "type": "",
+            "description": ""
+          },
+          "callback": {
+            "type": "",
+            "description": ""
+          },
+          "verbose": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "objective, params, jac, step_size = 0.01, Nsteps = 100, bounds = None, direction = 'min', beta1 = 0.9, beta2 = 0.999, callback = None, verbose = True",
+        "ori_description": "Performs Nsteps steps of ADAM minimization of function `objective` with gradient `jac`. The `bounds` are set abruptly by rejecting an update step out of bounds."
+      },
+      {
+        "name": "step_adam",
+        "type": "function",
+        "module": "ceviche.optimizers",
+        "description": "Performs one step of adam optimization",
+        "input": {
+          "gradient": {
+            "type": "",
+            "description": ""
+          },
+          "mopt_old": {
+            "type": "",
+            "description": ""
+          },
+          "vopt_old": {
+            "type": "",
+            "description": ""
+          },
+          "iteration": {
+            "type": "",
+            "description": ""
+          },
+          "beta1": {
+            "type": "",
+            "description": ""
+          },
+          "beta2": {
+            "type": "",
+            "description": ""
+          },
+          "epsilon": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "gradient, mopt_old, vopt_old, iteration, beta1, beta2, epsilon = 1e-08",
+        "ori_description": "Performs one step of adam optimization"
+      },
+      {
+        "name": "sp_mult",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "Multiply a sparse matrix (A) by a dense vector (x)",
+        "input": {
+          "entries": {
+            "type": "",
+            "description": "numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into A."
+          },
+          "indices": {
+            "type": "",
+            "description": "numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries into A."
+          },
+          "x": {
+            "type": "",
+            "description": "1d numpy array specifying the vector to multiply by."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "1d numpy array corresponding to the result (b) of A * x = b."
+          }
+        },
+        "ori_input": "entries, indices, x",
+        "ori_description": "Multiply a sparse matrix (A) by a dense vector (x) Args: entries: numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into A. indices: numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries into A. x: 1d numpy array specifying the vector to multiply by. Returns: 1d numpy array corresponding to the result (b) of A * x = b."
+      },
+      {
+        "name": "grad_sp_mult_entries_reverse",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "",
+        "input": {
+          "ans": {
+            "type": "",
+            "description": ""
+          },
+          "entries": {
+            "type": "",
+            "description": ""
+          },
+          "indices": {
+            "type": "",
+            "description": ""
+          },
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "ans, entries, indices, x",
+        "ori_description": ""
+      },
+      {
+        "name": "grad_sp_mult_x_reverse",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "",
+        "input": {
+          "b": {
+            "type": "",
+            "description": ""
+          },
+          "entries": {
+            "type": "",
+            "description": ""
+          },
+          "indices": {
+            "type": "",
+            "description": ""
+          },
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "b, entries, indices, x",
+        "ori_description": ""
+      },
+      {
+        "name": "sp_solve",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "Solve a sparse matrix (A) with source (b)",
+        "input": {
+          "entries": {
+            "type": "",
+            "description": "numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries."
+          },
+          "indices": {
+            "type": "",
+            "description": "numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries."
+          },
+          "b": {
+            "type": "",
+            "description": "1d numpy array specifying the source."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "1d numpy array corresponding to the solution of A * x = b. Note: Calls a customizable solving function from ceviche.solvers, could add options to sp_solve() here eventually"
+          }
+        },
+        "ori_input": "entries, indices, b",
+        "ori_description": "Solve a sparse matrix (A) with source (b) Args: entries: numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries. indices: numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries. b: 1d numpy array specifying the source. Returns: 1d numpy array corresponding to the solution of A * x = b. Note: Calls a customizable solving function from ceviche.solvers, could add options to sp_solve() here eventually"
+      },
+      {
+        "name": "grad_sp_solve_entries_reverse",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "",
+        "input": {
+          "x": {
+            "type": "",
+            "description": ""
+          },
+          "entries": {
+            "type": "",
+            "description": ""
+          },
+          "indices": {
+            "type": "",
+            "description": ""
+          },
+          "b": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "x, entries, indices, b",
+        "ori_description": ""
+      },
+      {
+        "name": "grad_sp_solve_b_reverse",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "",
+        "input": {
+          "ans": {
+            "type": "",
+            "description": ""
+          },
+          "entries": {
+            "type": "",
+            "description": ""
+          },
+          "indices": {
+            "type": "",
+            "description": ""
+          },
+          "b": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "ans, entries, indices, b",
+        "ori_description": ""
+      },
+      {
+        "name": "spsp_mult",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "Multiply a sparse matrix (A) by a sparse matrix (X) A @ X = B",
+        "input": {
+          "entries_a": {
+            "type": "",
+            "description": "numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into A."
+          },
+          "indices_a": {
+            "type": "",
+            "description": "numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries into A."
+          },
+          "entries_x": {
+            "type": "",
+            "description": "numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into X."
+          },
+          "indices_x": {
+            "type": "",
+            "description": "numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries into X."
+          },
+          "N": {
+            "type": "",
+            "description": "all matrices are assumed of shape (N, N) (need to specify because no dense vector supplied)"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "entries_b",
+            "description": "numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into the result B. indices_b: numpy array with shape (2, num_non_zeros) giving i, j indices for non-zero matrix entries into the result B."
+          }
+        },
+        "ori_input": "entries_a, indices_a, entries_x, indices_x, N",
+        "ori_description": "Multiply a sparse matrix (A) by a sparse matrix (X) A @ X = B Args: entries_a: numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into A. indices_a: numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries into A. entries_x: numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into X. indices_x: numpy array with shape (2, num_non_zeros) giving x and y indices for non-zero matrix entries into X. N: all matrices are assumed of shape (N, N) (need to specify because no dense vector supplied) Returns: entries_b: numpy array with shape (num_non_zeros,) giving values for non-zero matrix entries into the result B. indices_b: numpy array with shape (2, num_non_zeros) giving i, j indices for non-zero matrix entries into the result B."
+      },
+      {
+        "name": "grad_spsp_mult_entries_a_reverse",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "For AX=B, we want to relate the entries of A to the entries of B. The goal is to compute the gradient of the output entries with respect to the input. For this, though, we need to convert into matrix form, do our computation, and convert back to the entries. If you write out the matrix elements and do the calculation, you can derive the code below, but it's a hairy derivation.",
+        "input": {
+          "b_out": {
+            "type": "",
+            "description": ""
+          },
+          "entries_a": {
+            "type": "",
+            "description": ""
+          },
+          "indices_a": {
+            "type": "",
+            "description": ""
+          },
+          "entries_x": {
+            "type": "",
+            "description": ""
+          },
+          "indices_x": {
+            "type": "",
+            "description": ""
+          },
+          "N": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "b_out, entries_a, indices_a, entries_x, indices_x, N",
+        "ori_description": "For AX=B, we want to relate the entries of A to the entries of B. The goal is to compute the gradient of the output entries with respect to the input. For this, though, we need to convert into matrix form, do our computation, and convert back to the entries. If you write out the matrix elements and do the calculation, you can derive the code below, but it's a hairy derivation."
+      },
+      {
+        "name": "sp_solve_nl",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "parameters: entries into matrix A are function of parameters and solution x a_indices: indices into sparse A matrix b: source vector for A(xx = b fn_nl: describes how the entries of a depend on the solution of A(x,p) @ x = b and the parameters `a_entries = fn_nl(params, x)`",
+        "input": {
+          "parameters": {
+            "type": "",
+            "description": ""
+          },
+          "a_indices": {
+            "type": "",
+            "description": ""
+          },
+          "b": {
+            "type": "",
+            "description": ""
+          },
+          "fn_nl": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "parameters, a_indices, b, fn_nl",
+        "ori_description": "parameters: entries into matrix A are function of parameters and solution x a_indices: indices into sparse A matrix b: source vector for A(xx = b fn_nl: describes how the entries of a depend on the solution of A(x,p) @ x = b and the parameters `a_entries = fn_nl(params, x)`"
+      },
+      {
+        "name": "grad_sp_solve_nl_parameters",
+        "type": "function",
+        "module": "ceviche.primitives",
+        "description": "We are finding the solution (x) to the nonlinear function:  f = A(x, p) @ x - b = 0  And need to define the vjp of the solution (x) with respect to the parameters (p)  vjp(v) = (dx / dp)^T @ v  To do this (see Eq. 5 of https://pubs-acs-org.stanford.idm.oclc.org/doi/pdf/10.1021/acsphotonics.8b01522) we need to solve the following linear system:  [ df / dx, df / dx*] [ dx / dp ] = -[ df / dp] [ df* / dx, df* / dx*] [ dx* / dp ] [ df* / dp]  Note that we need to explicitly make A a function of x and x* for complex x  In our case:  (df / dx) = (dA / dx) @ x + A (df / dx*) = (dA / dx*) @ x (df / dp) = (dA / dp) @ x  How do we put this into code? Let  A(x, p) @ x -> Ax = sp_mult(entries_a(x, p), indices_a, x)  Since we already defined the primitive of sp_mult, we can just do:  (dA / dx) @ x -> ag.jacobian(Ax, 0)  Now how about the source term?  (dA / dp) @ x -> ag.jacobian(Ax, 1)  Note that this is a matrix, not a vector. We'll have to handle dA/dx* but this can probably be done, maybe with autograd directly.  Other than this, assuming entries_a(x, p) is fully autograd compatible, we can get these terms no problem!  Coming back to our problem, we actually need to compute:  (dx / dp)^T @ v  Because  (dx / dp) = -(df / dx)^{-1} @ (df / dp)  (ignoring the complex conjugate terms). We can write this vjp as  (df / dp)^T @ (df / dx)^{-T} @ v  Since df / dp is a matrix, not a vector, its more efficient to do the mat_mul on the right first. So we first solve  adjoint(v) = -(df / dx)^{-T} @ v => sp_solve(entries_a_big, transpose(indices_a_big), -v)  and then it's a simple matter of doing the matrix multiplication  vjp(v) = (df / dp)^T @ adjoint(v) => sp_mult(entries_dfdp, transpose(indices_dfdp), adjoint)  and then return the result, making sure to strip the complex conjugate.  return vjp[:N]",
+        "input": {
+          "x": {
+            "type": "",
+            "description": ""
+          },
+          "parameters": {
+            "type": "",
+            "description": ""
+          },
+          "a_indices": {
+            "type": "",
+            "description": ""
+          },
+          "b": {
+            "type": "",
+            "description": ""
+          },
+          "fn_nl": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "x, parameters, a_indices, b, fn_nl",
+        "ori_description": "We are finding the solution (x) to the nonlinear function:  f = A(x, p) @ x - b = 0  And need to define the vjp of the solution (x) with respect to the parameters (p)  vjp(v) = (dx / dp)^T @ v  To do this (see Eq. 5 of https://pubs-acs-org.stanford.idm.oclc.org/doi/pdf/10.1021/acsphotonics.8b01522) we need to solve the following linear system:  [ df / dx, df / dx*] [ dx / dp ] = -[ df / dp] [ df* / dx, df* / dx*] [ dx* / dp ] [ df* / dp]  Note that we need to explicitly make A a function of x and x* for complex x  In our case:  (df / dx) = (dA / dx) @ x + A (df / dx*) = (dA / dx*) @ x (df / dp) = (dA / dp) @ x  How do we put this into code? Let  A(x, p) @ x -> Ax = sp_mult(entries_a(x, p), indices_a, x)  Since we already defined the primitive of sp_mult, we can just do:  (dA / dx) @ x -> ag.jacobian(Ax, 0)  Now how about the source term?  (dA / dp) @ x -> ag.jacobian(Ax, 1)  Note that this is a matrix, not a vector. We'll have to handle dA/dx* but this can probably be done, maybe with autograd directly.  Other than this, assuming entries_a(x, p) is fully autograd compatible, we can get these terms no problem!  Coming back to our problem, we actually need to compute:  (dx / dp)^T @ v  Because  (dx / dp) = -(df / dx)^{-1} @ (df / dp)  (ignoring the complex conjugate terms). We can write this vjp as  (df / dp)^T @ (df / dx)^{-T} @ v  Since df / dp is a matrix, not a vector, its more efficient to do the mat_mul on the right first. So we first solve  adjoint(v) = -(df / dx)^{-T} @ v => sp_solve(entries_a_big, transpose(indices_a_big), -v)  and then it's a simple matter of doing the matrix multiplication  vjp(v) = (df / dp)^T @ adjoint(v) => sp_mult(entries_dfdp, transpose(indices_dfdp), adjoint)  and then return the result, making sure to strip the complex conjugate.  return vjp[:N]"
+      },
+      {
+        "name": "curl_E",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "",
+        "input": {
+          "axis": {
+            "type": "",
+            "description": ""
+          },
+          "Ex": {
+            "type": "",
+            "description": ""
+          },
+          "Ey": {
+            "type": "",
+            "description": ""
+          },
+          "Ez": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "axis, Ex, Ey, Ez, dL",
+        "ori_description": ""
+      },
+      {
+        "name": "curl_H",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "",
+        "input": {
+          "axis": {
+            "type": "",
+            "description": ""
+          },
+          "Hx": {
+            "type": "",
+            "description": ""
+          },
+          "Hy": {
+            "type": "",
+            "description": ""
+          },
+          "Hz": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "axis, Hx, Hy, Hz, dL",
+        "ori_description": ""
+      },
+      {
+        "name": "compute_derivative_matrices",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "Returns sparse derivative matrices. Currently works for 2D and 1D omega: angular frequency (rad/sec) shape: shape of the FDFD grid npml: list of number of PML cells in x and y. dL: spatial grid size (m) block_x: bloch phase (phase across periodic boundary) in x block_y: bloch phase (phase across periodic boundary) in y",
+        "input": {
+          "omega": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "npml": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_x": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_y": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "omega, shape, npml, dL, bloch_x = 0.0, bloch_y = 0.0",
+        "ori_description": "Returns sparse derivative matrices. Currently works for 2D and 1D omega: angular frequency (rad/sec) shape: shape of the FDFD grid npml: list of number of PML cells in x and y. dL: spatial grid size (m) block_x: bloch phase (phase across periodic boundary) in x block_y: bloch phase (phase across periodic boundary) in y"
+      },
+      {
+        "name": "createDws",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "creates the derivative matrices component: one of 'x' or 'y' for derivative in x or y direction dir: one of 'f' or 'b', whether to take forward or backward finite difference shape: shape of the FDFD grid dL: spatial grid size (m) block_x: bloch phase (phase across periodic boundary) in x block_y: bloch phase (phase across periodic boundary) in y",
+        "input": {
+          "component": {
+            "type": "",
+            "description": ""
+          },
+          "dir": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_x": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_y": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "component, dir, shape, dL, bloch_x = 0.0, bloch_y = 0.0",
+        "ori_description": "creates the derivative matrices component: one of 'x' or 'y' for derivative in x or y direction dir: one of 'f' or 'b', whether to take forward or backward finite difference shape: shape of the FDFD grid dL: spatial grid size (m) block_x: bloch phase (phase across periodic boundary) in x block_y: bloch phase (phase across periodic boundary) in y"
+      },
+      {
+        "name": "make_Dxf",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "Forward derivative in x",
+        "input": {
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dL, shape, bloch_x = 0.0",
+        "ori_description": "Forward derivative in x"
+      },
+      {
+        "name": "make_Dxb",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "Backward derivative in x",
+        "input": {
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dL, shape, bloch_x = 0.0",
+        "ori_description": "Backward derivative in x"
+      },
+      {
+        "name": "make_Dyf",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "Forward derivative in y",
+        "input": {
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_y": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dL, shape, bloch_y = 0.0",
+        "ori_description": "Forward derivative in y"
+      },
+      {
+        "name": "make_Dyb",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "Backward derivative in y",
+        "input": {
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "bloch_y": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dL, shape, bloch_y = 0.0",
+        "ori_description": "Backward derivative in y"
+      },
+      {
+        "name": "create_S_matrices",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "Makes the 'S-matrices'. When dotted with derivative matrices, they add PML",
+        "input": {
+          "omega": {
+            "type": "",
+            "description": ""
+          },
+          "shape": {
+            "type": "",
+            "description": ""
+          },
+          "npml": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "omega, shape, npml, dL",
+        "ori_description": "Makes the 'S-matrices'. When dotted with derivative matrices, they add PML"
+      },
+      {
+        "name": "create_sfactor",
+        "type": "function",
+        "module": "ceviche.derivatives",
+        "description": "creates the S-factor cross section needed in the S-matrices",
+        "input": {
+          "dir": {
+            "type": "",
+            "description": ""
+          },
+          "omega": {
+            "type": "",
+            "description": ""
+          },
+          "dL": {
+            "type": "",
+            "description": ""
+          },
+          "N": {
+            "type": "",
+            "description": ""
+          },
+          "N_pml": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "dir, omega, dL, N, N_pml",
+        "ori_description": "creates the S-factor cross section needed in the S-matrices"
+      },
+      {
+        "name": "make_sparse",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Construct a sparse csr matrix",
+        "input": {
+          "entries": {
+            "type": "",
+            "description": "numpy array with shape (M,) giving values for non-zero matrix entries."
+          },
+          "indices": {
+            "type": "",
+            "description": "numpy array with shape (2, M) giving x and y indices for non-zero matrix entries."
+          },
+          "shape": {
+            "type": "",
+            "description": "shape of resulting matrix"
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "sparse, complex, matrix with specified values"
+          }
+        },
+        "ori_input": "entries, indices, shape",
+        "ori_description": "Construct a sparse csr matrix Args: entries: numpy array with shape (M,) giving values for non-zero matrix entries. indices: numpy array with shape (2, M) giving x and y indices for non-zero matrix entries. shape: shape of resulting matrix Returns: sparse, complex, matrix with specified values"
+      },
+      {
+        "name": "make_IO_matrices",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Makes matrices that relate the sparse matrix entries to their locations in the matrix The kth column of I is a 'one hot' vector specifing the k-th entries row index into A The kth column of J is a 'one hot' vector specifing the k-th entries columnn index into A O = J^T is for notational convenience. Armed with a vector of M entries 'a', we can construct the sparse matrix 'A' as: A = I @ diag(a) @ O where 'diag(a)' is a (MxM) matrix with vector 'a' along its diagonal. In index notation: A_ij = I_ik * a_k * O_kj In an opposite way, given sparse matrix 'A' we can strip out the entries `a` using the IO matrices as follows: a = diag(I^T @ A @ O^T) In index notation: a_k = I_ik * A_ij * O_kj",
+        "input": {
+          "indices": {
+            "type": "",
+            "description": ""
+          },
+          "N": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "indices, N",
+        "ori_description": "Makes matrices that relate the sparse matrix entries to their locations in the matrix The kth column of I is a 'one hot' vector specifing the k-th entries row index into A The kth column of J is a 'one hot' vector specifing the k-th entries columnn index into A O = J^T is for notational convenience. Armed with a vector of M entries 'a', we can construct the sparse matrix 'A' as: A = I @ diag(a) @ O where 'diag(a)' is a (MxM) matrix with vector 'a' along its diagonal. In index notation: A_ij = I_ik * a_k * O_kj In an opposite way, given sparse matrix 'A' we can strip out the entries `a` using the IO matrices as follows: a = diag(I^T @ A @ O^T) In index notation: a_k = I_ik * A_ij * O_kj"
+      },
+      {
+        "name": "der_num",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "",
+        "input": {
+          "fn": {
+            "type": "",
+            "description": ""
+          },
+          "arg": {
+            "type": "",
+            "description": ""
+          },
+          "index": {
+            "type": "",
+            "description": ""
+          },
+          "delta": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fn, arg, index, delta",
+        "ori_description": ""
+      },
+      {
+        "name": "grad_num",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "",
+        "input": {
+          "fn": {
+            "type": "",
+            "description": ""
+          },
+          "arg": {
+            "type": "",
+            "description": ""
+          },
+          "delta": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fn, arg, delta = 1e-06",
+        "ori_description": ""
+      },
+      {
+        "name": "jac_num",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "DEPRICATED: use 'numerical' in jacobians.py instead numerically differentiate `fn` w.r.t. its argument `arg` `arg` can be a numpy array of arbitrary shape `step_size` can be a number or an array of the same shape as `arg`",
+        "input": {
+          "fn": {
+            "type": "",
+            "description": ""
+          },
+          "arg": {
+            "type": "",
+            "description": ""
+          },
+          "step_size": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "fn, arg, step_size = 1e-07",
+        "ori_description": "DEPRICATED: use 'numerical' in jacobians.py instead numerically differentiate `fn` w.r.t. its argument `arg` `arg` can be a numpy array of arbitrary shape `step_size` can be a number or an array of the same shape as `arg`"
+      },
+      {
+        "name": "grid_center_to_xyz",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Computes the interpolated value of the quantity Q_mid felt at the Ex, Ey, Ez positions of the Yee latice Returns these three components",
+        "input": {
+          "Q_mid": {
+            "type": "",
+            "description": ""
+          },
+          "averaging": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "Q_mid, averaging = True",
+        "ori_description": "Computes the interpolated value of the quantity Q_mid felt at the Ex, Ey, Ez positions of the Yee latice Returns these three components"
+      },
+      {
+        "name": "grid_xyz_to_center",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Computes the interpolated value of the quantitys Q_xx, Q_yy, Q_zz at the center of Yee latice Returns these three components",
+        "input": {
+          "Q_xx": {
+            "type": "",
+            "description": ""
+          },
+          "Q_yy": {
+            "type": "",
+            "description": ""
+          },
+          "Q_zz": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "Q_xx, Q_yy, Q_zz",
+        "ori_description": "Computes the interpolated value of the quantitys Q_xx, Q_yy, Q_zz at the center of Yee latice Returns these three components"
+      },
+      {
+        "name": "vec_zz_to_xy",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "does grid averaging on z vector vec_zz",
+        "input": {
+          "info_dict": {
+            "type": "",
+            "description": ""
+          },
+          "vec_zz": {
+            "type": "",
+            "description": ""
+          },
+          "grid_averaging": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "info_dict, vec_zz, grid_averaging = True",
+        "ori_description": "does grid averaging on z vector vec_zz"
+      },
+      {
+        "name": "float_2_array",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "",
+        "input": {
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "x",
+        "ori_description": ""
+      },
+      {
+        "name": "reshape_to_ND",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Adds dimensions to arr until it is dimension N",
+        "input": {
+          "arr": {
+            "type": "",
+            "description": ""
+          },
+          "N": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "arr, N",
+        "ori_description": "Adds dimensions to arr until it is dimension N"
+      },
+      {
+        "name": "get_value",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "",
+        "input": {
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "x",
+        "ori_description": ""
+      },
+      {
+        "name": "get_shape",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Gets the shape of x, even if it is not an array",
+        "input": {
+          "x": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "x",
+        "ori_description": "Gets the shape of x, even if it is not an array"
+      },
+      {
+        "name": "measure_fields",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Returns a time series of the measured `component` fields from FDFD `F` driven by `source and measured at `probe`.",
+        "input": {
+          "F": {
+            "type": "",
+            "description": ""
+          },
+          "source": {
+            "type": "",
+            "description": ""
+          },
+          "steps": {
+            "type": "",
+            "description": ""
+          },
+          "probes": {
+            "type": "",
+            "description": ""
+          },
+          "component": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "F, source, steps, probes, component = 'Ez'",
+        "ori_description": "Returns a time series of the measured `component` fields from FDFD `F` driven by `source and measured at `probe`."
+      },
+      {
+        "name": "get_spectrum",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "Get FFT of series",
+        "input": {
+          "series": {
+            "type": "",
+            "description": ""
+          },
+          "dt": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "series, dt",
+        "ori_description": "Get FFT of series"
+      },
+      {
+        "name": "get_max_power_freq",
+        "type": "function",
+        "module": "ceviche.utils",
+        "description": "",
+        "input": {
+          "series": {
+            "type": "",
+            "description": ""
+          },
+          "dt": {
+            "type": "",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "series, dt",
+        "ori_description": ""
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/fancompute/ceviche",
+        "documentation": "https://github.com/fancompute/ceviche#readme",
+        "pypi": "https://pypi.org/project/ceviche/",
+        "pypi_version": "0.1.3",
+        "tag": "v0.1.3",
+        "commit": "269cf5aaf41571e4a4c43d4f2b26f24e7172184d",
+        "release_published_at": "2023-02-05T19:12:31Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 0.1.3 与 GitHub 最新正式 Release v0.1.3 一致；官方 API 说明主要在 README、示例和源码文档中。",
+          "本次只静态解析，不执行自动微分优化或电磁收敛测试。"
+        ],
+        "release_url": "https://github.com/fancompute/ceviche/releases/tag/v0.1.3",
+        "release_api": "https://api.github.com/repos/fancompute/ceviche/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/ceviche",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "ceviche"
+        ],
+        "source_files": [
+          "ceviche/__init__.py",
+          "ceviche/constants.py",
+          "ceviche/derivatives.py",
+          "ceviche/fdfd.py",
+          "ceviche/fdtd.py",
+          "ceviche/jacobians.py",
+          "ceviche/modes.py",
+          "ceviche/optimizers.py",
+          "ceviche/primitives.py",
+          "ceviche/solvers.py",
+          "ceviche/sources.py",
+          "ceviche/utils.py",
+          "ceviche/viz.py"
+        ],
+        "source_file_sha256": {
+          "ceviche/__init__.py": "010639646e1eac97808a9adb22088e02f9844cbfc66ab6fdc32833783cae5b9d",
+          "ceviche/constants.py": "e92d7d9eb76b6988e81fa41c332bb5c2d201f4304ed597d422bd3087c603930c",
+          "ceviche/derivatives.py": "0dcc0c4544aaba181fbba4fd92fab79992f69b9ae0fdd8c953c48c90523a3fa9",
+          "ceviche/fdfd.py": "f15fff944461ed8dc2859e4540681ccdd125da797da7db0b3225cd9b624f3ed7",
+          "ceviche/fdtd.py": "3dd94d4a102587931a244bab28530cd052cc04b34c937b05eaf929963e693e23",
+          "ceviche/jacobians.py": "b2fe5b49a29e371f4027b9106e0200989511fc469fdd39bd15c616120581c211",
+          "ceviche/modes.py": "f14658318a3cadfca2a390e9e1f10a68c65407c7de798e59bd2f4e697e5f3e45",
+          "ceviche/optimizers.py": "77faa88e63fc4d2a1c1ff2d041f908bdfd833ad98f627a793524264b97a94d7b",
+          "ceviche/primitives.py": "18db28e28df7843ce9e25c64a62461f08e56cf95ecd111d835bb147184cd5b4c",
+          "ceviche/solvers.py": "6a31c5ea89b20b332b32793a8761c0092f5e97b7a0ed055be14ee4a2ecf242dd",
+          "ceviche/sources.py": "1f933ee57b2c98b0989dd2c4e55eab835d0366cdfd0592023c9e1f40a346fac6",
+          "ceviche/utils.py": "84331f7e6d83bb5463812b1490387c8a150240574ec3b40f88e34b7275bb7628",
+          "ceviche/viz.py": "3319323d247e0d3fb610e37669b16317240e207fe696fa110bbccaec3069f47f"
+        },
+        "source_version": "v0.1.3",
+        "source_commit": "269cf5aaf41571e4a4c43d4f2b26f24e7172184d",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "ceviche_inverse_em_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/ceviche_v0.1.3.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/ceviche_v0.1.3.json",
+        "source_sha256": "6472d4def40d1d148f31570ef187c1ddd03e916abd8debffdb10098a57610301",
+        "profile_sha256": "32e4713715c8ca44c9e04865be910a058b278191a193e1494e083189fb028015",
+        "boundary": "FDFD/FDTD、模式与源、自动微分 Jacobian、优化和数值辅助；排除绘图与随机测试工具长尾。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 87,
+        "selected_tool_count": 57,
+        "selected_class_count": 6,
+        "selected_function_count": 51,
+        "selected_method_count": 14,
+        "selected_all_func": 65,
+        "missing_description_count": 16,
+        "excluded_tool_count": 30,
+        "capability_count": 3
+      }
+    }
+  }
+]

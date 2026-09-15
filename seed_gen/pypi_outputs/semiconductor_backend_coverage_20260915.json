@@ -1,0 +1,1690 @@
+{
+  "schema_version": "1.0",
+  "checked_on": "2026-09-15",
+  "scope": "seed_gen/pypi_semiconductor_scope.json",
+  "source_manifests": [
+    "seed_gen/pypi_release_sources.json",
+    "seed_gen/pypi_device_defect_sources.json",
+    "seed_gen/pypi_materials_sources.json",
+    "seed_gen/pypi_semiconductor_physics_sources.json",
+    "seed_gen/pypi_circuit_photonic_sources.json",
+    "seed_gen/pypi_photonic_solver_sources.json",
+    "seed_gen/pypi_legacy_circuit_inverse_sources.json"
+  ],
+  "unresolved_manifest": "seed_gen/pypi_unresolved_sources.json",
+  "summary": {
+    "scenario_count": 22,
+    "backend_count": 29,
+    "collected_python_package_count": 26,
+    "unresolved_or_external_count": 3,
+    "covered_scenario_count": 22,
+    "source_identity_passed_count": 26,
+    "selection_reproducibility_passed_count": 26,
+    "strict_schema_passed_count": 3,
+    "empty_source_description_count": 538,
+    "unexpected_schema_error_count": 0,
+    "packages_outside_profile_target": [],
+    "packages_below_general_target": [
+      "meshio",
+      "mobilitypy"
+    ],
+    "packages_above_general_target": [],
+    "runtime_verified_package_count": 0
+  },
+  "scenarios": [
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.01 Poisson / Drift-Diffusion",
+      "application": "PN/MOS/diode 基础器件",
+      "python_backends": [
+        "devsim",
+        "sesame"
+      ],
+      "relationship": "主要 A",
+      "task_design": "设置 doping/contact；跑 IV；修 solver",
+      "backends": [
+        {
+          "name": "devsim",
+          "status": "collected",
+          "version": "v2.11.0.rc5",
+          "selected_all_func": 75,
+          "manifest": "seed_gen/pypi_release_sources.json"
+        },
+        {
+          "name": "sesame",
+          "status": "collected",
+          "version": "2.0.3",
+          "selected_all_func": 50,
+          "manifest": "seed_gen/pypi_release_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.02 Heterostructure / Quantum Device",
+      "application": "QW/QCL/RTD/HEMT",
+      "python_backends": [
+        "nextnanopy",
+        "nextnano"
+      ],
+      "relationship": "Python client + external solver",
+      "task_design": "改 layer thickness；找目标 transition energy",
+      "backends": [
+        {
+          "name": "nextnanopy",
+          "status": "collected",
+          "version": "v1.3.2",
+          "selected_all_func": 72,
+          "manifest": "seed_gen/pypi_release_sources.json"
+        },
+        {
+          "name": "nextnano",
+          "status": "external_solver",
+          "reason": "nextnano 是需许可的外部求解器，不是本表要静态解析的 Python 包；已整理其官方 Python 客户端 nextnanopy。"
+        }
+      ]
+    },
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.03 Solar / Optoelectronic Device",
+      "application": "solar cell / QW solar cell",
+      "python_backends": [
+        "solcore"
+      ],
+      "relationship": "独立综合环境",
+      "task_design": "改 layer/材料，使 efficiency 最大",
+      "backends": [
+        {
+          "name": "solcore",
+          "status": "collected",
+          "version": "v5.10.1",
+          "selected_all_func": 83,
+          "manifest": "seed_gen/pypi_release_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.02 Carrier",
+      "l3": "02.02.01 Mobility / Scattering",
+      "application": "HEMT/2DEG mobility",
+      "python_backends": [
+        "mobilitypy"
+      ],
+      "relationship": "可接 openbandparams → TCAD",
+      "task_design": "找 dominant scattering mechanism",
+      "backends": [
+        {
+          "name": "mobilitypy",
+          "status": "collected",
+          "version": "v1.0.2",
+          "selected_all_func": 17,
+          "manifest": "seed_gen/pypi_semiconductor_physics_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.01 Geometry Construction",
+      "application": "TCAD/FEM 几何",
+      "python_backends": [
+        "gmsh",
+        "pygmsh"
+      ],
+      "relationship": "pygmsh → Gmsh H/I",
+      "task_design": "建 MOS cross-section",
+      "backends": [
+        {
+          "name": "gmsh",
+          "status": "collected",
+          "version": "gmsh_4_15_2",
+          "selected_all_func": 75,
+          "manifest": "seed_gen/pypi_device_defect_sources.json"
+        },
+        {
+          "name": "pygmsh",
+          "status": "collected",
+          "version": "v7.1.17",
+          "selected_all_func": 50,
+          "manifest": "seed_gen/pypi_materials_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.02 Mesh Interchange",
+      "application": "solver 间 mesh 传递",
+      "python_backends": [
+        "meshio"
+      ],
+      "relationship": "Gmsh → meshio D",
+      "task_design": "格式转换、检查 physical group",
+      "backends": [
+        {
+          "name": "meshio",
+          "status": "collected",
+          "version": "v5.3.5",
+          "selected_all_func": 21,
+          "manifest": "seed_gen/pypi_device_defect_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.03 Generic FEM/PDE",
+      "application": "自定义 electrothermal/PDE",
+      "python_backends": [
+        "scikit-fem"
+      ],
+      "relationship": "meshio → scikit-fem I/D",
+      "task_design": "边界条件/PDE 调试",
+      "backends": [
+        {
+          "name": "scikit-fem",
+          "status": "collected",
+          "version": "12.0.2",
+          "selected_all_func": 62,
+          "manifest": "seed_gen/pypi_materials_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.04 SPICE",
+      "l3": "02.04.01 Netlist Execution",
+      "application": "DC/AC/transient",
+      "python_backends": [
+        "spicelib",
+        "PySpice",
+        "ngspyce"
+      ],
+      "relationship": "三者多数 A；底层 ngspice/Xyce",
+      "task_design": "修 netlist；运行仿真",
+      "backends": [
+        {
+          "name": "spicelib",
+          "status": "collected",
+          "version": "1.6.3",
+          "selected_all_func": 79,
+          "manifest": "seed_gen/pypi_circuit_photonic_sources.json"
+        },
+        {
+          "name": "PySpice",
+          "status": "collected",
+          "version": "v1.5",
+          "selected_all_func": 94,
+          "manifest": "seed_gen/pypi_circuit_photonic_sources.json"
+        },
+        {
+          "name": "ngspyce",
+          "status": "no_confirmed_release",
+          "reason": "官方仓库没有标签或 Release，PyPI 无同名项目，无法确认可复现的发布版本；按指南不把默认分支冒充发布版，因此不生成源码发布索引和精选 JSON。"
+        }
+      ]
+    },
+    {
+      "l2": "02.04 SPICE",
+      "l3": "02.04.02 Parameter Sweep / Monte Carlo",
+      "application": "process/device variation",
+      "python_backends": [
+        "spicelib",
+        "ngspice/Xyce"
+      ],
+      "relationship": "+ ngspice/Xyce",
+      "task_design": "调 R/C/W/L 到 spec",
+      "backends": [
+        {
+          "name": "spicelib",
+          "status": "collected",
+          "version": "1.6.3",
+          "selected_all_func": 79,
+          "manifest": "seed_gen/pypi_circuit_photonic_sources.json"
+        },
+        {
+          "name": "ngspice/Xyce",
+          "status": "external_solver",
+          "reason": "ngspice 和 Xyce 是 SPICE 求解器可执行程序/共享库，不作为 Python API 包索引；其 Python 调用边界由 spicelib、PySpice 和 PyOPUS 表示。"
+        }
+      ]
+    },
+    {
+      "l2": "02.05 Circuit",
+      "l3": "02.05.01 Symbolic Analysis",
+      "application": "transfer function、impedance",
+      "python_backends": [
+        "lcapy"
+      ],
+      "relationship": "可与 SPICE C",
+      "task_design": "推导极点/零点并 cross-check",
+      "backends": [
+        {
+          "name": "lcapy",
+          "status": "collected",
+          "version": "V1.26",
+          "selected_all_func": 100,
+          "manifest": "seed_gen/pypi_circuit_photonic_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.05 Circuit",
+      "l3": "02.05.02 Design Optimization",
+      "application": "corner/performance optimization",
+      "python_backends": [
+        "PyOPUS"
+      ],
+      "relationship": "+ SPICE C",
+      "task_design": "多 corner 参数优化",
+      "backends": [
+        {
+          "name": "PyOPUS",
+          "status": "collected",
+          "version": "v0.12",
+          "selected_all_func": 98,
+          "manifest": "seed_gen/pypi_legacy_circuit_inverse_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.06 RF",
+      "l3": "02.06.01 S-parameter Network Analysis",
+      "application": "RF device/VNA",
+      "python_backends": [
+        "scikit-rf"
+      ],
+      "relationship": "",
+      "task_design": "cascade、S↔Z、gain、matching",
+      "backends": [
+        {
+          "name": "scikit-rf",
+          "status": "collected",
+          "version": "v2.1.0",
+          "selected_all_func": 98,
+          "manifest": "seed_gen/pypi_semiconductor_physics_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.06 RF",
+      "l3": "02.06.02 Calibration / De-embedding",
+      "application": "wafer probe/VNA",
+      "python_backends": [
+        "scikit-rf"
+      ],
+      "relationship": "+ measurement backend C",
+      "task_design": "从 raw standards 完成校准",
+      "backends": [
+        {
+          "name": "scikit-rf",
+          "status": "collected",
+          "version": "v2.1.0",
+          "selected_all_func": 98,
+          "manifest": "seed_gen/pypi_semiconductor_physics_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.07 Photonic",
+      "l3": "02.07.01 Circuit-level S Matrix",
+      "application": "PIC network",
+      "python_backends": [
+        "sax",
+        "simphony"
+      ],
+      "relationship": "多为 A",
+      "task_design": "连接 MZI/MMI，优化 spectrum",
+      "backends": [
+        {
+          "name": "sax",
+          "status": "collected",
+          "version": "0.18.2",
+          "selected_all_func": 55,
+          "manifest": "seed_gen/pypi_circuit_photonic_sources.json"
+        },
+        {
+          "name": "simphony",
+          "status": "collected",
+          "version": "v0.7.3",
+          "selected_all_func": 53,
+          "manifest": "seed_gen/pypi_circuit_photonic_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.08 FDTD",
+      "l3": "02.08.01 Open-source FDTD",
+      "application": "waveguide/cavity",
+      "python_backends": [
+        "meep"
+      ],
+      "relationship": "gdsfactory integration I",
+      "task_design": "geometry→FDTD→spectrum",
+      "backends": [
+        {
+          "name": "meep",
+          "status": "collected",
+          "version": "v1.34.0",
+          "selected_all_func": 100,
+          "manifest": "seed_gen/pypi_photonic_solver_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.08 FDTD",
+      "l3": "02.08.02 Cloud FDTD",
+      "application": "大规模/优化",
+      "python_backends": [
+        "tidy3d"
+      ],
+      "relationship": "gdsfactory integration I",
+      "task_design": "同类任务，但有云成本",
+      "backends": [
+        {
+          "name": "tidy3d",
+          "status": "collected",
+          "version": "v2.12.0",
+          "selected_all_func": 100,
+          "manifest": "seed_gen/pypi_photonic_solver_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.09 FEM",
+      "l3": "02.09.01 Eigenmode",
+      "application": "waveguide mode",
+      "python_backends": [
+        "femwell"
+      ],
+      "relationship": "gdsfactory integration I",
+      "task_design": "调 width 到目标 neff",
+      "backends": [
+        {
+          "name": "femwell",
+          "status": "collected",
+          "version": "v0.1.12",
+          "selected_all_func": 68,
+          "manifest": "seed_gen/pypi_photonic_solver_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.09 FEM",
+      "l3": "02.09.02 EME / propagation",
+      "application": "sectional waveguide propagation",
+      "python_backends": [
+        "emepy"
+      ],
+      "relationship": "",
+      "task_design": "分段结构 transmission",
+      "backends": [
+        {
+          "name": "emepy",
+          "status": "collected",
+          "version": "v1.2.2",
+          "selected_all_func": 89,
+          "manifest": "seed_gen/pypi_photonic_solver_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.10 Inverse",
+      "l3": "02.10.01 Geometry Inverse Design",
+      "application": "grating/coupler inverse design",
+      "python_backends": [
+        "ceviche",
+        "angler",
+        "legume-gme"
+      ],
+      "relationship": "多为 A",
+      "task_design": "optimize pixels/geometry",
+      "backends": [
+        {
+          "name": "ceviche",
+          "status": "collected",
+          "version": "v0.1.3",
+          "selected_all_func": 65,
+          "manifest": "seed_gen/pypi_photonic_solver_sources.json"
+        },
+        {
+          "name": "angler",
+          "status": "collected",
+          "version": "0.0.15",
+          "selected_all_func": 68,
+          "manifest": "seed_gen/pypi_legacy_circuit_inverse_sources.json"
+        },
+        {
+          "name": "legume-gme",
+          "status": "collected",
+          "version": "v1.0.3",
+          "selected_all_func": 73,
+          "manifest": "seed_gen/pypi_photonic_solver_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.01 Plasma / Etch Physics",
+      "application": "plasma properties、etch chamber physics",
+      "python_backends": [
+        "plasmapy"
+      ],
+      "relationship": "与 Cantera/FiPy C",
+      "task_design": "从 pressure/power/composition 推 plasma regime",
+      "backends": [
+        {
+          "name": "plasmapy",
+          "status": "collected",
+          "version": "v2026.2.0",
+          "selected_all_func": 91,
+          "manifest": "seed_gen/pypi_semiconductor_physics_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.02 Reaction / Gas Chemistry",
+      "application": "CVD/etch gas-phase chemistry",
+      "python_backends": [
+        "cantera"
+      ],
+      "relationship": "C",
+      "task_design": "调 gas ratio/temperature，满足 species target",
+      "backends": [
+        {
+          "name": "cantera",
+          "status": "collected",
+          "version": "v3.2.0",
+          "selected_all_func": 95,
+          "manifest": "seed_gen/pypi_semiconductor_physics_sources.json"
+        }
+      ]
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.03 Diffusion / Reaction PDE",
+      "application": "diffusion、surface reaction、electrodeposition",
+      "python_backends": [
+        "fipy"
+      ],
+      "relationship": "geometry/mesh 可配合 C",
+      "task_design": "调 boundary/transport 参数，复现 profile",
+      "backends": [
+        {
+          "name": "fipy",
+          "status": "collected",
+          "version": "4.0.3",
+          "selected_all_func": 76,
+          "manifest": "seed_gen/pypi_semiconductor_physics_sources.json"
+        }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "package": "angler",
+      "version": "0.0.15",
+      "commit": "7ca72f33d91e9a3e36c8d7d856da4c641e2a067b",
+      "repository": "https://github.com/fancompute/angler",
+      "documentation": "https://github.com/fancompute/angler#readme",
+      "source_directory": "seed_pypi_raw/angler",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/angler_0.0.15.json",
+        "profile": "seed_gen/pypi_selection_profiles/angler_0.0.15.json",
+        "selected": "seed_gen/pypi_outputs/angler_0.0.15.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/angler_0.0.15.json"
+      },
+      "raw_counts": {
+        "class": 8,
+        "function": 60,
+        "class_func": 39,
+        "all_func": 99
+      },
+      "selected_counts": {
+        "class": 6,
+        "function": 31,
+        "class_func": 37,
+        "all_func": 68
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 52,
+        "empty_source_description_count": 52,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "cantera",
+      "version": "v3.2.0",
+      "commit": "4a8358eb80cfeb50474386b5f9ec0b3a83519889",
+      "repository": "https://github.com/Cantera/cantera",
+      "documentation": "https://cantera.org/stable/python/",
+      "source_directory": "seed_pypi_raw/cantera",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/cantera_v3.2.0.json",
+        "profile": "seed_gen/pypi_selection_profiles/cantera_v3.2.0.json",
+        "selected": "seed_gen/pypi_outputs/cantera_v3.2.0.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/cantera_v3.2.0.json"
+      },
+      "raw_counts": {
+        "class": 186,
+        "function": 85,
+        "class_func": 992,
+        "all_func": 1077
+      },
+      "selected_counts": {
+        "class": 12,
+        "function": 0,
+        "class_func": 95,
+        "all_func": 95
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 7,
+        "empty_source_description_count": 7,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "ceviche",
+      "version": "v0.1.3",
+      "commit": "269cf5aaf41571e4a4c43d4f2b26f24e7172184d",
+      "repository": "https://github.com/fancompute/ceviche",
+      "documentation": "https://github.com/fancompute/ceviche#readme",
+      "source_directory": "seed_pypi_raw/ceviche",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/ceviche_v0.1.3.json",
+        "profile": "seed_gen/pypi_selection_profiles/ceviche_v0.1.3.json",
+        "selected": "seed_gen/pypi_outputs/ceviche_v0.1.3.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/ceviche_v0.1.3.json"
+      },
+      "raw_counts": {
+        "class": 6,
+        "function": 81,
+        "class_func": 14,
+        "all_func": 95
+      },
+      "selected_counts": {
+        "class": 6,
+        "function": 51,
+        "class_func": 14,
+        "all_func": 65
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 16,
+        "empty_source_description_count": 16,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "devsim",
+      "version": "v2.11.0.rc5",
+      "commit": "43b41ca845184c47e22b72d144db7e7db8509377",
+      "repository": "https://github.com/devsim/devsim",
+      "documentation": "https://devsim.net/",
+      "source_directory": "seed_pypi_raw/devsim",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/devsim_v2.11.0.rc5.json",
+        "profile": "seed_gen/pypi_selection_profiles/devsim_v2.11.0.rc5.json",
+        "selected": "seed_gen/pypi_outputs/devsim_v2.11.0.rc5.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/devsim_v2.11.0.rc5.json"
+      },
+      "raw_counts": {
+        "class": 6,
+        "function": 167,
+        "class_func": 31,
+        "all_func": 198
+      },
+      "selected_counts": {
+        "class": 0,
+        "function": 75,
+        "class_func": 0,
+        "all_func": 75
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": true,
+        "error_count": 0,
+        "empty_source_description_count": 0,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "emepy",
+      "version": "v1.2.2",
+      "commit": "caa16ec8197cbaeb96abd1f3cb82b1093b747acf",
+      "repository": "https://github.com/BYUCamachoLab/emepy",
+      "documentation": "https://emepy.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/emepy",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/emepy_v1.2.2.json",
+        "profile": "seed_gen/pypi_selection_profiles/emepy_v1.2.2.json",
+        "selected": "seed_gen/pypi_outputs/emepy_v1.2.2.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/emepy_v1.2.2.json"
+      },
+      "raw_counts": {
+        "class": 38,
+        "function": 17,
+        "class_func": 203,
+        "all_func": 220
+      },
+      "selected_counts": {
+        "class": 15,
+        "function": 0,
+        "class_func": 89,
+        "all_func": 89
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 26,
+        "empty_source_description_count": 26,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "femwell",
+      "version": "v0.1.12",
+      "commit": "e16d268a412b94d1d210ec6b17d0389c84eed92b",
+      "repository": "https://github.com/HelgeGehring/femwell",
+      "documentation": "https://HelgeGehring.github.io/femwell/",
+      "source_directory": "seed_pypi_raw/femwell",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/femwell_v0.1.12.json",
+        "profile": "seed_gen/pypi_selection_profiles/femwell_v0.1.12.json",
+        "selected": "seed_gen/pypi_outputs/femwell_v0.1.12.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/femwell_v0.1.12.json"
+      },
+      "raw_counts": {
+        "class": 4,
+        "function": 78,
+        "class_func": 47,
+        "all_func": 125
+      },
+      "selected_counts": {
+        "class": 3,
+        "function": 32,
+        "class_func": 36,
+        "all_func": 68
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 34,
+        "empty_source_description_count": 34,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "fipy",
+      "version": "4.0.3",
+      "commit": "64635bf8ed6bc51431edb7d6cf1495ff68ac18a7",
+      "repository": "https://github.com/usnistgov/fipy",
+      "documentation": "https://pages.nist.gov/fipy/en/stable/",
+      "source_directory": "seed_pypi_raw/fipy",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/fipy_4.0.3.json",
+        "profile": "seed_gen/pypi_selection_profiles/fipy_4.0.3.json",
+        "selected": "seed_gen/pypi_outputs/fipy_4.0.3.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/fipy_4.0.3.json"
+      },
+      "raw_counts": {
+        "class": 265,
+        "function": 79,
+        "class_func": 413,
+        "all_func": 492
+      },
+      "selected_counts": {
+        "class": 13,
+        "function": 6,
+        "class_func": 70,
+        "all_func": 76
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 30,
+        "empty_source_description_count": 30,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "gmsh",
+      "version": "gmsh_4_15_2",
+      "commit": "657c8e915f60405e6cad0c8ec7faf812bfff1a60",
+      "repository": "https://gitlab.onelab.info/gmsh/gmsh",
+      "documentation": "https://gmsh.info/doc/texinfo/",
+      "source_directory": "seed_pypi_raw/gmsh",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/gmsh_gmsh_4_15_2.json",
+        "profile": "seed_gen/pypi_selection_profiles/gmsh_gmsh_4_15_2.json",
+        "selected": "seed_gen/pypi_outputs/gmsh_gmsh_4_15_2.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/gmsh_gmsh_4_15_2.json"
+      },
+      "raw_counts": {
+        "class": 0,
+        "function": 377,
+        "class_func": 0,
+        "all_func": 377
+      },
+      "selected_counts": {
+        "class": 0,
+        "function": 75,
+        "class_func": 0,
+        "all_func": 75
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": true,
+        "error_count": 0,
+        "empty_source_description_count": 0,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "lcapy",
+      "version": "V1.26",
+      "commit": "d8fe8ddb3e1fd4ec68ede3343b49100b79dc678f",
+      "repository": "https://github.com/mph-/lcapy",
+      "documentation": "https://lcapy.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/lcapy",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/lcapy_V1.26.json",
+        "profile": "seed_gen/pypi_selection_profiles/lcapy_V1.26.json",
+        "selected": "seed_gen/pypi_outputs/lcapy_V1.26.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/lcapy_V1.26.json"
+      },
+      "raw_counts": {
+        "class": 788,
+        "function": 265,
+        "class_func": 2746,
+        "all_func": 3011
+      },
+      "selected_counts": {
+        "class": 8,
+        "function": 7,
+        "class_func": 93,
+        "all_func": 100
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 14,
+        "empty_source_description_count": 14,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "legume-gme",
+      "version": "v1.0.3",
+      "commit": "edef021a98d5972ef52e3a65bd36ccfb742381be",
+      "repository": "https://github.com/fancompute/legume",
+      "documentation": "https://legume.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/legume-gme",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/legume-gme_v1.0.3.json",
+        "profile": "seed_gen/pypi_selection_profiles/legume-gme_v1.0.3.json",
+        "selected": "seed_gen/pypi_outputs/legume-gme_v1.0.3.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/legume-gme_v1.0.3.json"
+      },
+      "raw_counts": {
+        "class": 23,
+        "function": 73,
+        "class_func": 96,
+        "all_func": 169
+      },
+      "selected_counts": {
+        "class": 12,
+        "function": 8,
+        "class_func": 65,
+        "all_func": 73
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 9,
+        "empty_source_description_count": 9,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "meep",
+      "version": "v1.34.0",
+      "commit": "3e7b7fee0da4a9b91b07acd9f71d35d674396563",
+      "repository": "https://github.com/NanoComp/meep",
+      "documentation": "https://meep.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/meep",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/meep_v1.34.0.json",
+        "profile": "seed_gen/pypi_selection_profiles/meep_v1.34.0.json",
+        "selected": "seed_gen/pypi_outputs/meep_v1.34.0.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/meep_v1.34.0.json"
+      },
+      "raw_counts": {
+        "class": 78,
+        "function": 218,
+        "class_func": 483,
+        "all_func": 701
+      },
+      "selected_counts": {
+        "class": 16,
+        "function": 14,
+        "class_func": 86,
+        "all_func": 100
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 35,
+        "empty_source_description_count": 35,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "meshio",
+      "version": "v5.3.5",
+      "commit": "b2ee99842e119901349fdeee06b5bf61e01f450a",
+      "repository": "https://github.com/nschloe/meshio",
+      "documentation": "https://github.com/nschloe/meshio#readme",
+      "source_directory": "seed_pypi_raw/meshio",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/meshio_v5.3.5.json",
+        "profile": "seed_gen/pypi_selection_profiles/meshio_v5.3.5.json",
+        "selected": "seed_gen/pypi_outputs/meshio_v5.3.5.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/meshio_v5.3.5.json"
+      },
+      "raw_counts": {
+        "class": 15,
+        "function": 147,
+        "class_func": 50,
+        "all_func": 197
+      },
+      "selected_counts": {
+        "class": 4,
+        "function": 3,
+        "class_func": 18,
+        "all_func": 21
+      },
+      "selection_target": {
+        "min": 20,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": false,
+      "selection_target_exception": "统一 read/write 已覆盖多种格式；追加格式内部 read/write 或 XML/CLI 辅助函数只会重复或降低抽象层次，合理核心范围为 21 个调用。",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 21,
+        "empty_source_description_count": 21,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "mobilitypy",
+      "version": "v1.0.2",
+      "commit": "bd401479fde096db9748ffd78a8840c0932b0ae6",
+      "repository": "https://github.com/SemiconductorTransport/mobilitypy",
+      "documentation": "https://github.com/SemiconductorTransport/mobilitypy/wiki/Package-Documentation",
+      "source_directory": "seed_pypi_raw/mobilitypy",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/mobilitypy_v1.0.2.json",
+        "profile": "seed_gen/pypi_selection_profiles/mobilitypy_v1.0.2.json",
+        "selected": "seed_gen/pypi_outputs/mobilitypy_v1.0.2.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/mobilitypy_v1.0.2.json"
+      },
+      "raw_counts": {
+        "class": 5,
+        "function": 0,
+        "class_func": 17,
+        "all_func": 17
+      },
+      "selected_counts": {
+        "class": 5,
+        "function": 0,
+        "class_func": 17,
+        "all_func": 17
+      },
+      "selection_target": {
+        "min": 15,
+        "max": 25
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": false,
+      "selection_target_exception": "mobilitypy v1.0.2 的发布源码仅定义 17 个公开调用；全部保留仍低于 50，不使用私有实现或重复接口凑数。",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 4,
+        "empty_source_description_count": 4,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "nextnanopy",
+      "version": "v1.3.2",
+      "commit": "5da921ff29f9861596c0906aba37ede8da7daf60",
+      "repository": "https://github.com/nextnano-GmbH/nextnanopy",
+      "documentation": "https://www.nextnano.com/docu/nextnanopy/",
+      "source_directory": "seed_pypi_raw/nextnanopy",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/nextnanopy_v1.3.2.json",
+        "profile": "seed_gen/pypi_selection_profiles/nextnanopy_v1.3.2.json",
+        "selected": "seed_gen/pypi_outputs/nextnanopy_v1.3.2.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/nextnanopy_v1.3.2.json"
+      },
+      "raw_counts": {
+        "class": 46,
+        "function": 93,
+        "class_func": 307,
+        "all_func": 400
+      },
+      "selected_counts": {
+        "class": 15,
+        "function": 5,
+        "class_func": 67,
+        "all_func": 72
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 59,
+        "empty_source_description_count": 59,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "plasmapy",
+      "version": "v2026.2.0",
+      "commit": "fca3bc8a97a19b91a6c7b105b450cea2c2f251a9",
+      "repository": "https://github.com/PlasmaPy/PlasmaPy",
+      "documentation": "https://docs.plasmapy.org/en/stable/",
+      "source_directory": "seed_pypi_raw/plasmapy",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/plasmapy_v2026.2.0.json",
+        "profile": "seed_gen/pypi_selection_profiles/plasmapy_v2026.2.0.json",
+        "selected": "seed_gen/pypi_outputs/plasmapy_v2026.2.0.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/plasmapy_v2026.2.0.json"
+      },
+      "raw_counts": {
+        "class": 120,
+        "function": 194,
+        "class_func": 451,
+        "all_func": 645
+      },
+      "selected_counts": {
+        "class": 5,
+        "function": 44,
+        "class_func": 47,
+        "all_func": 91
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 5,
+        "empty_source_description_count": 5,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "pygmsh",
+      "version": "v7.1.17",
+      "commit": "1a4118650fab05bbd284eb49c99f9185bdf6a927",
+      "repository": "https://github.com/nschloe/pygmsh",
+      "documentation": "https://pygmsh.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/pygmsh",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/pygmsh_v7.1.17.json",
+        "profile": "seed_gen/pypi_selection_profiles/pygmsh_v7.1.17.json",
+        "selected": "seed_gen/pypi_outputs/pygmsh_v7.1.17.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/pygmsh_v7.1.17.json"
+      },
+      "raw_counts": {
+        "class": 31,
+        "function": 7,
+        "class_func": 96,
+        "all_func": 103
+      },
+      "selected_counts": {
+        "class": 7,
+        "function": 4,
+        "class_func": 46,
+        "all_func": 50
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 39,
+        "empty_source_description_count": 39,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "PyOPUS",
+      "version": "v0.12",
+      "commit": "b27da532dee0cb8241db0725e48891347faea09b",
+      "repository": "https://codeberg.org/arpadbuermen/PyOPUS",
+      "documentation": "http://fides.fe.uni-lj.si/pyopus/download/0.12/docsrc/_build/html/",
+      "source_directory": "seed_pypi_raw/pyopus",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/PyOPUS_v0.12.json",
+        "profile": "seed_gen/pypi_selection_profiles/PyOPUS_v0.12.json",
+        "selected": "seed_gen/pypi_outputs/PyOPUS_v0.12.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/PyOPUS_v0.12.json"
+      },
+      "raw_counts": {
+        "class": 404,
+        "function": 253,
+        "class_func": 1861,
+        "all_func": 2114
+      },
+      "selected_counts": {
+        "class": 11,
+        "function": 15,
+        "class_func": 83,
+        "all_func": 98
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 33,
+        "empty_source_description_count": 33,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "PySpice",
+      "version": "v1.5",
+      "commit": "bcd3aea7342824c4817f08a938d3d85c37344f45",
+      "repository": "https://github.com/FabriceSalvaire/PySpice",
+      "documentation": "https://pyspice.fabrice-salvaire.fr/",
+      "source_directory": "seed_pypi_raw/pyspice",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/PySpice_v1.5.json",
+        "profile": "seed_gen/pypi_selection_profiles/PySpice_v1.5.json",
+        "selected": "seed_gen/pypi_outputs/PySpice_v1.5.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/PySpice_v1.5.json"
+      },
+      "raw_counts": {
+        "class": 275,
+        "function": 38,
+        "class_func": 677,
+        "all_func": 715
+      },
+      "selected_counts": {
+        "class": 15,
+        "function": 0,
+        "class_func": 94,
+        "all_func": 94
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 70,
+        "empty_source_description_count": 70,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "sax",
+      "version": "0.18.2",
+      "commit": "e0d8a493d6fe213c794439f315b6c99eea9980ce",
+      "repository": "https://github.com/gdsfactory/sax",
+      "documentation": "https://gdsfactory.github.io/sax/",
+      "source_directory": "seed_pypi_raw/sax",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/sax_0.18.2.json",
+        "profile": "seed_gen/pypi_selection_profiles/sax_0.18.2.json",
+        "selected": "seed_gen/pypi_outputs/sax_0.18.2.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/sax_0.18.2.json"
+      },
+      "raw_counts": {
+        "class": 9,
+        "function": 172,
+        "class_func": 6,
+        "all_func": 178
+      },
+      "selected_counts": {
+        "class": 1,
+        "function": 50,
+        "class_func": 5,
+        "all_func": 55
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 6,
+        "empty_source_description_count": 6,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "scikit-fem",
+      "version": "12.0.2",
+      "commit": "a9c43abbc3b17c36a059132c9f571447b755920e",
+      "repository": "https://github.com/kinnala/scikit-fem",
+      "documentation": "https://scikit-fem.readthedocs.io/",
+      "source_directory": "seed_pypi_raw/scikit-fem",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/scikit-fem_12.0.2.json",
+        "profile": "seed_gen/pypi_selection_profiles/scikit-fem_12.0.2.json",
+        "selected": "seed_gen/pypi_outputs/scikit-fem_12.0.2.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/scikit-fem_12.0.2.json"
+      },
+      "raw_counts": {
+        "class": 121,
+        "function": 112,
+        "class_func": 336,
+        "all_func": 448
+      },
+      "selected_counts": {
+        "class": 7,
+        "function": 18,
+        "class_func": 44,
+        "all_func": 62
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 18,
+        "empty_source_description_count": 18,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "scikit-rf",
+      "version": "v2.1.0",
+      "commit": "34652721a23bb87260916f2cbf063b92f38ab8eb",
+      "repository": "https://github.com/scikit-rf/scikit-rf",
+      "documentation": "https://scikit-rf.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/scikit-rf",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/scikit-rf_v2.1.0.json",
+        "profile": "seed_gen/pypi_selection_profiles/scikit-rf_v2.1.0.json",
+        "selected": "seed_gen/pypi_outputs/scikit-rf_v2.1.0.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/scikit-rf_v2.1.0.json"
+      },
+      "raw_counts": {
+        "class": 210,
+        "function": 418,
+        "class_func": 1698,
+        "all_func": 2116
+      },
+      "selected_counts": {
+        "class": 10,
+        "function": 17,
+        "class_func": 81,
+        "all_func": 98
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 8,
+        "empty_source_description_count": 8,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "sesame",
+      "version": "2.0.3",
+      "commit": "639b43515321e261b3ae7e0ae0d60b0f71556933",
+      "repository": "https://github.com/usnistgov/sesame",
+      "documentation": "https://sesame.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/sesame",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/sesame_2.0.3.json",
+        "profile": "seed_gen/pypi_selection_profiles/sesame_2.0.3.json",
+        "selected": "seed_gen/pypi_outputs/sesame_2.0.3.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/sesame_2.0.3.json"
+      },
+      "raw_counts": {
+        "class": 20,
+        "function": 36,
+        "class_func": 104,
+        "all_func": 140
+      },
+      "selected_counts": {
+        "class": 4,
+        "function": 16,
+        "class_func": 34,
+        "all_func": 50
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 14,
+        "empty_source_description_count": 14,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "simphony",
+      "version": "v0.7.3",
+      "commit": "5a5e826fb58b2b5ce0355189b3e3b33e2bd8828c",
+      "repository": "https://github.com/BYUCamachoLab/simphony",
+      "documentation": "https://simphonyphotonics.readthedocs.io/en/stable/",
+      "source_directory": "seed_pypi_raw/simphony",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/simphony_v0.7.3.json",
+        "profile": "seed_gen/pypi_selection_profiles/simphony_v0.7.3.json",
+        "selected": "seed_gen/pypi_outputs/simphony_v0.7.3.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/simphony_v0.7.3.json"
+      },
+      "raw_counts": {
+        "class": 20,
+        "function": 44,
+        "class_func": 54,
+        "all_func": 98
+      },
+      "selected_counts": {
+        "class": 11,
+        "function": 29,
+        "class_func": 24,
+        "all_func": 53
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 10,
+        "empty_source_description_count": 10,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "solcore",
+      "version": "v5.10.1",
+      "commit": "2df20db12c0059d784aad445cd2f1872b8189708",
+      "repository": "https://github.com/qpv-research-group/solcore5",
+      "documentation": "https://solcore5.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/solcore",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/solcore_v5.10.1.json",
+        "profile": "seed_gen/pypi_selection_profiles/solcore_v5.10.1.json",
+        "selected": "seed_gen/pypi_outputs/solcore_v5.10.1.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/solcore_v5.10.1.json"
+      },
+      "raw_counts": {
+        "class": 63,
+        "function": 310,
+        "class_func": 237,
+        "all_func": 547
+      },
+      "selected_counts": {
+        "class": 17,
+        "function": 27,
+        "class_func": 56,
+        "all_func": 83
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 15,
+        "empty_source_description_count": 15,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "spicelib",
+      "version": "1.6.3",
+      "commit": "b20c2371bbe49ca58702aabd12817e9e4664578a",
+      "repository": "https://github.com/nunobrum/spicelib",
+      "documentation": "https://spicelib.readthedocs.io/en/latest/",
+      "source_directory": "seed_pypi_raw/spicelib",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/spicelib_1.6.3.json",
+        "profile": "seed_gen/pypi_selection_profiles/spicelib_1.6.3.json",
+        "selected": "seed_gen/pypi_outputs/spicelib_1.6.3.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/spicelib_1.6.3.json"
+      },
+      "raw_counts": {
+        "class": 114,
+        "function": 44,
+        "class_func": 554,
+        "all_func": 598
+      },
+      "selected_counts": {
+        "class": 9,
+        "function": 0,
+        "class_func": 79,
+        "all_func": 79
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": false,
+        "error_count": 13,
+        "empty_source_description_count": 13,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    },
+    {
+      "package": "tidy3d",
+      "version": "v2.12.0",
+      "commit": "4cacc2755d5858e0de5a8066ff017f1b9e3ad9f9",
+      "repository": "https://github.com/flexcompute/tidy3d",
+      "documentation": "https://docs.flexcompute.com/projects/tidy3d/en/latest/",
+      "source_directory": "seed_pypi_raw/tidy3d",
+      "artifacts": {
+        "raw": "seed_gen/pypi_outputs/ori_all/tidy3d_v2.12.0.json",
+        "profile": "seed_gen/pypi_selection_profiles/tidy3d_v2.12.0.json",
+        "selected": "seed_gen/pypi_outputs/tidy3d_v2.12.0.json",
+        "selection_report": "seed_gen/pypi_outputs/selection_reports/tidy3d_v2.12.0.json"
+      },
+      "raw_counts": {
+        "class": 885,
+        "function": 624,
+        "class_func": 2126,
+        "all_func": 2750
+      },
+      "selected_counts": {
+        "class": 15,
+        "function": 6,
+        "class_func": 94,
+        "all_func": 100
+      },
+      "selection_target": {
+        "min": 50,
+        "max": 100
+      },
+      "within_selection_target": true,
+      "within_general_selection_target": true,
+      "selection_target_exception": "",
+      "source_identity": "passed",
+      "selection_reproducibility": "passed",
+      "selected_schema": {
+        "passes_strict_schema": true,
+        "error_count": 0,
+        "empty_source_description_count": 0,
+        "unexpected_error_count": 0,
+        "unexpected_errors": []
+      },
+      "runtime_verified": false
+    }
+  ],
+  "unresolved_or_external": [
+    {
+      "name": "nextnano",
+      "status": "external_solver",
+      "repository": "",
+      "documentation": "https://www.nextnano.com/",
+      "pypi": "",
+      "checked_on": "2026-09-15",
+      "reason": "nextnano 是需许可的外部求解器，不是本表要静态解析的 Python 包；已整理其官方 Python 客户端 nextnanopy。",
+      "alternatives_collected": [
+        "nextnanopy"
+      ]
+    },
+    {
+      "name": "ngspice/Xyce",
+      "status": "external_solver",
+      "repository": "",
+      "documentation": "https://ngspice.sourceforge.io/",
+      "pypi": "",
+      "checked_on": "2026-09-15",
+      "reason": "ngspice 和 Xyce 是 SPICE 求解器可执行程序/共享库，不作为 Python API 包索引；其 Python 调用边界由 spicelib、PySpice 和 PyOPUS 表示。",
+      "alternatives_collected": [
+        "spicelib",
+        "PySpice",
+        "PyOPUS"
+      ]
+    },
+    {
+      "name": "ngspyce",
+      "status": "no_confirmed_release",
+      "repository": "https://github.com/ignamv/ngspyce",
+      "documentation": "https://github.com/ignamv/ngspyce#readme",
+      "pypi": "",
+      "checked_on": "2026-09-15",
+      "evidence": {
+        "github_tags": [],
+        "github_releases": [],
+        "pypi_project_exists": false,
+        "default_branch_head": "154a2724",
+        "default_branch_last_commit_at": "2020-03-11T13:11:13Z"
+      },
+      "reason": "官方仓库没有标签或 Release，PyPI 无同名项目，无法确认可复现的发布版本；按指南不把默认分支冒充发布版，因此不生成源码发布索引和精选 JSON。",
+      "alternatives_collected": [
+        "spicelib",
+        "PySpice"
+      ],
+      "external_runtime": "ngspice shared library"
+    }
+  ],
+  "runtime_verification_boundary": "Static collection only. External solvers, licenses, cloud services, native builds, numerical accuracy, and end-to-end scientific workflows were not executed."
+}

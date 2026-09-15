@@ -1,0 +1,1790 @@
+[
+  {
+    "global_id": "pypi_pyspice_32",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/FabriceSalvaire/PySpice",
+          "https://pypi.org/project/PySpice/",
+          "https://pyspice.fabrice-salvaire.fr/"
+        ],
+        "name": "PySpice",
+        "version": "v1.5",
+        "index": 32
+      },
+      "description": "PySpice 是以 Python 对象构建电子电路并调用 ngspice 或 Xyce 的接口库，提供元件、子电路、网表、工作点/DC/AC/瞬态分析配置、共享库或命令行仿真器适配和波形对象。电路求解依赖外部 ngspice/Xyce 安装及其版本兼容性。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 15,
+        "function": 0,
+        "class_func": 94,
+        "all_func": 94
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Circuit",
+        "type": "class",
+        "module": "PySpice.Spice.Netlist",
+        "input": "Netlist",
+        "description": "This class implements a cicuit netlist.  To get the corresponding Spice netlist use::  circuit = Circuit() ... str(circuit)",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "title": {
+                "type": "",
+                "description": ""
+              },
+              "ground": {
+                "type": "",
+                "description": ""
+              },
+              "global_nodes": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, title, ground = 0, global_nodes = ()",
+            "ori_description": ""
+          },
+          {
+            "name": "clone",
+            "description": "",
+            "input": {
+              "self": null,
+              "title": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, title = None",
+            "ori_description": ""
+          },
+          {
+            "name": "include",
+            "description": "Include a file.",
+            "input": {
+              "self": null,
+              "path": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, path",
+            "ori_description": "Include a file."
+          },
+          {
+            "name": "lib",
+            "description": "Load a library.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "section": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, section = None",
+            "ori_description": "Load a library."
+          },
+          {
+            "name": "parameter",
+            "description": "Set a parameter.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "expression": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, expression",
+            "ori_description": "Set a parameter."
+          },
+          {
+            "name": "str",
+            "description": "Return the formatted desk.",
+            "input": {
+              "self": null,
+              "simulator": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, simulator = None",
+            "ori_description": "Return the formatted desk."
+          },
+          {
+            "name": "str_end",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "simulator",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Netlist",
+        "type": "class",
+        "module": "PySpice.Spice.Netlist",
+        "input": "",
+        "description": "This class implements a base class for a netlist.  .. note:: This class is completed with element shortcuts when the module is loaded.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "copy_to",
+            "description": "",
+            "input": {
+              "self": null,
+              "netlist": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, netlist",
+            "ori_description": ""
+          },
+          {
+            "name": "gnd",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "nodes",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "node_names",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "elements",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "element_names",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "models",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "model_names",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "subcircuits",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "subcircuit_names",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "element",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name",
+            "ori_description": ""
+          },
+          {
+            "name": "model",
+            "description": "Add a model.",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "modele_type": {
+                "type": "",
+                "description": ""
+              },
+              "parameters": {
+                "type": "**parameters",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, modele_type, **parameters",
+            "ori_description": "Add a model."
+          },
+          {
+            "name": "node",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name",
+            "ori_description": ""
+          },
+          {
+            "name": "get_node",
+            "description": "",
+            "input": {
+              "self": null,
+              "node": {
+                "type": "",
+                "description": ""
+              },
+              "create": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, node, create = False",
+            "ori_description": ""
+          },
+          {
+            "name": "subcircuit",
+            "description": "Add a sub-circuit.",
+            "input": {
+              "self": null,
+              "subcircuit": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, subcircuit",
+            "ori_description": "Add a sub-circuit."
+          }
+        ]
+      },
+      {
+        "name": "DeviceModel",
+        "type": "class",
+        "module": "PySpice.Spice.Netlist",
+        "input": "",
+        "description": "This class implements a device model.  Ngspice model types:  +------+-------------------------------+ | Code + Model Type | +------+-------------------------------+ | R + Semiconductor resistor model | +------+-------------------------------+ | C + Semiconductor capacitor model | +------+-------------------------------+ | L + Inductor model | +------+-------------------------------+ | SW + Voltage controlled switch | +------+-------------------------------+ | CSW + Current controlled switch | +------+-------------------------------+ | URC + Uniform distributed RC model | +------+-------------------------------+ | LTRA + Lossy transmission line model | +------+-------------------------------+ | D + Diode model | +------+-------------------------------+ | NPN + NPN BJT model | +------+-------------------------------+ | PNP + PNP BJT model | +------+-------------------------------+ | NJF + N-channel JFET model | +------+-------------------------------+ | PJF + P-channel JFET model | +------+-------------------------------+ | NMOS + N-channel MOSFET model | +------+-------------------------------+ | PMOS + P-channel MOSFET model | +------+-------------------------------+ | NMF + N-channel MESFET model | +------+-------------------------------+ | PMF + P-channel MESFET model | +------+-------------------------------+",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "modele_type": {
+                "type": "",
+                "description": ""
+              },
+              "parameters": {
+                "type": "**parameters",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, modele_type, **parameters",
+            "ori_description": ""
+          },
+          {
+            "name": "clone",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "name",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "model_type",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "parameters",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "SubCircuit",
+        "type": "class",
+        "module": "PySpice.Spice.Netlist",
+        "input": "Netlist",
+        "description": "This class implements a sub-cicuit netlist.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "nodes": {
+                "type": "*nodes",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name, *nodes, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "clone",
+            "description": "",
+            "input": {
+              "self": null,
+              "name": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, name = None",
+            "ori_description": ""
+          },
+          {
+            "name": "name",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "external_nodes",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "parameters",
+            "description": "Parameters",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Parameters"
+          },
+          {
+            "name": "check_nodes",
+            "description": "Check for dangling nodes in the subcircuit.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Check for dangling nodes in the subcircuit."
+          }
+        ]
+      },
+      {
+        "name": "CircuitSimulation",
+        "type": "class",
+        "module": "PySpice.Spice.Simulation",
+        "input": "",
+        "description": "Define and generate the spice instruction to perform a circuit simulation.  .. warning:: In some cases NgSpice can perform several analyses one after the other. This case is partially supported.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "circuit": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, circuit, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "circuit",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "options",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "temperature",
+            "description": "",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, value",
+            "ori_description": ""
+          },
+          {
+            "name": "nominal_temperature",
+            "description": "",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, value",
+            "ori_description": ""
+          },
+          {
+            "name": "initial_condition",
+            "description": "Set initial condition for voltage nodes.  Usage::  simulator.initial_condition(node_name=value, ...)  General form::  .ic v(node_name)=value ...  The `.ic` line is for setting transient initial conditions. It has two different interpretations, depending on whether the uic parameter is specified on the `.tran` control line, or not. One should not confuse this line with the `.nodeset` line. The `.nodeset` line is only to help DC convergence, and does not affect the final bias solution (except for multi-stable circuits). The two indicated interpretations of this line are as follows:  1. When the uic parameter is specified on the `.tran` line, the node voltages specified on the `.ic` control line are used to compute the capacitor, diode, BJT, JFET, and MOSFET initial conditions. This is equivalent to specifying the `ic=...` parameter on each device line, but is much more convenient. The `ic=...` parameter can still be specified and takes precedence over the `.ic` values. Since no dc bias (initial transient) solution is computed before the transient analysis, one should take care to specify all dc source voltages on the `.ic` control line if they are to be used to compute device initial conditions.  2. When the uic parameter is not specified on the `.tran` control line, the DC bias (initial transient) solution is computed before the transient analysis. In this case, the node voltages specified on the `.ic` control lines are forced to the desired initial values during the bias solution. During transient analysis, the constraint on these node voltages is removed. This is the preferred method since it allows Ngspice to compute a consistent dc solution.",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": "Set initial condition for voltage nodes.  Usage::  simulator.initial_condition(node_name=value, ...)  General form::  .ic v(node_name)=value ...  The `.ic` line is for setting transient initial conditions. It has two different interpretations, depending on whether the uic parameter is specified on the `.tran` control line, or not. One should not confuse this line with the `.nodeset` line. The `.nodeset` line is only to help DC convergence, and does not affect the final bias solution (except for multi-stable circuits). The two indicated interpretations of this line are as follows:  1. When the uic parameter is specified on the `.tran` line, the node voltages specified on the `.ic` control line are used to compute the capacitor, diode, BJT, JFET, and MOSFET initial conditions. This is equivalent to specifying the `ic=...` parameter on each device line, but is much more convenient. The `ic=...` parameter can still be specified and takes precedence over the `.ic` values. Since no dc bias (initial transient) solution is computed before the transient analysis, one should take care to specify all dc source voltages on the `.ic` control line if they are to be used to compute device initial conditions.  2. When the uic parameter is not specified on the `.tran` control line, the DC bias (initial transient) solution is computed before the transient analysis. In this case, the node voltages specified on the `.ic` control lines are forced to the desired initial values during the bias solution. During transient analysis, the constraint on these node voltages is removed. This is the preferred method since it allows Ngspice to compute a consistent dc solution."
+          },
+          {
+            "name": "node_set",
+            "description": "Specify initial node voltage guesses.  Usage::  simulator.node_set(node_name=value, ...)  General form::  .nodeset v(node_name)=value ... .nodeset all=val  The `.nodeset` line helps the program find the DC or initial transient solution by making a preliminary pass with the specified nodes held to the given voltages. The restrictions are then released and the iteration continues to the true solution. The `.nodeset` line may be necessary for convergence on bistable or astable circuits. `.nodeset all=val` sets all starting node voltages (except for the ground node) to the same value. In general, the `.nodeset` line should not be necessary.",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": "Specify initial node voltage guesses.  Usage::  simulator.node_set(node_name=value, ...)  General form::  .nodeset v(node_name)=value ... .nodeset all=val  The `.nodeset` line helps the program find the DC or initial transient solution by making a preliminary pass with the specified nodes held to the given voltages. The restrictions are then released and the iteration continues to the true solution. The `.nodeset` line may be necessary for convergence on bistable or astable circuits. `.nodeset all=val` sets all starting node voltages (except for the ground node) to the same value. In general, the `.nodeset` line should not be necessary."
+          },
+          {
+            "name": "save",
+            "description": "Set the list of saved vectors.  If no *.save* line is given, then the default set of vectors is saved (node voltages and voltage source branch currents). If *.save* lines are given, only those vectors specified are saved.  Node voltages may be saved by giving the node_name or *v(node_name)*. Currents through an independent voltage source (including inductor) are given by *i(source_name)* or *source_name#branch*. Internal device data are accepted as *@dev[param]*.  If you want to save internal data in addition to the default vector set, add the parameter *all* to the additional vectors to be saved.",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args",
+            "ori_description": "Set the list of saved vectors.  If no *.save* line is given, then the default set of vectors is saved (node voltages and voltage source branch currents). If *.save* lines are given, only those vectors specified are saved.  Node voltages may be saved by giving the node_name or *v(node_name)*. Currents through an independent voltage source (including inductor) are given by *i(source_name)* or *source_name#branch*. Internal device data are accepted as *@dev[param]*.  If you want to save internal data in addition to the default vector set, add the parameter *all* to the additional vectors to be saved."
+          },
+          {
+            "name": "save_currents",
+            "description": "",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, value",
+            "ori_description": ""
+          },
+          {
+            "name": "reset_analysis",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "analysis_iter",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "operating_point",
+            "description": "Compute the operating point of the circuit with capacitors open and inductors shorted.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Compute the operating point of the circuit with capacitors open and inductors shorted."
+          },
+          {
+            "name": "dc",
+            "description": "Compute the DC transfer fonction of the circuit with capacitors open and inductors shorted.  Examples of usage::  analysis = simulator.dc(Vinput=slice(-2, 5, .01)) analysis = simulator.dc(Ibase=slice(0, 100e-6, 10e-6)) analysis = simulator.dc(Vcollector=slice(0, 5, .1), Ibase=slice(micro(10), micro(100), micro(10))) # broken ???  Spice syntax:  .. code:: spice  .dc src_name vstart vstop vincr [ src2 start2 stop2 incr2 ]  *src_name* is the name of an independent voltage or a current source, a resistor or the circuit temperature.  *vstart*, *vstop*, and *vincr* are the starting, final, and incrementing values respectively.  A second source (*src2*) may optionally be specified with associated sweep parameters. In this case, the first source is swept over its range for each value of the second source.  Spice examples:  .. code:: spice  .dc VIN 0 .2 5 5.0 0.25 .dc VDS 0 10 .5 VGS 0 5 1 .dc VCE 0 10 .2 5 IB 0 10U 1U .dc RLoad 1k 2k 100 .dc TEMP -15 75 5",
+            "input": {
+              "self": null,
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, **kwargs",
+            "ori_description": "Compute the DC transfer fonction of the circuit with capacitors open and inductors shorted.  Examples of usage::  analysis = simulator.dc(Vinput=slice(-2, 5, .01)) analysis = simulator.dc(Ibase=slice(0, 100e-6, 10e-6)) analysis = simulator.dc(Vcollector=slice(0, 5, .1), Ibase=slice(micro(10), micro(100), micro(10))) # broken ???  Spice syntax:  .. code:: spice  .dc src_name vstart vstop vincr [ src2 start2 stop2 incr2 ]  *src_name* is the name of an independent voltage or a current source, a resistor or the circuit temperature.  *vstart*, *vstop*, and *vincr* are the starting, final, and incrementing values respectively.  A second source (*src2*) may optionally be specified with associated sweep parameters. In this case, the first source is swept over its range for each value of the second source.  Spice examples:  .. code:: spice  .dc VIN 0 .2 5 5.0 0.25 .dc VDS 0 10 .5 VGS 0 5 1 .dc VCE 0 10 .2 5 IB 0 10U 1U .dc RLoad 1k 2k 100 .dc TEMP -15 75 5"
+          },
+          {
+            "name": "ac",
+            "description": "Perform a small-signal AC analysis of the circuit where all non-linear devices are linearized around their actual DC operating point.  Examples of usage::  analysis = simulator.ac(start_frequency=10@u_kHz, stop_frequency=1@u_GHz, number_of_points=10, variation='dec')  Note that in order for this analysis to be meaningful, at least one independent source must have been specified with an AC value. Typically it does not make much sense to specify more than one AC source. If you do, the result will be a superposition of all sources, thus difficult to interpret.  Spice examples:  .. code::  .ac dec nd fstart fstop .ac oct no fstart fstop .ac lin np fstart fstop  The parameter *variation* must be either `dec`, `oct` or `lin`.",
+            "input": {
+              "self": null,
+              "variation": {
+                "type": "",
+                "description": ""
+              },
+              "number_of_points": {
+                "type": "",
+                "description": ""
+              },
+              "start_frequency": {
+                "type": "",
+                "description": ""
+              },
+              "stop_frequency": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, variation, number_of_points, start_frequency, stop_frequency",
+            "ori_description": "Perform a small-signal AC analysis of the circuit where all non-linear devices are linearized around their actual DC operating point.  Examples of usage::  analysis = simulator.ac(start_frequency=10@u_kHz, stop_frequency=1@u_GHz, number_of_points=10, variation='dec')  Note that in order for this analysis to be meaningful, at least one independent source must have been specified with an AC value. Typically it does not make much sense to specify more than one AC source. If you do, the result will be a superposition of all sources, thus difficult to interpret.  Spice examples:  .. code::  .ac dec nd fstart fstop .ac oct no fstart fstop .ac lin np fstart fstop  The parameter *variation* must be either `dec`, `oct` or `lin`."
+          },
+          {
+            "name": "transient",
+            "description": "Perform a transient analysis of the circuit.  Examples of usage::  analysis = simulator.transient(step_time=1@u_us, end_time=500@u_us) analysis = simulator.transient(step_time=source.period/200, end_time=source.period*2)  Spice syntax:  .. code:: spice  .tran tstep tstop <tstart <tmax>> <uic>",
+            "input": {
+              "self": null,
+              "step_time": {
+                "type": "",
+                "description": ""
+              },
+              "end_time": {
+                "type": "",
+                "description": ""
+              },
+              "start_time": {
+                "type": "",
+                "description": ""
+              },
+              "max_time": {
+                "type": "",
+                "description": ""
+              },
+              "use_initial_condition": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, step_time, end_time, start_time = 0, max_time = None, use_initial_condition = False",
+            "ori_description": "Perform a transient analysis of the circuit.  Examples of usage::  analysis = simulator.transient(step_time=1@u_us, end_time=500@u_us) analysis = simulator.transient(step_time=source.period/200, end_time=source.period*2)  Spice syntax:  .. code:: spice  .tran tstep tstop <tstart <tmax>> <uic>"
+          },
+          {
+            "name": "noise",
+            "description": "Perform a Pole-Zero analysis of the circuit.  output_node, ref_node - output node pair. src - signal source, typically an ac voltage input. variation - must be 'dec' or 'lin' or 'oct' for decade, linear, or octave. points, start_frequency, stop_frequency - number of points, start and stop frequencies. points_per_summary - if specified, the noise contributions of each noise generator is produced every points_per_summary frequency points.  See section 15.3.4 of ngspice manual.  Spice syntax:  General form:  .. code:: spice  .noise v(output <,ref >) src ( dec | lin | oct ) pts fstart fstop <pts_per_summary >",
+            "input": {
+              "self": null,
+              "output_node": {
+                "type": "",
+                "description": ""
+              },
+              "ref_node": {
+                "type": "",
+                "description": ""
+              },
+              "src": {
+                "type": "",
+                "description": ""
+              },
+              "variation": {
+                "type": "",
+                "description": ""
+              },
+              "points": {
+                "type": "",
+                "description": ""
+              },
+              "start_frequency": {
+                "type": "",
+                "description": ""
+              },
+              "stop_frequency": {
+                "type": "",
+                "description": ""
+              },
+              "points_per_summary": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, output_node, ref_node, src, variation, points, start_frequency, stop_frequency, points_per_summary = None",
+            "ori_description": "Perform a Pole-Zero analysis of the circuit.  output_node, ref_node - output node pair. src - signal source, typically an ac voltage input. variation - must be 'dec' or 'lin' or 'oct' for decade, linear, or octave. points, start_frequency, stop_frequency - number of points, start and stop frequencies. points_per_summary - if specified, the noise contributions of each noise generator is produced every points_per_summary frequency points.  See section 15.3.4 of ngspice manual.  Spice syntax:  General form:  .. code:: spice  .noise v(output <,ref >) src ( dec | lin | oct ) pts fstart fstop <pts_per_summary >  Examples:  .. code:: spice  .noise v(5) VIN dec 10 1kHz 100 MEG .noise v(5 ,3) V1 oct 8 1.0 1.0 e6 1"
+          },
+          {
+            "name": "transfer_function",
+            "description": "The python arguments to this function should be two strings, outvar and insrc.  ngspice documentation as follows:  General form:  .. code:: spice  .tf outvar insrc",
+            "input": {
+              "self": null,
+              "outvar": {
+                "type": "",
+                "description": ""
+              },
+              "insrc": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, outvar, insrc",
+            "ori_description": "The python arguments to this function should be two strings, outvar and insrc.  ngspice documentation as follows:  General form:  .. code:: spice  .tf outvar insrc  Examples:  .. code:: spice  .tf v(5, 3) VIN .tf i(VLOAD) VIN  The .tf line defines the small-signal output and input for the dc small-signal analysis. outvar is the small signal output variable and insrc is the small-signal input source. If this line is included, ngspice computes the dc small-signal value of the transfer function (output/input), input resistance, and output resistance. For the first example, ngspice would compute the ratio of V(5, 3) to VIN, the small-signal input resistance at VIN, and the small signal output resistance measured across nodes 5 and 3"
+          }
+        ]
+      },
+      {
+        "name": "CircuitSimulator",
+        "type": "class",
+        "module": "PySpice.Spice.Simulation",
+        "input": "CircuitSimulation",
+        "description": "This class implements a circuit simulator. Each analysis mode is performed by a method that return the measured probes.  For *ac* and *transient* analyses, the user must specify a list of nodes using the *probes* key argument.",
+        "function": [
+          {
+            "name": "factory",
+            "description": "Return a :obj:`PySpice.Spice.Simulation.SubprocessCircuitSimulator` or :obj:`PySpice.Spice.Simulation.NgSpiceSharedCircuitSimulator` instance depending of the value of the *simulator* parameter: ``subprocess`` or ``shared``, respectively. If this parameter is not specified then a subprocess simulator is returned.",
+            "input": {
+              "cls": null,
+              "circuit": {
+                "type": "",
+                "description": ""
+              },
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, circuit, *args, **kwargs",
+            "ori_description": "Return a :obj:`PySpice.Spice.Simulation.SubprocessCircuitSimulator` or :obj:`PySpice.Spice.Simulation.NgSpiceSharedCircuitSimulator` instance depending of the value of the *simulator* parameter: ``subprocess`` or ``shared``, respectively. If this parameter is not specified then a subprocess simulator is returned."
+          },
+          {
+            "name": "operating_point",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "dc",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "dc_sensitivity",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "ac",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "transient",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "polezero",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "noise",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "distortion",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "transfer_function",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "NgSpiceSharedCircuitSimulator",
+        "type": "class",
+        "module": "PySpice.Spice.NgSpice.Simulation",
+        "input": "NgSpiceCircuitSimulator",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "circuit": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, circuit, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "ngspice",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "XyceCircuitSimulator",
+        "type": "class",
+        "module": "PySpice.Spice.Xyce.Simulation",
+        "input": "CircuitSimulator",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "circuit": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, circuit, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "str_options",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "SpiceParser",
+        "type": "class",
+        "module": "PySpice.Spice.Parser",
+        "input": "",
+        "description": "This class parse a Spice netlist file and build a syntax tree.  Public Attributes:  :attr:`circuit`  :attr:`models`  :attr:`subcircuits`  :attr:`incl_libs`",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "path": {
+                "type": "",
+                "description": ""
+              },
+              "source": {
+                "type": "",
+                "description": ""
+              },
+              "end_of_line_comment": {
+                "type": "",
+                "description": ""
+              },
+              "recurse": {
+                "type": "",
+                "description": ""
+              },
+              "section": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, path = None, source = None, end_of_line_comment = ('$', '//', ';'), recurse = False, section = None",
+            "ori_description": ""
+          },
+          {
+            "name": "is_only_subcircuit",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "is_only_model",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "build_circuit",
+            "description": "Build a :class:`Circuit` instance.  Use the *ground* parameter to specify the node which must be translated to 0 (SPICE ground node).",
+            "input": {
+              "self": null,
+              "ground": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, ground = 0",
+            "ori_description": "Build a :class:`Circuit` instance.  Use the *ground* parameter to specify the node which must be translated to 0 (SPICE ground node)."
+          },
+          {
+            "name": "netlist_to_python",
+            "description": "",
+            "input": {
+              "netlist_name": {
+                "type": "",
+                "description": ""
+              },
+              "statements": {
+                "type": "",
+                "description": ""
+              },
+              "ground": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "netlist_name, statements, ground = 0",
+            "ori_description": ""
+          },
+          {
+            "name": "to_python_code",
+            "description": "",
+            "input": {
+              "self": null,
+              "ground": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, ground = 0",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "SpiceLibrary",
+        "type": "class",
+        "module": "PySpice.Spice.Library",
+        "input": "",
+        "description": "This class implements a Spice sub-circuits and models library.  A library is a directory which is recursively scanned for '.lib' file and parsed for sub-circuit and models definitions.  Example of usage::  spice_library = SpiceLibrary('/some/path/')  If the directory hierarchy contains a file that define a 1N4148 sub-circuit then we can retrieve the file path using::  spice_library['1N4148']",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "root_path": {
+                "type": "",
+                "description": ""
+              },
+              "recurse": {
+                "type": "",
+                "description": ""
+              },
+              "section": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, root_path, recurse = False, section = None",
+            "ori_description": ""
+          },
+          {
+            "name": "subcircuits",
+            "description": "Dictionary of sub-circuits",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Dictionary of sub-circuits"
+          },
+          {
+            "name": "models",
+            "description": "Dictionary of models",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Dictionary of models"
+          },
+          {
+            "name": "search",
+            "description": "Return dict of all models/subcircuits with names matching regex s.",
+            "input": {
+              "self": null,
+              "s": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, s",
+            "ori_description": "Return dict of all models/subcircuits with names matching regex s."
+          }
+        ]
+      },
+      {
+        "name": "WaveForm",
+        "type": "class",
+        "module": "PySpice.Probe.WaveForm",
+        "input": "UnitValues",
+        "description": "This class implements waveform on top of a Numpy Array.  Public Attributes:  :attr:`name`  :attr:`unit`  :attr:`title`  :attr:`abscissa` Numpy array of the analysis abscissa",
+        "function": [
+          {
+            "name": "from_unit_values",
+            "description": "",
+            "input": {
+              "cls": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "array": {
+                "type": "",
+                "description": ""
+              },
+              "title": {
+                "type": "",
+                "description": ""
+              },
+              "abscissa": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, name, array, title = None, abscissa = None",
+            "ori_description": ""
+          },
+          {
+            "name": "from_array",
+            "description": "",
+            "input": {
+              "cls": null,
+              "name": {
+                "type": "",
+                "description": ""
+              },
+              "array": {
+                "type": "",
+                "description": ""
+              },
+              "title": {
+                "type": "",
+                "description": ""
+              },
+              "abscissa": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, name, array, title = None, abscissa = None",
+            "ori_description": ""
+          },
+          {
+            "name": "name",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "abscissa",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "title",
+            "description": "",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, value",
+            "ori_description": ""
+          },
+          {
+            "name": "str_data",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Analysis",
+        "type": "class",
+        "module": "PySpice.Probe.WaveForm",
+        "input": "",
+        "description": "Base class for the simulation output.  Depending of the simulation type, the simulator will return waveforms as a function of  * time * frequency * sweep * ...  and corresponding to  * a node's voltage * a source's current * ...  The name of a waveform is  * node's voltage: node's name * source's current: source'name * ...  If the waveform name is a valid Python identifier, then you can get the corresponding waveform using::  analysis.waveforme_name  else you have to use this fallback::  analysis['waveforme_name']  Examples of usages::  # Operating point analysis for node in analysis.nodes.values(): print('Node {}: {:5.2f} V'.format(str(node), float(node))) for node in analysis.branches.values(): print('Node {}: {:5.2f} A'.format(str(node), float(node)))  # DC sensitivity analysis for element in analysis.elements.values(): print(element, float(element))  # Plot the voltage of the \"out\" node plt.plot(analysis.out.abscissa, analysis.out)  Public Attributes:  :attr:`nodes` Dictionary for node voltages indexed by node names  :attr:`branches` Dictionary for branch currents indexed by source names  :attr:`elements` Dictionary for elements ...",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "simulation": {
+                "type": "",
+                "description": ""
+              },
+              "nodes": {
+                "type": "",
+                "description": ""
+              },
+              "branches": {
+                "type": "",
+                "description": ""
+              },
+              "elements": {
+                "type": "",
+                "description": ""
+              },
+              "internal_parameters": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, simulation, nodes = (), branches = (), elements = (), internal_parameters = ()",
+            "ori_description": ""
+          },
+          {
+            "name": "simulation",
+            "description": "Return the simulation instance",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the simulation instance"
+          },
+          {
+            "name": "nodes",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "branches",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "elements",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "internal_parameters",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "DcAnalysis",
+        "type": "class",
+        "module": "PySpice.Probe.WaveForm",
+        "input": "Analysis",
+        "description": "This class implements a DC analysis.  When the DC analysis is performed with multiple sources, sweep is the last source.  The loop scheme is::  for v1 in vsource1: for v2 in vsource2: ...",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "simulation": {
+                "type": "",
+                "description": ""
+              },
+              "sweep": {
+                "type": "",
+                "description": ""
+              },
+              "nodes": {
+                "type": "",
+                "description": ""
+              },
+              "branches": {
+                "type": "",
+                "description": ""
+              },
+              "internal_parameters": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, simulation, sweep, nodes, branches, internal_parameters",
+            "ori_description": ""
+          },
+          {
+            "name": "sweep",
+            "description": "Return an Numpy array for the sweep abscissa",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return an Numpy array for the sweep abscissa"
+          }
+        ]
+      },
+      {
+        "name": "AcAnalysis",
+        "type": "class",
+        "module": "PySpice.Probe.WaveForm",
+        "input": "Analysis",
+        "description": "This class implements an AC analysis.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "simulation": {
+                "type": "",
+                "description": ""
+              },
+              "frequency": {
+                "type": "",
+                "description": ""
+              },
+              "nodes": {
+                "type": "",
+                "description": ""
+              },
+              "branches": {
+                "type": "",
+                "description": ""
+              },
+              "internal_parameters": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, simulation, frequency, nodes, branches, internal_parameters",
+            "ori_description": ""
+          },
+          {
+            "name": "frequency",
+            "description": "Return an Numpy array for the frequency abscissa",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return an Numpy array for the frequency abscissa"
+          }
+        ]
+      },
+      {
+        "name": "TransientAnalysis",
+        "type": "class",
+        "module": "PySpice.Probe.WaveForm",
+        "input": "Analysis",
+        "description": "This class implements a transient analysis.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "simulation": {
+                "type": "",
+                "description": ""
+              },
+              "time": {
+                "type": "",
+                "description": ""
+              },
+              "nodes": {
+                "type": "",
+                "description": ""
+              },
+              "branches": {
+                "type": "",
+                "description": ""
+              },
+              "internal_parameters": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, simulation, time, nodes, branches, internal_parameters",
+            "ori_description": ""
+          },
+          {
+            "name": "time",
+            "description": "Return an Numpy array for the time abscissa",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return an Numpy array for the time abscissa"
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/FabriceSalvaire/PySpice",
+        "documentation": "https://pyspice.fabrice-salvaire.fr/",
+        "pypi": "https://pypi.org/project/PySpice/",
+        "pypi_version": "1.5",
+        "tag": "v1.5",
+        "commit": "bcd3aea7342824c4817f08a938d3d85c37344f45",
+        "release_published_at": "2021-05-15T23:01:53Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": null,
+        "notes": [
+          "PyPI 最新版本 1.5 与官方仓库标签 v1.5 一致；没有对应 GitHub Release，发布日期采用 PyPI 首个文件上传时间。",
+          "本次不加载 ngspice 共享库、不调用 Xyce，静态索引也不代表旧版依赖组合可在当前 Python 上运行。"
+        ],
+        "release_url": "https://github.com/FabriceSalvaire/PySpice/tree/v1.5",
+        "release_api": "",
+        "selection_rule": "Latest PyPI version 1.5 and exact official repository tag v1.5 agree; the repository has no GitHub Release object for this tag.",
+        "source_directory": "seed_pypi_raw/pyspice",
+        "submodule_status": [
+          "-e75c9198bde815e3e7ed96d3317c643b8fd47da7 ngspice-feedstock",
+          "-e3d8d6988f7c0aed57b254088b6afea011ea01d2 pyspice-feedstock"
+        ]
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "PySpice"
+        ],
+        "source_files": [
+          "PySpice/__init__.py",
+          "PySpice/Config/__init__.py",
+          "PySpice/Config/ConfigInstall.py",
+          "PySpice/DeviceLibrary/__init__.py",
+          "PySpice/Doc/__init__.py",
+          "PySpice/Doc/ExampleTools.py",
+          "PySpice/Logging/__init__.py",
+          "PySpice/Logging/Logging.py",
+          "PySpice/Math/__init__.py",
+          "PySpice/Math/Calculus.py",
+          "PySpice/Physics/__init__.py",
+          "PySpice/Physics/MaterialProperties.py",
+          "PySpice/Physics/PhysicalConstants.py",
+          "PySpice/Physics/Resistor.py",
+          "PySpice/Physics/SemiConductor.py",
+          "PySpice/Plot/__init__.py",
+          "PySpice/Plot/BodeDiagram.py",
+          "PySpice/Probe/__init__.py",
+          "PySpice/Probe/Plot.py",
+          "PySpice/Probe/WaveForm.py",
+          "PySpice/Scripts/__init__.py",
+          "PySpice/Scripts/cir2py.py",
+          "PySpice/Scripts/pyspice_post_installation.py",
+          "PySpice/Spice/__init__.py",
+          "PySpice/Spice/BasicElement.py",
+          "PySpice/Spice/ElementParameter.py",
+          "PySpice/Spice/Expression/__init__.py",
+          "PySpice/Spice/Expression/Ast.py",
+          "PySpice/Spice/Expression/Parser.py",
+          "PySpice/Spice/HighLevelElement.py",
+          "PySpice/Spice/Library.py",
+          "PySpice/Spice/Netlist.py",
+          "PySpice/Spice/NgSpice/__init__.py",
+          "PySpice/Spice/NgSpice/RawFile.py",
+          "PySpice/Spice/NgSpice/Server.py",
+          "PySpice/Spice/NgSpice/Shared.py",
+          "PySpice/Spice/NgSpice/Simulation.py",
+          "PySpice/Spice/NgSpice/SimulationType.py",
+          "PySpice/Spice/Parser.py",
+          "PySpice/Spice/Parser_jmgc.py",
+          "PySpice/Spice/RawFile.py",
+          "PySpice/Spice/Simulation.py",
+          "PySpice/Spice/Xyce/__init__.py",
+          "PySpice/Spice/Xyce/RawFile.py",
+          "PySpice/Spice/Xyce/Server.py",
+          "PySpice/Spice/Xyce/Simulation.py",
+          "PySpice/Tools/__init__.py",
+          "PySpice/Tools/EnumFactory.py",
+          "PySpice/Tools/File.py",
+          "PySpice/Tools/Path.py",
+          "PySpice/Tools/StringTools.py",
+          "PySpice/Unit/__init__.py",
+          "PySpice/Unit/SiUnits.py",
+          "PySpice/Unit/Unit.py"
+        ],
+        "source_file_sha256": {
+          "PySpice/__init__.py": "0c8ffcdb841db6fe5c1bba3b4810892dd26a6506bbf19bf00ece3a0a481102f8",
+          "PySpice/Config/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Config/ConfigInstall.py": "3dc6f5ded219122c70672fcd00f2b4fb702874185dde2524ceb143fb8c3bc722",
+          "PySpice/DeviceLibrary/__init__.py": "3774ec9ddd8abd4f8ab43c7fcf6fb952d9891b396ef026f55171573e4fa8a2c5",
+          "PySpice/Doc/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Doc/ExampleTools.py": "b3943b9db8676cec4109d7d9ee480932a831825acb27ca601b004fa50285f73c",
+          "PySpice/Logging/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Logging/Logging.py": "616bd4d066d26398c641e541754dbcd057bfa6d55beb1faea33ec2112cc0cad2",
+          "PySpice/Math/__init__.py": "0c1f1d70cd5ae25a443c3fcef13bdea1d2438ca7d46dcc27138ebbca0adf779e",
+          "PySpice/Math/Calculus.py": "236d3e172f57ac9a2583bc3fdb6bcdf102770946d05e9622dcd3a833f7b30aa0",
+          "PySpice/Physics/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Physics/MaterialProperties.py": "db047e17230beae1c0ebabf36a91b1d9fd86e5b063eebd4c7fed58b4da189fad",
+          "PySpice/Physics/PhysicalConstants.py": "98bfa19427b5af5e7df0fbc944b96f411c003cd34c955e84dcf7bbafb3e24621",
+          "PySpice/Physics/Resistor.py": "faeb3d57471a92ce90e1112bf853f4022ffbaa24654dfcf500d491807cac18a9",
+          "PySpice/Physics/SemiConductor.py": "93639f111ff37c4e490168a297efa9d0b3c3027081aed9ae1d1e8e0eadccdb00",
+          "PySpice/Plot/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Plot/BodeDiagram.py": "5e705f6b3f8b4810b17cea569c6de8ae607de6f08319d82b7b53553ff6b19e11",
+          "PySpice/Probe/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Probe/Plot.py": "213cbe2cbaba275f3121cb6c182ec338c610bba07f6fbfb3ec8cac1188fdcc82",
+          "PySpice/Probe/WaveForm.py": "af3b6cf5eae5bc59bb8a31338c0925490d746790e437070110bcbdf88aa79158",
+          "PySpice/Scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Scripts/cir2py.py": "dbd771a63a823627c3482e3b19587ad6d939be56b482f3cd7396901f0f1734c8",
+          "PySpice/Scripts/pyspice_post_installation.py": "aa421e04e14f2c90850e896a3bbf3cf2a4b844a64ba89eb5f970cf97dc1b0ed0",
+          "PySpice/Spice/__init__.py": "984c306fd6b19919e8082ae1fd3a02c15202bed9b46f8b332b7426cb3833ab70",
+          "PySpice/Spice/BasicElement.py": "918cc78535ad16bb9598cda231a2fbee461c10083958d77836ea0011513839b1",
+          "PySpice/Spice/ElementParameter.py": "0ed476a6fda2183ebade3c89ccb4cbfc88431be21b5dcf0780baa5b89f26ff4f",
+          "PySpice/Spice/Expression/__init__.py": "f52fab53cdc3de2aee7363b4d079105888157b840255220daf1b7281b068a8d3",
+          "PySpice/Spice/Expression/Ast.py": "8925588f8b52f1db4a26f16adf359318fb477403c14880688cac71bbf9b9cce5",
+          "PySpice/Spice/Expression/Parser.py": "cd09969f2c76f98399b2490c26db0ae0f7ed0b52507491b67cfe1192b759ca41",
+          "PySpice/Spice/HighLevelElement.py": "2ca8ac0dc44dc4c2624f3d2b040df2986b67c0fbe6f7a83dbd3747cce27996b6",
+          "PySpice/Spice/Library.py": "ff1268d2ab11d2364d6154163c8d54202052e8273c91c5ad5b4e367f27c67966",
+          "PySpice/Spice/Netlist.py": "4226ab2b2dace107df7a6e821336a933cc2bbe71d51123e87250b2fb10edaf5e",
+          "PySpice/Spice/NgSpice/__init__.py": "5004ec4b4a4e68dbb08fab3a80f8fcc9d6a28768c08674c7fc7cfb7b211fb251",
+          "PySpice/Spice/NgSpice/RawFile.py": "61ff67d7f7e2687dc698793969afad6afc9a54129241d642bc34cb152e1f00c7",
+          "PySpice/Spice/NgSpice/Server.py": "0fb44bac0706927eaa50028c29480bd9ee1baaa6e5fa6f51db383f091b969a5b",
+          "PySpice/Spice/NgSpice/Shared.py": "206dcb289a12b115702dacfee57192b66e46c3cb9dc4b750dab79bcb43d7363e",
+          "PySpice/Spice/NgSpice/Simulation.py": "8206c5b014b865229e46428860f80ff794c31e44d8f281bda111742590baa51d",
+          "PySpice/Spice/NgSpice/SimulationType.py": "054304163076128d213efe8a272d0bdb4be3b662ad7e94524b9a2d8e35b6bf26",
+          "PySpice/Spice/Parser.py": "82701cea2785205e7afa336aae7dba6f3eb014a13527dba82c40b772ba22efc8",
+          "PySpice/Spice/Parser_jmgc.py": "b7dc092a15a8b7bb62fb04ba341c0a18eebb60ec6305c3242273f3445cef0114",
+          "PySpice/Spice/RawFile.py": "81c032c3d577eeb3d58adc4c09d5de41a15611ffccec2e15eaa209bf351c9eb0",
+          "PySpice/Spice/Simulation.py": "328725d3241f2800248b65710d2edb0c9a62229b091c239ffa18931cad394885",
+          "PySpice/Spice/Xyce/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Spice/Xyce/RawFile.py": "87adbc8d8d1b0e2db52f357d5db633d374ba5d343ecaec475bd0e96ed15c453b",
+          "PySpice/Spice/Xyce/Server.py": "61a2c39fa28af1a5eb60e2431d7b4a1a722933c7c8a8d64ea3a909051147b4f9",
+          "PySpice/Spice/Xyce/Simulation.py": "7d6614848624a8b27e0f0c3fa32192d7ac9d682c3c36d91de5b4367d439f7a93",
+          "PySpice/Tools/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "PySpice/Tools/EnumFactory.py": "ffef13af0965abe2dd1a1c530d4d22fd6b52bee6a9fc2aed9d68da55e4c34f5f",
+          "PySpice/Tools/File.py": "749b755ba02cd103894b8493e86e1d531154d28b956e0e3ed5b0e1aaeb7b9f30",
+          "PySpice/Tools/Path.py": "a767945eea8d63686ea9f31792ea2be63633ef4505c0ec9b8f47f0bc4dfa51b6",
+          "PySpice/Tools/StringTools.py": "703bb25727bcf183db3eec7c7cb67c295188563da8496eef88457715a903dad2",
+          "PySpice/Unit/__init__.py": "d0c2284cc5d054d093c9d3af9e2157e89ae1f7cdd08f26f6a22e50ad275fbedc",
+          "PySpice/Unit/SiUnits.py": "ce9238d4e428b55a871380d03450584c6c5abea7b61313f60e99a2efbbdad0d4",
+          "PySpice/Unit/Unit.py": "07625dc050601a33d677f0dedcadc6043bd3ab253b713cc3823208799e05a536"
+        },
+        "source_version": "v1.5",
+        "source_commit": "bcd3aea7342824c4817f08a938d3d85c37344f45",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "pyspice_circuit_simulation_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/PySpice_v1.5.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/PySpice_v1.5.json",
+        "source_sha256": "29018a4a7b1a5749ecd953705da23c9eb3b7b4de2742f41502fd1c236ee96506",
+        "profile_sha256": "3a96d860e99d170670b9683e20122d2fadf59e244076b6578912adf8c29d66c4",
+        "boundary": "电路/网表构造、分析配置、ngspice/Xyce 适配和波形结果；排除大量元件快捷类、单位运算细节和安装脚本。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 313,
+        "selected_tool_count": 15,
+        "selected_class_count": 15,
+        "selected_function_count": 0,
+        "selected_method_count": 94,
+        "selected_all_func": 94,
+        "missing_description_count": 70,
+        "excluded_tool_count": 298,
+        "capability_count": 3
+      }
+    }
+  }
+]

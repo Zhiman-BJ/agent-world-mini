@@ -1,0 +1,1329 @@
+[
+  {
+    "global_id": "pypi_pygmsh_24",
+    "schema_version": "1.1",
+    "environment": {
+      "basic_info": {
+        "source": "pypi",
+        "url": [
+          "https://github.com/nschloe/pygmsh",
+          "https://pypi.org/project/pygmsh/",
+          "https://pygmsh.readthedocs.io/en/latest/"
+        ],
+        "name": "pygmsh",
+        "version": "v7.1.17",
+        "index": 24
+      },
+      "description": "pygmsh 是 Gmsh 几何建模 API 的 Python 封装，提供二维和三维点、线、曲面、体、布尔运算及物理分组构造，并将几何脚本交给 Gmsh 生成有限元网格。它不替代 Gmsh 网格内核。",
+      "domain": {
+        "level1": "semiconductor",
+        "level2": null,
+        "level3": null
+      },
+      "nums": {
+        "class": 7,
+        "function": 4,
+        "class_func": 46,
+        "all_func": 50
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Geometry",
+        "type": "class",
+        "module": "pygmsh.geo.geometry",
+        "input": "common.CommonGeometry",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "init_argv": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, init_argv = None",
+            "ori_description": ""
+          },
+          {
+            "name": "add_circle",
+            "description": "Add circle in the :math:`x`-:math:`y`-plane.",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "radius": {
+                "type": "float",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "float | None",
+                "description": ""
+              },
+              "R": {
+                "type": "",
+                "description": ""
+              },
+              "compound": {
+                "type": "",
+                "description": ""
+              },
+              "num_sections": {
+                "type": "int",
+                "description": ""
+              },
+              "holes": {
+                "type": "",
+                "description": ""
+              },
+              "make_surface": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0: list[float], radius: float, mesh_size: float | None = None, R = None, compound = False, num_sections: int = 3, holes = None, make_surface: bool = True",
+            "ori_description": "Add circle in the :math:`x`-:math:`y`-plane."
+          },
+          {
+            "name": "add_rectangle",
+            "description": "",
+            "input": {
+              "self": null,
+              "xmin": {
+                "type": "float",
+                "description": ""
+              },
+              "xmax": {
+                "type": "float",
+                "description": ""
+              },
+              "ymin": {
+                "type": "float",
+                "description": ""
+              },
+              "ymax": {
+                "type": "float",
+                "description": ""
+              },
+              "z": {
+                "type": "float",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "float | None",
+                "description": ""
+              },
+              "holes": {
+                "type": "",
+                "description": ""
+              },
+              "make_surface": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, xmin: float, xmax: float, ymin: float, ymax: float, z: float, mesh_size: float | None = None, holes = None, make_surface: bool = True",
+            "ori_description": ""
+          },
+          {
+            "name": "add_ellipsoid",
+            "description": "Creates an ellipsoid with radii around a given midpoint :math:`x_0`.",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "radii": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "float | None",
+                "description": ""
+              },
+              "with_volume": {
+                "type": "bool",
+                "description": ""
+              },
+              "holes": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0: list[float], radii: list[float], mesh_size: float | None = None, with_volume: bool = True, holes = None",
+            "ori_description": "Creates an ellipsoid with radii around a given midpoint :math:`x_0`."
+          },
+          {
+            "name": "add_ball",
+            "description": "",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "radius": {
+                "type": "float",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0: list[float], radius: float, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_box",
+            "description": "",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "float",
+                "description": ""
+              },
+              "x1": {
+                "type": "float",
+                "description": ""
+              },
+              "y0": {
+                "type": "float",
+                "description": ""
+              },
+              "y1": {
+                "type": "float",
+                "description": ""
+              },
+              "z0": {
+                "type": "float",
+                "description": ""
+              },
+              "z1": {
+                "type": "float",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "float | None",
+                "description": ""
+              },
+              "with_volume": {
+                "type": "bool",
+                "description": ""
+              },
+              "holes": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0: float, x1: float, y0: float, y1: float, z0: float, z1: float, mesh_size: float | None = None, with_volume: bool = True, holes = None",
+            "ori_description": ""
+          },
+          {
+            "name": "revolve",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "twist",
+            "description": "Twist (translation + rotation) of any entity along a given translation_axis, around a given rotation_axis, about a given angle.",
+            "input": {
+              "self": null,
+              "input_entity": {
+                "type": "",
+                "description": ""
+              },
+              "translation_axis": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "rotation_axis": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "point_on_axis": {
+                "type": "list[float]",
+                "description": ""
+              },
+              "angle": {
+                "type": "float",
+                "description": ""
+              },
+              "num_layers": {
+                "type": "int | list[int] | None",
+                "description": ""
+              },
+              "heights": {
+                "type": "list[float] | None",
+                "description": ""
+              },
+              "recombine": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_entity, translation_axis: list[float], rotation_axis: list[float], point_on_axis: list[float], angle: float, num_layers: int | list[int] | None = None, heights: list[float] | None = None, recombine: bool = False",
+            "ori_description": "Twist (translation + rotation) of any entity along a given translation_axis, around a given rotation_axis, about a given angle."
+          },
+          {
+            "name": "in_surface",
+            "description": "Embed the point(s) or curve(s) in the given surface. The surface mesh will conform to the mesh of the point(s) or curves(s).",
+            "input": {
+              "self": null,
+              "input_entity": {
+                "type": "",
+                "description": ""
+              },
+              "surface": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_entity, surface",
+            "ori_description": "Embed the point(s) or curve(s) in the given surface. The surface mesh will conform to the mesh of the point(s) or curves(s)."
+          },
+          {
+            "name": "in_volume",
+            "description": "Embed the point(s)/curve(s)/surface(s) in the given volume. The volume mesh will conform to the mesh of the input entities.",
+            "input": {
+              "self": null,
+              "input_entity": {
+                "type": "",
+                "description": ""
+              },
+              "volume": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_entity, volume",
+            "ori_description": "Embed the point(s)/curve(s)/surface(s) in the given volume. The volume mesh will conform to the mesh of the input entities."
+          }
+        ]
+      },
+      {
+        "name": "CommonGeometry",
+        "type": "class",
+        "module": "pygmsh.common.geometry",
+        "input": "",
+        "description": "Geometry base class containing all methods that can be shared between built-in and occ.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "env": {
+                "type": "",
+                "description": ""
+              },
+              "init_argv": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, env, init_argv = None",
+            "ori_description": ""
+          },
+          {
+            "name": "add_point",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_line",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_circle_arc",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_curve_loop",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_plane_surface",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_polygon",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_physical",
+            "description": "",
+            "input": {
+              "self": null,
+              "entities": {
+                "type": "",
+                "description": ""
+              },
+              "label": {
+                "type": "str | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, entities, label: str | None = None",
+            "ori_description": ""
+          },
+          {
+            "name": "set_mesh_size_callback",
+            "description": "",
+            "input": {
+              "self": null,
+              "fun": {
+                "type": "",
+                "description": ""
+              },
+              "ignore_other_mesh_sizes": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fun, ignore_other_mesh_sizes = True",
+            "ori_description": ""
+          },
+          {
+            "name": "generate_mesh",
+            "description": "Return a meshio.Mesh, storing the mesh points, cells, and data, generated by Gmsh from the `self`.",
+            "input": {
+              "self": null,
+              "dim": {
+                "type": "int",
+                "description": ""
+              },
+              "order": {
+                "type": "int | None",
+                "description": ""
+              },
+              "algorithm": {
+                "type": "int | None",
+                "description": ""
+              },
+              "verbose": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dim: int = 3, order: int | None = None, algorithm: int | None = None, verbose: bool = False",
+            "ori_description": "Return a meshio.Mesh, storing the mesh points, cells, and data, generated by Gmsh from the `self`."
+          },
+          {
+            "name": "save_geometry",
+            "description": "",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str",
+            "ori_description": ""
+          },
+          {
+            "name": "synchronize",
+            "description": "",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": ""
+          },
+          {
+            "name": "add_surface",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_surface_loop",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_volume",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "extrude",
+            "description": "Extrusion of any entity along a given translation_axis.",
+            "input": {
+              "self": null,
+              "input_entity": {
+                "type": "",
+                "description": ""
+              },
+              "translation_axis": {
+                "type": "tuple[float, float, float]",
+                "description": ""
+              },
+              "num_layers": {
+                "type": "int | list[int] | None",
+                "description": ""
+              },
+              "heights": {
+                "type": "list[float] | None",
+                "description": ""
+              },
+              "recombine": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, input_entity, translation_axis: tuple[float, float, float], num_layers: int | list[int] | None = None, heights: list[float] | None = None, recombine: bool = False",
+            "ori_description": "Extrusion of any entity along a given translation_axis."
+          }
+        ]
+      },
+      {
+        "name": "write",
+        "type": "function",
+        "module": "pygmsh.helpers",
+        "description": "",
+        "input": {
+          "filename": {
+            "type": "str",
+            "description": ""
+          }
+        },
+        "output": null,
+        "ori_input": "filename: str",
+        "ori_description": ""
+      },
+      {
+        "name": "extract_to_meshio",
+        "type": "function",
+        "module": "pygmsh.helpers",
+        "description": "",
+        "input": {},
+        "output": null,
+        "ori_input": "",
+        "ori_description": ""
+      },
+      {
+        "name": "Geometry",
+        "type": "class",
+        "module": "pygmsh.occ.geometry",
+        "input": "common.CommonGeometry",
+        "description": "",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "init_argv": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, init_argv = None",
+            "ori_description": ""
+          },
+          {
+            "name": "add_rectangle",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_disk",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_ball",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_box",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_cone",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_cylinder",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_ellipsoid",
+            "description": "",
+            "input": {
+              "self": null,
+              "center": {
+                "type": "",
+                "description": ""
+              },
+              "radii": {
+                "type": "",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, center, radii, mesh_size = None",
+            "ori_description": ""
+          },
+          {
+            "name": "add_torus",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "add_wedge",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "mesh_size": {
+                "type": "",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, mesh_size = None, **kwargs",
+            "ori_description": ""
+          },
+          {
+            "name": "boolean_intersection",
+            "description": "Boolean intersection, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation.",
+            "input": {
+              "self": null,
+              "entities": {
+                "type": "",
+                "description": ""
+              },
+              "delete_first": {
+                "type": "bool",
+                "description": ""
+              },
+              "delete_other": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, entities, delete_first: bool = True, delete_other: bool = True",
+            "ori_description": "Boolean intersection, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation."
+          },
+          {
+            "name": "boolean_union",
+            "description": "Boolean union, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation.",
+            "input": {
+              "self": null,
+              "entities": {
+                "type": "",
+                "description": ""
+              },
+              "delete_first": {
+                "type": "bool",
+                "description": ""
+              },
+              "delete_other": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, entities, delete_first: bool = True, delete_other: bool = True",
+            "ori_description": "Boolean union, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation."
+          },
+          {
+            "name": "boolean_difference",
+            "description": "Boolean difference, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation.",
+            "input": {
+              "self": null,
+              "d0": {
+                "type": "",
+                "description": ""
+              },
+              "d1": {
+                "type": "",
+                "description": ""
+              },
+              "delete_first": {
+                "type": "bool",
+                "description": ""
+              },
+              "delete_other": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d0, d1, delete_first: bool = True, delete_other: bool = True",
+            "ori_description": "Boolean difference, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation."
+          },
+          {
+            "name": "boolean_fragments",
+            "description": "Boolean fragments, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation.",
+            "input": {
+              "self": null,
+              "d0": {
+                "type": "",
+                "description": ""
+              },
+              "d1": {
+                "type": "",
+                "description": ""
+              },
+              "delete_first": {
+                "type": "bool",
+                "description": ""
+              },
+              "delete_other": {
+                "type": "bool",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, d0, d1, delete_first: bool = True, delete_other: bool = True",
+            "ori_description": "Boolean fragments, see https://gmsh.info/doc/texinfo/gmsh.html#Boolean-operations input_entity and tool_entity are called object and tool in gmsh documentation."
+          },
+          {
+            "name": "import_shapes",
+            "description": "",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str",
+            "ori_description": ""
+          },
+          {
+            "name": "revolve",
+            "description": "",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, **kwargs",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Box",
+        "type": "class",
+        "module": "pygmsh.occ.box",
+        "input": "",
+        "description": "Creates a box.  Parameters ---------- x0 : array-like[3] List containing the x, y, z values of the start point. extends : array-like[3] List of the 3 extents of the box edges. char_length : float Characteristic length of the mesh elements of this polygon.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "",
+                "description": ""
+              },
+              "extents": {
+                "type": "",
+                "description": ""
+              },
+              "char_length": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0, extents, char_length = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Cylinder",
+        "type": "class",
+        "module": "pygmsh.occ.cylinder",
+        "input": "",
+        "description": "Creates a cylinder.  Parameters ---------- x0 : array-like[3] The 3 coordinates of the center of the first circular face. axis : array-like[3] The 3 components of the vector defining its axis. radius : float Radius value of the cylinder. angle : float Angular opening of the cylinder.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "",
+                "description": ""
+              },
+              "axis": {
+                "type": "",
+                "description": ""
+              },
+              "radius": {
+                "type": "",
+                "description": ""
+              },
+              "angle": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0, axis, radius, angle = 2 * pi",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Ball",
+        "type": "class",
+        "module": "pygmsh.occ.ball",
+        "input": "",
+        "description": "Creates a sphere.  Parameters ---------- center: array-like[3] Center of the ball. radius: float Radius of the ball. x0: float If specified and `x0 > -1`, the ball is cut off at `x0*radius` parallel to the y-z plane. x1: float If specified and `x1 < +1`, the ball is cut off at `x1*radius` parallel to the y-z plane. alpha: float If specified and `alpha < 2*pi`, the points between `alpha` and `2*pi` w.r.t. to the x-y plane are not part of the object. char_length: float If specified, sets the `Characteristic Length` property.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "center": {
+                "type": "",
+                "description": ""
+              },
+              "radius": {
+                "type": "",
+                "description": ""
+              },
+              "angle1": {
+                "type": "",
+                "description": ""
+              },
+              "angle2": {
+                "type": "",
+                "description": ""
+              },
+              "angle3": {
+                "type": "",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, center, radius, angle1 = -pi / 2, angle2 = pi / 2, angle3 = 2 * pi",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "Rectangle",
+        "type": "class",
+        "module": "pygmsh.occ.rectangle",
+        "input": "",
+        "description": "Creates a rectangle.  x0 : array-like[3] The 3 first expressions define the lower-left corner. a : float Rectangle width. b : float Rectangle height. corner_radius : float Defines a radius to round the rectangle corners.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "",
+            "input": {
+              "self": null,
+              "x0": {
+                "type": "tuple[float, float, float]",
+                "description": ""
+              },
+              "a": {
+                "type": "float",
+                "description": ""
+              },
+              "b": {
+                "type": "float",
+                "description": ""
+              },
+              "corner_radius": {
+                "type": "float | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, x0: tuple[float, float, float], a: float, b: float, corner_radius: float | None = None",
+            "ori_description": ""
+          }
+        ]
+      },
+      {
+        "name": "rotation_matrix",
+        "type": "function",
+        "module": "pygmsh.helpers",
+        "description": "Return matrix that implements the rotation around the vector :math:`u` by the angle :math:`\\theta`, cf. https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle.",
+        "input": {
+          "u": {
+            "type": "",
+            "description": "rotation vector"
+          },
+          "theta": {
+            "type": "",
+            "description": "rotation angle"
+          }
+        },
+        "output": null,
+        "ori_input": "u, theta",
+        "ori_description": "Return matrix that implements the rotation around the vector :math:`u` by the angle :math:`\\theta`, cf. https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle.  :param u: rotation vector :param theta: rotation angle"
+      },
+      {
+        "name": "orient_lines",
+        "type": "function",
+        "module": "pygmsh.helpers",
+        "description": "Given a sequence of unordered and unoriented lines defining a closed polygon, returns a reordered list of reoriented lines of that polygon.",
+        "input": {
+          "lines": {
+            "type": "",
+            "description": "a sequence of lines defining a closed polygon"
+          }
+        },
+        "output": null,
+        "ori_input": "lines",
+        "ori_description": "Given a sequence of unordered and unoriented lines defining a closed polygon, returns a reordered list of reoriented lines of that polygon.  :param lines: a sequence of lines defining a closed polygon"
+      }
+    ],
+    "init_ref_tasks": [],
+    "others": {
+      "source_metadata": {
+        "repository": "https://github.com/nschloe/pygmsh",
+        "documentation": "https://pygmsh.readthedocs.io/en/latest/",
+        "pypi": "https://pypi.org/project/pygmsh/",
+        "pypi_version": "7.1.17",
+        "tag": "v7.1.17",
+        "commit": "1a4118650fab05bbd284eb49c99f9185bdf6a927",
+        "release_published_at": "2022-01-28T13:15:39Z",
+        "checked_on": "2026-09-15",
+        "github_prerelease": false,
+        "notes": [
+          "PyPI 7.1.17 与 GitHub 标签 v7.1.17 一致；该项目近年发布较少。",
+          "精选接口需覆盖几何构造、布尔操作、物理分组和网格写出，不重复每种几何实体的长尾方法。"
+        ],
+        "release_url": "https://github.com/nschloe/pygmsh/releases/tag/v7.1.17",
+        "release_api": "https://api.github.com/repos/nschloe/pygmsh/releases/latest",
+        "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+        "source_directory": "seed_pypi_raw/pygmsh",
+        "submodule_status": []
+      },
+      "python_source_extraction": {
+        "strategy": "static_ast",
+        "requested_modules": [
+          "pygmsh"
+        ],
+        "source_files": [
+          "src/pygmsh/__init__.py",
+          "src/pygmsh/__about__.py",
+          "src/pygmsh/_cli.py",
+          "src/pygmsh/_optimize.py",
+          "src/pygmsh/common/__init__.py",
+          "src/pygmsh/common/bezier.py",
+          "src/pygmsh/common/bspline.py",
+          "src/pygmsh/common/circle_arc.py",
+          "src/pygmsh/common/curve_loop.py",
+          "src/pygmsh/common/dummy.py",
+          "src/pygmsh/common/ellipse_arc.py",
+          "src/pygmsh/common/geometry.py",
+          "src/pygmsh/common/line.py",
+          "src/pygmsh/common/line_base.py",
+          "src/pygmsh/common/plane_surface.py",
+          "src/pygmsh/common/point.py",
+          "src/pygmsh/common/polygon.py",
+          "src/pygmsh/common/size_field.py",
+          "src/pygmsh/common/spline.py",
+          "src/pygmsh/common/surface.py",
+          "src/pygmsh/common/surface_loop.py",
+          "src/pygmsh/common/volume.py",
+          "src/pygmsh/geo/__init__.py",
+          "src/pygmsh/geo/dummy.py",
+          "src/pygmsh/geo/geometry.py",
+          "src/pygmsh/helpers.py",
+          "src/pygmsh/occ/__init__.py",
+          "src/pygmsh/occ/ball.py",
+          "src/pygmsh/occ/box.py",
+          "src/pygmsh/occ/cone.py",
+          "src/pygmsh/occ/cylinder.py",
+          "src/pygmsh/occ/disk.py",
+          "src/pygmsh/occ/dummy.py",
+          "src/pygmsh/occ/geometry.py",
+          "src/pygmsh/occ/rectangle.py",
+          "src/pygmsh/occ/torus.py",
+          "src/pygmsh/occ/wedge.py"
+        ],
+        "source_file_sha256": {
+          "src/pygmsh/__init__.py": "5df706d485829783d3f272b6b52a462c86372141d92aa6f941732e583c8bb95d",
+          "src/pygmsh/__about__.py": "a171f95742db9446ddd0017e087bc3d5b5876ede6055ae372acccb4921cbee2f",
+          "src/pygmsh/_cli.py": "8a5237c78ef20cf2ea4dcf79092f9956370ad98b52f5e15530712d3a4e41af95",
+          "src/pygmsh/_optimize.py": "106d68dcd35be56b4eb96c85ad7102a098d610e579926d0afa2a79b4fa42924f",
+          "src/pygmsh/common/__init__.py": "4732ff0ea17bae931df31160d206eb6307475c59598476b42c19f285cea5b675",
+          "src/pygmsh/common/bezier.py": "11b14ad85eacaf6b9fda047d2d7ee70852a9f1e90f8237db54e613a9764b6626",
+          "src/pygmsh/common/bspline.py": "6f423644741ef32e5b220e3997f8df276ea8736dca9951ce8a3a4d65f0ef7935",
+          "src/pygmsh/common/circle_arc.py": "24e26cd238bfb11a08603a9c170e14b16d366b79286ee9edfcc2fe70f723f3e1",
+          "src/pygmsh/common/curve_loop.py": "2e9a0e21cce1e169dffad42f2b308220075a70d72bccb45a4041d725be051ec2",
+          "src/pygmsh/common/dummy.py": "36b448ea91e99feb853d676b778315d1719053b6d204906fda520b3ac7352447",
+          "src/pygmsh/common/ellipse_arc.py": "23d40d590df2d331a3842eb11cc6a3ace3bc17ff514367f8384030f38b72594d",
+          "src/pygmsh/common/geometry.py": "513e5d315352938d055751393d3ade323fde6f708f954281853e25ae75d52f03",
+          "src/pygmsh/common/line.py": "6ee2330cb684573b0f17e0edd31ee90d81511c5d9d44b07db3c292b4eeb6597c",
+          "src/pygmsh/common/line_base.py": "7852b035ea2328b51a775f07cee714c8f34c8f9d3727e70e1f9114da8bb3698c",
+          "src/pygmsh/common/plane_surface.py": "5b5d1f031315bc51ea79e50fc87e1dee6290481269d7116c4b67100c024ec130",
+          "src/pygmsh/common/point.py": "88c9f08be6230863b6b9edad58dc826c227ebe1b8ffa1ebc5c96013957f5f33c",
+          "src/pygmsh/common/polygon.py": "3841364bad3002ab6e32b903067d4e132ccd583902bb57c413a95089aaf115eb",
+          "src/pygmsh/common/size_field.py": "2e5259865c882ce8c9e6c4164a93fbf5f005f8054b748ba2272c9657cf4367bc",
+          "src/pygmsh/common/spline.py": "b9544f4d5b6b129d21fea1a561f6b2d4aba3065d14f49e8895cb88e87743a231",
+          "src/pygmsh/common/surface.py": "21a0a3f10d259e7955350873185915bafd8ec64a1c58d8fda431b1a31346ee7c",
+          "src/pygmsh/common/surface_loop.py": "52eb56abc7812683ee90d9159d9ae6ec9e7eb9638fb78cc4fb3efd0a3c5d46f9",
+          "src/pygmsh/common/volume.py": "af42050748cec8fff9c3af7ad6a326d7eca5031c6b3c7a5ec1bc9b354d2c50fa",
+          "src/pygmsh/geo/__init__.py": "b95e235acb55846157f2a0e741b021c2db16e16cba135c68ead6d91d37ea0858",
+          "src/pygmsh/geo/dummy.py": "00ff4b04849731257e42c2aff1c803ea8b6f858b9790bbb4142b586350ac3568",
+          "src/pygmsh/geo/geometry.py": "d7abc337689342d8b3cc8bf2f0bd6d1316e67a4daf676335d49647c06df01416",
+          "src/pygmsh/helpers.py": "abbeb89543e1317d904ff17af0757c80d9e2e3c46ac11d3442487f35236c8a92",
+          "src/pygmsh/occ/__init__.py": "b95e235acb55846157f2a0e741b021c2db16e16cba135c68ead6d91d37ea0858",
+          "src/pygmsh/occ/ball.py": "c9ab63fff5886748b57e1479b49122a331c4f1cd86ec00c1dfadce200bfc61fd",
+          "src/pygmsh/occ/box.py": "4d277672ec5648b93178d2fc800deca80e51fa951f7b532e88e8b7d51417a6d6",
+          "src/pygmsh/occ/cone.py": "52b67bb2a54c9eedf12c52d55cc511207979d322131509aa97e5f0fadfc8ae31",
+          "src/pygmsh/occ/cylinder.py": "ae004e207ba662d74485b3fc25040883f448f32f175156e894eae6b241302602",
+          "src/pygmsh/occ/disk.py": "f61315495faae4026025b5db89e78a892a79e6fd73a1949a20221f7d04ac773f",
+          "src/pygmsh/occ/dummy.py": "00ff4b04849731257e42c2aff1c803ea8b6f858b9790bbb4142b586350ac3568",
+          "src/pygmsh/occ/geometry.py": "e2f94d45a7a68475764700b1e6589cc6dd6c7dc04b6ec4d4121765c4ce58b391",
+          "src/pygmsh/occ/rectangle.py": "e92f8f15bb98dbe7a1539b37a7c7412c64fcd11bd3b1177ac68730252a432879",
+          "src/pygmsh/occ/torus.py": "402ec45cc1ebdbcd2439388b681f2171ec8085ac029fde9eaddc692e46c745c9",
+          "src/pygmsh/occ/wedge.py": "c29831a64ab4476b28f671730f315e855e9ccbd5a66db7e07c0f17f29a434db1"
+        },
+        "source_version": "v7.1.17",
+        "source_commit": "1a4118650fab05bbd284eb49c99f9185bdf6a927",
+        "native_function_count": 0,
+        "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+        "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+        "docstring_mapping": {
+          "description": "summary before Google/NumPy sections or reStructuredText fields",
+          "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+          "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+          "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+          "ori_description": "complete normalized source docstring or native embedded documentation"
+        },
+        "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+        "runtime_verified": false
+      },
+      "python_api_selection": {
+        "profile_id": "pygmsh_geometry_mesh_v1",
+        "source_artifact": "seed_gen/pypi_outputs/ori_all/pygmsh_v7.1.17.json",
+        "profile_artifact": "seed_gen/pypi_selection_profiles/pygmsh_v7.1.17.json",
+        "source_sha256": "6f32f2c7b970ee65ab47fe51cf688a7939a8d964ba602a98b003b87da1845f91",
+        "profile_sha256": "74ab97189104ee0523cdb0e9c2ddcbe26b5a2a15f3fc4b31d9c72a06b95f102f",
+        "boundary": "pygmsh 几何构造、布尔运算、物理分组和 meshio 导出；保留代表实体而不重复每种几何的同构构造器。",
+        "target_all_func": {
+          "min": 50,
+          "max": 100
+        },
+        "raw_tool_count": 38,
+        "selected_tool_count": 11,
+        "selected_class_count": 7,
+        "selected_function_count": 4,
+        "selected_method_count": 46,
+        "selected_all_func": 50,
+        "missing_description_count": 39,
+        "excluded_tool_count": 27,
+        "capability_count": 2
+      }
+    }
+  }
+]
