@@ -91,6 +91,7 @@ class CodexAgentClient:
         reasoning_effort: str | None = None,
         disabled_mcp_servers: tuple[str, ...] = (),
         log_directory: Path | None = None,
+        command_prefix: tuple[str, ...] = (),
     ):
         if sandbox not in {"read-only", "workspace-write", "danger-full-access"}:
             raise ValueError(f"不支持的 Codex sandbox 模式：{sandbox}")
@@ -107,6 +108,7 @@ class CodexAgentClient:
         self.reasoning_effort = reasoning_effort
         self.disabled_mcp_servers = tuple(disabled_mcp_servers)
         self.log_directory = log_directory
+        self.command_prefix = tuple(command_prefix)
         self._run_counter = 0
 
     def _llm_arguments(self, environment: dict[str, str]) -> list[str]:
@@ -283,7 +285,7 @@ class CodexAgentClient:
                     "w", encoding="utf-8"
                 ) as stderr_stream:
                     process = subprocess.Popen(
-                        command,
+                        [*self.command_prefix, *command],
                         cwd=working_directory,
                         env=environment,
                         stdin=subprocess.PIPE,
