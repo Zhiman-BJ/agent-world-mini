@@ -3,6 +3,22 @@
     {
       "name": "cancel_appointment",
       "description": "Cancel an existing scheduled appointment and record the cancellation reason. Validation failure performs no state change.",
+      "usageConditions": {
+        "targetResources": ["appointments"],
+        "targetObjects": [
+          {
+            "objectType": "appointment",
+            "identifiedBy": ["appointment_id"]
+          }
+        ],
+        "preconditions": [
+          "The appointment exists.",
+          "The appointment status is scheduled."
+        ],
+        "sideEffects": [
+          "The appointment status becomes cancelled."
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {

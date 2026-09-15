@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/toolgen_delivery_binding.schema.json",
+  "title": "ToolGen downstream delivery binding",
+  "description": "Connects one ToolGen tool set to its DataGen v2 environment and optional software profile.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "package_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "environment_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,127}$"
+    },
+    "package_path": {
+      "$ref": "#/$defs/relativePath"
+    },
+    "tools_path": {
+      "$ref": "#/$defs/relativePath"
+    },
+    "tool_validation_path": {
+      "$ref": "#/$defs/relativePath"
+    },
+    "environment_path": {
+      "$ref": "#/$defs/relativePath"
+    },
+    "environment_validation_path": {
+      "$ref": "#/$defs/relativePath"
+    },
+    "software_mapping_path": {
+      "$ref": "#/$defs/relativePath"
+    },
+    "software_profile": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "software_profile_path": {
+      "oneOf": [
+        {"$ref": "#/$defs/relativePath"},
+        {"type": "null"}
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "package_id",
+    "environment_id",
+    "package_path",
+    "tools_path",
+    "tool_validation_path",
+    "environment_path",
+    "environment_validation_path",
+    "software_mapping_path",
+    "software_profile",
+    "software_profile_path"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {"software_profile": {"type": "null"}},
+        "required": ["software_profile"]
+      },
+      "then": {
+        "properties": {"software_profile_path": {"type": "null"}}
+      },
+      "else": {
+        "properties": {"software_profile_path": {"$ref": "#/$defs/relativePath"}}
+      }
+    }
+  ],
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    }
+  }
+}
