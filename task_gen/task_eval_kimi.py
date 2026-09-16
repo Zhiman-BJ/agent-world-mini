@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -30,6 +31,14 @@ def run_kimi_agent(
     llm_config: dict[str, Any],
 ) -> str:
     options = dict(llm_config.get("kimi", {}))
+    unknown = options.keys() - {
+        'sdk_path', 'node', 'provider_type', 'max_context_size', 'max_output_size',
+        'timeout_seconds', 'max_steps_per_turn', 'max_attempts_per_step',
+        'reserved_context_size', 'compaction_trigger_ratio', 'compaction_max_attempts',
+        'system_prompt', 'parallel_tool_calls',
+    }
+    if unknown:
+        raise ValueError('未知 llm.kimi 配置：' + ', '.join(sorted(unknown)))
     if options.get("provider_type", "openai") != "openai":
         raise ValueError("当前 Kimi 接入仅支持 OpenAI-compatible Chat Completions 后端")
     sdk_value = options.get("sdk_path") or os.environ.get("KIMI_CODE_SDK")
@@ -43,8 +52,34 @@ def run_kimi_agent(
     if type(options.get("max_context_size")) is not int or options["max_context_size"] < 1:
         raise ValueError("llm.kimi.max_context_size 必须明确配置为后端支持的上下文长度")
     timeout = options.get("timeout_seconds", llm_config.get("timeout_seconds", 600))
-    if not isinstance(timeout, (int, float)) or timeout <= 0:
+    if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Kimi timeout_seconds 必须大于 0")
+    max_output = options.get('max_output_size', llm_config.get('max_tokens', 8192))
+    integer_options = {
+        'max_output_size': max_output,
+        'max_steps_per_turn': options.get('max_steps_per_turn', budget * 2 + 10),
+        'max_attempts_per_step': options.get('max_attempts_per_step', 3),
+        'reserved_context_size': options.get('reserved_context_size', 50000),
+        'compaction_max_attempts': options.get('compaction_max_attempts', 3),
+    }
+    for name, value in integer_options.items():
+        minimum = 0 if name == 'reserved_context_size' else 1
+        if type(value) is not int or value < minimum:
+            raise ValueError(f'llm.kimi.{name} 必须是 >= {minimum} 的整数')
+    if max_output >= options['max_context_size'] or integer_options['reserved_context_size'] >= options['max_context_size']:
+        raise ValueError('max_output_size、reserved_context_size 必须小于 max_context_size')
+    ratio = options.get('compaction_trigger_ratio', 0.85)
+    if type(ratio) not in (int, float) or not 0.5 <= ratio <= 0.99:
+        raise ValueError('compaction_trigger_ratio 必须在 0.5 到 0.99 之间')
+    parallel_calls = options.get('parallel_tool_calls', True)
+    if type(parallel_calls) is not bool:
+        raise ValueError('parallel_tool_calls 必须是布尔值')
+    temperature = llm_config.get('temperature', 0)
+    if type(temperature) not in (int, float) or not 0 <= temperature <= 2:
+        raise ValueError('llm.temperature 必须在 0 到 2 之间')
+    system_prompt = options.get('system_prompt', SYSTEM_PROMPT)
+    if not isinstance(system_prompt, str) or not system_prompt.strip():
+        raise ValueError('system_prompt 必须是非空字符串')
     log_dir = workspace.parent / (workspace.name + ".agent")
     log_dir.mkdir(parents=True, exist_ok=True)
     # Each invocation has its own artifacts, including failed/retried attempts.
@@ -68,9 +103,9 @@ def run_kimi_agent(
         private_server.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         profile = root / "agent.md"
         profile_text = (
-                '---\nname: agent\noverride: true\ndescription: Environment task solver\n'
+            '---\nname: agent\noverride: true\ndescription: Environment task solver\n'
             'tools: ["mcp__agent_world_eval__*"]\ndisallowedTools: ["select_tools"]\n'
-            'subagents: []\n---\n' + SYSTEM_PROMPT
+            'subagents: []\n---\n' + system_prompt.strip()
             + f"\nAt most {budget} environment tool calls are available. Reserve calls for verification.\n"
         )
         profile.write_text(profile_text, encoding="utf-8")
@@ -83,13 +118,15 @@ def run_kimi_agent(
             "model": client.model, "base_url": client.base_url, "api_key": client.api_key,
             "provider_type": options.get("provider_type", "openai"),
             "max_context_size": options["max_context_size"],
-            "max_output_size": options.get("max_output_size", llm_config.get("max_tokens", 8192)),
-            "temperature": llm_config.get("temperature", 0),
+            "max_output_size": max_output,
+            "parallel_tool_calls": parallel_calls,
+            "temperature": temperature,
             "loop_control": {
-                "maxStepsPerTurn": options.get("max_steps_per_turn", budget * 2 + 10),
-                "maxAttemptsPerStep": options.get("max_attempts_per_step", 3),
-                **({"reservedContextSize": options["reserved_context_size"]} if "reserved_context_size" in options else {}),
-                **({"compactionTriggerRatio": options["compaction_trigger_ratio"]} if "compaction_trigger_ratio" in options else {}),
+                "maxStepsPerTurn": integer_options['max_steps_per_turn'],
+                "maxAttemptsPerStep": integer_options['max_attempts_per_step'],
+                "reservedContextSize": integer_options['reserved_context_size'],
+                "compactionTriggerRatio": ratio,
+                "compactionMaxAttempts": integer_options['compaction_max_attempts'],
             },
             "mcp": {"name": "agent_world_eval", "transport": "stdio", "command": sys.executable,
                     "args": [str(repository / "task_gen/task_eval_mcp.py"), str(private_server)],
@@ -110,8 +147,12 @@ def run_kimi_agent(
             stdout, stderr = process.communicate(json.dumps(payload), timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
-            os.killpg(process.pid, signal.SIGKILL)
-            stdout, stderr = process.communicate()
+            process.terminate()  # SDK cancels the turn and exports partial context first.
+            try:
+                stdout, stderr = process.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                stdout, stderr = process.communicate()
         finally:
             shutil.copyfile(trace, log_dir / "tool_calls.jsonl")
         for name, value in (("stdout.txt", stdout), ("stderr.txt", stderr)):

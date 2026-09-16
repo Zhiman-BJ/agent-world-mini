@@ -377,24 +377,31 @@ def main() -> None:
     parser.add_argument("--agent-backend", choices=["react", "kimi"])
     parser.add_argument("--environment-id")
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--max-tool-calls", type=int, default=50)
-    parser.add_argument("--max-concurrency", type=int, default=1)
+    parser.add_argument("--max-tool-calls", type=int)
+    parser.add_argument("--max-concurrency", type=int)
     parser.add_argument("--llm-timeout-seconds", type=int)
     arguments = parser.parse_args()
     if arguments.limit is not None and arguments.limit < 1:
         parser.error("--limit 必须大于 0")
-    if arguments.max_tool_calls < 1:
+    if arguments.max_tool_calls is not None and arguments.max_tool_calls < 1:
         parser.error("--max-tool-calls 必须大于 0")
-    if arguments.max_concurrency < 1:
+    if arguments.max_concurrency is not None and arguments.max_concurrency < 1:
         parser.error("--max-concurrency 必须大于 0")
     if arguments.llm_timeout_seconds is not None and arguments.llm_timeout_seconds < 1:
         parser.error("--llm-timeout-seconds 必须大于 0")
     config = load_config(arguments.config, {"model": arguments.model, "backend": arguments.backend})
     llm_config = dict(config.llm)
+    max_tool_calls = arguments.max_tool_calls if arguments.max_tool_calls is not None else config.execution.get('evaluation_max_tool_calls', 50)
+    max_concurrency = arguments.max_concurrency if arguments.max_concurrency is not None else config.execution.get('evaluation_max_concurrency', 1)
+    for name, value in (('evaluation_max_tool_calls', max_tool_calls), ('evaluation_max_concurrency', max_concurrency)):
+        if type(value) is not int or value < 1:
+            parser.error(f'{name} 必须是正整数')
     if arguments.agent_backend is not None:
         llm_config["agent_backend"] = arguments.agent_backend
     if arguments.llm_timeout_seconds is not None:
         llm_config["timeout_seconds"] = arguments.llm_timeout_seconds
+        if llm_config.get('agent_backend') == 'kimi':
+            llm_config['kimi'] = {**llm_config.get('kimi', {}), 'timeout_seconds': arguments.llm_timeout_seconds}
     run_dir = run_evaluation(
         arguments.input_root,
         arguments.output_root,
@@ -402,8 +409,8 @@ def main() -> None:
         config.execution,
         limit=arguments.limit,
         environment_id=arguments.environment_id,
-        max_tool_calls=arguments.max_tool_calls,
-        max_concurrency=arguments.max_concurrency,
+        max_tool_calls=max_tool_calls,
+        max_concurrency=max_concurrency,
     )
     print(run_dir)
 
