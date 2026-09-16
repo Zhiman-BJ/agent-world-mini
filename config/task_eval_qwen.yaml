@@ -10,6 +10,7 @@ llm:
   response_format:
     type: json_object
   max_concurrency: 1
+  format_retry_count: 3  # ReAct 连续格式错误的额外重试次数，不增加工具预算
 execution:
   retry_count: 3
   tool_timeout_seconds: 300

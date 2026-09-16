@@ -102,7 +102,10 @@ def _run_stages(config, run_dir, stop_after, should_stop, meta):
 
     try:
         stage(PipelineStep.ENVIRONMENT_LOAD, lambda: load_environment(run_io.to_environment_load_input(config)))
-        stage(PipelineStep.GRAPH_BUILD, lambda: build_graph(run_io.to_build_graph_input(bundle, config)))
+        stage(PipelineStep.GRAPH_BUILD, lambda: build_graph(
+            run_io.to_build_graph_input(bundle, config),
+            checkpoint_dir=run_dir / "intermediate" / "step_1_targets",
+        ))
         stage(PipelineStep.CHAIN_SAMPLE, lambda: sample_chains(run_io.to_sample_chains_input(bundle, config)))
         stage(PipelineStep.CHAIN_EXECUTE, lambda: execute_chains(run_io.to_execute_chains_input(bundle, config, run_dir)))
         stage(PipelineStep.TASK_COMPOSE, lambda: compose_tasks(run_io.to_compose_tasks_input(bundle, config)))

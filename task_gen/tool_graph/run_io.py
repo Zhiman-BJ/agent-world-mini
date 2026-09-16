@@ -37,6 +37,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
+import tempfile
 from threading import Lock
 from typing import Any
 
@@ -57,6 +58,29 @@ from .contracts import (
 
 
 _LLM_CALL_LOCK = Lock()
+
+
+def load_graph_target(directory: Path, key: str) -> dict[str, Any] | None:
+    """读取单目标建图检查点；损坏文件不能作为成功结果复用。"""
+    try:
+        value = json.loads((directory / f"{key}.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def save_graph_target(directory: Path, key: str, record: dict[str, Any]) -> None:
+    """逐目标原子替换；目录沿用 pipeline 的运行锁，不跨运行共享缓存。"""
+    directory.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory,
+                                     suffix=".tmp", delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+            stream.flush()
+            temporary.replace(directory / f"{key}.json")
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------

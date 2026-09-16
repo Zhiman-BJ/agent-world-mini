@@ -52,6 +52,10 @@ def run_react_agent(
     if type(budget) is not int or budget < 1:
         raise ValueError("max_tool_calls 必须是正整数")
     api_config = {**llm_config, "backend": "api"}
+    format_retries = llm_config.get("format_retry_count", 3)
+    if type(format_retries) is not int or format_retries < 0:
+        raise ValueError("format_retry_count 必须是非负整数")
+    format_failures = 0
     log_dir = workspace.parent / (workspace.name + ".agent")
     log_dir.mkdir(parents=True, exist_ok=True)
     trace.parent.mkdir(parents=True, exist_ok=True)
@@ -78,7 +82,8 @@ def run_react_agent(
                     {"role": "assistant", "content": response.text},
                 ])
                 try:
-                    payload = parse_json_object(response.text)
+                    # ReAct 必须完整遵守单对象协议；不静默忽略第二个对象。
+                    payload = parse_json_object(response.text, reject_extra_content=True)
                     if "action" in payload and "finish" in payload:
                         raise ValueError("action 与 finish 不能同时出现")
                     if payload.get("finish") is True:
@@ -93,8 +98,14 @@ def run_react_agent(
                     if not isinstance(name, str) or not isinstance(arguments, dict):
                         raise ValueError("action.name 必须是字符串，params 必须是对象")
                 except ValueError as error:
+                    format_failures += 1
+                    if format_failures > format_retries:
+                        raise RuntimeError(
+                            f"ReAct 回复格式在 {format_retries} 次重试后仍非法：{error}"
+                        ) from error
                     message = f"Response format error: {error}. Use the specified action/finish JSON format."
                     continue
+                format_failures = 0
                 if calls >= budget:
                     message = "Tool call budget exhausted. Submit finish with your final answer and any limitations."
                     continue

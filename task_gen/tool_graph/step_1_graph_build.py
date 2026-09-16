@@ -113,7 +113,7 @@ LLM 判出多少边就输出多少边。
 :func:`_compact_tool_view`   是                    单个工具 → 紧凑公开视图
 :func:`_environment_context`  是                    环境级公开上下文（含 rules）
 :func:`_build_prompt`         是                    目标 + 候选 + 上下文 → 单轮 prompt
-:func:`_run_round`             否                    批量调用并按目标重试一次
+:func:`_run_round`             否                    批量调用、逐目标保存及反馈重试
 :func:`_validate_decisions`    是                    校验完整覆盖、边及 prerequisite
 :func:`_assemble_graph`        是                    合并并稳定排序最终对象
 ===========================  ====================  ==============================
@@ -129,7 +129,7 @@ LLM 判出多少边就输出多少边。
       → _assemble_graph                       → ToolGraph object
 
 ``_validate_decisions`` 是信任边界：LLM 返回必须通过字段和覆盖范围校验；不在本地
-重复裁决模型的语义。失败目标只重试一次，仍失败则终止本阶段，避免部分图泄漏。
+重复裁决模型的语义。失败目标按 graph.retry_count 反馈重试，仍失败则终止本阶段。
 
 公开视图的形态
 ==============
@@ -231,7 +231,8 @@ prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_
 
    单轮必须返回 ``{"decisions": [...], "prerequisite_alternatives": [...]}``。
 3a. （``_run_round``）通过 :func:`tool_graph.llm.infer` 批量调用 LLM，并用
-   :func:`tool_graph.llm.parse_json_object` 解析；每个失败目标只重试一次。
+   :func:`tool_graph.llm.parse_json_object` 解析；失败目标附带具体校验错误重试，
+   graph.retry_count 默认 3，表示初次请求之外的重试次数。
    ``MalformedJSONError`` 等解析或语义错误不得被当作“无边”静默吞掉。
 4. （``_validate_decisions``）用本地确定性代码校验每一项：``from_tool`` 必须是
    ``environment.tools`` 中的已知工具名且不等于当前目标（自环在此就地丢弃，
@@ -284,8 +285,9 @@ prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_
 以上任何失败都先触发该目标的单目标重试；重试后仍失败才整阶段失败。
 
 任一目标失败时，本阶段不返回不完整的 ``tool_graph``，也不在返回值中私自增加
-部分成功字段。当前流水线不做断点续跑，因此一次失败意味着整个 run 重来 ——
-这正是把 ``max_tokens`` 配足、并用紧凑视图压缩输入的现实理由。
+部分成功字段。pipeline 传入运行独占的 checkpoint_dir，成功目标立即原子落盘；
+恢复时核对请求、模型配置及校验源码摘要，并重新校验回答，只补跑未完成目标。
+每次显式恢复重新获得重试预算，累计尝试记录保留。独立调用不传目录则不缓存。
 
 边界与禁止事项
 ==============
@@ -310,10 +312,14 @@ prerequisite 另行表达执行目标前必须满足的历史。它支持 ``any_
 from __future__ import annotations
 
 import json
+import hashlib
+import inspect
+from pathlib import Path
 from typing import Any, Callable
 
 from .contracts import BuildGraphInput, BuildGraphOutput
 from .llm import BatchInferenceError, InferenceResult, MalformedJSONError, infer, parse_json_object
+from .run_io import load_graph_target, save_graph_target
 
 # 0 是有效输出：表示模型已审查该候选并判定无依赖。prompt 要求对每个候选都给出
 # 结论，weight=0 就是"已审查、无关系"的显式回答，据此可确认模型没有漏审工具。
@@ -322,7 +328,7 @@ WEIGHTS = (0, 1, 2, 3)
 MAX_OUT_DEPTH = 3
 
 
-def build_graph(stage_input: BuildGraphInput) -> BuildGraphOutput:
+def build_graph(stage_input: BuildGraphInput, *, checkpoint_dir: Path | None = None) -> BuildGraphOutput:
     """Classify direct edges and prerequisites once per target tool."""
     environment = stage_input["environment"]
     config = stage_input["config"]
@@ -348,6 +354,8 @@ def build_graph(stage_input: BuildGraphInput) -> BuildGraphOutput:
             _request_json_object(result, target, "建图"),
             names,
         ),
+        retry_count=config.graph.get("retry_count", 3),
+        checkpoint_dir=checkpoint_dir,
     )
     edges_by_target = {
         name: result[0] for name, result in zip(names, classified)
@@ -368,45 +376,85 @@ def _run_round(
     llm_config: dict[str, Any],
     round_name: str,
     consume: Callable[[InferenceResult, str], Any],
+    *,
+    retry_count: int = 3,
+    checkpoint_dir: Path | None = None,
 ) -> list[Any]:
-    """Run one batch and retry all invalid targets together once."""
-    try:
-        results: list[InferenceResult | Exception] = list(infer(prompts, llm_config=llm_config))
-    except BatchInferenceError as error:
-        results = list(error.outcomes)
-    if len(results) != len(target_names):
-        raise ValueError(f"建图{round_name}返回数量与目标工具数量不一致")
-
+    """逐目标保存进度，只对失败目标反馈错误重试；恢复时重新校验缓存。"""
+    if type(retry_count) is not int or retry_count < 0:
+        raise ValueError("graph.retry_count 必须是非负整数（额外重试次数）")
+    if len(prompts) != len(target_names):
+        raise ValueError("建图请求与目标数量不一致")
+    # 校验逻辑改变时自动失效；仅保存配置摘要，不落盘配置中的密钥。
+    version = inspect.getsource(_validate_decisions) + inspect.getsource(parse_json_object)
+    keys = [hashlib.sha256(json.dumps([prompt, llm_config, version], sort_keys=True,
+                                     ensure_ascii=False, default=str).encode()).hexdigest()
+            for prompt in prompts]
     output: list[Any] = [None] * len(target_names)
-    invalid: list[int] = []
-    for index, (target_name, result) in enumerate(zip(target_names, results)):
-        try:
-            if isinstance(result, Exception):
-                raise result
-            output[index] = consume(result, target_name)
-        except Exception:
-            invalid.append(index)
-    if not invalid:
-        return output
+    records: list[dict[str, Any]] = []
+    errors: dict[int, str] = {}
+    requests = list(prompts)
+    for index, target in enumerate(target_names):
+        record = load_graph_target(checkpoint_dir, keys[index]) if checkpoint_dir else None
+        if (not record or record.get("target") != target or record.get("key") != keys[index]
+                or not isinstance(record.get("attempts"), list)):
+            record = {"target": target, "key": keys[index], "attempts": []}
+        records.append(record)
+        if record.get("status") == "success":
+            try:
+                output[index] = consume(InferenceResult(record["answer"], {}, "checkpoint"), target)
+            except (ValueError, KeyError, TypeError):
+                pass
 
-    try:
-        retries: list[InferenceResult | Exception] = list(infer(
-            [prompts[index] for index in invalid], llm_config=llm_config
-        ))
-    except BatchInferenceError as error:
-        retries = list(error.outcomes)
-    if len(retries) != len(invalid):
-        raise ValueError(f"建图{round_name}重试返回数量不一致")
-    for index, retry in zip(invalid, retries):
-        target_name = target_names[index]
+    for _ in range(retry_count + 1):
+        pending = [index for index, value in enumerate(output) if value is None]
+        if not pending:
+            return output
+        processed: set[int] = set()
+
+        def accept(local_index: int, result: InferenceResult | Exception) -> None:
+            index = pending[local_index]
+            processed.add(local_index)
+            record = records[index]
+            answer = result.text if isinstance(result, InferenceResult) else None
+            attempt = {"number": len(record["attempts"]) + 1,
+                       "prompt": requests[index], "answer": answer}
+            try:
+                if isinstance(result, Exception):
+                    raise result
+                value = consume(result, target_names[index])
+            except Exception as error:
+                errors[index] = f"{type(error).__name__}: {error}"
+                attempt["error"] = errors[index]
+                record["status"] = "failed"
+                # 传输失败没有新回答；校验失败只携带最近一次回答，避免历史累积。
+                if answer is not None:
+                    requests[index] = prompts[index] + (
+                        "\n\n上一轮回答未通过确定性校验。请保持原判定标准，修正结构错误，"
+                        "重新返回该目标的完整 JSON，不能只返回修改项。\n上一轮回答：\n"
+                        + answer + "\n校验错误：\n" + errors[index]
+                    )
+            else:
+                output[index] = value
+                record.update(status="success", answer=answer)
+                errors.pop(index, None)
+            record["attempts"].append(attempt)
+            if checkpoint_dir is not None:
+                save_graph_target(checkpoint_dir, keys[index], record)
+
         try:
-            if isinstance(retry, Exception):
-                raise retry
-            output[index] = consume(retry, target_name)
-        except Exception as error:
-            raise ValueError(
-                f"目标工具 {target_name} 的{round_name}结果非法：{error}"
-            ) from error
+            results = list(infer([requests[index] for index in pending],
+                                 llm_config=llm_config, on_result=accept))
+        except BatchInferenceError as error:
+            results = list(error.outcomes)
+        if len(results) != len(pending):
+            raise ValueError(f"建图{round_name}返回数量与目标工具数量不一致")
+        for local_index, result in enumerate(results):
+            if local_index not in processed:
+                accept(local_index, result)
+    if errors:
+        raise ValueError(f"建图{round_name}在初次请求及 {retry_count} 次重试后失败：\n" + "\n".join(
+            f"目标 {target_names[index]}：{errors[index]}" for index in sorted(errors)))
     return output
 
 

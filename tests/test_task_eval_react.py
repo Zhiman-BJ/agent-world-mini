@@ -7,6 +7,67 @@ import pytest
 from task_gen.task_eval_react import run_react_agent
 
 
+@pytest.mark.parametrize("text", [
+    '```json\n{"finish":true,"final_answer":"done"}\n```',
+    '<think>consider {a}</think>{"finish":true,"final_answer":"done"}',
+])
+def test_react_single_object_keeps_existing_parser_compatibility(text):
+    assert llm.parse_json_object(text, reject_extra_content=True)["final_answer"] == "done"
+
+
+@pytest.mark.parametrize("bad", [
+    '{"finish":true,"final_answer":"premature"}{"action":{"name":"inspect","params":{}}}',
+    '{"action":{"name":"inspect","params":{}}}{"finish":true,"final_answer":"premature"}',
+    '{"finish":true,"final_answer":""}',
+])
+def test_protocol_retry_has_no_tool_side_effects(tmp_path, bad):
+    from task_gen import task_eval_react as react
+    workspace = tmp_path / "state"
+    workspace.mkdir()
+    server = tmp_path / "server.json"
+    server.write_text(json.dumps({"tools": [], "max_tool_calls": 1}))
+    trace = tmp_path / "trace.jsonl"
+    replies = [llm.InferenceResult(text, {}, "test") for text in (
+        bad, '{"finish":true,"final_answer":"corrected"}')]
+    with patch.object(react, "infer", side_effect=replies) as request, patch.object(
+        react, "call_environment_tool", side_effect=AssertionError("invalid response executed")
+    ):
+        assert run_react_agent("Task", workspace, server, trace, {}) == "corrected"
+    assert "Response format error" in request.call_args.args[0]
+    assert trace.read_text() == ""
+
+
+def test_protocol_retry_exhaustion(tmp_path):
+    from task_gen import task_eval_react as react
+    workspace = tmp_path / "state"
+    workspace.mkdir()
+    server = tmp_path / "server.json"
+    server.write_text(json.dumps({"tools": [], "max_tool_calls": 10}))
+    with patch.object(react, "infer", return_value=llm.InferenceResult(
+        '{"finish":true,"final_answer":""}', {}, "test")) as request:
+        with pytest.raises(RuntimeError, match="格式"):
+            run_react_agent("Task", workspace, server, tmp_path / "trace.jsonl", {
+                "format_retry_count": 2,
+            })
+    assert request.call_count == 3
+
+
+def test_protocol_retry_budget_resets_after_valid_action(tmp_path):
+    from task_gen import task_eval_react as react
+    workspace = tmp_path / "state"
+    workspace.mkdir()
+    server = tmp_path / "server.json"
+    server.write_text(json.dumps({"tools": [], "max_tool_calls": 1}))
+    texts = ['{}', '{"action":{"name":"inspect","params":{}}}', '{}',
+             '{"finish":true,"final_answer":"done"}']
+    with patch.object(react, "infer", side_effect=[llm.InferenceResult(t, {}, "test") for t in texts]), \
+            patch.object(react, "call_environment_tool", return_value={"result": {}, "error": None}) as tool:
+        assert run_react_agent("Task", workspace, server, tmp_path / "trace.jsonl", {
+            "format_retry_count": 1,
+        }) == "done"
+    assert tool.call_count == 1
+
+
 def test_resume_replays_failed_request_and_preserves_spent_budget(tmp_path):
     state = tmp_path / 'state'
     state.mkdir()

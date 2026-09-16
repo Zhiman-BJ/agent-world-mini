@@ -21,7 +21,7 @@ class ToolGraphSkeletonTest(unittest.TestCase):
             def complete_messages(self, messages, **_parameters):
                 return "answer", {"total_tokens": 7}
 
-        def build_graph(_stage_input):
+        def build_graph(_stage_input, *, checkpoint_dir=None):
             llm.infer("graph prompt", llm_config={})
             return {"tool_graph": []}
 

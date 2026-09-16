@@ -13,7 +13,8 @@ llm:
   max_concurrency: 16
   max_tokens: 131072
   temperature: 0
-graph: {}
+graph:
+  retry_count: 3  # 每个失败目标的额外重试次数
 planning:
   sample_count: 100000
   keep_top_count: 10

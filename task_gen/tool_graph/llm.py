@@ -8,7 +8,7 @@ JSON object。需要结构化输出的阶段必须使用后者，不要各自实
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -146,6 +146,7 @@ def infer(
     history: Sequence[Message] | None = None,
     llm_config: Mapping[str, Any] | None = None,
     on_chunk: ChunkHandler | None = None,
+    on_result: Callable[[int, InferenceResult | Exception], None] | None = None,
 ) -> InferenceResult: ...
 
 
@@ -157,6 +158,7 @@ def infer(
     history: Sequence[Message] | None = None,
     llm_config: Mapping[str, Any] | None = None,
     on_chunk: ChunkHandler | None = None,
+    on_result: Callable[[int, InferenceResult | Exception], None] | None = None,
 ) -> list[InferenceResult]: ...
 
 
@@ -167,8 +169,9 @@ def infer(
     history: Sequence[Message] | None = None,
     llm_config: Mapping[str, Any] | None = None,
     on_chunk: ChunkHandler | None = None,
+    on_result: Callable[[int, InferenceResult | Exception], None] | None = None,
 ) -> InferenceResult | list[InferenceResult]:
-    """完成单条或并发批量推理；传入 ``on_chunk`` 时启用流式读取。"""
+    """完成单条或并发批量推理；on_result 在批量中按完成顺序回调，供逐项存档。"""
 
     prompts = [prompt] if isinstance(prompt, str) else prompt
     if not prompts or any(not item.strip() for item in prompts):
@@ -186,6 +189,7 @@ def infer(
             config=config,
             on_chunk=on_chunk,
             trace=trace,
+            on_result=on_result,
         )
     client = _client(config)
     client.stream = False
@@ -239,12 +243,15 @@ def infer(
         return result
 
     if isinstance(prompt, str):
-        return run(0, prompt)
+        result = run(0, prompt)
+        if on_result is not None:
+            on_result(0, result)
+        return result
 
     max_workers = int(config.get("max_concurrency", 8))
     if max_workers < 1:
         raise ValueError("llm.max_concurrency 必须大于 0")
-    return _run_batch(run, prompts, max_workers)
+    return _run_batch(run, prompts, max_workers, on_result)
 
 
 def _infer_codex(
@@ -255,6 +262,7 @@ def _infer_codex(
     config: Mapping[str, Any],
     on_chunk: ChunkHandler | None,
     trace: tuple[str, TraceWriter] | None,
+    on_result: Callable[[int, InferenceResult | Exception], None] | None = None,
 ) -> InferenceResult | list[InferenceResult]:
     """通过本机已登录的 Codex CLI 推理；沙箱只读，工作目录用临时目录隔离。
 
@@ -317,38 +325,48 @@ def _infer_codex(
         return result
 
     if isinstance(prompt, str):
-        return run(0, prompt)
+        result = run(0, prompt)
+        if on_result is not None:
+            on_result(0, result)
+        return result
     max_workers = int(config.get("max_concurrency", 1))
     if max_workers < 1:
         raise ValueError("llm.max_concurrency 必须大于 0")
-    return _run_batch(run, prompt, max_workers)
+    return _run_batch(run, prompt, max_workers, on_result)
 
 
 def _run_batch(
     run: Callable[[int, str], InferenceResult],
     prompts: list[str],
     max_workers: int,
+    on_result: Callable[[int, InferenceResult | Exception], None] | None = None,
 ) -> list[InferenceResult]:
+    """按完成顺序通知调用方，返回值仍按请求顺序排列；回调异常直接传播。"""
     with ThreadPoolExecutor(max_workers=min(max_workers, len(prompts))) as executor:
-        futures = [executor.submit(run, index, prompt) for index, prompt in enumerate(prompts)]
-        outcomes: list[InferenceResult | Exception] = []
-        for future in futures:
+        futures = {executor.submit(run, index, prompt): index for index, prompt in enumerate(prompts)}
+        outcomes: list[InferenceResult | Exception] = [RuntimeError("未完成")] * len(prompts)
+        for future in as_completed(futures):
+            index = futures[future]
             try:
-                outcomes.append(future.result())
+                outcomes[index] = future.result()
             except Exception as error:
-                outcomes.append(error)
+                outcomes[index] = error
+            if on_result is not None:
+                on_result(index, outcomes[index])
     if any(isinstance(item, Exception) for item in outcomes):
         raise BatchInferenceError(outcomes)
     return [item for item in outcomes if isinstance(item, InferenceResult)]
 
 
-def parse_json_object(text: str) -> dict[str, Any]:
+def parse_json_object(text: str, *, reject_extra_content: bool = False) -> dict[str, Any]:
     """从 LLM 回复中提取唯一的顶层 JSON object。
 
     容忍 ``` 围栏以及 object 前后的解释性文字；不容忍顶层不是 object、
     缺少末尾闭合符时尝试补齐，但不补字段、值或分隔符。失败时抛出 :class:`MalformedJSONError`，
     消息带原始回复的首尾片段，用于区分"模型没按格式回答"和"输出被截断"
     这两种需要不同处置的情况。
+    reject_extra_content 用于 ReAct：剥离思考段和围栏后，拒绝对象之外的内容，
+    避免静默丢掉后续 action/finish；默认行为保持兼容。
     """
     # reasoning 模型（如 gpt-5.6-luna）会输出 <think>…</think>，其中常含花括号，
     # 不先剥离会让下面的括号匹配取到思考过程里的 object。
@@ -359,6 +377,9 @@ def parse_json_object(text: str) -> dict[str, Any]:
     if start < 0:
         raise MalformedJSONError(f"回复中没有 JSON object：{_excerpt(text)}")
     end = _match_object(stripped, start)
+    if reject_extra_content and (stripped[:start].strip() or
+                                 (end >= 0 and stripped[end:].strip())):
+        raise MalformedJSONError("回复必须只含一个 JSON object，不能拼接多个对象或额外正文")
     candidate = stripped[start:end] if end >= 0 else _close_json_tail(stripped[start:])
     try:
         value = json.loads(candidate)

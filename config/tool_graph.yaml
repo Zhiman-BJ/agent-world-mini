@@ -18,7 +18,8 @@ llm:
   # API 返回长度上限；实际用量以调用结果为准。
   # 仅 backend=api 时使用；Codex CLI 没有该参数，backend=codex 时此项无效。
   max_tokens: 81920
-graph: {}
+graph:
+  retry_count: 3  # 每个失败目标的额外重试次数
 planning:
   # 初始试验值；实现后依据三个正式环境的有效率和候选质量调整。
   sample_count: 10000
