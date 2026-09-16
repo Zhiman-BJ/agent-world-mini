@@ -1,5 +1,7 @@
 # Step3 网络参考开关：实现与试跑
 
+> 下文保留首次试跑记录。后续已定位并修复本地工具不可见的原因，详见文末“搜索故障定位与修复”；搜索端点仍返回 502/503。
+
 ## 结论
 
 已在独立分支 `feature/review-web-reference` 接入开关和条件 prompt；默认关闭，未合并 main。
@@ -53,3 +55,42 @@ OpenZeppelin 单候选 Step3 执行完成，但没有搜索。三个额外探针
 
 合并执行测试 2 项、review agent 测试 4 项、Codex client 测试 4 项均通过；新检查覆盖默认关闭及显式开启时的客户端开关传递，并保留初态隔离检查。git diff --check 通过。
 代码接线及无搜索时的 Step3 执行已验证；真实网络查询和来源采用仍未验证通过。
+
+## 搜索故障定位与修复
+
+### 本地原因已经确认
+
+不是任务 prompt 没有要求搜索。Codex 0.154.0 使用的自定义 provider `task_eval` 缺少 `supports_standalone_web_search=true`，因此即使开启搜索，发送给模型的工具声明也不包含 web.run。
+
+使用本地诊断 HTTP 端点接收真实 Codex 请求，检查嵌在 input 内的工具声明；诊断端点返回固定错误，不生成模型回答。逐项对照结果如下（均显式启用 live 搜索）：
+
+| standalone_web_search 功能标志 | provider 支持声明 | 实际声明包含 web.run |
+|---|---|---|
+| false | false | 否 |
+| false | true | 是 |
+| true | false | 否 |
+| true | true | 是 |
+
+因此无需启用实验性功能标志。最小部署修复是在**管线专用** `/data1/home/tianfang/.codex-task-eval/config.toml` 的 `[model_providers.task_eval]` 下添加 `supports_standalone_web_search = true`。这是一项机器上的部署配置，不随 Git 提交；迁移到别的机器时需要在实际 provider 下补齐。
+
+另外，CLI 默认缓存搜索导致旧实现 `enable_web_search=False` 仍可能暴露工具。已修改 `task_gen/tool_graph/codex.py`，显式传入 `web_search="live"` 或 `web_search="disabled"`。实际请求对照确认：false 时无 web.run，true 时有 web.run。专用配置顶层也显式设为 `web_search="disabled"`，避免这项能力声明使尚未更新客户端的旧分支自动开放缓存搜索。
+
+当前对话的 Codex 配置与密钥未修改。没有更换模型、认证、推理服务或搜索服务。
+
+### 服务端故障已经确认，尚未恢复
+
+`search_probe_provider_support` 首次出现真实 web_search 事件；`search_probe_fixed_config` 使用未经子类覆盖的原始 `_ReviewClient`，也成功发起搜索。
+
+通过本地仅转发请求的诊断代理确认实际端点与状态（不保存密钥）：
+
+- 推理：`http://47.237.200.112:8080/responses` 返回过 200；排查期间也出现暂时性 503 后重试成功。
+- 搜索：`http://47.237.200.112:8080/alpha/search` 多次返回 502/503。一次诊断会话中两轮模型搜索各触发 5 次底层 HTTP 尝试，最终均失败。
+- 原始客户端最终返回：`HTTP 503 Service Unavailable` / `Service temporarily unavailable`。
+
+这确认了当前阻塞发生在搜索端点，不能据此断言是服务维护、路由错误、搜索上游故障还是其他服务内部原因。需要该端点恢复才能验证真实搜索结果及任务质量收益；继续修改任务 prompt 不能解决这些 HTTP 错误。
+
+各探针日志在本次运行目录的 `search_probe_provider_support`、`search_probe_endpoint`、`search_probe_fixed_config`、`search_probe_final` 中。未用普通推理回答冒充搜索结果。
+
+### 修复验证
+
+新增客户端开关回归测试，先确认旧实现失败，再确认修改通过。搜索开关测试 1 项（含开/关两个子用例）、合并执行测试 2 项、review agent 测试 4 项、tool_graph LLM 测试 13 项均通过；另已检查真实请求中的工具可见性。
