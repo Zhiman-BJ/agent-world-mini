@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -164,9 +165,41 @@ def validate_in_runtime(package_root: Path, drafts: list[dict[str, Any]]) -> lis
     request, response = output / "runtime_validation_input.json", output / "runtime_validation_output.json"
     write_json(request, {"package_root": str(package_root), "drafts": drafts})
     response.unlink(missing_ok=True)
-    _command([info["python"], "-m", "env_gen.tool_gen.software", "validate", str(request), str(response)],
-             cwd=package_root, log=output / "runtime_validation.log", env=subprocess_environment(package_root))
-    return json.loads(response.read_text(encoding="utf-8"))
+    reports: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory(prefix="tool-validation-", dir=output) as directory:
+        temporary = Path(directory)
+        for index, draft in enumerate(drafts):
+            tool_name = str(draft["tool"]["name"])
+            target_request = temporary / f"request-{index}.json"
+            target_response = temporary / f"response-{index}.json"
+            write_json(target_request, {
+                "package_root": str(package_root),
+                "drafts": drafts,
+                "target_tool": tool_name,
+            })
+            try:
+                _command(
+                    [info["python"], "-m", "env_gen.tool_gen.software", "validate",
+                     str(target_request), str(target_response)],
+                    cwd=package_root,
+                    log=output / "runtime_validation.log",
+                    env=subprocess_environment(package_root),
+                )
+                reports.extend(json.loads(target_response.read_text(encoding="utf-8")))
+            except Exception as error:
+                reports.append({
+                    "tool": tool_name,
+                    "status": "rejected",
+                    "failures": [
+                        f"runtime_process_error:{type(error).__name__}: {error}"
+                    ],
+                    "tests": draft["tests"],
+                })
+    from .compiler import ToolGenerator
+
+    reports = ToolGenerator._apply_dependency_status(drafts, reports)
+    write_json(response, reports)
+    return reports
 
 
 def main() -> None:
@@ -180,7 +213,14 @@ def main() -> None:
         document = json.loads(args.package.read_text(encoding="utf-8"))
         root = Path(document["package_root"])
         environment = json.loads((root / "environment.json").read_text(encoding="utf-8"))
-        reports = ToolGenerator(None)._validate_local(root, environment, document["drafts"])
+        target_tool = document.get("target_tool")
+        reports = ToolGenerator(None)._validate_local(
+            root,
+            environment,
+            document["drafts"],
+            target_tools={str(target_tool)} if target_tool else None,
+            apply_dependency_status=not bool(target_tool),
+        )
         write_json(Path(args.arguments[0]), reports)
     else:
         info = prepare_software(args.package, restore=args.action != "install")

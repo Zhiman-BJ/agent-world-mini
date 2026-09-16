@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -10,7 +11,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from env_gen.tool_gen.compiler import ToolGenerator, ToolGenerationError
-from env_gen.tool_gen.software import expanded_packages, prepare_software
+from env_gen.tool_gen.runtime import ToolPackage, ToolRuntime
+from env_gen.tool_gen.software import expanded_packages, prepare_software, validate_in_runtime
 from tests import test_tool_gen as fixtures
 from tests.test_tool_gen import FakeAgent, tool
 
@@ -84,6 +86,95 @@ class SoftwareTests(unittest.TestCase):
             env = json.loads((package / 'environment.json').read_text())
             report = ToolGenerator(FakeAgent())._validate(package, env, drafts)
             self.assertEqual(report[0]['status'], 'passed', report)
+
+    def test_runtime_validation_starts_a_clean_process_for_each_tool(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            (package / "tool_generation").mkdir()
+            drafts = [
+                {
+                    "tool": {"name": "first_tool"},
+                    "tests": [{"calls": [{"tool": "first_tool", "arguments": {}}]}],
+                },
+                {
+                    "tool": {"name": "second_tool"},
+                    "tests": [{
+                        "calls": [
+                            {"tool": "first_tool", "arguments": {}},
+                            {"tool": "second_tool", "arguments": {}},
+                        ]
+                    }],
+                },
+            ]
+            targets = []
+
+            def command(arguments, **_kwargs):
+                request = json.loads(Path(arguments[-2]).read_text(encoding="utf-8"))
+                targets.append(request["target_tool"])
+                Path(arguments[-1]).write_text(json.dumps([{
+                    "tool": request["target_tool"],
+                    "status": "passed",
+                    "failures": [],
+                    "tests": next(
+                        item["tests"] for item in request["drafts"]
+                        if item["tool"]["name"] == request["target_tool"]
+                    ),
+                }]), encoding="utf-8")
+                return ""
+
+            runtime = {
+                "python": "/selected/python",
+                "prefix": "/selected",
+                "root": "/selected",
+            }
+            with patch("env_gen.tool_gen.software.runtime_info", return_value=runtime), \
+                 patch("env_gen.tool_gen.software._command", side_effect=command):
+                reports = validate_in_runtime(package, drafts)
+
+            self.assertEqual(targets, ["first_tool", "second_tool"])
+            self.assertEqual([item["tool"] for item in reports], targets)
+            saved = json.loads((package / "tool_generation/runtime_validation_output.json").read_text())
+            self.assertEqual(saved, reports)
+
+    def test_tool_runtime_uses_the_prepared_software_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = fixtures.ToolGenV2Tests().make_package(root)
+            ToolGenerator(FakeAgent()).generate(package)
+            prepared = root / "shared-software-profile"
+            prepared.mkdir()
+            with patch.dict(os.environ, {"TOOLGEN_SOFTWARE_ROOT": str(prepared)}):
+                with ToolRuntime(ToolPackage.load(package)) as runtime:
+                    self.assertEqual(runtime.context.software_root, prepared)
+
+    def test_runtime_validation_continues_after_one_process_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            (package / "tool_generation").mkdir()
+            drafts = [
+                {"tool": {"name": name}, "tests": []}
+                for name in ("broken_tool", "working_tool")
+            ]
+
+            def command(arguments, **_kwargs):
+                request = json.loads(Path(arguments[-2]).read_text(encoding="utf-8"))
+                if request["target_tool"] == "broken_tool":
+                    raise RuntimeError("process exited")
+                Path(arguments[-1]).write_text(json.dumps([{
+                    "tool": "working_tool",
+                    "status": "passed",
+                    "failures": [],
+                    "tests": [],
+                }]), encoding="utf-8")
+                return ""
+
+            runtime = {"python": "/selected/python", "prefix": "/selected", "root": "/selected"}
+            with patch("env_gen.tool_gen.software.runtime_info", return_value=runtime), \
+                 patch("env_gen.tool_gen.software._command", side_effect=command):
+                reports = validate_in_runtime(package, drafts)
+
+            self.assertEqual([item["status"] for item in reports], ["rejected", "passed"])
+            self.assertIn("runtime_process_error", reports[0]["failures"][0])
 
 
 if __name__ == '__main__':

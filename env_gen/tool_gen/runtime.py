@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -310,7 +311,10 @@ class ToolRuntime:
             for name, tool in self._tools.items()
         }
         self.context = SimpleNamespace(
-            software_root=package.package_root / "tool_generation/software",
+            software_root=Path(os.environ.get(
+                "TOOLGEN_SOFTWARE_ROOT",
+                package.package_root / "tool_generation/software",
+            )),
             environment=deepcopy(package.environment),
             records=RecordStore(self.root / "state/records.sqlite", package.environment),
             scope_root=lambda scope_id: self._scope_root(str(scope_id)),
