@@ -155,8 +155,8 @@ python -u -m seed_gen.scripts.monitor_agent_seed_scores --workers 2 --max-rounds
 python -m seed_gen.migrate_smithery_v11
 ```
 
-环境种子格式见 `../schemas/环境种子契约-v1.1.md`；
-`../schemas/env_seeds.schema.json` 是种子结构示例（真实场景种子产物）；机器校验使用
+环境种子格式见 `../schemas/环境种子契约-v1.0.md` 和
+`../schemas/env_seeds.schema.json` 是种子结构示例；机器校验使用
 `../schemas/validation/env_seeds.schema.json`。注释样例中的中文 key 和省略号不属于正式格式，
 批量机器产物以 `data/smithery_1000_v1_0902.json` 为准。
 
