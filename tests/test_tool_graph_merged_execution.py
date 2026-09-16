@@ -35,6 +35,7 @@ class MergedExecutionTest(unittest.TestCase):
                 {'tool': 'lookup', 'arguments': {}, 'result': {'success': True}, 'error': None},
             ]
             def run(client, prompt, working_directory):
+                self.assertEqual(client.enable_web_search, config.execution.get('enable_web_search', False))
                 server = json.loads(client.server_config.read_text())
                 Path(server['trace']).write_text('\n'.join(json.dumps(r) for r in records))
                 (Path(server['workspace']) / 'data').write_text('changed')
@@ -52,6 +53,10 @@ class MergedExecutionTest(unittest.TestCase):
             self.assertFalse(output['tasks'][-1]['execution']['success'])
             self.assertEqual((root / 'env/state/data').read_text(), 'original')
             self.assertTrue(json.loads((root / 'run/tasks/second/agent_result.json').read_text())['execution']['success'])
+            config.execution['enable_web_search'] = True
+            with patch('task_gen.tool_graph.execution_agent._ReviewClient.run', new=run):
+                output = execute_candidates({'config': config, 'run_dir': root / 'search_run', 'environment': {'tools': [tool]}, 'tasks': candidates[:1]})
+            self.assertTrue(output['tasks'][0]['execution']['success'])
 
 
 if __name__ == '__main__':

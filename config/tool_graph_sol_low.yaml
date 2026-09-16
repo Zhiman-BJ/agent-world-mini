@@ -28,6 +28,7 @@ planning:
   edge_sampling_probabilities: {"1": 0.1, "2": 0.2, "3": 0.7}
   diversity_lambda: 10
 execution:
+  enable_web_search: false  # Step3 可选的公开业务资料参考
   max_concurrency: 16
   retry_count: 3
   tool_result_max_bytes: 65536
