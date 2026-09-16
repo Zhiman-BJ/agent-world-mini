@@ -1,0 +1,21 @@
+# 独立评测配置；不改变任务生成管线。SDK 路径可用 KIMI_CODE_SDK 环境变量提供。
+llm:
+  agent_backend: kimi
+  backend: api
+  model: gpt-5.6-terra
+  base_url: http://47.237.200.112:8080/v1
+  api_key_file: ~/.codex-task-eval/auth.json
+  temperature: 0
+  max_tokens: 8192
+  timeout_seconds: 600
+  kimi:
+    provider_type: openai
+    # 接入方声明的上下文预算，不代表服务端承诺支持更长输入。
+    max_context_size: 131072
+    max_attempts_per_step: 3
+    # 未设置 max_steps_per_turn 时按工具预算 * 2 + 10 计算。
+execution:
+  retry_count: 1
+  tool_timeout_seconds: 300
+  tool_max_memory_bytes: 2147483648
+  tool_max_write_bytes: 268435456
