@@ -1,7 +1,7 @@
 [
   {
     "global_id": "semiconductor_scenario_02_01_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -1744,9 +1744,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "给定 PN 或 MOS 几何、掺杂和接触条件，建立方程并完成偏压延续扫描；定位并修复不收敛设置，输出 I-V 与内部场分布，并断言残差收敛、电流连续和关键工作点在容差内。"
-      }
+      "给定 PN 或 MOS 几何、掺杂和接触条件，建立方程并完成偏压延续扫描；",
+      "定位并修复不收敛设置，输出 I-V 与内部场分布，并断言残差收敛、电流连续和关键工作点在容差内。"
     ],
     "others": {
       "basic_info": [
@@ -1876,7 +1875,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_01_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -3272,9 +3271,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "修改异质层厚度或组分，使指定束缚态跃迁能接近目标值；生成参数扫描输入并解析固定的已完成结果，输出最佳结构，断言跃迁误差、束缚态数量和参数范围满足约束。"
-      }
+      "修改异质层厚度或组分，使指定束缚态跃迁能接近目标值；",
+      "生成参数扫描输入并解析固定的已完成结果，输出最佳结构，断言跃迁误差、束缚态数量和参数范围满足约束。"
     ],
     "others": {
       "basic_info": [
@@ -3444,7 +3442,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_01_03",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -5442,9 +5440,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "在给定光谱和材料候选下调整各层材料与厚度，计算吸收、量子效率和 I-V，选择效率最高且满足厚度约束的结构；与基线比较并断言效率提升、功率点和输出单位一致。"
-      }
+      "在给定光谱和材料候选下调整各层材料与厚度，计算吸收、量子效率和 I-V，选择效率最高且满足厚度约束的结构；",
+      "与基线比较并断言效率提升、功率点和输出单位一致。"
     ],
     "others": {
       "basic_info": [
@@ -5724,7 +5721,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_02_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -6302,9 +6299,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "扫描温度和二维载流子浓度，分别计算各散射机制与总迁移率，找出不同区间的主导机制；断言 Matthiessen 组合关系成立、迁移率为正且机制切换点可由结果复算。"
-      }
+      "扫描温度和二维载流子浓度，分别计算各散射机制与总迁移率，找出不同区间的主导机制；",
+      "断言 Matthiessen 组合关系成立、迁移率为正且机制切换点可由结果复算。"
     ],
     "others": {
       "basic_info": [
@@ -6429,7 +6425,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_03_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -8546,9 +8542,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "根据尺寸表建立 MOS 截面，标记半导体、氧化层、栅和接触边界，并在界面局部细化网格；断言区域尺寸、物理组、单元质量和关键位置网格尺度符合要求。"
-      }
+      "根据尺寸表建立 MOS 截面，标记半导体、氧化层、栅和接触边界，并在界面局部细化网格；",
+      "断言区域尺寸、物理组、单元质量和关键位置网格尺度符合要求。"
     ],
     "others": {
       "basic_info": [
@@ -8800,7 +8795,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_03_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -10172,9 +10167,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "把带物理分组的 Gmsh 网格转换为目标格式，再读回核对节点、单元类型、单元数量和区域标签；断言关键 physical group 未丢失且转换前后拓扑统计一致。"
-      }
+      "把带物理分组的 Gmsh 网格转换为目标格式，再读回核对节点、单元类型、单元数量和区域标签；",
+      "断言关键 physical group 未丢失且转换前后拓扑统计一致。"
     ],
     "others": {
       "basic_info": [
@@ -10531,7 +10525,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_03_03",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -12278,9 +12272,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "在固定网格上实现静电或稳态热传导弱形式，修正错误边界标记或系数后求解；输出场分布与通量，断言解析基准误差、守恒残差及网格加密收敛率。"
-      }
+      "在固定网格上实现静电或稳态热传导弱形式，修正错误边界标记或系数后求解；",
+      "输出场分布与通量，断言解析基准误差、守恒残差及网格加密收敛率。"
     ],
     "others": {
       "basic_info": [
@@ -12905,7 +12898,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_04_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -14058,9 +14051,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "读取含参数或连接错误的网表，依据诊断修复后执行 DC、AC 或瞬态分析并解析波形；断言仿真无错误退出、工作点和频响关键值符合预期。"
-      }
+      "读取含参数或连接错误的网表，依据诊断修复后执行 DC、AC 或瞬态分析并解析波形；",
+      "断言仿真无错误退出、工作点和频响关键值符合预期。"
     ],
     "others": {
       "basic_info": [
@@ -14280,7 +14272,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_04_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -15936,9 +15928,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "扫描或随机采样 R、C、W、L 等参数，使延迟、增益或功耗满足规格；输出可行参数、最差角和良率统计，断言固定随机种子可复现且所有入选方案通过约束。"
-      }
+      "扫描或随机采样 R、C、W、L 等参数，使延迟、增益或功耗满足规格；",
+      "输出可行参数、最差角和良率统计，断言固定随机种子可复现且所有入选方案通过约束。"
     ],
     "others": {
       "basic_info": [
@@ -16158,7 +16149,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_05_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -17771,9 +17762,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "从指定 RLC 电路推导传递函数、阻抗、极点和零点，将元件数值代入后与 SPICE 频响 fixture 对照；断言低高频极限、极点位置和采样频点误差在容差内。"
-      }
+      "从指定 RLC 电路推导传递函数、阻抗、极点和零点，将元件数值代入后与 SPICE 频响 fixture 对照；",
+      "断言低高频极限、极点位置和采样频点误差在容差内。"
     ],
     "others": {
       "basic_info": [
@@ -18331,7 +18321,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_05_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -20666,9 +20656,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "在多工艺角、温度和电源条件下优化一组电路参数，以最小化最差角偏差或代价；输出最优参数及逐角指标，断言每个硬约束均通过且结果优于基线。"
-      }
+      "在多工艺角、温度和电源条件下优化一组电路参数，以最小化最差角偏差或代价；",
+      "输出最优参数及逐角指标，断言每个硬约束均通过且结果优于基线。"
     ],
     "others": {
       "basic_info": [
@@ -21080,7 +21069,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_06_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -22572,9 +22561,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "读取固定 Touchstone 网络，完成级联、S/Z 参数转换、增益和匹配计算，找出满足回波损耗规格的频段；断言端口与频率轴一致、往返转换误差和无源性检查通过。"
-      }
+      "读取固定 Touchstone 网络，完成级联、S/Z 参数转换、增益和匹配计算，找出满足回波损耗规格的频段；",
+      "断言端口与频率轴一致、往返转换误差和无源性检查通过。"
     ],
     "others": {
       "basic_info": [
@@ -22870,7 +22858,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_06_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -24172,9 +24160,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "用固定的开路、短路、负载和直通测量建立校准，再对 DUT 执行去嵌；输出校准后网络，断言标准件残差下降、参考面正确且已知验证网络在容差内恢复。"
-      }
+      "用固定的开路、短路、负载和直通测量建立校准，再对 DUT 执行去嵌；",
+      "输出校准后网络，断言标准件残差下降、参考面正确且已知验证网络在容差内恢复。"
     ],
     "others": {
       "basic_info": [
@@ -24470,7 +24457,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_07_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -25586,9 +25573,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "连接 MZI、MMI、波导与相移器形成 PIC 网络，调整耦合比或相位使目标波长处达到指定透射和消光比；断言端口连通、谱线目标和功率守恒。"
-      }
+      "连接 MZI、MMI、波导与相移器形成 PIC 网络，调整耦合比或相位使目标波长处达到指定透射和消光比；",
+      "断言端口连通、谱线目标和功率守恒。"
     ],
     "others": {
       "basic_info": [
@@ -25768,7 +25754,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_08_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -29866,9 +29852,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "把固定波导或谐振腔组件转换为 FDTD 几何，设置源、边界和监视器并提取透射谱；断言几何映射、能量平衡以及分辨率或仿真时长收敛。"
-      }
+      "把固定波导或谐振腔组件转换为 FDTD 几何，设置源、边界和监视器并提取透射谱；",
+      "断言几何映射、能量平衡以及分辨率或仿真时长收敛。"
     ],
     "others": {
       "basic_info": [
@@ -31015,7 +31000,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_08_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -35226,9 +35211,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "生成满足资源预算的云端 FDTD 配置，并从固定的已完成结果 fixture 比较候选结构的宽带透射；断言任务配置合法、成本估计不超限且入选设计达到光谱目标，不要求在线提交付费任务。"
-      }
+      "生成满足资源预算的云端 FDTD 配置，并从固定的已完成结果 fixture 比较候选结构的宽带透射；",
+      "断言任务配置合法、成本估计不超限且入选设计达到光谱目标，不要求在线提交付费任务。"
     ],
     "others": {
       "basic_info": [
@@ -37187,7 +37171,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_09_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -40353,9 +40337,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "扫描波导宽度并求解前若干本征模，选择有效折射率最接近目标且保持单模约束的宽度；断言模式排序稳定、场归一化正确并通过网格收敛检查。"
-      }
+      "扫描波导宽度并求解前若干本征模，选择有效折射率最接近目标且保持单模约束的宽度；",
+      "断言模式排序稳定、场归一化正确并通过网格收敛检查。"
     ],
     "others": {
       "basic_info": [
@@ -41507,7 +41490,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_09_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -43361,9 +43344,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "把锥形或分段波导切成多个截面，计算局部模式并组合得到总透射与反射；调整分段数直至结果收敛，断言功率守恒和相邻两级离散结果差异低于阈值。"
-      }
+      "把锥形或分段波导切成多个截面，计算局部模式并组合得到总透射与反射；",
+      "调整分段数直至结果收敛，断言功率守恒和相邻两级离散结果差异低于阈值。"
     ],
     "others": {
       "basic_info": [
@@ -43485,7 +43467,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_10_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -46101,9 +46083,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "从基线光栅或耦合器出发优化介电像素或几何参数，提高目标端口耦合并满足最小特征尺寸；断言目标函数改善、设计变量有界、制造约束和独立复算结果通过。"
-      }
+      "从基线光栅或耦合器出发优化介电像素或几何参数，提高目标端口耦合并满足最小特征尺寸；",
+      "断言目标函数改善、设计变量有界、制造约束和独立复算结果通过。"
     ],
     "others": {
       "basic_info": [
@@ -46353,7 +46334,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_11_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -49808,9 +49789,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "根据压力、温度、组分和电子参数计算德拜长度、等离子体频率、碰撞率及无量纲判据，判定放电或输运区间；断言单位换算、阈值分类和物理适用条件一致。"
-      }
+      "根据压力、温度、组分和电子参数计算德拜长度、等离子体频率、碰撞率及无量纲判据，判定放电或输运区间；",
+      "断言单位换算、阈值分类和物理适用条件一致。"
     ],
     "others": {
       "basic_info": [
@@ -51781,7 +51761,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_11_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -54006,9 +53986,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "调节进气比例和温度，使关键前驱体或副产物浓度达到目标区间，输出平衡或反应历程；断言组分非负、元素守恒、归一化正确且目标物种满足规格。"
-      }
+      "调节进气比例和温度，使关键前驱体或副产物浓度达到目标区间，输出平衡或反应历程；",
+      "断言组分非负、元素守恒、归一化正确且目标物种满足规格。"
     ],
     "others": {
       "basic_info": [
@@ -55979,7 +55958,7 @@
   },
   {
     "global_id": "semiconductor_scenario_02_11_03",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -58995,9 +58974,8 @@
       }
     ],
     "init_ref_tasks": [
-      {
-        "possible_task": "调整扩散系数、边界通量或表面反应速率以复现给定浓度剖面或沉积厚度；输出时空场，断言质量守恒、边界条件成立且相对参考曲线误差低于阈值。"
-      }
+      "调整扩散系数、边界通量或表面反应速率以复现给定浓度剖面或沉积厚度；",
+      "输出时空场，断言质量守恒、边界条件成立且相对参考曲线误差低于阈值。"
     ],
     "others": {
       "basic_info": [
