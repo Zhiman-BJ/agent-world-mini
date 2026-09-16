@@ -77,7 +77,8 @@ def setup_case(tmp_path, url):
     tool = {
         'name': 'inspect', 'description': 'Inspect the public sample.',
         'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
-        'outputSchema': {'type': 'object'},
+        'outputSchema': {'oneOf': [{'type': 'object', 'properties': {'success': {'const': True}}},
+                                 {'type': 'object', 'properties': {'success': {'const': False}}}]},
         'usageConditions': {'preconditions': ['SPECIAL_PUBLIC_CONDITION'], 'sideEffects': []},
         'internal': {'code': "def run(arguments, context):\n    return {'success': True, 'value': 'observed-731'}\n"},
     }

@@ -106,7 +106,10 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     "name": tool["name"],
                     "description": tool.get("description", ""),
                     "inputSchema": tool["inputSchema"],
-                    "outputSchema": tool["outputSchema"],
+                    # MCP requires an explicit object root; environment schemas
+                    # may express their object alternatives through oneOf alone.
+                    # Execution still validates against the original schema.
+                    "outputSchema": {"type": "object", "allOf": [tool["outputSchema"]]},
                     "annotations": {
                         "readOnlyHint": not bool(tool.get("usageConditions", {}).get("sideEffects", ["unknown"])),
                         "openWorldHint": False,
