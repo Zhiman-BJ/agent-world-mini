@@ -22,6 +22,8 @@ def model_server():
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             requests.append(body)
             delta = replies.pop(0) if replies else {'content': 'unexpected extra request'}
+            if callable(delta):
+                delta = delta(body)
             if 'http_error' in delta:
                 self.send_response(delta['http_error'])
                 self.send_header('Content-Type', 'application/json')
@@ -114,7 +116,8 @@ def test_kimi_rejects_builtin_preserves_public_contract_and_observation(tmp_path
     assert records[0]['result']['value'] == 'observed-731'
     assert len(requests) == 3
     for request in requests:
-        assert [t['function']['name'] for t in request['tools']] == ['mcp__agent_world_eval__inspect']
+        assert [t['function']['name'] for t in request['tools']] == [
+            'mcp__agent_world_eval__inspect', 'mcp__agent_world_eval__read_tool_result']
         assert request['parallel_tool_calls'] is False
         assert request['temperature'] == 0.2
         assert request.get('max_tokens', request.get('max_completion_tokens')) == 1024
@@ -157,7 +160,8 @@ def test_unknown_agent_backend_is_rejected(tmp_path):
 
 
 @pytest.mark.parametrize('setting,value', [('max_steps_per_turn', 0), ('parallel_tool_calls', 'false'),
-                                         ('compaction_trigger_ratio', 2), ('system_prompt', ''), ('typo', 1)])
+                                         ('compaction_trigger_ratio', 2), ('system_prompt', ''), ('typo', 1),
+                                         ('tool_result_page_chars', 50000)])
 def test_invalid_kimi_configuration_is_rejected(tmp_path, monkeypatch, setting, value):
     from task_gen.task_eval import _run_agent
     workspace, server, trace, options = setup_case(tmp_path, 'http://unused.invalid/v1')
@@ -256,7 +260,8 @@ def test_small_context_triggers_compaction_without_tool_allowlist_error(tmp_path
     url, requests, replies = model_server
     workspace, server, trace, options = setup_case(tmp_path, url)
     monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
-    options['kimi'].update(max_context_size=8192, reserved_context_size=1024, compaction_trigger_ratio=0.5)
+    options['kimi'].update(max_context_size=4096, reserved_context_size=1024, compaction_trigger_ratio=0.5,
+                           tool_result_page_chars=12000)
     config = json.loads(server.read_text())
     config['tools'][0]['internal']['code'] = "def run(arguments, context):\n return {'success': True, 'value': 'observed-731', 'details': 'evidence ' * 5000}"
     server.write_text(json.dumps(config))
@@ -300,3 +305,38 @@ def test_broken_response_preserves_received_bytes(tmp_path, model_server, monkey
         _run_agent('Answer.', workspace, server, trace, options)
     records = [json.loads(line) for line in (tmp_path / 'state.agent/llm_responses.jsonl').read_text().splitlines()]
     assert any('PARTIAL_RESPONSE_EVIDENCE' in record['body'] and record.get('error') for record in records)
+
+
+def test_long_result_read_is_scoped_and_does_not_spend_business_budget(tmp_path, model_server, monkeypatch):
+    from task_gen.task_eval import _run_agent
+    url, requests, replies = model_server
+    workspace, server, trace, options = setup_case(tmp_path, url)
+    monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
+    config = json.loads(server.read_text())
+    config['tools'][0]['internal']['code'] = "def run(arguments, context):\n return {'success': True, 'data': 'x' * 300000 + 'MIDDLE_EVIDENCE_731' + 'y' * 300000}"
+    server.write_text(json.dumps(config))
+    options['kimi']['max_steps_per_turn'] = 8
+    def read_middle(request):
+        message = next(m for m in request['messages'] if m.get('tool_call_id') == 'inspect')
+        page = json.loads(message['content'])
+        assert page['has_more'] is True and page['total_chars'] > 600000
+        assert len(page['content']) <= 12000
+        assert 'MIDDLE_EVIDENCE_731' not in message['content']
+        return tool_call('mcp__agent_world_eval__read_tool_result',
+                         {'result_id': page['result_id'], 'offset': 300000, 'length': 100}, 'middle')
+    replies.extend([
+        tool_call('mcp__agent_world_eval__inspect', {}, 'inspect'),
+        read_middle,
+        tool_call('mcp__agent_world_eval__read_tool_result',
+                  {'result_id': str(workspace / 'hidden.txt'), 'offset': 0, 'length': 100}, 'forbidden'),
+        {'content': 'MIDDLE_EVIDENCE_731'},
+    ])
+    assert _run_agent('Report the evidence in the middle of the sample.', workspace, server, trace, options) == 'MIDDLE_EVIDENCE_731'
+    assert len(trace.read_text().splitlines()) == 1
+    assert len(json.loads(trace.read_text())['result']['data']) > 600000
+    messages = requests[-1]['messages']
+    assert 'MIDDLE_EVIDENCE_731' in next(m['content'] for m in messages if m.get('tool_call_id') == 'middle')
+    assert 'Unknown result_id' in next(m['content'] for m in messages if m.get('tool_call_id') == 'forbidden')
+    assert 'HIDDEN_INITIAL_STATE' not in json.dumps(requests)
+    reads = [json.loads(line) for line in (tmp_path / 'state.agent/result_reads.jsonl').read_text().splitlines()]
+    assert len(reads) == 2 and reads[0]['error'] is None and reads[1]['error']

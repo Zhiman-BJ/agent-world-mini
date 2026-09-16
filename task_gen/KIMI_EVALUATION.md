@@ -10,7 +10,7 @@ Kimi 是执行循环，模型通过 `llm.model` 选择，不要求使用 Kimi �
 - `task_eval_kimi.mjs`：使用官方 SDK 管理消息循环，通过现有 MCP 服务执行工具；保存请求、事件、上下文和 usage。
 - `config/task_eval_kimi.yaml`：独立配置，使用已有管线凭据，不修改对话的凭据。
 
-工具执行仍由已有的 bubblewrap 沙箱和状态提交逻辑负责。Kimi 工作目录是单独的空目录；工具白名单只允许当前环境的 MCP 工具，内置 Read、Shell、网络、子代理等均不开放。
+工具执行仍由已有的 bubblewrap 沙箱和状态提交逻辑负责。Kimi 工作目录是单独的空目录；工具白名单只允许当前环境的 MCP 工具和受限 `read_tool_result`，内置 Read、Shell、网络、子代理等均不开放。
 这是 SDK 工具权限限制，不是新增了一个包住整个 Kimi 进程的操作系统沙箱。
 
 ## 官方 SDK 与启动
@@ -49,6 +49,7 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 | `llm.temperature / max_tokens` | 采样温度、单次模型输出上限 |
 | `llm.kimi.system_prompt` | 可直接在 YAML 修改 system prompt 正文 |
 | `llm.kimi.parallel_tool_calls` | 请求模型是否允许同一回答返回多个调用；不是工具执行并发 |
+| `llm.kimi.tool_result_page_chars` | 长返回值预览与单页字符上限，默认 6000，允许 1–12000；由我们的适配层实现 |
 | `llm.kimi.max_context_size` | 显式声明后端上下文预算；不能改变服务端实际限制 |
 | `llm.kimi.max_steps_per_turn` | 模型循环上限；默认工具预算 × 2 + 10 |
 | `llm.kimi.max_attempts_per_step` | 每步 API 尝试次数，默认 3 |
@@ -58,14 +59,18 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 
 原 ReAct 的 `response_format`、`format_retry_count` 不用于 Kimi。当前模型协议只支持 OpenAI-compatible Chat Completions。
 
-**用户暂缓的长返回值与 Read 方案：** SDK 超过 50,000 字符时会把内容存入文件，返回预览并提示使用 Read/Grep；目前禁用了这些工具，因此模型无法读取被省略的内容。审查用 80,000 字符结果复现了这一点：下一轮仅看到约 2,391 字符，中间的标记丢失。原始内容仍保存在 `tool_calls.jsonl` 中。用户已表示 Read 并非不能开放，但具体访问范围暂不决定，本轮保留现状；工具端 summary 也暂缓。SDK 压缩摘要中的历史文件恢复指针同样受当前工具限制。已验证小窗口压缩并继续执行，尚未做大型任务集或长上下文压力测试。
+**长返回值读取：** SDK 原生超过 50,000 字符会外存并指示使用 Read/Grep，外存本身也有保留上限。现在在它之前分页：短返回保持原样，长返回给出 `result_id / total_chars / offset / next_offset / has_more / content`，内容是原始 JSON 文本的一段，不是摘要。模型用 `read_tool_result(result_id, offset, length)` 按需读取后续或任意位置；offset/length 按 Unicode 字符计数，页面可能切在 JSON 字段中间，只有拼接完整后才是完整 JSON。
+
+编号只能查到当前 MCP 进程已有的长结果；实现不接受文件路径、不读取环境状态目录。完整原文在进程内保留到运行结束，永久记录仍是 `tool_calls.jsonl`，新增 `result_id` 对应分页编号。辅助读取另记 `result_reads.jsonl`，不消耗环境调用预算，但受模型步数和总时限限制。目前内存占用随长结果累计增长，尚未改成磁盘缓存；会话结束后不能续用旧编号。没有添加摘要，也不开放 SDK 历史文件恢复指针。
+
+仅 Kimi 模式启用分页。因为分页信封不符合原业务 outputSchema，MCP 传输层不声明业务 outputSchema；原契约仍完整展示在 description 中，Python 执行器仍按原 outputSchema 校验并决定状态是否提交。ReAct、任务生成和 verifier 路径不变，官方 SDK 无修改。
 
 ## 留档与已发现的 SDK 接口差异
 
 每次调用在状态目录旁的 `<目录名>.agent/` 留档：`agent.md`、`llm_requests.jsonl`、
 `llm_responses.jsonl`（按 request_id 对应原始 SSE/JSON 响应）、`system_prompts.jsonl`、
 `effective_config.json`、`events.jsonl`、`context.json`、`result.json`（含 usage）、
-`tool_calls.jsonl` 和 `timing.json`。断流保留已收到的原始片段及错误；超时先取消并保存上下文，10 秒内不能退出则强制终止。
+`tool_calls.jsonl`、`result_reads.jsonl` 和 `timing.json`。断流保留已收到的原始片段及错误；超时先取消并保存上下文，10 秒内不能退出则强制终止。
 请求日志没有认证头；API key 通过 stdin 传给进程，不放入命令行。临时 SDK home 在结束后清理。
 失败时仍保留已有日志；若尚未进入生成阶段，可能没有模型请求或上下文文件。
 
@@ -79,7 +84,7 @@ MCP 必须在创建 session 前注册，否则不会进入该 session 的初始�
 
 ```bash
 KIMI_CODE_SDK=/data1/home/tianfang/kimi-code/packages/node-sdk/dist/index.mjs \
-python -m pytest tests/test_task_eval.py tests/test_task_eval_react.py tests/test_task_eval_kimi.py -q
+python -m pytest tests/test_task_eval.py tests/test_task_eval_react.py tests/test_task_eval_kimi.py tests/test_tool_result_reader.py -q
 ```
 
 新增测试运行真实官方 SDK 与真实 MCP/沙箱，仅模型响应使用本地可控 HTTP 服务。
@@ -87,6 +92,9 @@ python -m pytest tests/test_task_eval.py tests/test_task_eval_react.py tests/tes
 真实 Sol 试跑产物：`runs/kimi_smoke/20260916_171006_114568/report.json`；3 次调用，989 → 996，状态与答案检查通过。
 新版完整配置的 Sol 试跑：`runs/kimi_smoke/20260916_181618_613815/report.json`，407 → 414，3 次工具调用，耗时 14.43 秒。
 该次 usage：普通输入 5416、缓存输入 13952、输出 176 tokens；未据此推算价格。
-小窗口测试产生 `compaction.completed`，上下文从 11572 tokens 压缩为 871 后继续执行。
-Terra 基础版试跑返回服务端 503；本机 Qwen 8000 端口无响应。本次不声称完成了 Qwen 或正式任务集评测。
+小窗口测试产生 `compaction.completed` 并继续执行；分页后使用 4096 token 测试窗口。
+长结果试跑命令：`python scripts/run_kimi_smoke.py --long-result --model gpt-5.6-sol`。
+产物 `runs/kimi_smoke/20260917_012857_674755/report.json`：600083 字符返回中取得尾部凭据，157 → 164，3 次业务调用、2 次辅助读取，21.32 秒，检查通过。
+另有正式 Hugeicons task4 单例 `runs/kimi_real_task/20260916_194130_051270`，verifier 3/3 通过；尚未完成整套任务集评测。
+Terra 基础版试跑返回服务端 503；本机 Qwen 8000 端口上次无响应。本次不声称完成了 Qwen 评测。
 全部要求、参数映射与验收记录见同目录 `KIMI_REQUIREMENTS.md`。

@@ -15,6 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=Path('config/task_eval_kimi.yaml'))
     parser.add_argument('--model')
+    parser.add_argument('--long-result', action='store_true', help='Place the required token after 600,000 padding characters')
     parser.add_argument('--output-root', type=Path, default=Path('runs/kimi_smoke'))
     args = parser.parse_args()
     root = args.output_root.resolve() / datetime.now().strftime('%Y%m%d_%H%M%S_%f')
@@ -34,22 +35,34 @@ def main():
         'outputSchema': {'type': 'object'},
         'internal': {'code': "def run(arguments, context):\n import json\n p = context.workspace_root / 'counter.json'\n data = json.loads(p.read_text())\n if arguments['token'] != data['token']: return {'success': False, 'error': 'Invalid token'}\n data['count'] = arguments['count']\n p.write_text(json.dumps(data))\n return {'success': True, 'count': data['count']}"},
     }]
+    if args.long_result:
+        tools[0]['description'] += ' The response includes a large padding field before the update token at the end.'
+        tools[0]['internal']['code'] = (
+            "def run(arguments, context):\n import json\n"
+            " data = json.loads((context.workspace_root / 'counter.json').read_text())\n"
+            " return {'success': True, 'count': data['count'], 'padding': 'x' * 600000, 'token': data['token']}"
+        )
     server = root / 'server.json'
     trace = root / 'calls.jsonl'
     server.write_text(json.dumps({'tools': tools, 'environment': {}, 'workspace': str(state),
-        'trace': str(trace), 'max_tool_calls': 6, 'timeout': 10,
+        'trace': str(trace), 'max_tool_calls': 3 if args.long_result else 6, 'timeout': 10,
         'memory_limit': 2147483648, 'write_limit': 268435456}))
     config = load_config(args.config, {'model': args.model})
     answer = _run_agent('把示例计数器在当前值基础上增加 7，确认保存后的值，并告诉我原值和新值。',
                         state, server, trace, {**config.llm, 'agent_backend': 'kimi'})
     final = json.loads((state / 'counter.json').read_text())
     calls = [json.loads(line) for line in trace.read_text().splitlines()]
+    read_trace = state.parent / 'state.agent/result_reads.jsonl'
+    reads = [json.loads(line) for line in read_trace.read_text().splitlines()] if read_trace.exists() else []
     passed = (final['count'] == initial['count'] + 7 and final['token'] == initial['token']
               and str(initial['count']) in answer and str(final['count']) in answer
               and all(call['error'] is None for call in calls)
               and [call['tool'] for call in calls].count('read_counter') >= 2)
+    if args.long_result:
+        passed = passed and any(r['error'] is None and initial['token'] in r['result']['content'] for r in reads)
     report = {'passed': passed, 'model': config.llm['model'], 'initial_count': initial['count'],
-              'final_count': final['count'], 'answer': answer, 'tool_calls': len(calls)}
+              'final_count': final['count'], 'answer': answer, 'tool_calls': len(calls),
+              'result_reads': len(reads), 'long_result': args.long_result}
     (root / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps({'run_dir': str(root), **report}, ensure_ascii=False, indent=2))
     if not passed:

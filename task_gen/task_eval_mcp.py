@@ -16,6 +16,7 @@ from task_gen.tool_graph.step_3_chain_execute import (  # noqa: E402
     _call_tool,
     _schema_error,
 )
+from task_gen.tool_result_reader import ResultReader  # noqa: E402
 
 
 CallToolFn = Callable[..., dict[str, Any]]
@@ -83,6 +84,9 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
     workspace = Path(config["workspace"]).resolve()
     trace = Path(config["trace"]).resolve()
     calls = 0
+    reader = ResultReader(config['tool_result_page_chars']) if 'tool_result_page_chars' in config else None
+    if reader is not None and reader.name in tools:
+        raise ValueError('read_tool_result 工具名称冲突')
     choices = None
     if 'review_choice_seed' in config:
         from task_gen.tool_graph.review_choices import ReviewChoices, TOOL
@@ -109,7 +113,10 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     # MCP requires an explicit object root; environment schemas
                     # may express their object alternatives through oneOf alone.
                     # Execution still validates against the original schema.
-                    "outputSchema": {"type": "object", "allOf": [tool["outputSchema"]]},
+                    # Paged Kimi responses are transport envelopes, not business
+                    # outputs. Original schemas are still validated above and
+                    # included in the public description by the Kimi adapter.
+                    **({} if reader else {"outputSchema": {"type": "object", "allOf": [tool["outputSchema"]]}}),
                     "annotations": {
                         "readOnlyHint": not bool(tool.get("usageConditions", {}).get("sideEffects", ["unknown"])),
                         "openWorldHint": False,
@@ -118,21 +125,30 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                 } for tool in tools.values()]}
                 if choices is not None:
                     result['tools'].append(TOOL)
+                if reader is not None:
+                    result['tools'].append(reader.tool)
             elif method == "tools/call":
-                if calls >= int(config["max_tool_calls"]):
-                    raise RpcError(-32000, "工具调用次数已达到上限")
                 params = request.get("params")
                 if not isinstance(params, dict):
                     raise RpcError(-32602, "tools/call 缺少 params")
                 name = params.get("name")
                 arguments = params.get("arguments", {})
                 is_choice = choices is not None and name == TOOL['name']
-                if not isinstance(name, str) or (name not in tools and not is_choice):
+                is_read = reader is not None and name == reader.name
+                if not isinstance(name, str) or (name not in tools and not is_choice and not is_read):
                     raise RpcError(-32602, f"未知工具：{name}")
                 if not isinstance(arguments, dict):
                     raise RpcError(-32602, "工具 arguments 必须是 object")
-                calls += 1
-                if is_choice:
+                if not is_read:
+                    if calls >= int(config["max_tool_calls"]):
+                        raise RpcError(-32000, "工具调用次数已达到上限")
+                    calls += 1
+                if is_read:
+                    try:
+                        record = {'tool': name, 'arguments': arguments, 'result': reader.read(arguments), 'error': None}
+                    except ValueError as error:
+                        record = {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
+                elif is_choice:
                     try:
                         schema_error = _schema_error(TOOL['inputSchema'], arguments)
                         if schema_error:
@@ -152,13 +168,18 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     write_limit=int(config["write_limit"]),
                     environment=environment,
                 )
-                trace.parent.mkdir(parents=True, exist_ok=True)
-                with trace.open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps(record, ensure_ascii=False) + "\n")
                 payload = record["result"] if record["error"] is None else {
                     "error": record["error"],
                     "tool_result": record["result"],
                 }
+                encoded = json.dumps(payload, ensure_ascii=False)
+                if reader is not None and not is_read and len(encoded) > reader.page_chars:
+                    payload = reader.preview(encoded)
+                    record['result_id'] = payload['result_id']
+                record_path = Path(config['result_read_trace']) if is_read else trace
+                record_path.parent.mkdir(parents=True, exist_ok=True)
+                with record_path.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(record, ensure_ascii=False) + "\n")
                 result = {
                     "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}],
                     "structuredContent": payload,

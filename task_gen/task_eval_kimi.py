@@ -14,6 +14,7 @@ import time
 from typing import Any
 
 from .tool_graph.llm import _client
+from .tool_result_reader import ResultReader
 
 
 SYSTEM_PROMPT = """Complete the supplied task using the provided environment tools.
@@ -35,7 +36,7 @@ def run_kimi_agent(
         'sdk_path', 'node', 'provider_type', 'max_context_size', 'max_output_size',
         'timeout_seconds', 'max_steps_per_turn', 'max_attempts_per_step',
         'reserved_context_size', 'compaction_trigger_ratio', 'compaction_max_attempts',
-        'system_prompt', 'parallel_tool_calls',
+        'system_prompt', 'parallel_tool_calls', 'tool_result_page_chars',
     }
     if unknown:
         raise ValueError('未知 llm.kimi 配置：' + ', '.join(sorted(unknown)))
@@ -46,6 +47,10 @@ def run_kimi_agent(
         raise ValueError("设置 llm.kimi.sdk_path 或 KIMI_CODE_SDK，指向编译后的官方 SDK dist/index.mjs")
     client = _client({**llm_config, "backend": "api"})
     config = json.loads(server_config.read_text(encoding="utf-8"))
+    page_chars = options.get('tool_result_page_chars', 6000)
+    reader = ResultReader(page_chars)  # Validate before starting the SDK.
+    if any(tool['name'] == reader.name for tool in config['tools']):
+        raise ValueError('read_tool_result 工具名称冲突')
     budget = config["max_tool_calls"]
     if type(budget) is not int or budget < 1:
         raise ValueError("max_tool_calls 必须是正整数")
@@ -98,7 +103,10 @@ def run_kimi_agent(
         for tool in config["tools"]:
             extra = {k: tool[k] for k in ("usageConditions", "outputSchema") if k in tool}
             tool["description"] = tool.get("description", "") + "\nPublic contract: " + json.dumps(extra, ensure_ascii=False)
-        config.update(workspace=str(workspace.resolve()), trace=str(trace))
+        result_read_trace = log_dir / 'result_reads.jsonl'
+        result_read_trace.touch()
+        config.update(workspace=str(workspace.resolve()), trace=str(trace),
+                      tool_result_page_chars=page_chars, result_read_trace=str(result_read_trace.resolve()))
         private_server = root / "server.json"
         private_server.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         profile = root / "agent.md"
@@ -107,6 +115,10 @@ def run_kimi_agent(
             'tools: ["mcp__agent_world_eval__*"]\ndisallowedTools: ["select_tools"]\n'
             'subagents: []\n---\n' + system_prompt.strip()
             + f"\nAt most {budget} environment tool calls are available. Reserve calls for verification.\n"
+            + 'Long results are returned as pages of the original JSON text. Use read_tool_result '
+              'with result_id and next_offset to read more when needed. This auxiliary reader only '
+              'accesses results already produced in this session, not files; reads do not spend '
+              'the environment tool budget but still use model steps.\n'
         )
         profile.write_text(profile_text, encoding="utf-8")
         (log_dir / "agent.md").write_text(profile_text, encoding="utf-8")
@@ -114,7 +126,7 @@ def run_kimi_agent(
             "sdk_path": str(Path(sdk_value).expanduser().resolve()),
             "home_dir": str(root / "home"), "work_dir": str(work_dir),
             "profile": str(profile), "log_dir": str(log_dir.resolve()), "prompt": prompt,
-            "tool_count": len(config["tools"]),
+            "tool_count": len(config["tools"]) + 1,
             "model": client.model, "base_url": client.base_url, "api_key": client.api_key,
             "provider_type": options.get("provider_type", "openai"),
             "max_context_size": options["max_context_size"],

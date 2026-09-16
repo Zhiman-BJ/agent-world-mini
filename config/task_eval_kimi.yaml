@@ -14,6 +14,8 @@ llm:
     provider_type: openai
     # 同一轮允许模型返回多个调用；环境工具实际仍串行执行。
     parallel_tool_calls: true
+    # 长返回值按原始 JSON 文本分页；字符数上限 12000，辅助读取不计入环境工具预算。
+    tool_result_page_chars: 6000
     # 接入方声明的上下文预算，不代表服务端承诺支持更长输入。
     max_context_size: 131072
     reserved_context_size: 50000
