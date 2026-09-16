@@ -180,15 +180,18 @@ def render_markdown(report: dict) -> str:
         "",
         "## 场景覆盖",
         "",
-        "| L3 | 应用场景 | Backend 状态 | 关系/组合 | 可合成任务 |",
-        "| --- | --- | --- | --- | --- |",
+        "| L2 | L3 | 应用场景 | 场景具体描述 | 包 / 包组合 | 关系 | 可合成任务 |",
+        "| :---: | --- | --- | --- | --- | --- | --- |",
     ]
+    previous_l2 = None
     for scenario in report["scenarios"]:
-        backend_text = "；".join(f"{item['name']}（{item['status']}）" for item in scenario["backends"])
+        l2 = scenario["l2"] if scenario["l2"] != previous_l2 else ""
         lines.append(
-            f"| {scenario['l3']} | {scenario['application']} | {backend_text} | "
+            f"| {l2} | {scenario['l3']} | {scenario['application']} | {scenario['scenario_description']} | "
+            f"{scenario['package_combination']} | "
             f"{scenario['relationship'] or '-'} | {scenario['task_design']} |"
         )
+        previous_l2 = scenario["l2"]
     lines.extend([
         "",
         "## 包级计数",

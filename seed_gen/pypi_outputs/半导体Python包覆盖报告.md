@@ -12,30 +12,33 @@
 
 ## 场景覆盖
 
-| L3 | 应用场景 | Backend 状态 | 关系/组合 | 可合成任务 |
-| --- | --- | --- | --- | --- |
-| 02.01.01 Poisson / Drift-Diffusion | PN/MOS/diode 基础器件 | devsim（collected）；sesame（collected） | 主要 A | 设置 doping/contact；跑 IV；修 solver |
-| 02.01.02 Heterostructure / Quantum Device | QW/QCL/RTD/HEMT | nextnanopy（collected）；nextnano（external_solver） | Python client + external solver | 改 layer thickness；找目标 transition energy |
-| 02.01.03 Solar / Optoelectronic Device | solar cell / QW solar cell | solcore（collected） | 独立综合环境 | 改 layer/材料，使 efficiency 最大 |
-| 02.02.01 Mobility / Scattering | HEMT/2DEG mobility | mobilitypy（collected） | 可接 openbandparams → TCAD | 找 dominant scattering mechanism |
-| 02.03.01 Geometry Construction | TCAD/FEM 几何 | gmsh（collected）；pygmsh（collected） | pygmsh → Gmsh H/I | 建 MOS cross-section |
-| 02.03.02 Mesh Interchange | solver 间 mesh 传递 | meshio（collected） | Gmsh → meshio D | 格式转换、检查 physical group |
-| 02.03.03 Generic FEM/PDE | 自定义 electrothermal/PDE | scikit-fem（collected） | meshio → scikit-fem I/D | 边界条件/PDE 调试 |
-| 02.04.01 Netlist Execution | DC/AC/transient | spicelib（collected）；PySpice（collected）；ngspyce（no_confirmed_release） | 三者多数 A；底层 ngspice/Xyce | 修 netlist；运行仿真 |
-| 02.04.02 Parameter Sweep / Monte Carlo | process/device variation | spicelib（collected）；ngspice/Xyce（external_solver） | + ngspice/Xyce | 调 R/C/W/L 到 spec |
-| 02.05.01 Symbolic Analysis | transfer function、impedance | lcapy（collected） | 可与 SPICE C | 推导极点/零点并 cross-check |
-| 02.05.02 Design Optimization | corner/performance optimization | PyOPUS（collected） | + SPICE C | 多 corner 参数优化 |
-| 02.06.01 S-parameter Network Analysis | RF device/VNA | scikit-rf（collected） | - | cascade、S↔Z、gain、matching |
-| 02.06.02 Calibration / De-embedding | wafer probe/VNA | scikit-rf（collected） | + measurement backend C | 从 raw standards 完成校准 |
-| 02.07.01 Circuit-level S Matrix | PIC network | sax（collected）；simphony（collected） | 多为 A | 连接 MZI/MMI，优化 spectrum |
-| 02.08.01 Open-source FDTD | waveguide/cavity | meep（collected） | gdsfactory integration I | geometry→FDTD→spectrum |
-| 02.08.02 Cloud FDTD | 大规模/优化 | tidy3d（collected） | gdsfactory integration I | 同类任务，但有云成本 |
-| 02.09.01 Eigenmode | waveguide mode | femwell（collected） | gdsfactory integration I | 调 width 到目标 neff |
-| 02.09.02 EME / propagation | sectional waveguide propagation | emepy（collected） | - | 分段结构 transmission |
-| 02.10.01 Geometry Inverse Design | grating/coupler inverse design | ceviche（collected）；angler（collected）；legume-gme（collected） | 多为 A | optimize pixels/geometry |
-| 02.11.01 Plasma / Etch Physics | plasma properties、etch chamber physics | plasmapy（collected） | 与 Cantera/FiPy C | 从 pressure/power/composition 推 plasma regime |
-| 02.11.02 Reaction / Gas Chemistry | CVD/etch gas-phase chemistry | cantera（collected） | C | 调 gas ratio/temperature，满足 species target |
-| 02.11.03 Diffusion / Reaction PDE | diffusion、surface reaction、electrodeposition | fipy（collected） | geometry/mesh 可配合 C | 调 boundary/transport 参数，复现 profile |
+### 
+
+### L2 02 器件与物理仿真
+| L2 | L3 | 应用场景 | 场景具体描述 | 包 / 包组合 | 关系 | 可合成任务 |
+| :---: | --- | --- | --- | --- | --- | --- |
+| 02.01 TCAD | 02.01.01 Poisson / Drift-Diffusion | PN/MOS/diode 基础器件 | 针对 PN 结、二极管或 MOS 结构建立材料区域、掺杂、接触与偏压条件，联立求解泊松方程和载流子漂移-扩散方程，分析器件内部电势、载流子分布及端口电流响应。 | DEVSIM / Sesame | 可替代（A）：分别提供漂移-扩散器件求解能力 | 给定 PN 或 MOS 几何、掺杂和接触条件，建立方程并完成偏压延续扫描；定位并修复不收敛设置，输出 I-V 与内部场分布，并断言残差收敛、电流连续和关键工作点在容差内。 |
+|  | 02.01.02 Heterostructure / Quantum Device | QW/QCL/RTD/HEMT | 描述量子阱、量子级联激光器、共振隧穿二极管或 HEMT 的多层异质结构，计算能带弯曲、束缚态、波函数与跃迁能量，并比较层厚、组分和偏压变化的影响。 | nextnanopy → nextnano | 上层控制与外部求解（H/I）：nextnanopy 生成输入、调度并解析 nextnano | 修改异质层厚度或组分，使指定束缚态跃迁能接近目标值；生成参数扫描输入并解析固定的已完成结果，输出最佳结构，断言跃迁误差、束缚态数量和参数范围满足约束。 |
+|  | 02.01.03 Solar / Optoelectronic Device | solar cell / QW solar cell | 对单结、多结或含量子阱的太阳能电池进行层结构、材料光学性质与载流子输运的耦合建模，评估吸收、量子效率、I-V 特性及能量转换效率。 | Solcore | 独立综合环境 | 在给定光谱和材料候选下调整各层材料与厚度，计算吸收、量子效率和 I-V，选择效率最高且满足厚度约束的结构；与基线比较并断言效率提升、功率点和输出单位一致。 |
+| 02.02 Carrier | 02.02.01 Mobility / Scattering | HEMT/2DEG mobility | 在 HEMT 或二维电子气材料参数、温度和载流子浓度给定时，分别评估离化杂质、合金无序、界面粗糙及声子等散射机制对总迁移率的限制。 | mobilitypy（可接 openbandparams → TCAD） | 互补（C/D）：材料参数可由上游提供，结果可传给器件模型 | 扫描温度和二维载流子浓度，分别计算各散射机制与总迁移率，找出不同区间的主导机制；断言 Matthiessen 组合关系成立、迁移率为正且机制切换点可由结果复算。 |
+| 02.03 Mesh/PDE | 02.03.01 Geometry Construction | TCAD/FEM 几何 | 把器件截面转化为可计算的几何模型，明确半导体、介质、电极、界面和接触区域，并按结区、薄层及界面等关键尺度设置局部网格约束。 | pygmsh → Gmsh | 封装与集成（H/I）：pygmsh 构造几何，Gmsh 生成网格 | 根据尺寸表建立 MOS 截面，标记半导体、氧化层、栅和接触边界，并在界面局部细化网格；断言区域尺寸、物理组、单元质量和关键位置网格尺度符合要求。 |
+|  | 02.03.02 Mesh Interchange | solver 间 mesh 传递 | 在网格生成器与 TCAD、有限元求解器之间转换网格文件，同时保持节点、单元、边界标签和物理分组的对应关系，使同一器件几何可被下游求解器正确识别。 | Gmsh → meshio → 下游求解器 | 直接数据传递（D）：转换 Gmsh 网格并保留求解器所需标签 | 把带物理分组的 Gmsh 网格转换为目标格式，再读回核对节点、单元类型、单元数量和区域标签；断言关键 physical group 未丢失且转换前后拓扑统计一致。 |
+|  | 02.03.03 Generic FEM/PDE | 自定义 electrothermal/PDE | 为标准器件模型之外的静电、导热或电热耦合问题定义弱形式、材料系数、源项与边界条件，在导入网格上组装并求解有限元方程。 | meshio → scikit-fem | 导入与求解（I/D）：meshio 传递网格，scikit-fem 组装 PDE | 在固定网格上实现静电或稳态热传导弱形式，修正错误边界标记或系数后求解；输出场分布与通量，断言解析基准误差、守恒残差及网格加密收敛率。 |
+| 02.04 SPICE | 02.04.01 Netlist Execution | DC/AC/transient | 围绕器件模型、元件连接和激励构建或读取 SPICE 网表，调用底层电路求解器执行直流工作点、交流小信号或瞬态分析，并解析波形与诊断信息。 | spicelib / PySpice / ngspyce → ngspice/Xyce | 前端可替代（A），共同依赖外部 SPICE 求解器（I） | 读取含参数或连接错误的网表，依据诊断修复后执行 DC、AC 或瞬态分析并解析波形；断言仿真无错误退出、工作点和频响关键值符合预期。 |
+|  | 02.04.02 Parameter Sweep / Monte Carlo | process/device variation | 把电阻、电容、器件尺寸或模型参数视为设计变量或随机变量，批量运行参数扫描与蒙特卡洛仿真，评估工艺波动下的性能分布、角落表现和规格良率。 | spicelib → ngspice/Xyce | 调度与外部求解（I）：Python 组织扫描，SPICE 执行仿真 | 扫描或随机采样 R、C、W、L 等参数，使延迟、增益或功耗满足规格；输出可行参数、最差角和良率统计，断言固定随机种子可复现且所有入选方案通过约束。 |
+| 02.05 Circuit | 02.05.01 Symbolic Analysis | transfer function、impedance | 从电路拓扑和符号元件值推导传递函数、输入输出阻抗、极点与零点，保留参数依赖关系，并与数值 SPICE 结果相互校验。 | Lcapy + SPICE | 互补（C）：符号推导与数值仿真交叉验证 | 从指定 RLC 电路推导传递函数、阻抗、极点和零点，将元件数值代入后与 SPICE 频响 fixture 对照；断言低高频极限、极点位置和采样频点误差在容差内。 |
+|  | 02.05.02 Design Optimization | corner/performance optimization | 在多个工艺角、温度和供电条件下统一评估电路性能，将元件或器件参数作为变量，以最差角指标和约束为依据搜索稳健设计。 | PyOPUS + SPICE | 互补（C）：PyOPUS 优化和管理，SPICE 提供性能评估 | 在多工艺角、温度和电源条件下优化一组电路参数，以最小化最差角偏差或代价；输出最优参数及逐角指标，断言每个硬约束均通过且结果优于基线。 |
+| 02.06 RF | 02.06.01 S-parameter Network Analysis | RF device/VNA | 处理 RF 器件或 VNA 测得的多端口 S 参数网络，完成网络级联、参数域转换、增益与稳定性计算，并分析端口匹配随频率的变化。 | scikit-rf | 独立网络分析环境 | 读取固定 Touchstone 网络，完成级联、S/Z 参数转换、增益和匹配计算，找出满足回波损耗规格的频段；断言端口与频率轴一致、往返转换误差和无源性检查通过。 |
+|  | 02.06.02 Calibration / De-embedding | wafer probe/VNA | 利用开路、短路、负载、直通等校准标准估计探针台和测量链路误差盒，从晶圆级原始测量中移除夹具、走线及系统误差，恢复器件本征网络。 | 测量标准/原始网络 → scikit-rf | 数据互补（C/D）：测量后端提供标准件和 DUT 原始网络 | 用固定的开路、短路、负载和直通测量建立校准，再对 DUT 执行去嵌；输出校准后网络，断言标准件残差下降、参考面正确且已知验证网络在容差内恢复。 |
+| 02.07 Photonic | 02.07.01 Circuit-level S Matrix | PIC network | 用波导、耦合器、MMI、相移器等组件的散射矩阵搭建光子集成电路网络，按端口连接传播光信号并计算整个电路的波长响应。 | SAX / Simphony | 可替代（A）：均可进行光子电路级网络建模 | 连接 MZI、MMI、波导与相移器形成 PIC 网络，调整耦合比或相位使目标波长处达到指定透射和消光比；断言端口连通、谱线目标和功率守恒。 |
+| 02.08 FDTD | 02.08.01 Open-source FDTD | waveguide/cavity | 将波导、谐振腔或耦合结构的几何和材料映射到开源时域网格，设置光源、边界与监视器，通过时域电磁传播提取频谱、透射和场分布。 | gdsfactory → Meep | 集成（I）：版图/组件几何转换为开源 FDTD 模型 | 把固定波导或谐振腔组件转换为 FDTD 几何，设置源、边界和监视器并提取透射谱；断言几何映射、能量平衡以及分辨率或仿真时长收敛。 |
+|  | 02.08.02 Cloud FDTD | 大规模/优化 | 把较大规模的光子结构、宽带扫描或优化问题提交到云端 FDTD 服务，管理仿真任务、资源与结果，并在成本和精度约束下比较设计候选。 | gdsfactory → Tidy3D | 集成（I）：组件几何转换为云端 FDTD 任务 | 生成满足资源预算的云端 FDTD 配置，并从固定的已完成结果 fixture 比较候选结构的宽带透射；断言任务配置合法、成本估计不超限且入选设计达到光谱目标，不要求在线提交付费任务。 |
+| 02.09 FEM | 02.09.01 Eigenmode | waveguide mode | 在波导横截面的折射率与边界条件上求解电磁本征模，得到有效折射率、损耗和模场分布，用于判断导模条件及结构参数敏感性。 | gdsfactory → Femwell | 集成（I）：版图截面转换为有限元本征模模型 | 扫描波导宽度并求解前若干本征模，选择有效折射率最接近目标且保持单模约束的宽度；断言模式排序稳定、场归一化正确并通过网格收敛检查。 |
+|  | 02.09.02 EME / propagation | sectional waveguide propagation | 把渐变或分段波导沿传播方向切分，在各截面求解局部模式并通过界面模态匹配组合传播，估计长器件或缓变结构的透射与反射。 | EMEPy | 独立 EME 传播环境 | 把锥形或分段波导切成多个截面，计算局部模式并组合得到总透射与反射；调整分段数直至结果收敛，断言功率守恒和相邻两级离散结果差异低于阈值。 |
+| 02.10 Inverse | 02.10.01 Geometry Inverse Design | grating/coupler inverse design | 将光栅、耦合器或其他光子器件表示为可调介电像素或参数化几何，依据电磁响应和梯度迭代更新设计，同时满足制造与尺寸约束。 | ceviche / angler / legume-gme | 可替代或分模型互补（A/C）：提供不同频域、伴随和模态优化路径 | 从基线光栅或耦合器出发优化介电像素或几何参数，提高目标端口耦合并满足最小特征尺寸；断言目标函数改善、设计变量有界、制造约束和独立复算结果通过。 |
+| 02.11 Process Physics | 02.11.01 Plasma / Etch Physics | plasma properties、etch chamber physics | 根据刻蚀腔体中的气体组成、压力、功率和温度估算等离子体频率、德拜长度、碰撞性等状态量，判断适用的放电与输运物理区间。 | PlasmaPy + Cantera / FiPy | 互补（C）：等离子体性质、气相化学和输运 PDE 可串联 | 根据压力、温度、组分和电子参数计算德拜长度、等离子体频率、碰撞率及无量纲判据，判定放电或输运区间；断言单位换算、阈值分类和物理适用条件一致。 |
+|  | 02.11.02 Reaction / Gas Chemistry | CVD/etch gas-phase chemistry | 使用 CVD 或刻蚀气相反应机理描述组分、热力学和反应动力学，计算不同配比、温度与压力下的平衡或反应历程及关键物种浓度。 | Cantera（可与 PlasmaPy / FiPy 组合） | 独立化学求解；可与等离子体和输运模型互补（C） | 调节进气比例和温度，使关键前驱体或副产物浓度达到目标区间，输出平衡或反应历程；断言组分非负、元素守恒、归一化正确且目标物种满足规格。 |
+|  | 02.11.03 Diffusion / Reaction PDE | diffusion、surface reaction、electrodeposition | 建立工艺物种在空间中的扩散、迁移与体相或表面反应方程，结合初始条件和边界通量模拟浓度剖面、界面消耗或电沉积随时间的演化。 | 几何/网格 → FiPy（可接 Cantera） | 互补与数据传递（C/D）：网格和反应参数进入输运 PDE | 调整扩散系数、边界通量或表面反应速率以复现给定浓度剖面或沉积厚度；输出时空场，断言质量守恒、边界条件成立且相对参考曲线误差低于阈值。 |
 
 ## 包级计数
 

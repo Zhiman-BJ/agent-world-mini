@@ -44,10 +44,14 @@ dist/
 .DS_Store
 Thumbs.db
 
+test.py
+test_api.py
 seed_data_raw/
 seed_pypi_raw/
-seed_gen/pypi_outputs/ori_all/
-seed_gen/pypi_outputs/selection_reports
+seed_gen/pypi_outputs/ori_all_funcs/
+seed_gen/pypi_outputs/package_select_func/
+seed_gen/pypi_outputs/scenario_seeds/
+seed_gen/pypi_outputs/selection_reports/
+seed_gen/pypi_outputs/scenario_selection_reports/
 seed_gen/pypi_selection_profiles
 seed_gen/agent_scoring
-test_api.py
