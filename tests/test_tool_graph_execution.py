@@ -414,6 +414,18 @@ def run(arguments, context):
             })["tasks"][0]
         self.assertEqual(candidate["execution"]["attempts"][0]["failure_kind"], "timeout")
 
+    def test_numeric_tool_runs_with_two_gib_memory_limit(self) -> None:
+        import importlib.util
+        if importlib.util.find_spec('numpy') is None:
+            self.skipTest('numpy is not installed')
+        outcome = _call_tool(
+            "import numpy as np\ndef run(arguments, context):\n return {'success': True, 'sum': int(np.eye(8).sum())}",
+            {}, self.environment_dir / "workspace", timeout=30,
+            memory_limit=2 * 1024**3, write_limit=1024 * 1024,
+        )
+        self.assertIsNone(outcome['error'], outcome)
+        self.assertEqual(outcome['result'], {'success': True, 'sum': 8})
+
     def test_tool_cannot_write_outside_its_workspace(self) -> None:
         outside = self.root / "outside.txt"
         code = f"""

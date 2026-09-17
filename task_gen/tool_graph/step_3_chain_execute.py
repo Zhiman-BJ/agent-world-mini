@@ -612,6 +612,9 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--clearenv",
         "--setenv", "HOME", "/workspace",
         "--setenv", "TMPDIR", "/tmp",
+        # 多核主机上数值库的默认线程池会耗尽沙箱的地址空间预算。
+        "--setenv", "OPENBLAS_NUM_THREADS", "1",
+        "--setenv", "OMP_NUM_THREADS", "1",
     ]
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
