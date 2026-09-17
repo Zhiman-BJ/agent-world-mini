@@ -1,0 +1,35 @@
+# 专用凭据；工具运行信息自动来自任务 bundle，不需要手工逐环境配置 binding。
+llm:
+  agent_backend: kimi
+  backend: api
+  model: gpt-5.6-sol
+  base_url: http://47.237.200.112:8080/v1
+  api_key_file: ~/.codex-task-eval/auth.json
+  temperature: 0
+  max_tokens: 8192
+  timeout_seconds: 1800
+  kimi:
+    sdk_path: /data1/home/tianfang/kimi-code/packages/node-sdk/dist/index.mjs
+    node: node
+    provider_type: openai
+    parallel_tool_calls: true
+    tool_result_page_chars: 6000
+    max_context_size: 131072
+    reserved_context_size: 50000
+    compaction_trigger_ratio: 0.85
+    compaction_max_attempts: 3
+    max_steps_per_turn: 130
+    max_attempts_per_step: 3
+  verifier:
+    codex_home: ~/.codex-task-eval
+    model: gpt-5.6-sol
+    reasoning_effort: low
+    timeout_seconds: 1800
+    attempts: 3
+execution:
+  evaluation_max_tool_calls: 60
+  evaluation_max_concurrency: 3
+  retry_count: 1
+  tool_timeout_seconds: 300
+  tool_max_memory_bytes: 2147483648
+  tool_max_write_bytes: 268435456

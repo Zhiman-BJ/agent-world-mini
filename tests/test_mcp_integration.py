@@ -88,12 +88,16 @@ def test_copied_venv_runs_with_its_own_import_paths(tmp_path):
     root = tmp_path / 'software'
     launcher = root / 'venv/bin/python'
     subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip',
-                    '--system-site-packages', str(root / 'venv')], check=True)
-    # This fixture uses this exact Python version's installed validation packages.
+                    str(root / 'venv')], check=True)
+    # Install compatible fixture dependencies into the venv, not via host search paths.
+    import shutil
     import jsonschema
     purelib = subprocess.check_output([str(launcher), '-I', '-c',
         'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
-    (Path(purelib) / 'test_dependencies.pth').write_text(str(Path(jsonschema.__file__).parent.parent))
+    packages = Path(jsonschema.__file__).parent.parent
+    for name in ('jsonschema', 'jsonschema_specifications', 'referencing', 'rpds', 'attr', 'attrs'):
+        shutil.copytree(packages / name, Path(purelib) / name)
+    shutil.copyfile(packages / 'typing_extensions.py', Path(purelib) / 'typing_extensions.py')
     state = tmp_path / 'state'
     state.mkdir()
     tool = {'name': 'inspect', 'inputSchema': {'type': 'object'}, 'outputSchema': {'type': 'object'},
@@ -170,3 +174,45 @@ def test_profile_missing_validation_dependencies_does_not_borrow_host_packages(t
                        268435456, software={'root': str(root), 'python': str(root / 'bin/python')})
     assert result['kind'] == 'exception'
     assert "No module named 'jsonschema'" in result['error']
+
+
+def test_library_caches_are_temporary_not_task_state(tmp_path):
+    import sys
+    from task_gen.tool_graph.step_3_chain_execute import _call_tool
+    software = tmp_path / 'software'
+    software.mkdir()
+    state = tmp_path / 'state'
+    state.mkdir()
+    code = '''def run(arguments, context):
+ import os
+ from pathlib import Path
+ for variable, fallback in [('XDG_CACHE_HOME', '.cache'), ('XDG_CONFIG_HOME', '.config')]:
+  folder = Path(os.environ.get(variable, str(Path.home() / fallback))) / 'library'
+  folder.mkdir(parents=True, exist_ok=True)
+  (folder / 'cache').write_text('temporary')
+ return {'success': True}
+'''
+    result = _call_tool(code, {}, state, 10, 2147483648, 268435456,
+        {'schema_version': '2.0', 'record_sets': [], 'filesystem_scopes': []},
+        software={'root': str(software), 'python': sys.executable})
+    assert result['error'] is None, result
+    assert list(state.iterdir()) == []
+
+
+def test_profile_rejects_external_third_party_search_path(tmp_path):
+    import subprocess
+    import sys
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+    root = tmp_path / 'profile'
+    subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip', str(root)], check=True)
+    launcher = root / 'bin/python'
+    purelib = subprocess.check_output([str(launcher), '-I', '-c',
+        'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
+    foreign = tmp_path / 'foreign/site-packages'
+    foreign.mkdir(parents=True)
+    (Path(purelib) / 'foreign.pth').write_text(str(foreign))
+    state = tmp_path / 'state'
+    state.mkdir()
+    outcome = _run_tool('def run(arguments, context): return {}', {}, state, 10, 2147483648,
+        268435456, software={'root': str(root), 'python': str(launcher)})
+    assert '环境之外的第三方依赖' in outcome['error']

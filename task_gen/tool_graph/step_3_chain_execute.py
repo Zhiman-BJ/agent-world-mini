@@ -611,8 +611,13 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
             # Only declared software/runtime directories are visible, not their parents.
             runtime_executable = Path(software['python']).absolute()
             runtime_mounts = sorted({Path(p).resolve() for p in
-                [info['base'], info['prefix'], software['root'], *info['paths']]
-                if p and Path(p).is_dir()}, key=lambda p: len(p.parts))
+                [info['base'], info['prefix'], software['root']]}, key=lambda p: len(p.parts))
+            prefix, profile = Path(info['prefix']).resolve(), Path(software['root']).resolve()
+            for value in info['paths']:
+                path = Path(value).resolve()
+                if ('site-packages' in path.parts or 'dist-packages' in path.parts) and not (
+                        path.is_relative_to(prefix) or path.is_relative_to(profile)):
+                    raise ValueError('软件 Profile 引用了其环境之外的第三方依赖')
         except Exception as error:
             return {'kind': 'exception', 'result': None, 'error': f'软件 Profile 启动失败：{error}'}
     else:
@@ -636,6 +641,8 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--clearenv",
         "--setenv", "HOME", "/workspace",
         "--setenv", "TMPDIR", "/tmp",
+        "--setenv", "XDG_CACHE_HOME", "/tmp/cache",
+        "--setenv", "XDG_CONFIG_HOME", "/tmp/config",
     ]
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
