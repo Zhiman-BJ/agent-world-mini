@@ -42,6 +42,7 @@ import os
 from pathlib import Path
 import shutil
 import stat
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -475,18 +476,41 @@ def _workspace_signature(root: Path) -> tuple[tuple[str, int, str], ...]:
 
 _TOOL_WORKER = r"""
 import contextlib
+import ctypes
 from copy import deepcopy
 import io
 import json
+import os
 import sqlite3
 from pathlib import Path
 import resource
 import sys
+import tempfile
 from types import SimpleNamespace
+
+@contextlib.contextmanager
+def quiet_native_stdout():
+    # C/Fortran libraries bypass Python's redirect_stdout; stdout is our JSON wire.
+    original = os.dup(1)
+    with tempfile.TemporaryFile() as sink:
+        try:
+            os.dup2(sink.fileno(), 1)
+            yield
+        finally:
+            try:
+                ctypes.CDLL(None).fflush(None)
+            finally:
+                os.dup2(original, 1)
+                os.close(original)
+            if sink.tell() > 16 * 1024 * 1024:
+                raise ValueError('工具沙箱输出超过 16 MiB')
 
 payload = json.load(sys.stdin)
 if not payload.get('software_root'):
     sys.path.insert(0, '/dependencies')
+else:
+    sys.prefix = sys.exec_prefix = payload['software_prefix']
+    sys.path.extend(payload['software_import_paths'])
 try:
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
@@ -496,7 +520,7 @@ try:
     runtime = {}
     exec(payload["context_source"], runtime)
     namespace = {"json": json, "sqlite3": sqlite3}
-    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    with quiet_native_stdout(), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         exec(payload["code"], namespace)
         run = namespace.get("run")
         if not callable(run):
@@ -600,24 +624,31 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
     runtime_root = Path(sys.base_prefix).resolve()
     executable = Path(sys.executable).resolve()
     runtime_mounts = []
+    software_prefix, software_imports = None, []
     if software:
         try:
             # The interpreter is trusted delivery infrastructure, not tool code.
-            probe = subprocess.run([software['python'], '-I', '-c',
-                'import json,sys; print(json.dumps({"base":sys.base_prefix,"prefix":sys.prefix,"paths":sys.path}))'],
+            # -S avoids executing profile .pth/sitecustomize outside the sandbox.
+            launcher = Path(software['python']).absolute()
+            venv = launcher.parent.parent
+            probe = subprocess.run([str(launcher), '-I', '-S', '-B', '-c',
+                'import json,sys,sysconfig; prefix=sys.argv[1] or sys.prefix; '
+                'paths=sysconfig.get_paths(scheme="posix_prefix", vars={"base":prefix,"platbase":prefix}); '
+                'print(json.dumps({"base":sys.base_prefix,"prefix":prefix,"imports":[paths["purelib"],paths["platlib"]]}))',
+                str(venv) if (venv / 'pyvenv.cfg').is_file() else ''],
                 capture_output=True, text=True, check=True, timeout=min(timeout, 30))
             info = json.loads(probe.stdout)
             # Preserve the launcher's venv and the absolute paths in pyvenv.cfg.
             # Only declared software/runtime directories are visible, not their parents.
-            runtime_executable = Path(software['python']).absolute()
+            runtime_executable = launcher
             runtime_mounts = sorted({Path(p).resolve() for p in
                 [info['base'], info['prefix'], software['root']]}, key=lambda p: len(p.parts))
-            prefix, profile = Path(info['prefix']).resolve(), Path(software['root']).resolve()
-            for value in info['paths']:
-                path = Path(value).resolve()
-                if ('site-packages' in path.parts or 'dist-packages' in path.parts) and not (
-                        path.is_relative_to(prefix) or path.is_relative_to(profile)):
+            software_prefix = str(Path(info['prefix']).resolve())
+            for value in dict.fromkeys(info['imports']):
+                path = Path(value)
+                if not path.resolve().is_relative_to(Path(software_prefix)):
                     raise ValueError('软件 Profile 引用了其环境之外的第三方依赖')
+                software_imports.append(str(path))
         except Exception as error:
             return {'kind': 'exception', 'result': None, 'error': f'软件 Profile 启动失败：{error}'}
     else:
@@ -639,7 +670,8 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--bind", str(workspace), "/workspace",
         "--chdir", "/workspace",
         "--clearenv",
-        "--setenv", "HOME", "/workspace",
+        "--setenv", "HOME", "/tmp",
+        "--setenv", "USER", "tool",
         "--setenv", "TMPDIR", "/tmp",
         "--setenv", "XDG_CACHE_HOME", "/tmp/cache",
         "--setenv", "XDG_CONFIG_HOME", "/tmp/config",
@@ -647,18 +679,24 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
             command.extend(["--setenv", name, os.environ[name]])
+    # Some scientific libraries construct TLS clients on import, even offline.
+    # Only public trust roots are exposed; network isolation remains unchanged.
+    ca_bundle = Path(ssl.get_default_verify_paths().cafile or '/etc/ssl/certs/ca-certificates.crt')
+    if ca_bundle.is_file():
+        command.extend(['--ro-bind', str(ca_bundle.resolve()), '/ca-certificates.crt',
+                        '--setenv', 'SSL_CERT_FILE', '/ca-certificates.crt'])
     if software:
         for path in runtime_mounts:
             command.extend(['--ro-bind', str(path), str(path)])
         command.extend(['--ro-bind', str(Path(software['root']).resolve()), '/software'])
         # CPU libraries otherwise size thread pools from the host CPU count,
         # which can exhaust this tool's memory/process limits on import alone.
-        for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS'):
+        for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'OMP_THREAD_LIMIT', 'MKL_NUM_THREADS'):
             command.extend(['--setenv', name, '1'])
     else:
         command.extend(['--ro-bind', str(runtime_root), '/runtime',
                         '--ro-bind', str(Path(jsonschema.__file__).resolve().parent.parent), '/dependencies'])
-    command.extend([str(runtime_executable), "-I", "-c", _TOOL_WORKER])
+    command.extend([str(runtime_executable), "-I", *(['-S', '-B'] if software else []), "-c", _TOOL_WORKER])
     payload = json.dumps({
         "code": code,
         "arguments": arguments,
@@ -667,6 +705,8 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "memory_limit": memory_limit,
         "write_limit": write_limit,
         "software_root": '/software' if software else None,
+        "software_prefix": software_prefix,
+        "software_import_paths": software_imports,
     }, ensure_ascii=False)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:

@@ -1,6 +1,23 @@
 # Kimi 独立评测接入与试跑说明
 
-分支 `kimi`；主管线不变。独立评测可用 `llm.agent_backend: kimi` 切换，未设置仍用原 ReAct。
+## 2026-09-18 新交付输入
+
+生成管线的 `paths.environment_dir` 现在可直接指向含 `binding.json` 的交付包目录。
+Step 0 复用共享加载器，将环境/工具与私有 `runtime` 分开保存；后者仅给执行和评测传递
+初态位置、binding 和软件解释器，不加入建图、目标生成、任务转写的公开输入。
+评测从原运行的 bundle 自动恢复 binding，每个任务仍使用自己的初态副本。
+
+软件模式使用对应虚拟环境的启动器和兼容依赖，目录只读挂载；不再把主管线的整个
+site-packages 塞给不同版本的 Python。科学库的 XDG 缓存/配置写入沙箱临时目录，
+不计作任务状态修改，也不放宽未声明状态的写入检查。
+业务工具返回及错误保留原文，其中可能出现实现路径；这里保证的是不主动把部署元数据
+作为公开 prompt 输入，不承诺对任意工具输出做路径脱敏。模型仍无主机文件访问工具。
+
+本批上游修正及后续交付要求见 `UPSTREAM_DELIVERY_REQUIREMENTS.md`；
+完整运行配置为 `config/semiconductor_e2e.yaml`、`config/semiconductor_eval_kimi.yaml`。
+适配实测结果以对应 `runs/semiconductor_20260918/` 产物为准。
+
+分支 `kimi`；Kimi 仅替换独立评测的求解后端，主管线增加上述交付适配。独立评测可用 `llm.agent_backend: kimi` 切换，未设置仍用原 ReAct。
 Kimi 是执行循环，模型通过 `llm.model` 选择，不要求使用 Kimi 模型。
 
 ## 改了什么

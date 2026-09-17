@@ -199,7 +199,7 @@ def test_library_caches_are_temporary_not_task_state(tmp_path):
     assert list(state.iterdir()) == []
 
 
-def test_profile_rejects_external_third_party_search_path(tmp_path):
+def test_profile_does_not_execute_site_hooks_or_import_external_packages(tmp_path):
     import subprocess
     import sys
     from task_gen.tool_graph.step_3_chain_execute import _run_tool
@@ -208,11 +208,41 @@ def test_profile_rejects_external_third_party_search_path(tmp_path):
     launcher = root / 'bin/python'
     purelib = subprocess.check_output([str(launcher), '-I', '-c',
         'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
-    foreign = tmp_path / 'foreign/site-packages'
+    foreign = tmp_path / 'vendor'
     foreign.mkdir(parents=True)
-    (Path(purelib) / 'foreign.pth').write_text(str(foreign))
+    (foreign / 'foreign_module.py').write_text('value = 1')
+    marker = tmp_path / 'host_was_modified'
+    (Path(purelib) / 'foreign.pth').write_text(str(foreign) + '\n' +
+        f'import pathlib; pathlib.Path({str(marker)!r}).write_text("bad")\n')
     state = tmp_path / 'state'
     state.mkdir()
-    outcome = _run_tool('def run(arguments, context): return {}', {}, state, 10, 2147483648,
+    outcome = _run_tool('def run(arguments, context):\n import importlib.util\n return {"visible": importlib.util.find_spec("foreign_module") is not None}', {}, state, 10, 2147483648,
         268435456, software={'root': str(root), 'python': str(launcher)})
-    assert '环境之外的第三方依赖' in outcome['error']
+    assert not marker.exists()
+    assert outcome['error'] is None, outcome
+    assert outcome['result']['visible'] is False
+
+
+def test_scientific_library_tls_initialization_has_public_ca_bundle(tmp_path):
+    import ssl
+    import sys
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+    if not (ssl.get_default_verify_paths().cafile or Path('/etc/ssl/certs/ca-certificates.crt').is_file()):
+        pytest.skip('Host has no public CA bundle')
+    software = tmp_path / 'software'
+    software.mkdir()
+    state = tmp_path / 'state'
+    state.mkdir()
+    result = _run_tool('def run(arguments, context):\n import ssl, getpass\n return {**ssl.create_default_context().cert_store_stats(), "user": getpass.getuser()}',
+        {}, state, 10, 2147483648, 268435456, software={'root': str(software), 'python': sys.executable})
+    assert result['error'] is None, result
+    assert result['result']['x509_ca'] > 0
+    assert result['result']['user']
+
+
+def test_native_tool_stdout_does_not_corrupt_result_protocol(tmp_path):
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+    result = _run_tool('def run(arguments, context):\n import os, ctypes\n os.write(1, b"native log\\n")\n ctypes.CDLL(None).printf(b"buffered log\\n")\n return {"success": True}',
+        {}, tmp_path, 10, 2147483648, 268435456)
+    assert result['error'] is None, result
+    assert result['result'] == {'success': True}
