@@ -12,7 +12,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-from .task_eval_mcp import call_environment_tool
+from .task_eval_mcp import bind_delivery, call_environment_tool
 from .tool_graph.llm import capture_calls, infer, parse_json_object
 from .tool_graph.run_io import append_llm_call
 from .tool_graph.step_5_task_validate import _public_tool
@@ -46,7 +46,7 @@ def run_react_agent(
     保留旧评测入口的字符串答案和 JSONL trace 接口。即使共享配置选择 codex，
     此执行器也固定使用 API，以免重新引入 CLI 的文件访问能力。
     """
-    config = json.loads(server_config.read_text(encoding="utf-8"))
+    config = bind_delivery(json.loads(server_config.read_text(encoding="utf-8")))
     tools = {tool["name"]: tool for tool in config["tools"]}
     budget = config["max_tool_calls"]
     if type(budget) is not int or budget < 1:
@@ -116,6 +116,7 @@ def run_react_agent(
                     memory_limit=int(config.get("memory_limit", 2 * 1024**3)),
                     write_limit=int(config.get("write_limit", 256 * 1024**2)),
                     environment=config.get("environment", {}),
+                    **({'software': config['software']} if config.get('software') else {}),
                 )
                 with trace.open("a", encoding="utf-8") as stream:
                     stream.write(json.dumps(record, ensure_ascii=False) + "\n")

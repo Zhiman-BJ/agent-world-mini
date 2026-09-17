@@ -53,7 +53,8 @@ def meaningful_calls(records, tools):
 def execute_candidates(stage_input):
     config, environment = stage_input['config'], stage_input['environment']
     tools = _tools(environment)
-    source = (config.environment_dir / 'state').resolve()
+    runtime = stage_input.get('runtime', {})
+    source = Path(runtime.get('initial_state', config.environment_dir / 'state')).resolve()
     signature = _workspace_signature(source)
     tasks_root = stage_input['run_dir'].resolve() / 'tasks'
     candidates = stage_input['tasks']
@@ -78,6 +79,7 @@ def execute_candidates(stage_input):
             'timeout': config.execution.get('tool_timeout_seconds', 300),
             'memory_limit': config.execution.get('tool_max_memory_bytes', 2 * 1024**3),
             'write_limit': config.execution.get('tool_max_write_bytes', 256 * 1024**2),
+            'software': runtime.get('software'),
             'review_choice_seed': config.llm.get('review_choice_seed', secrets.randbits(64)) + ids.index(candidate['task_id']),
         }
         server_path = root / 'server.json'

@@ -2,6 +2,7 @@
 import io
 import json
 import sqlite3
+from pathlib import Path
 import pytest
 
 from task_gen.task_eval_mcp import serve
@@ -78,3 +79,94 @@ def test_bound_software_is_readable_but_not_writable_in_task_sandbox(tmp_path):
     assert result['result']['value'] == 'PROFILE_ASSET'
     assert result['result']['blas_threads'] == '1'
     assert (root / 'asset.txt').read_text() == 'PROFILE_ASSET'
+
+
+def test_copied_venv_runs_with_its_own_import_paths(tmp_path):
+    import subprocess
+    import sys
+    from task_gen.task_eval_mcp import call_environment_tool
+    root = tmp_path / 'software'
+    launcher = root / 'venv/bin/python'
+    subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip',
+                    '--system-site-packages', str(root / 'venv')], check=True)
+    # This fixture uses this exact Python version's installed validation packages.
+    import jsonschema
+    purelib = subprocess.check_output([str(launcher), '-I', '-c',
+        'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
+    (Path(purelib) / 'test_dependencies.pth').write_text(str(Path(jsonschema.__file__).parent.parent))
+    state = tmp_path / 'state'
+    state.mkdir()
+    tool = {'name': 'inspect', 'inputSchema': {'type': 'object'}, 'outputSchema': {'type': 'object'},
+            'internal': {'code': "def run(arguments, context):\n import sys, jsonschema\n return {'success': True, 'prefix': sys.prefix, 'paths': sys.path}"}}
+    result = call_environment_tool('inspect', {}, {'inspect': tool}, state, timeout=20,
+        memory_limit=2147483648, write_limit=268435456,
+        software={'root': str(root), 'python': str(launcher)})
+    assert result['error'] is None, result
+    assert result['result']['prefix'] == str(root / 'venv')
+    assert '/dependencies' not in result['result']['paths']
+
+
+def test_pipeline_loads_binding_and_keeps_runtime_out_of_public_inputs(tmp_path):
+    from tests.test_kimi_mcp import KimiMcpTests
+    from task_gen.tool_graph.contracts import Config
+    from task_gen.tool_graph.step_0_environment_load import load_environment
+    from task_gen.tool_graph.run_io import to_build_graph_input, to_execute_chains_input
+    binding = KimiMcpTests()._make_delivery(tmp_path)
+    config = Config(environment_dir=binding.parent)
+    output = load_environment({'config': config})
+    assert output['environment']['tools'][0]['name'] == 'get_ticket'
+    assert Path(output['runtime']['initial_state']).is_dir()
+    assert output['runtime']['binding_path'] == str(binding)
+    assert 'runtime' not in to_build_graph_input(output, config)
+    assert 'runtime' not in output['environment']
+    execution = to_execute_chains_input({**output, 'tasks': []}, config, tmp_path / 'run')
+    assert execution['runtime'] == output['runtime']
+
+
+def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch):
+    import sys
+    from tests.test_kimi_mcp import KimiMcpTests
+    from task_gen.tool_graph.contracts import Config
+    from task_gen.tool_graph.step_0_environment_load import load_environment
+    from task_gen.tool_graph.run_io import to_execute_chains_input
+    from task_gen.tool_graph.execution_agent import execute_candidates
+    from task_gen.task_eval_mcp import TaskEvalMcpServer
+    binding = KimiMcpTests()._make_delivery(tmp_path)
+    config = Config(environment_dir=binding.parent)
+    bundle = load_environment({'config': config})
+    software = tmp_path / 'software'
+    software.mkdir()
+    (software / 'marker').write_text('correct profile')
+    bundle['runtime']['software'] = {'root': str(software), 'python': sys.executable}
+    tool = bundle['environment']['tools'][0]
+    tool['internal']['code'] = tool['internal']['code'].replace(
+        'record = context.records.get',
+        "assert (context.software_root / 'marker').read_text() == 'correct profile'\n    record = context.records.get")
+    bundle['tasks'] = [{'task_id': 'task1', 'chain': ['get_ticket'], 'objective': 'Read ticket', 'score': 1}]
+
+    def run(client, prompt, working_directory):
+        server = TaskEvalMcpServer(json.loads(client.server_config.read_text()))
+        response = server.handle({'method': 'tools/call', 'params': {
+            'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+        assert response['structuredContent']['data']['status'] == 'open', response
+        return json.dumps({'reason': 'Read actual ticket', 'objective': 'Read ticket',
+                           'completed': True, 'answer': 'open', 'score': 4})
+
+    monkeypatch.setattr('task_gen.tool_graph.execution_agent._ReviewClient.run', run)
+    result = execute_candidates(to_execute_chains_input(bundle, config, tmp_path / 'run'))
+    assert result['tasks'][0]['execution']['success'] is True
+    assert result['tasks'][0]['execution']['tool_calls'][0]['result']['data']['status'] == 'open'
+
+
+def test_profile_missing_validation_dependencies_does_not_borrow_host_packages(tmp_path):
+    import subprocess
+    import sys
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+    root = tmp_path / 'software'
+    subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip', str(root)], check=True)
+    state = tmp_path / 'state'
+    state.mkdir()
+    result = _run_tool('def run(arguments, context):\n import jsonschema\n return {}', {}, state, 10, 2147483648,
+                       268435456, software={'root': str(root), 'python': str(root / 'bin/python')})
+    assert result['kind'] == 'exception'
+    assert "No module named 'jsonschema'" in result['error']

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import json
 from pathlib import Path
@@ -37,6 +37,7 @@ class EvalCase:
     initial_state: Path
     reference_state: Path | None
     reference_calls: list[dict[str, Any]]
+    runtime: dict[str, Any] = field(default_factory=dict)
 
 
 def load_cases(input_root: Path) -> list[EvalCase]:
@@ -103,6 +104,7 @@ def load_cases(input_root: Path) -> list[EvalCase]:
             )
             cases.append(EvalCase(
                 source_run, task, environment, initial_state, reference_state, reference_calls,
+                bundle.get('runtime', {}),
             ))
     return cases
 
@@ -158,6 +160,8 @@ def evaluate_case(
                 "write_limit": tool_max_write_bytes,
                 "tools": list(tools.values()),
                 "environment": case.environment,
+                **({"binding_path": case.runtime['binding_path']} if case.runtime.get('binding_path') else {}),
+                **({"software": case.runtime['software']} if case.runtime.get('software') else {}),
             }, ensure_ascii=False), encoding="utf-8")
             try:
                 answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()

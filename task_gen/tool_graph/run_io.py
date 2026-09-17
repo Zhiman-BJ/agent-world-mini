@@ -159,6 +159,7 @@ def to_execute_chains_input(
         "run_dir": run_dir,
         "environment": bundle["environment"],
         "tasks": bundle["tasks"],
+        **({"runtime": bundle["runtime"]} if "runtime" in bundle else {}),
     }
 
 

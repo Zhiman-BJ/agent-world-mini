@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 AppendOnlyBundle = dict[str, Any]
 ToolCall = dict[str, Any]  # {"tool": str, "arguments": dict, "observation": dict}
@@ -80,6 +80,7 @@ class EnvironmentLoadOutput(TypedDict):
     """Step 0 新增完整环境；不复制或输出 workspace 状态。"""
 
     environment: dict[str, Any]
+    runtime: NotRequired[dict[str, Any]]  # 私有部署信息：binding、初态路径、软件环境；不进入模型输入。
 
 
 class BuildGraphInput(TypedDict):
@@ -169,6 +170,7 @@ class ExecuteChainsInput(TypedDict):
     run_dir: Path
     environment: dict[str, Any]
     tasks: list[dict[str, Any]]
+    runtime: NotRequired[dict[str, Any]]
 
 
 class ExecuteChainsOutput(TypedDict):

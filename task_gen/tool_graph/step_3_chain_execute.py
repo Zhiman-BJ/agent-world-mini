@@ -64,7 +64,9 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
     """并发执行候选链，以干净初态重试，并记录成功轨迹或失败历史。"""
     config = stage_input["config"]
     run_dir = stage_input["run_dir"].resolve()
-    source = (config.environment_dir / ("state" if stage_input['environment'].get('schema_version') == '2.0' else 'workspace')).resolve()
+    runtime = stage_input.get('runtime', {})
+    source = Path(runtime.get('initial_state', config.environment_dir / (
+        "state" if stage_input['environment'].get('schema_version') == '2.0' else 'workspace'))).resolve()
     if not source.is_dir():
         raise ValueError(f"源 workspace 不存在：{source}")
     tools = _tools(stage_input["environment"])
@@ -113,6 +115,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
                 result_limit,
                 memory_limit,
                 write_limit,
+                runtime.get('software'),
             ) for candidate in tasks
         ]
         output = [future.result() for future in futures]
@@ -158,6 +161,7 @@ def _execute_candidate(
     result_limit: int,
     memory_limit: int,
     write_limit: int,
+    software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     result = deepcopy(candidate)
     task_id = candidate["task_id"]
@@ -204,7 +208,8 @@ def _execute_candidate(
                     failure = parameter_failure
                     break
 
-                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment)
+                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
+                                     **({'software': software} if software else {}))
                 if outcome["kind"] is not None:
                     failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
                     break
@@ -480,8 +485,8 @@ import sys
 from types import SimpleNamespace
 
 payload = json.load(sys.stdin)
-sys.path.insert(0, '/dependencies')
-sys.path[:0] = payload.get('software_import_paths', [])
+if not payload.get('software_root'):
+    sys.path.insert(0, '/dependencies')
 try:
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
@@ -594,30 +599,32 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         return {"kind": "exception", "result": None, "error": "未安装 bubblewrap，拒绝执行未隔离工具"}
     runtime_root = Path(sys.base_prefix).resolve()
     executable = Path(sys.executable).resolve()
-    software_imports = []
+    runtime_mounts = []
     if software:
         try:
             # The interpreter is trusted delivery infrastructure, not tool code.
             probe = subprocess.run([software['python'], '-I', '-c',
-                'import json,sys; print(json.dumps({"base":sys.base_prefix,"executable":sys.executable,"paths":sys.path}))'],
+                'import json,sys; print(json.dumps({"base":sys.base_prefix,"prefix":sys.prefix,"paths":sys.path}))'],
                 capture_output=True, text=True, check=True, timeout=min(timeout, 30))
             info = json.loads(probe.stdout)
-            runtime_root, executable = Path(info['base']).resolve(), Path(info['executable']).resolve()
-            software_imports = [Path(p).resolve() for p in info['paths']
-                                if p and Path(p).is_dir() and Path(p).name in {'site-packages', 'dist-packages'}]
+            # Preserve the launcher's venv and the absolute paths in pyvenv.cfg.
+            # Only declared software/runtime directories are visible, not their parents.
+            runtime_executable = Path(software['python']).absolute()
+            runtime_mounts = sorted({Path(p).resolve() for p in
+                [info['base'], info['prefix'], software['root'], *info['paths']]
+                if p and Path(p).is_dir()}, key=lambda p: len(p.parts))
         except Exception as error:
             return {'kind': 'exception', 'result': None, 'error': f'软件 Profile 启动失败：{error}'}
-    try:
-        runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
-    except ValueError:
-        return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
+    else:
+        try:
+            runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
+        except ValueError:
+            return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
     command = [
         sandbox,
         "--unshare-all",
         "--die-with-parent",
         "--new-session",
-        "--ro-bind", str(runtime_root), "/runtime",
-        "--ro-bind", str(Path(jsonschema.__file__).resolve().parent.parent), "/dependencies",
         "--ro-bind-try", "/lib", "/lib",
         "--ro-bind-try", "/lib64", "/lib64",
         "--proc", "/proc",
@@ -634,13 +641,16 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         if name in os.environ:
             command.extend(["--setenv", name, os.environ[name]])
     if software:
+        for path in runtime_mounts:
+            command.extend(['--ro-bind', str(path), str(path)])
         command.extend(['--ro-bind', str(Path(software['root']).resolve()), '/software'])
         # CPU libraries otherwise size thread pools from the host CPU count,
         # which can exhaust this tool's memory/process limits on import alone.
         for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS'):
             command.extend(['--setenv', name, '1'])
-        for index, path in enumerate(software_imports):
-            command.extend(['--ro-bind', str(path), f'/profile-dependencies/{index}'])
+    else:
+        command.extend(['--ro-bind', str(runtime_root), '/runtime',
+                        '--ro-bind', str(Path(jsonschema.__file__).resolve().parent.parent), '/dependencies'])
     command.extend([str(runtime_executable), "-I", "-c", _TOOL_WORKER])
     payload = json.dumps({
         "code": code,
@@ -650,7 +660,6 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "memory_limit": memory_limit,
         "write_limit": write_limit,
         "software_root": '/software' if software else None,
-        "software_import_paths": [f'/profile-dependencies/{i}' for i in range(len(software_imports))],
     }, ensure_ascii=False)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:

@@ -414,6 +414,19 @@ def load_environment(stage_input: EnvironmentLoadInput) -> EnvironmentLoadOutput
     """
     environment_dir = stage_input["config"].environment_dir
 
+    binding = environment_dir / "binding.json"
+    if binding.is_file():
+        from env_gen.tool_gen.kimi_mcp import load_delivery
+        delivery = load_delivery(binding)
+        environment = {**delivery.package.environment, "tools": list(delivery.package.tools)}
+        state = delivery.package.package_root / "state"
+        _validate_v2_state(state, environment)
+        return {"environment": environment, "runtime": {
+            "binding_path": str(delivery.binding_path), "initial_state": str(state),
+            "software": {"root": str(delivery.software_root), "python": str(delivery.python_path)}
+                        if delivery.software_root else None,
+        }}
+
     # ==================== 分区 0：读入三个被检查对象 ====================
     environment = _read_json_object(environment_dir / "environment.json")
     if environment.get("schema_version") == "2.0":
@@ -454,7 +467,11 @@ def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Pa
     passed = {item.get("tool") for item in report.get("reports", []) if item.get("status") == "passed"}
     if report.get("environment_id") != environment["environment_id"] or any(tool["name"] not in passed for tool in tools):
         raise ValueError("工具验证报告不完整或环境不匹配")
-    state = root / "state"
+    _validate_v2_state(root / "state", environment)
+    return {**environment, "tools": tools}
+
+
+def _validate_v2_state(state: Path, environment: dict[str, Any]) -> None:
     if state.is_symlink() or any(path.is_symlink() for path in state.rglob('*')):
         raise ValueError('state 不允许包含符号链接')
     if not state.is_dir() or (environment["record_sets"] and not (state / "records.sqlite").is_file()):
@@ -467,7 +484,6 @@ def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Pa
         raise ValueError("state 不允许包含符号链接")
     from .state_runtime import snapshot_state
     snapshot_state(state, environment)
-    return {**environment, "tools": tools}
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
