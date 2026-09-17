@@ -27,6 +27,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-scenario-*/
 venv/
 build/
 dist/
@@ -55,3 +56,15 @@ seed_gen/pypi_outputs/selection_reports/
 seed_gen/pypi_outputs/scenario_selection_reports/
 seed_gen/pypi_selection_profiles
 seed_gen/agent_scoring
+
+# Generated scenario collection intermediates (keep final seed JSONs)
+/seed_gen/scenario_collection/inventory.json
+/seed_gen/scenario_collection/classification.normalized.md
+/seed_gen/scenario_collection/profiles/
+/seed_gen/scenario_collection/runtime/
+/seed_gen/scenario_collection/research/
+/seed_gen/scenario_pilot/profiles/
+/seed_gen/scenario_pilot/runtime/
+/seed_gen/pypi_outputs/scenario_collection/reports/
+/seed_gen/pypi_outputs/scenario_collection/coverage.json
+/seed_gen/pypi_outputs/scenario_pilot/reports/

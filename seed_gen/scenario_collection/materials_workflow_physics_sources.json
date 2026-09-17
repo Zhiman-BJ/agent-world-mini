@@ -1,0 +1,225 @@
+[
+  {
+    "name": "atomate2",
+    "index": 2,
+    "repository": "https://github.com/materialsproject/atomate2",
+    "documentation": "https://materialsproject.github.io/atomate2/",
+    "directory": "atomate2",
+    "source_root": "src",
+    "modules": [
+      "atomate2"
+    ],
+    "tag": "v0.1.5",
+    "description": "atomate2基于jobflow编排材料计算与后处理，提供可配置的VASP及其他计算后端的Maker、Job和Flow，并通过custodian处理外部计算错误。",
+    "release_published_at": "2026-07-13T06:22:18Z",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/materialsproject/atomate2/releases/latest",
+    "release_url": "https://github.com/materialsproject/atomate2/releases/tag/v0.1.5",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded.",
+    "commit": "0b61cf6365c8cfb5e74792f48d20b37dbb2916a6",
+    "checked_on": "2026-09-17",
+    "pypi": "https://pypi.org/project/atomate2/",
+    "pypi_version": "0.1.5",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。",
+      "phonons可选依赖要求phonopy<4；本批工作流与phonopy4.5.0声子场景使用独立环境，不宣称可直接混装。"
+    ]
+  },
+  {
+    "name": "jobflow",
+    "index": 20,
+    "repository": "https://github.com/materialsproject/jobflow",
+    "documentation": "https://materialsproject.github.io/jobflow/",
+    "pypi": "https://pypi.org/project/jobflow/",
+    "pypi_version": "0.3.1",
+    "tag": "v0.3.1",
+    "commit": "3c10cd96401d90ea18ca1e80ab2c4a859050472a",
+    "release_published_at": "2026-02-05T07:57:13Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "jobflow",
+    "source_root": "src",
+    "modules": [
+      "jobflow"
+    ],
+    "description": "jobflow 是 Materials Project 生态的工作流编排库，用 Job、Flow、Maker、响应引用和存储后端表达可组合的材料计算任务，支持动态产生后续工作和持久化执行状态。实际调度器和计算环境需要额外配置。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。"
+    ],
+    "release_api": "https://api.github.com/repos/materialsproject/jobflow/releases/latest",
+    "release_url": "https://github.com/materialsproject/jobflow/releases/tag/v0.3.1",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded."
+  },
+  {
+    "name": "custodian",
+    "index": 21,
+    "repository": "https://github.com/materialsproject/custodian",
+    "documentation": "https://materialsproject.github.io/custodian/",
+    "pypi": "https://pypi.org/project/custodian/",
+    "pypi_version": "2025.12.14",
+    "tag": "v2025.12.14",
+    "commit": "4591934b5bc4ae90a11037c3f95f1eb2023ca571",
+    "release_published_at": "2025-12-14T15:42:59Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "custodian",
+    "source_root": "src",
+    "modules": [
+      "custodian"
+    ],
+    "description": "custodian 是面向材料计算的作业监控和错误恢复框架，通过 Job、监控器、错误处理器和验证器包装外部程序，记录运行状态并在常见失败时修复输入后重试。它不替代具体的 VASP、QE 等计算程序。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。"
+    ],
+    "release_api": "https://api.github.com/repos/materialsproject/custodian/releases/latest",
+    "release_url": "https://github.com/materialsproject/custodian/releases/tag/v2025.12.14",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded."
+  },
+  {
+    "name": "phonopy",
+    "index": 22,
+    "repository": "https://github.com/phonopy/phonopy",
+    "documentation": "https://phonopy.github.io/phonopy/",
+    "pypi": "https://pypi.org/project/phonopy/",
+    "pypi_version": "4.5.0",
+    "tag": "v4.5.0",
+    "commit": "6683c731a54b3aed2a739138a54138a6b2782013",
+    "release_published_at": "2026-09-08T07:01:09.681503Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "directory": "phonopy",
+    "modules": [
+      "phonopy"
+    ],
+    "description": "phonopy 是晶格动力学和声子性质计算工具，提供超胞生成、位移结构、力常数、动力学矩阵、声子频率与本征矢、态密度和热力学量分析接口，可读取外部第一性原理计算得到的原子力。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。",
+      "官方releases/latest无Release，使用PyPI稳定版与官方远程标签；不能沿用旧清单的GitHub Release表述。"
+    ],
+    "release_url": "https://github.com/phonopy/phonopy/releases/tag/v4.5.0",
+    "release_api": "https://api.github.com/repos/phonopy/phonopy/releases/latest",
+    "selection_rule": "GitHub releases/latest returned404; latest stable PyPI version plus exact official remote tag and tagged version source checked. Timestamp is PyPI publication."
+  },
+  {
+    "name": "phono3py",
+    "index": 23,
+    "repository": "https://github.com/phonopy/phono3py",
+    "documentation": "https://phonopy.github.io/phono3py/",
+    "pypi": "https://pypi.org/project/phono3py/",
+    "pypi_version": "4.5.0",
+    "tag": "v4.5.0",
+    "commit": "21fa8f3817fbcc603254656f525bb5aec113afb6",
+    "release_published_at": "2026-09-10T09:41:19.602746Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "directory": "phono3py",
+    "modules": [
+      "phono3py"
+    ],
+    "description": "phono3py 是三阶力常数和声子输运分析工具，支持三阶位移超胞、散射相空间、三声子相互作用、晶格热导率及相关频率和寿命数据的计算与读写，通常与 phonopy 和外部 DFT 力数据配合使用。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。",
+      "官方releases/latest无Release，使用PyPI稳定版与官方远程标签；不能沿用旧清单的GitHub Release表述。"
+    ],
+    "release_url": "https://github.com/phonopy/phono3py/releases/tag/v4.5.0",
+    "release_api": "https://api.github.com/repos/phonopy/phono3py/releases/latest",
+    "selection_rule": "GitHub releases/latest returned404; latest stable PyPI version plus exact official remote tag and tagged version source checked. Timestamp is PyPI publication."
+  },
+  {
+    "name": "py-sc-fermi",
+    "index": 15,
+    "repository": "https://github.com/bjmorgan/py-sc-fermi",
+    "documentation": "https://py-sc-fermi.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/py-sc-fermi/",
+    "pypi_version": "2.2.2",
+    "tag": "3.0.0",
+    "commit": "cc2abcabd0ceb75136a4fcacc558337bc3df6721",
+    "release_published_at": "2026-09-11T21:19:04Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "py-sc-fermi_3.0.0",
+    "modules": [
+      "py_sc_fermi"
+    ],
+    "description": "py-sc-fermi 根据预先计算的缺陷形成能、电子态密度和晶胞体积，以电中性条件自洽求解费米能级、缺陷及电子和空穴浓度。3.0版采用固定温度快照和位点排斥统计，低浓度下回到稀释模型，并支持指定冻结浓度、位点池和元素约束。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。",
+      "最新GitHub稳定Release3.0.0比PyPI2.2.2新，使用独立源码目录并从该发布源码安装；保留旧2.2.2索引和目录。"
+    ],
+    "release_api": "https://api.github.com/repos/bjmorgan/py-sc-fermi/releases/latest",
+    "release_url": "https://github.com/bjmorgan/py-sc-fermi/releases/tag/3.0.0",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded."
+  },
+  {
+    "name": "doped",
+    "index": 13,
+    "repository": "https://github.com/SMTG-Bham/doped",
+    "documentation": "https://doped.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/doped/",
+    "pypi_version": "3.2.1",
+    "tag": "3.2.1",
+    "commit": "93c8b99b70b7a4e59b46da4870f23b885d0a6991",
+    "release_published_at": "2026-02-10T17:21:50Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "doped",
+    "modules": [
+      "doped"
+    ],
+    "description": "doped 是面向固体点缺陷研究的 Python 包，可生成缺陷与电荷态、准备 VASP 计算输入、解析计算结果并执行有限尺寸修正、化学势和缺陷热力学分析。它支持形成能、电荷转变能级、平衡及冻结缺陷浓度和费米能级计算，并可连接 ShakeNBreak 与 py-sc-fermi 等工具。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。"
+    ],
+    "release_api": "https://api.github.com/repos/SMTG-Bham/doped/releases/latest",
+    "release_url": "https://github.com/SMTG-Bham/doped/releases/tag/3.2.1",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded."
+  },
+  {
+    "name": "pymatgen-analysis-defects",
+    "index": 12,
+    "repository": "https://github.com/materialsproject/pymatgen-analysis-defects",
+    "documentation": "https://materialsproject.github.io/pymatgen-analysis-defects/",
+    "pypi": "https://pypi.org/project/pymatgen-analysis-defects/",
+    "pypi_version": "2026.3.20",
+    "tag": "v2026.3.20",
+    "commit": "12c1f80562e69e285073eafdce58281fe0c67618",
+    "release_published_at": "2026-03-20T16:38:32Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "pymatgen-analysis-defects",
+    "modules": [
+      "pymatgen.analysis.defects"
+    ],
+    "description": "pymatgen-analysis-defects 是 pymatgen 的点缺陷分析扩展，提供空位、替位、间隙与缺陷复合体表示和生成、缺陷超胞构建、有限尺寸电荷修正、缺陷形成能、化学势与电荷转变分析，以及构型坐标和复合过程相关工具。它基于已有结构与第一性原理结果组织缺陷研究流程。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。"
+    ],
+    "release_api": "https://api.github.com/repos/materialsproject/pymatgen-analysis-defects/releases/latest",
+    "release_url": "https://github.com/materialsproject/pymatgen-analysis-defects/releases/tag/v2026.3.20",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded."
+  },
+  {
+    "name": "shakenbreak",
+    "index": 14,
+    "repository": "https://github.com/SMTG-Bham/ShakeNBreak",
+    "documentation": "https://shakenbreak.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/shakenbreak/",
+    "pypi_version": "3.4.4",
+    "tag": "v3.4.4",
+    "commit": "832979e22aa15edc869427b77c3730c2a634b7ca",
+    "release_published_at": "2026-02-10T19:20:40Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "shakenbreak",
+    "modules": [
+      "shakenbreak"
+    ],
+    "description": "ShakeNBreak 通过缺陷周围的键长畸变与随机扰动生成候选结构，并整理和分析结构弛豫结果，以搜索固体缺陷的低能、基态及亚稳态构型。它支持多种电子结构程序的输入输出及能量和结构比较，实际结构弛豫由外部计算程序完成。",
+    "notes": [
+      "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。"
+    ],
+    "release_api": "https://api.github.com/repos/SMTG-Bham/ShakeNBreak/releases/latest",
+    "release_url": "https://github.com/SMTG-Bham/ShakeNBreak/releases/tag/v3.4.4",
+    "selection_rule": "Latest official non-prerelease GitHub release; PyPI version differences recorded."
+  }
+]

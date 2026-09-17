@@ -1,0 +1,2059 @@
+[
+  {
+    "global_id": "semiconductor_scenario_01_05_02",
+    "schema_version": "scenario-1.0",
+    "environment": {
+      "basic_info": {
+        "source": "deep research",
+        "url": [
+          "https://phonopy.github.io/phono3py/phono3py-api.html",
+          "https://phonopy.github.io/phono3py/examples.html",
+          "https://github.com/phonopy/phono3py/blob/v4.5.0/test/conductivity/test_kappa_RTA.py",
+          "https://hiphive.materialsmodeling.org/"
+        ],
+        "name": "三阶 force constants、κ(T)",
+        "version": "2026-09-17",
+        "index": 16
+      },
+      "description": "非谐声子热输运环境：从固定结构、位移与原子力建立二/三阶力常数，配置q网格、温度和同位素散射，计算RTA热导张量并追踪模态/散射信息。phono3py为主，phonopy仅提供共享结构；hiPhive拟合能力在已有力数据的当前闭环中不重复纳入。固定官方Si-PBEsol样例验证网格配置修复及同位素散射影响，未据此声明网格收敛或真实实验预测精度。",
+      "domain": {
+        "level1": "01 材料与器件研发",
+        "level2": "01.05 声子/扩散",
+        "level3": "01.05.02 Anharmonic / Thermal Transport"
+      },
+      "nums": {
+        "class": 4,
+        "function": 1,
+        "class_func": 57,
+        "all_func": 58
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "load",
+        "type": "function",
+        "module": "phono3py.cui.load",
+        "description": "Create a Phono3py instance from parameters and/or input files.  A ``\"phono3py_yaml\"``-like file is parsed unless crystal structure information is given through ``unitcell_filename``, ``supercell_filename``, ``unitcell`` (PhonopyAtoms-like), or ``supercell`` (PhonopyAtoms-like). Even when a ``\"phono3py_yaml\"``- like file is parsed, parameters other than the crystal structure can be overwritten by keyword arguments.  ``\"fc3.hdf5\"`` is read if it is found in the current directory. Otherwise, if ``\"FORCES_FC3\"`` and ``\"phono3py_disp.yaml\"`` are found, they are read and fc3 (and fc2) are produced. Similarly, ``\"fc2.hdf5\"`` is read if found; otherwise ``\"FORCES_FC2\"`` plus ``\"phono3py_disp.yaml\"`` are used to produce fc2.  When ``forces_fc3_filename`` / ``forces_fc2_filename`` are not given, ``\"FORCES_FC3\"`` and ``\"FORCES_FC2\"`` are searched in the current directory. With type-1 ``\"FORCES_FC3\"`` (or ``\"FORCES_FC2\"``), ``\"phono3py_disp.yaml\"`` is also required.  **Crystal structure** -- in order of priority::  1. unitcell_filename (with supercell_matrix) 2. supercell_filename 3. unitcell (with supercell_matrix) 4. supercell 5. phono3py_yaml-like  **Force sets or force constants** (optional) -- in order of priority::  1. fc3_filename (fc2_filename) 2. forces_fc3_filename (forces_fc2_filename); for type-1 format phono3py_disp.yaml must also be supplied. 3. fc3.hdf5 and fc2.hdf5 in the current directory. 4. FORCES_FC3 and FORCES_FC2 in the current directory. FORCES_FC2 is optional; for type-1 format phono3py_disp.yaml is also searched. When FORCES_FC2 is missing, FORCES_FC3 is used to create fc2.  **Parameters for non-analytical term correction (NAC)** (optional) -- in order of priority::  1. born_filename 2. nac_params 3. phono3py_yaml_like.nac_params when present and is_nac=True 4. BORN in the current directory when is_nac=True",
+        "input": {
+          "phono3py_yaml": {
+            "type": "str | os.PathLike | typing.IO | None",
+            "description": "Path to a ``\"phono3py.yaml\"``-like file, or a file-pointer-like object. When given, the contents are parsed. Default is ``None``."
+          },
+          "supercell_matrix": {
+            "type": "Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None",
+            "description": "Transformation matrix to the supercell from the unit cell. ``shape=(3,)`` or ``(3, 3)``, ``dtype=int``. A 1D array is treated as the diagonal of a 3x3 matrix. Default is the identity matrix."
+          },
+          "primitive_matrix": {
+            "type": "Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | Sequence[Sequence[float]] | NDArray[np.double] | None",
+            "description": "Transformation matrix to the primitive cell from the unit cell. Default is ``\"auto\"``, which guesses the matrix from crystal symmetry (centring types ``\"F\"``, ``\"I\"``, ``\"A\"``, ``\"C\"``, ``\"R\"``, or primitive ``\"P\"``). To use the unit cell as the primitive cell (identity transformation), pass ``\"P\"``. ``None`` is treated the same as ``\"auto\"``. When a centring symbol is given, the primitive matrix defined at https://spglib.github.io/spglib/definition.html is used. When a ``\"phono3py.yaml\"``-like file is loaded and contains a ``primitive_matrix``, that value takes priority over the default ``\"auto\"``."
+          },
+          "phonon_supercell_matrix": {
+            "type": "Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None",
+            "description": "Supercell matrix used for fc2 when a different dimension is desired from the one used for fc3. Same format as ``supercell_matrix``. Default is ``None``, which uses ``supercell_matrix`` for fc2. Only valid when ``unitcell`` or ``unitcell_filename`` is given."
+          },
+          "is_nac": {
+            "type": "bool",
+            "description": "When True, look for ``\"BORN\"``. When False, NAC is turned off. Default is True."
+          },
+          "calculator": {
+            "type": "str | None",
+            "description": "Calculator name (``\"vasp\"``, ``\"qe\"``, ...) used to switch the set of physical units when parsing calculator input/output files. Default is ``None``, which is equivalent to ``\"vasp\"``."
+          },
+          "unitcell": {
+            "type": "PhonopyAtoms | None",
+            "description": "Input unit cell. Default is ``None``."
+          },
+          "supercell": {
+            "type": "PhonopyAtoms | None",
+            "description": "Input supercell. When given, ``primitive_matrix`` defaults to ``\"auto\"`` (can be overwritten) and ``supercell_matrix`` is ignored. Default is ``None``."
+          },
+          "nac_params": {
+            "type": "NacParams | None",
+            "description": "Parameters for non-analytical term correction::  'born': Born effective charges, shape=(atoms in primitive, 3, 3), dtype=float. 'dielectric': dielectric constant matrix, shape=(3, 3), dtype=float. 'factor': unit conversion factor (float).  Default is ``None``."
+          },
+          "unitcell_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Path to a unit-cell file. Default is ``None``."
+          },
+          "supercell_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Path to a supercell file. When given, ``supercell_matrix`` is ignored. Default is ``None``."
+          },
+          "born_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Path to a ``\"BORN\"`` file containing NAC parameters. Default is ``None``."
+          },
+          "forces_fc3_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Either a two-element sequence of paths corresponding to ``(\"FORCES_FC3\", \"phono3py_disp.yaml\")`` for the type-1 format, or a single path to ``\"FORCES_FC3\"`` for the type-2 format. Default is ``None``."
+          },
+          "forces_fc2_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Same as ``forces_fc3_filename`` but for fc2. Default is ``None``."
+          },
+          "fc3_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Path to a file storing fc3 (e.g. ``\"fc3.hdf5\"``). Default is ``None``."
+          },
+          "fc2_filename": {
+            "type": "str | os.PathLike | None",
+            "description": "Path to a file storing fc2 (e.g. ``\"fc2.hdf5\"``). Default is ``None``."
+          },
+          "fc_calculator": {
+            "type": "str | None",
+            "description": "Force-constants calculator. One of ``None``, ``\"traditional\"``, ``\"symfc\"``, or ``\"alm\"``. Default is ``None`` (equivalent to ``\"traditional\"``)."
+          },
+          "fc_calculator_options": {
+            "type": "str | None",
+            "description": "Options string forwarded to the chosen calculator. Use ``\"<fc2_opts>|<fc3_opts>\"`` to set separate options for fc2 and fc3. For ``\"alm\"``, each parameter is split by ``\",\"`` and each key/value pair is written as ``\"key = value\"``. Default is ``None``."
+          },
+          "factor": {
+            "type": "float | None",
+            "description": "**Deprecated.** Default is ``None``."
+          },
+          "produce_fc": {
+            "type": "bool",
+            "description": "Compute force constants from displacements and forces. When False, only the dataset is set up. Default is True."
+          },
+          "is_symmetry": {
+            "type": "bool",
+            "description": "Use crystal symmetry (beyond lattice translation). Default is True."
+          },
+          "symmetrize_fc": {
+            "type": "bool",
+            "description": "Symmetrize the force constants after producing them. Applied per fc order (fc2 / fc3): only effective when the corresponding calculator (after ``\"|\"`` splitting of ``fc_calculator``) is ``None`` or ``\"traditional\"``. fc2 or fc3 produced by ``\"symfc\"`` or ``\"alm\"`` is already symmetrized by the solver. Default is True."
+          },
+          "is_mesh_symmetry": {
+            "type": "bool",
+            "description": "Use reciprocal-mesh symmetry. Default is True."
+          },
+          "is_compact_fc": {
+            "type": "bool",
+            "description": "Use compact force-constant shape::  fc3 True: (primitive, supercell, supercell, 3, 3, 3) fc3 False: (supercell, supercell, supercell, 3, 3, 3) fc2 True: (primitive, supercell, 3, 3) fc2 False: (supercell, supercell, 3, 3)  Default is True."
+          },
+          "use_pypolymlp": {
+            "type": "bool",
+            "description": "Use pypolymlp to generate force constants. Default is False."
+          },
+          "mlp_params": {
+            "type": "dict | None",
+            "description": "Parameters for the machine-learning potential. Default is ``None``."
+          },
+          "use_grg": {
+            "type": "bool",
+            "description": "Use a generalized regular grid (GRG). Default is False."
+          },
+          "make_r0_average": {
+            "type": "bool",
+            "description": "Average the fc3 real-to-reciprocal-space transformation over the three atoms in each triplet when True (default). When False, only the first atom is used. ``False`` is provided for rough backward compatibility with v2.x results."
+          },
+          "symprec": {
+            "type": "float",
+            "description": "Tolerance used to find crystal symmetry. Default is ``1e-5``."
+          },
+          "log_level": {
+            "type": "int",
+            "description": "Verbosity control. Default is ``0``."
+          },
+          "lang": {
+            "type": "Literal['C', 'Rust']",
+            "description": "Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+          }
+        },
+        "output": null,
+        "ori_input": "phono3py_yaml: str | os.PathLike | typing.IO | None = None, supercell_matrix: Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None = None, primitive_matrix: Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | Sequence[Sequence[float]] | NDArray[np.double] | None = 'auto', phonon_supercell_matrix: Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None = None, is_nac: bool = True, calculator: str | None = None, unitcell: PhonopyAtoms | None = None, supercell: PhonopyAtoms | None = None, nac_params: NacParams | None = None, unitcell_filename: str | os.PathLike | None = None, supercell_filename: str | os.PathLike | None = None, born_filename: str | os.PathLike | None = None, forces_fc3_filename: str | os.PathLike | None = None, forces_fc2_filename: str | os.PathLike | None = None, fc3_filename: str | os.PathLike | None = None, fc2_filename: str | os.PathLike | None = None, fc_calculator: str | None = None, fc_calculator_options: str | None = None, factor: float | None = None, produce_fc: bool = True, is_symmetry: bool = True, symmetrize_fc: bool = True, is_mesh_symmetry: bool = True, is_compact_fc: bool = True, use_pypolymlp: bool = False, mlp_params: dict | None = None, use_grg: bool = False, make_r0_average: bool = True, symprec: float = 1e-05, log_level: int = 0, lang: Literal['C', 'Rust'] = 'Rust'",
+        "ori_description": "Create a Phono3py instance from parameters and/or input files.  A ``\"phono3py_yaml\"``-like file is parsed unless crystal structure information is given through ``unitcell_filename``, ``supercell_filename``, ``unitcell`` (PhonopyAtoms-like), or ``supercell`` (PhonopyAtoms-like). Even when a ``\"phono3py_yaml\"``- like file is parsed, parameters other than the crystal structure can be overwritten by keyword arguments.  ``\"fc3.hdf5\"`` is read if it is found in the current directory. Otherwise, if ``\"FORCES_FC3\"`` and ``\"phono3py_disp.yaml\"`` are found, they are read and fc3 (and fc2) are produced. Similarly, ``\"fc2.hdf5\"`` is read if found; otherwise ``\"FORCES_FC2\"`` plus ``\"phono3py_disp.yaml\"`` are used to produce fc2.  When ``forces_fc3_filename`` / ``forces_fc2_filename`` are not given, ``\"FORCES_FC3\"`` and ``\"FORCES_FC2\"`` are searched in the current directory. With type-1 ``\"FORCES_FC3\"`` (or ``\"FORCES_FC2\"``), ``\"phono3py_disp.yaml\"`` is also required.  **Crystal structure** -- in order of priority::  1. unitcell_filename (with supercell_matrix) 2. supercell_filename 3. unitcell (with supercell_matrix) 4. supercell 5. phono3py_yaml-like  **Force sets or force constants** (optional) -- in order of priority::  1. fc3_filename (fc2_filename) 2. forces_fc3_filename (forces_fc2_filename); for type-1 format phono3py_disp.yaml must also be supplied. 3. fc3.hdf5 and fc2.hdf5 in the current directory. 4. FORCES_FC3 and FORCES_FC2 in the current directory. FORCES_FC2 is optional; for type-1 format phono3py_disp.yaml is also searched. When FORCES_FC2 is missing, FORCES_FC3 is used to create fc2.  **Parameters for non-analytical term correction (NAC)** (optional) -- in order of priority::  1. born_filename 2. nac_params 3. phono3py_yaml_like.nac_params when present and is_nac=True 4. BORN in the current directory when is_nac=True  Parameters ---------- phono3py_yaml : str, os.PathLike, typing.IO, optional Path to a ``\"phono3py.yaml\"``-like file, or a file-pointer-like object. When given, the contents are parsed. Default is ``None``. supercell_matrix : array_like, optional Transformation matrix to the supercell from the unit cell. ``shape=(3,)`` or ``(3, 3)``, ``dtype=int``. A 1D array is treated as the diagonal of a 3x3 matrix. Default is the identity matrix. primitive_matrix : str or array_like, optional Transformation matrix to the primitive cell from the unit cell. Default is ``\"auto\"``, which guesses the matrix from crystal symmetry (centring types ``\"F\"``, ``\"I\"``, ``\"A\"``, ``\"C\"``, ``\"R\"``, or primitive ``\"P\"``). To use the unit cell as the primitive cell (identity transformation), pass ``\"P\"``. ``None`` is treated the same as ``\"auto\"``. When a centring symbol is given, the primitive matrix defined at https://spglib.github.io/spglib/definition.html is used. When a ``\"phono3py.yaml\"``-like file is loaded and contains a ``primitive_matrix``, that value takes priority over the default ``\"auto\"``. phonon_supercell_matrix : array_like, optional Supercell matrix used for fc2 when a different dimension is desired from the one used for fc3. Same format as ``supercell_matrix``. Default is ``None``, which uses ``supercell_matrix`` for fc2. Only valid when ``unitcell`` or ``unitcell_filename`` is given. is_nac : bool, optional When True, look for ``\"BORN\"``. When False, NAC is turned off. Default is True. calculator : str, optional Calculator name (``\"vasp\"``, ``\"qe\"``, ...) used to switch the set of physical units when parsing calculator input/output files. Default is ``None``, which is equivalent to ``\"vasp\"``. unitcell : PhonopyAtoms, optional Input unit cell. Default is ``None``. supercell : PhonopyAtoms, optional Input supercell. When given, ``primitive_matrix`` defaults to ``\"auto\"`` (can be overwritten) and ``supercell_matrix`` is ignored. Default is ``None``. nac_params : NacParams, optional Parameters for non-analytical term correction::  'born': Born effective charges, shape=(atoms in primitive, 3, 3), dtype=float. 'dielectric': dielectric constant matrix, shape=(3, 3), dtype=float. 'factor': unit conversion factor (float).  Default is ``None``. unitcell_filename : str or os.PathLike, optional Path to a unit-cell file. Default is ``None``. supercell_filename : str or os.PathLike, optional Path to a supercell file. When given, ``supercell_matrix`` is ignored. Default is ``None``. born_filename : str or os.PathLike, optional Path to a ``\"BORN\"`` file containing NAC parameters. Default is ``None``. forces_fc3_filename : str, os.PathLike, or sequence, optional Either a two-element sequence of paths corresponding to ``(\"FORCES_FC3\", \"phono3py_disp.yaml\")`` for the type-1 format, or a single path to ``\"FORCES_FC3\"`` for the type-2 format. Default is ``None``. forces_fc2_filename : str, os.PathLike, or sequence, optional Same as ``forces_fc3_filename`` but for fc2. Default is ``None``. fc3_filename : str or os.PathLike, optional Path to a file storing fc3 (e.g. ``\"fc3.hdf5\"``). Default is ``None``. fc2_filename : str or os.PathLike, optional Path to a file storing fc2 (e.g. ``\"fc2.hdf5\"``). Default is ``None``. fc_calculator : str, optional Force-constants calculator. One of ``None``, ``\"traditional\"``, ``\"symfc\"``, or ``\"alm\"``. Default is ``None`` (equivalent to ``\"traditional\"``). fc_calculator_options : str, optional Options string forwarded to the chosen calculator. Use ``\"<fc2_opts>|<fc3_opts>\"`` to set separate options for fc2 and fc3. For ``\"alm\"``, each parameter is split by ``\",\"`` and each key/value pair is written as ``\"key = value\"``. Default is ``None``. factor : float, optional **Deprecated.** Default is ``None``. produce_fc : bool, optional Compute force constants from displacements and forces. When False, only the dataset is set up. Default is True. is_symmetry : bool, optional Use crystal symmetry (beyond lattice translation). Default is True. symmetrize_fc : bool, optional Symmetrize the force constants after producing them. Applied per fc order (fc2 / fc3): only effective when the corresponding calculator (after ``\"|\"`` splitting of ``fc_calculator``) is ``None`` or ``\"traditional\"``. fc2 or fc3 produced by ``\"symfc\"`` or ``\"alm\"`` is already symmetrized by the solver. Default is True. is_mesh_symmetry : bool, optional Use reciprocal-mesh symmetry. Default is True. is_compact_fc : bool, optional Use compact force-constant shape::  fc3 True: (primitive, supercell, supercell, 3, 3, 3) fc3 False: (supercell, supercell, supercell, 3, 3, 3) fc2 True: (primitive, supercell, 3, 3) fc2 False: (supercell, supercell, 3, 3)  Default is True. use_pypolymlp : bool, optional Use pypolymlp to generate force constants. Default is False. mlp_params : dict, optional Parameters for the machine-learning potential. Default is ``None``. use_grg : bool, optional Use a generalized regular grid (GRG). Default is False. make_r0_average : bool, optional Average the fc3 real-to-reciprocal-space transformation over the three atoms in each triplet when True (default). When False, only the first atom is used. ``False`` is provided for rough backward compatibility with v2.x results. symprec : float, optional Tolerance used to find crystal symmetry. Default is ``1e-5``. log_level : int, optional Verbosity control. Default is ``0``. lang : Literal[\"C\", \"Rust\"], optional Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+      },
+      {
+        "name": "Phono3py",
+        "type": "class",
+        "module": "phono3py.api_phono3py",
+        "input": "",
+        "description": "Phono3py main API.  A ``Phono3py`` instance is created from a unit cell, a supercell matrix, and a primitive matrix. It manages displacement generation for fc3 (and optionally fc2 when a separate ``phonon_supercell_matrix`` is given), construction of second- and third-order force constants from displacement-force datasets, phonon-phonon interaction calculation on a reciprocal-space grid, and derived quantities such as the imaginary and real parts of the phonon self-energy, the spectral function, the joint density of states, and the lattice thermal conductivity (RTA, direct solution of the linearized phonon Boltzmann equation, and the Wigner transport equation).  Most attributes are exposed as ``@property`` accessors documented individually below. See :ref:`phono3py_api` for a tutorial-style overview of the typical workflow.  Examples -------- >>> import numpy as np >>> from phono3py import Phono3py >>> from phonopy.structure.atoms import PhonopyAtoms >>> a = 3.111 >>> c = 4.978 >>> x = 1.0 / 3 >>> unitcell = PhonopyAtoms( ... symbols=[\"Al\", \"Al\", \"N\", \"N\"], ... cell=[[a, 0, 0], [-a / 2, a * np.sqrt(3) / 2, 0], [0, 0, c]], ... scaled_positions=[ ... [x, 2 * x, 0], ... [2 * x, x, 0.5], ... [x, 2 * x, 0.1181], ... [2 * x, x, 0.6181], ... ], ... ) >>> ph3 = Phono3py( ... unitcell, supercell_matrix=[3, 3, 2], primitive_matrix=\"auto\" ... ) >>> ph3.generate_displacements() >>> # Obtain forces by running an external calculator on >>> # ph3.supercells_with_displacements, then: >>> # ph3.forces = sets_of_forces >>> # ph3.produce_fc3() >>> # ph3.mesh_numbers = 30 >>> # ph3.init_phph_interaction() >>> # ph3.run_thermal_conductivity(temperatures=range(0, 1001, 10))",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Init method.",
+            "input": {
+              "self": null,
+              "unitcell": {
+                "type": "PhonopyAtoms",
+                "description": "Input unit cell."
+              },
+              "supercell_matrix": {
+                "type": "Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None",
+                "description": "Transformation matrix to the supercell from the unit cell. ``shape=(3,)`` or ``(3, 3)``, ``dtype=int``. A 1D array is treated as the diagonal of a 3x3 matrix. Although the default ``None`` yields the identity matrix, it is strongly recommended to give ``supercell_matrix`` explicitly."
+              },
+              "primitive_matrix": {
+                "type": "Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Transformation matrix to the primitive cell from the unit cell. ``shape=(3, 3)``, ``dtype=float``. Default is ``\"auto\"``, which guesses the matrix from crystal symmetry (centring types ``\"F\"``, ``\"I\"``, ``\"A\"``, ``\"C\"``, ``\"R\"``, or primitive ``\"P\"``). To use the unit cell as the primitive cell (identity transformation), pass ``\"P\"``. ``None`` is treated the same as ``\"auto\"``. When a centring symbol is given, the primitive matrix defined at https://spglib.github.io/spglib/definition.html is used."
+              },
+              "phonon_supercell_matrix": {
+                "type": "Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None",
+                "description": "Supercell matrix used for fc2 when a different supercell from the one used for fc3 is desired (typically larger, to capture longer-ranged harmonic interactions). Same format as ``supercell_matrix``. Default is ``None``, which uses ``supercell_matrix`` for fc2."
+              },
+              "cutoff_frequency": {
+                "type": "float",
+                "description": "Phonon frequencies below this value (in THz) are treated as zero in scattering and self-energy calculations. Default is ``1e-4``."
+              },
+              "frequency_factor_to_THz": {
+                "type": "float | None",
+                "description": "Deprecated. Passing a non-``None`` value emits a ``DeprecationWarning``. By default the conversion factor for the chosen calculator is used."
+              },
+              "is_symmetry": {
+                "type": "bool",
+                "description": "Use crystal symmetry in most calculations when True. Default is True."
+              },
+              "is_mesh_symmetry": {
+                "type": "bool",
+                "description": "Use crystal symmetry in reciprocal-space grid handling when True. Default is True."
+              },
+              "use_grg": {
+                "type": "bool",
+                "description": "Use a generalized regular grid (GRG) when True. The grid is generated on the reciprocal basis vectors of the conventional unit cell of the primitive cell, which can reduce the required sampling density for primitive cells with high symmetry. Default is False."
+              },
+              "SNF_coordinates": {
+                "type": "Literal['reciprocal', 'direct']",
+                "description": "Space in which the grid-generating matrix is computed via Smith normal form. Default is ``\"reciprocal\"``."
+              },
+              "make_r0_average": {
+                "type": "bool",
+                "description": "Average the fc3 real-to-reciprocal-space transformation over the three atoms in each triplet when True (default). When False, only the first atom is used. ``False`` is provided for rough backward compatibility with v2.x results."
+              },
+              "symprec": {
+                "type": "float",
+                "description": "Tolerance used to find crystal symmetry. Default is ``1e-5``."
+              },
+              "calculator": {
+                "type": "str | None",
+                "description": "Calculator name (``\"vasp\"``, ``\"qe\"``, ...) used to switch the set of physical units. Default is ``None``, which is equivalent to ``\"vasp\"``."
+              },
+              "log_level": {
+                "type": "int",
+                "description": "Verbosity control: ``0``, ``1``, or ``2``. Default is ``0``."
+              },
+              "lang": {
+                "type": "Literal['C', 'Rust']",
+                "description": "Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+              }
+            },
+            "output": null,
+            "ori_input": "self, unitcell: PhonopyAtoms, supercell_matrix: Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None = None, primitive_matrix: Literal['P', 'F', 'I', 'A', 'C', 'R', 'auto'] | Sequence[Sequence[float]] | NDArray[np.double] | None = 'auto', phonon_supercell_matrix: Sequence[int] | Sequence[Sequence[int]] | NDArray[np.int64] | None = None, cutoff_frequency: float = 0.0001, frequency_factor_to_THz: float | None = None, is_symmetry: bool = True, is_mesh_symmetry: bool = True, use_grg: bool = False, SNF_coordinates: Literal['reciprocal', 'direct'] = 'reciprocal', make_r0_average: bool = True, symprec: float = 1e-05, calculator: str | None = None, log_level: int = 0, lang: Literal['C', 'Rust'] = 'Rust'",
+            "ori_description": "Init method.  Parameters ---------- unitcell : PhonopyAtoms Input unit cell. supercell_matrix : array_like, optional Transformation matrix to the supercell from the unit cell. ``shape=(3,)`` or ``(3, 3)``, ``dtype=int``. A 1D array is treated as the diagonal of a 3x3 matrix. Although the default ``None`` yields the identity matrix, it is strongly recommended to give ``supercell_matrix`` explicitly. primitive_matrix : str or array_like, optional Transformation matrix to the primitive cell from the unit cell. ``shape=(3, 3)``, ``dtype=float``. Default is ``\"auto\"``, which guesses the matrix from crystal symmetry (centring types ``\"F\"``, ``\"I\"``, ``\"A\"``, ``\"C\"``, ``\"R\"``, or primitive ``\"P\"``). To use the unit cell as the primitive cell (identity transformation), pass ``\"P\"``. ``None`` is treated the same as ``\"auto\"``. When a centring symbol is given, the primitive matrix defined at https://spglib.github.io/spglib/definition.html is used. phonon_supercell_matrix : array_like, optional Supercell matrix used for fc2 when a different supercell from the one used for fc3 is desired (typically larger, to capture longer-ranged harmonic interactions). Same format as ``supercell_matrix``. Default is ``None``, which uses ``supercell_matrix`` for fc2. cutoff_frequency : float, optional Phonon frequencies below this value (in THz) are treated as zero in scattering and self-energy calculations. Default is ``1e-4``. frequency_factor_to_THz : float, optional Deprecated. Passing a non-``None`` value emits a ``DeprecationWarning``. By default the conversion factor for the chosen calculator is used. is_symmetry : bool, optional Use crystal symmetry in most calculations when True. Default is True. is_mesh_symmetry : bool, optional Use crystal symmetry in reciprocal-space grid handling when True. Default is True. use_grg : bool, optional Use a generalized regular grid (GRG) when True. The grid is generated on the reciprocal basis vectors of the conventional unit cell of the primitive cell, which can reduce the required sampling density for primitive cells with high symmetry. Default is False. SNF_coordinates : Literal[\"reciprocal\", \"direct\"], optional Space in which the grid-generating matrix is computed via Smith normal form. Default is ``\"reciprocal\"``. make_r0_average : bool, optional Average the fc3 real-to-reciprocal-space transformation over the three atoms in each triplet when True (default). When False, only the first atom is used. ``False`` is provided for rough backward compatibility with v2.x results. symprec : float, optional Tolerance used to find crystal symmetry. Default is ``1e-5``. calculator : str, optional Calculator name (``\"vasp\"``, ``\"qe\"``, ...) used to switch the set of physical units. Default is ``None``, which is equivalent to ``\"vasp\"``. log_level : int, optional Verbosity control: ``0``, ``1``, or ``2``. Default is ``0``. lang : Literal[\"C\", \"Rust\"], optional Backend implementation for compute-heavy kernels. ``\"C\"`` uses the existing C extension; ``\"Rust\"`` selects the experimental phonors backend. Default is ``\"Rust\"``."
+          },
+          {
+            "name": "fc2",
+            "description": "",
+            "input": {
+              "self": null,
+              "fc2": {
+                "type": "NDArray[np.double] | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fc2: NDArray[np.double] | None",
+            "ori_description": ""
+          },
+          {
+            "name": "fc3",
+            "description": "",
+            "input": {
+              "self": null,
+              "fc3": {
+                "type": "NDArray[np.double] | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, fc3: NDArray[np.double] | None",
+            "ori_description": ""
+          },
+          {
+            "name": "sigmas",
+            "description": "",
+            "input": {
+              "self": null,
+              "sigmas": {
+                "type": "Sequence[float | None] | float | int | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sigmas: Sequence[float | None] | float | int | None",
+            "ori_description": ""
+          },
+          {
+            "name": "sigma_cutoff",
+            "description": "",
+            "input": {
+              "self": null,
+              "sigma_cutoff": {
+                "type": "float | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, sigma_cutoff: float | None",
+            "ori_description": ""
+          },
+          {
+            "name": "nac_params",
+            "description": "",
+            "input": {
+              "self": null,
+              "nac_params": {
+                "type": "NacParams | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, nac_params: NacParams | None",
+            "ori_description": ""
+          },
+          {
+            "name": "primitive",
+            "description": "Return primitive cell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return primitive cell."
+          },
+          {
+            "name": "unitcell",
+            "description": "Return input unit cell.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return input unit cell."
+          },
+          {
+            "name": "supercell",
+            "description": "Return supercell for fc3.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return supercell for fc3."
+          },
+          {
+            "name": "phonon_supercell",
+            "description": "Return supercell for fc2.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return supercell for fc2."
+          },
+          {
+            "name": "supercell_matrix",
+            "description": "Return transformation matrix to the supercell from the unit cell.  ``shape=(3, 3)``, ``dtype='int64'``, ``order='C'``.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return transformation matrix to the supercell from the unit cell.  ``shape=(3, 3)``, ``dtype='int64'``, ``order='C'``."
+          },
+          {
+            "name": "phonon_supercell_matrix",
+            "description": "Return transformation matrix to the fc2 supercell from the unit cell.  ``shape=(3, 3)``, ``dtype='int64'``, ``order='C'``. ``None`` when the same supercell as fc3 is used.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return transformation matrix to the fc2 supercell from the unit cell.  ``shape=(3, 3)``, ``dtype='int64'``, ``order='C'``. ``None`` when the same supercell as fc3 is used."
+          },
+          {
+            "name": "primitive_matrix",
+            "description": "Return transformation matrix to the primitive cell from the unit cell.  ``shape=(3, 3)``, ``dtype='double'``, ``order='C'``.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return transformation matrix to the primitive cell from the unit cell.  ``shape=(3, 3)``, ``dtype='double'``, ``order='C'``."
+          },
+          {
+            "name": "dataset",
+            "description": "",
+            "input": {
+              "self": null,
+              "dataset": {
+                "type": "Fc3DisplacementDataset | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dataset: Fc3DisplacementDataset | None",
+            "ori_description": ""
+          },
+          {
+            "name": "phonon_dataset",
+            "description": "",
+            "input": {
+              "self": null,
+              "dataset": {
+                "type": "DisplacementDataset | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, dataset: DisplacementDataset | None",
+            "ori_description": ""
+          },
+          {
+            "name": "masses",
+            "description": "",
+            "input": {
+              "self": null,
+              "masses": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, masses: Sequence[float] | NDArray[np.double] | None",
+            "ori_description": ""
+          },
+          {
+            "name": "supercells_with_displacements",
+            "description": "Return the fc3 supercells with displacements applied.  Built from the displacement dataset generated by :meth:`generate_displacements`. Pair displacements that fall outside the cutoff distance appear as ``None``.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the fc3 supercells with displacements applied.  Built from the displacement dataset generated by :meth:`generate_displacements`. Pair displacements that fall outside the cutoff distance appear as ``None``."
+          },
+          {
+            "name": "phonon_supercells_with_displacements",
+            "description": "Return the fc2 supercells with displacements applied.  Built from the phonon displacement dataset generated by :meth:`generate_displacements` or :meth:`generate_fc2_displacements`.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the fc2 supercells with displacements applied.  Built from the phonon displacement dataset generated by :meth:`generate_displacements` or :meth:`generate_fc2_displacements`."
+          },
+          {
+            "name": "mesh_numbers",
+            "description": "",
+            "input": {
+              "self": null,
+              "mesh_numbers": {
+                "type": "float | NDArray[np.int64] | Sequence[int] | Sequence[Sequence[int]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, mesh_numbers: float | NDArray[np.int64] | Sequence[int] | Sequence[Sequence[int]]",
+            "ori_description": ""
+          },
+          {
+            "name": "thermal_conductivity",
+            "description": "Return the thermal-conductivity calculator instance.  Populated by :meth:`run_thermal_conductivity`. ``RTACalculator`` for the relaxation-time approximation (``is_LBTE=False``), ``LBTECalculator`` for the direct solution of the linearized Boltzmann equation or the Wigner transport equation (``is_LBTE=True``), or ``None`` before the calculation has run.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the thermal-conductivity calculator instance.  Populated by :meth:`run_thermal_conductivity`. ``RTACalculator`` for the relaxation-time approximation (``is_LBTE=False``), ``LBTECalculator`` for the direct solution of the linearized Boltzmann equation or the Wigner transport equation (``is_LBTE=True``), or ``None`` before the calculation has run."
+          },
+          {
+            "name": "displacements",
+            "description": "",
+            "input": {
+              "self": null,
+              "displacements": {
+                "type": "Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, displacements: Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "forces",
+            "description": "",
+            "input": {
+              "self": null,
+              "values": {
+                "type": "NDArray[np.double] | Sequence[NDArray[np.double]] | Sequence[Sequence[Sequence[float]]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, values: NDArray[np.double] | Sequence[NDArray[np.double]] | Sequence[Sequence[Sequence[float]]]",
+            "ori_description": ""
+          },
+          {
+            "name": "phonon_displacements",
+            "description": "",
+            "input": {
+              "self": null,
+              "displacements": {
+                "type": "Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, displacements: Sequence[Sequence[Sequence[float]]] | Sequence[NDArray[np.double]] | NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "phonon_forces",
+            "description": "",
+            "input": {
+              "self": null,
+              "values": {
+                "type": "NDArray[np.double] | Sequence[NDArray[np.double]] | Sequence[Sequence[Sequence[float]]]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, values: NDArray[np.double] | Sequence[NDArray[np.double]] | Sequence[Sequence[Sequence[float]]]",
+            "ori_description": ""
+          },
+          {
+            "name": "init_phph_interaction",
+            "description": "Initialize ph-ph interaction calculation.  This method creates an instance of Interaction class, which is necessary to run ph-ph interaction calculation. The input data such as grids, force constants, etc, are stored to be ready for the calculation.",
+            "input": {
+              "self": null,
+              "nac_q_direction": {
+                "type": "NDArray[np.double] | Sequence[float] | None",
+                "description": "Direction of q-vector watching from Gamma point used for non-analytical term correction. This is effective only at q=0 (physically q->0). The direction is given in crystallographic (fractional) coordinates. shape=(3,), dtype='double'. Default value is None, which means this feature is not used."
+              },
+              "constant_averaged_interaction": {
+                "type": "float | None",
+                "description": "Ph-ph interaction strength array is replaced by a scalar value. Default is None, which means this feature is not used."
+              },
+              "frequency_scale_factor": {
+                "type": "float | None",
+                "description": "All phonon frequencies are scaled by this value. Default is None, which means phonon frequencies are not scaled."
+              },
+              "symmetrize_fc3q": {
+                "type": "bool",
+                "description": "fc3 in phonon space is symmetrized by permutation symmetry. Default is False."
+              },
+              "lapack_zheev_uplo": {
+                "type": "Literal['L', 'U'] | None",
+                "description": "Deprecated. 'L' or 'U' that was passed to the LAPACK zheev phonon solver. This option will be removed together with the C implementation of the phonon solver. Default is None, which means 'L' is used. Supplying this parameter raises a ``DeprecationWarning``."
+              },
+              "openmp_per_triplets": {
+                "type": "bool | None",
+                "description": "Normally this parameter should not be touched. When `True`, ph-ph interaction strength calculation runs with OpenMP distribution over triplets, and over bands when `False`. `None` will choose one of them automatically."
+              }
+            },
+            "output": null,
+            "ori_input": "self, nac_q_direction: NDArray[np.double] | Sequence[float] | None = None, constant_averaged_interaction: float | None = None, frequency_scale_factor: float | None = None, symmetrize_fc3q: bool = False, lapack_zheev_uplo: Literal['L', 'U'] | None = None, openmp_per_triplets: bool | None = None",
+            "ori_description": "Initialize ph-ph interaction calculation.  This method creates an instance of Interaction class, which is necessary to run ph-ph interaction calculation. The input data such as grids, force constants, etc, are stored to be ready for the calculation.  Note ---- fc3 and fc2, and optionally nac_params have to be set before calling this method. fc3 and fc2 can be made either from sets of forces and displacements of supercells or be set simply via attributes.  Parameters ---------- nac_q_direction : array_like, optional Direction of q-vector watching from Gamma point used for non-analytical term correction. This is effective only at q=0 (physically q->0). The direction is given in crystallographic (fractional) coordinates. shape=(3,), dtype='double'. Default value is None, which means this feature is not used. constant_averaged_interaction : float, optional Ph-ph interaction strength array is replaced by a scalar value. Default is None, which means this feature is not used. frequency_scale_factor : float, optional All phonon frequencies are scaled by this value. Default is None, which means phonon frequencies are not scaled. symmetrize_fc3q : bool, optional fc3 in phonon space is symmetrized by permutation symmetry. Default is False. lapack_zheev_uplo : str, optional Deprecated. 'L' or 'U' that was passed to the LAPACK zheev phonon solver. This option will be removed together with the C implementation of the phonon solver. Default is None, which means 'L' is used. Supplying this parameter raises a ``DeprecationWarning``. openmp_per_triplets : bool or None, optional, default is None Normally this parameter should not be touched. When `True`, ph-ph interaction strength calculation runs with OpenMP distribution over triplets, and over bands when `False`. `None` will choose one of them automatically."
+          },
+          {
+            "name": "get_phonon_data",
+            "description": "Return phonon frequencies, eigenvectors, and grid addresses.  Grid addresses give the q-point location with respect to the reciprocal basis vectors by integers, with::  q_points = grid_address / np.array(mesh, dtype='double')",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "ndarray",
+                "description": "``shape=(num_grid_points, num_band)``, ``dtype='double'``, ``order='C'``. eigenvectors : ndarray ``shape=(num_grid_points, num_band, num_band)``, ``dtype='cdouble'``, ``order='C'``. grid_address : ndarray Integer grid-point addresses (the first dimension may exceed ``prod(mesh)`` because BZ-boundary points are included). ``shape=(num_grid_points, 3)``, ``dtype=int``."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Return phonon frequencies, eigenvectors, and grid addresses.  Grid addresses give the q-point location with respect to the reciprocal basis vectors by integers, with::  q_points = grid_address / np.array(mesh, dtype='double')  Returns ------- frequencies : ndarray ``shape=(num_grid_points, num_band)``, ``dtype='double'``, ``order='C'``. eigenvectors : ndarray ``shape=(num_grid_points, num_band, num_band)``, ``dtype='cdouble'``, ``order='C'``. grid_address : ndarray Integer grid-point addresses (the first dimension may exceed ``prod(mesh)`` because BZ-boundary points are included). ``shape=(num_grid_points, 3)``, ``dtype=int``.  Raises ------ RuntimeError When :meth:`init_phph_interaction` has not been called.  See Also -------- set_phonon_data"
+          },
+          {
+            "name": "run_phonon_solver",
+            "description": "Run harmonic phonon calculation on grid points.",
+            "input": {
+              "self": null,
+              "grid_points": {
+                "type": "Sequence[int] | NDArray[np.int64] | None",
+                "description": "A list of grid point indices of Phono3py.grid.addresses. Specifying None runs all phonons on the grid points unless those phonons were already calculated. Normally phonons at [0, 0, 0] point is already calculated before calling this method. Phonon calculations are performed automatically when needed internally for ph-ph calculation. Therefore calling this method is not necessary in most cases. The phonon results are obtained by Phono3py.get_phonon_data()."
+              }
+            },
+            "output": null,
+            "ori_input": "self, grid_points: Sequence[int] | NDArray[np.int64] | None = None",
+            "ori_description": "Run harmonic phonon calculation on grid points.  Parameters ---------- grid_points : array_like or None, optional A list of grid point indices of Phono3py.grid.addresses. Specifying None runs all phonons on the grid points unless those phonons were already calculated. Normally phonons at [0, 0, 0] point is already calculated before calling this method. Phonon calculations are performed automatically when needed internally for ph-ph calculation. Therefore calling this method is not necessary in most cases. The phonon results are obtained by Phono3py.get_phonon_data()."
+          },
+          {
+            "name": "generate_displacements",
+            "description": "Generate the fc3 displacement dataset in the supercell.  Two modes are supported depending on whether ``number_of_snapshots`` is given.  **Systematic mode** (``number_of_snapshots`` is ``None``): single and pair atomic displacements are generated using crystal symmetry. For fc3 two atoms are displaced per configuration. The first displacement is taken in the perfect supercell along its basis vectors -- this keeps more symmetry intact, which typically reduces the number of second displacements needed. The second displacement is then taken in the once-displaced supercell.  **Random mode** (``number_of_snapshots`` is an int or ``\"auto\"``): the requested number of supercells with random atomic displacements is generated. When ``max_distance`` is given, displacements use random directions and random distances drawn uniformly from ``[distance, max_distance]``; otherwise all atoms are displaced by the same Euclidean distance equal to ``distance``.",
+            "input": {
+              "self": null,
+              "distance": {
+                "type": "float | None",
+                "description": "Constant displacement Euclidean distance in Angstroms. Default is ``None``, which means ``0.03``. In random- direction-random-distance mode this value also acts as the minimum distance: sampled distances smaller than this are clamped to it."
+              },
+              "cutoff_pair_distance": {
+                "type": "float | None",
+                "description": "Cutoff Euclidean distance (in Angstroms) used to drop pair displacements that are too far apart from the fc3 calculation. Default is ``None`` (no cutoff)."
+              },
+              "is_plusminus": {
+                "type": "bool | Literal['auto']",
+                "description": "With ``True``, atoms are displaced in both positive and negative directions. With ``False``, only one direction. With ``\"auto\"`` (default), both directions are used unless they are symmetrically equivalent, in which case only one is kept."
+              },
+              "is_diagonal": {
+                "type": "bool",
+                "description": "With ``True`` (default), second displacements may be chosen off-axis if doing so reduces the displacement count. With ``False``, second displacements are taken strictly along the supercell basis vectors."
+              },
+              "number_of_snapshots": {
+                "type": "int | Literal['auto'] | None",
+                "description": "Number of supercell snapshots with random displacements. With ``\"auto\"``, the minimum required number is estimated using symfc and then multiplied by ``number_estimation_factor``. Default is ``None`` (systematic mode)."
+              },
+              "random_seed": {
+                "type": "int | None",
+                "description": "Random seed for random displacement generation. Default is ``None``."
+              },
+              "max_distance": {
+                "type": "float | None",
+                "description": "When specified, displacements use random direction and random distance with ``distance`` as the lower bound and ``max_distance`` as the upper bound of a uniform distribution. Default is ``None``."
+              },
+              "number_estimation_factor": {
+                "type": "float | None",
+                "description": "Multiplier applied to the symfc estimate when ``number_of_snapshots=\"auto\"``. Default is ``None``, which uses ``8`` when ``max_distance`` is given and ``4`` otherwise."
+              }
+            },
+            "output": null,
+            "ori_input": "self, distance: float | None = None, cutoff_pair_distance: float | None = None, is_plusminus: bool | Literal['auto'] = 'auto', is_diagonal: bool = True, number_of_snapshots: int | Literal['auto'] | None = None, random_seed: int | None = None, max_distance: float | None = None, number_estimation_factor: float | None = None",
+            "ori_description": "Generate the fc3 displacement dataset in the supercell.  Two modes are supported depending on whether ``number_of_snapshots`` is given.  **Systematic mode** (``number_of_snapshots`` is ``None``): single and pair atomic displacements are generated using crystal symmetry. For fc3 two atoms are displaced per configuration. The first displacement is taken in the perfect supercell along its basis vectors -- this keeps more symmetry intact, which typically reduces the number of second displacements needed. The second displacement is then taken in the once-displaced supercell.  **Random mode** (``number_of_snapshots`` is an int or ``\"auto\"``): the requested number of supercells with random atomic displacements is generated. When ``max_distance`` is given, displacements use random directions and random distances drawn uniformly from ``[distance, max_distance]``; otherwise all atoms are displaced by the same Euclidean distance equal to ``distance``.  Note ---- When ``phonon_supercell_matrix`` is not given, fc2 is computed from the same displacements as fc3. When it is given, fc2 displacements in the phonon supercell are generated separately (unless they already exist). To control fc2 displacements independently, call :meth:`generate_fc2_displacements`.  Parameters ---------- distance : float, optional Constant displacement Euclidean distance in Angstroms. Default is ``None``, which means ``0.03``. In random- direction-random-distance mode this value also acts as the minimum distance: sampled distances smaller than this are clamped to it. cutoff_pair_distance : float, optional Cutoff Euclidean distance (in Angstroms) used to drop pair displacements that are too far apart from the fc3 calculation. Default is ``None`` (no cutoff). is_plusminus : bool or \"auto\", optional With ``True``, atoms are displaced in both positive and negative directions. With ``False``, only one direction. With ``\"auto\"`` (default), both directions are used unless they are symmetrically equivalent, in which case only one is kept. is_diagonal : bool, optional With ``True`` (default), second displacements may be chosen off-axis if doing so reduces the displacement count. With ``False``, second displacements are taken strictly along the supercell basis vectors. number_of_snapshots : int, \"auto\", or None, optional Number of supercell snapshots with random displacements. With ``\"auto\"``, the minimum required number is estimated using symfc and then multiplied by ``number_estimation_factor``. Default is ``None`` (systematic mode). random_seed : int or None, optional Random seed for random displacement generation. Default is ``None``. max_distance : float or None, optional When specified, displacements use random direction and random distance with ``distance`` as the lower bound and ``max_distance`` as the upper bound of a uniform distribution. Default is ``None``. number_estimation_factor : float, optional Multiplier applied to the symfc estimate when ``number_of_snapshots=\"auto\"``. Default is ``None``, which uses ``8`` when ``max_distance`` is given and ``4`` otherwise."
+          },
+          {
+            "name": "generate_fc2_displacements",
+            "description": "Generate the fc2 displacement dataset in the phonon supercell.  Two modes are supported. In **systematic mode** (default), single atomic displacements in the phonon supercell are generated using crystal symmetry. In **random mode** (when ``number_of_snapshots`` is given), the requested number of supercells with random displacements is generated. Calling this method clears any cached fc2 supercells with displacements.",
+            "input": {
+              "self": null,
+              "distance": {
+                "type": "float | None",
+                "description": "Constant displacement Euclidean distance in Angstroms. Default is ``None``, which means ``0.03``. In random- direction-random-distance mode this value also acts as the minimum distance: sampled distances smaller than this are clamped to it."
+              },
+              "is_plusminus": {
+                "type": "bool | Literal['auto']",
+                "description": "With ``True``, atoms are displaced in both positive and negative directions. With ``False``, only one direction. With ``\"auto\"`` (default), both directions are used unless they are symmetrically equivalent, in which case only one is kept."
+              },
+              "is_diagonal": {
+                "type": "bool",
+                "description": "With ``False`` (default), displacements are taken strictly along the supercell basis vectors. With ``True``, off-axis directions may be chosen if doing so reduces the displacement count."
+              },
+              "number_of_snapshots": {
+                "type": "int | Literal['auto'] | None",
+                "description": "Number of supercell snapshots with random displacements. With ``\"auto\"``, the minimum required number is estimated using symfc and then doubled. Default is ``None`` (systematic mode)."
+              },
+              "random_seed": {
+                "type": "int | None",
+                "description": "Random seed for random displacement generation. Default is ``None``."
+              },
+              "max_distance": {
+                "type": "float | None",
+                "description": "When specified, displacements use random direction and random distance with ``distance`` as the lower bound and ``max_distance`` as the upper bound of a uniform distribution. Default is ``None``."
+              }
+            },
+            "output": null,
+            "ori_input": "self, distance: float | None = None, is_plusminus: bool | Literal['auto'] = 'auto', is_diagonal: bool = False, number_of_snapshots: int | Literal['auto'] | None = None, random_seed: int | None = None, max_distance: float | None = None",
+            "ori_description": "Generate the fc2 displacement dataset in the phonon supercell.  Two modes are supported. In **systematic mode** (default), single atomic displacements in the phonon supercell are generated using crystal symmetry. In **random mode** (when ``number_of_snapshots`` is given), the requested number of supercells with random displacements is generated. Calling this method clears any cached fc2 supercells with displacements.  Note ---- ``is_diagonal=False`` is the default so that the fc2 first-displacement direction stays consistent with the first-displacement direction used by the fc3 pair generator.  Parameters ---------- distance : float, optional Constant displacement Euclidean distance in Angstroms. Default is ``None``, which means ``0.03``. In random- direction-random-distance mode this value also acts as the minimum distance: sampled distances smaller than this are clamped to it. is_plusminus : bool or \"auto\", optional With ``True``, atoms are displaced in both positive and negative directions. With ``False``, only one direction. With ``\"auto\"`` (default), both directions are used unless they are symmetrically equivalent, in which case only one is kept. is_diagonal : bool, optional With ``False`` (default), displacements are taken strictly along the supercell basis vectors. With ``True``, off-axis directions may be chosen if doing so reduces the displacement count. number_of_snapshots : int, \"auto\", or None, optional Number of supercell snapshots with random displacements. With ``\"auto\"``, the minimum required number is estimated using symfc and then doubled. Default is ``None`` (systematic mode). random_seed : int or None, optional Random seed for random displacement generation. Default is ``None``. max_distance : float or None, optional When specified, displacements use random direction and random distance with ``distance`` as the lower bound and ``max_distance`` as the upper bound of a uniform distribution. Default is ``None``."
+          },
+          {
+            "name": "produce_fc2",
+            "description": "Calculate fc2 from displacements and forces.  Uses the phonon supercell (equal to the fc3 supercell when ``phonon_supercell_matrix`` is not set). Forces are taken from :attr:`phonon_dataset` when present, otherwise from :attr:`dataset`. The solver is chosen by ``fc_calculator``:  - ``None`` (default) or ``\"traditional\"``: built-in finite-difference solver. The returned fc2 is **not** symmetrized; to enforce translational and permutation invariance, call :meth:`symmetrize_fc2` afterwards. - ``\"symfc\"``: symfc solver, which returns symmetrized force constants in one shot. When a cutoff distance is configured via ``fc_calculator_options``, it is captured into :attr:`fc2_cutoff`. - ``\"alm\"``: ALM solver, which handles symmetrization internally.",
+            "input": {
+              "self": null,
+              "symmetrize_fc2": {
+                "type": "bool | None",
+                "description": "**Deprecated.** Passing any value emits a ``DeprecationWarning``. With the traditional solver, call :meth:`symmetrize_fc2` after :meth:`produce_fc2` instead. Default is ``None``."
+              },
+              "is_compact_fc": {
+                "type": "bool",
+                "description": "fc2 shape::  True: (primitive, supercell, 3, 3) False: (supercell, supercell, 3, 3)  Default is ``True``."
+              },
+              "fc_calculator": {
+                "type": "Literal['traditional', 'symfc', 'alm'] | None",
+                "description": "Force-constants calculator. One of ``None``, ``\"traditional\"``, ``\"symfc\"``, or ``\"alm\"``. Default is ``None`` (equivalent to ``\"traditional\"``)."
+              },
+              "fc_calculator_options": {
+                "type": "str | None",
+                "description": "Options string forwarded to the chosen calculator."
+              },
+              "use_symfc_projector": {
+                "type": "bool | None",
+                "description": "**Deprecated.** Passing any value emits a ``DeprecationWarning``. Call ``symmetrize_fc2(use_symfc_projector=True)`` after :meth:`produce_fc2` instead. Default is ``None``."
+              }
+            },
+            "output": null,
+            "ori_input": "self, symmetrize_fc2: bool | None = None, is_compact_fc: bool = True, fc_calculator: Literal['traditional', 'symfc', 'alm'] | None = None, fc_calculator_options: str | None = None, use_symfc_projector: bool | None = None",
+            "ori_description": "Calculate fc2 from displacements and forces.  Uses the phonon supercell (equal to the fc3 supercell when ``phonon_supercell_matrix`` is not set). Forces are taken from :attr:`phonon_dataset` when present, otherwise from :attr:`dataset`. The solver is chosen by ``fc_calculator``:  - ``None`` (default) or ``\"traditional\"``: built-in finite-difference solver. The returned fc2 is **not** symmetrized; to enforce translational and permutation invariance, call :meth:`symmetrize_fc2` afterwards. - ``\"symfc\"``: symfc solver, which returns symmetrized force constants in one shot. When a cutoff distance is configured via ``fc_calculator_options``, it is captured into :attr:`fc2_cutoff`. - ``\"alm\"``: ALM solver, which handles symmetrization internally.  Parameters ---------- symmetrize_fc2 : bool, optional **Deprecated.** Passing any value emits a ``DeprecationWarning``. With the traditional solver, call :meth:`symmetrize_fc2` after :meth:`produce_fc2` instead. Default is ``None``. is_compact_fc : bool, optional fc2 shape::  True: (primitive, supercell, 3, 3) False: (supercell, supercell, 3, 3)  Default is ``True``. fc_calculator : str or None, optional Force-constants calculator. One of ``None``, ``\"traditional\"``, ``\"symfc\"``, or ``\"alm\"``. Default is ``None`` (equivalent to ``\"traditional\"``). fc_calculator_options : str or None, optional Options string forwarded to the chosen calculator. use_symfc_projector : bool, optional **Deprecated.** Passing any value emits a ``DeprecationWarning``. Call ``symmetrize_fc2(use_symfc_projector=True)`` after :meth:`produce_fc2` instead. Default is ``None``."
+          },
+          {
+            "name": "produce_fc3",
+            "description": "Calculate fc3 (and optionally fc2) from displacements and forces.  The solver is chosen by ``fc_calculator``:  - ``None`` (default) or ``\"traditional\"``: built-in finite-difference solver. The returned fc3 is **not** symmetrized; to enforce translational and permutation invariance, call :meth:`symmetrize_fc3` afterwards (and :meth:`symmetrize_fc2` when applicable). - ``\"symfc\"``: symfc solver, which returns symmetrized force constants in one shot. When a cutoff distance is configured via ``fc_calculator_options``, it is captured into :attr:`fc3_cutoff` (and :attr:`fc2_cutoff` when fc2 is produced here), and the boolean mask of non-zero atomic triplets is captured into :attr:`fc3_nonzero_indices`. - ``\"alm\"``: ALM solver, which handles symmetrization internally.  When ``phonon_supercell_matrix`` is not set, fc2 is produced alongside fc3 and stored in :attr:`fc2`. When ``phonon_supercell_matrix`` is set, :attr:`fc2` is **not** populated here -- call :meth:`produce_fc2` to compute fc2 in the larger phonon supercell.",
+            "input": {
+              "self": null,
+              "symmetrize_fc3r": {
+                "type": "bool | None",
+                "description": "**Deprecated.** Passing any value emits a ``DeprecationWarning``. With the traditional solver, call :meth:`symmetrize_fc3` (and :meth:`symmetrize_fc2` when applicable) after :meth:`produce_fc3` instead. Default is ``None``."
+              },
+              "is_compact_fc": {
+                "type": "bool",
+                "description": "fc3 shape::  True: (primitive, supercell, supercell, 3, 3, 3) False: (supercell, supercell, supercell, 3, 3, 3)  Default is ``True``."
+              },
+              "fc_calculator": {
+                "type": "Literal['traditional', 'symfc', 'alm'] | None",
+                "description": "Force-constants calculator. One of ``None``, ``\"traditional\"``, ``\"symfc\"``, or ``\"alm\"``. Default is ``None`` (equivalent to ``\"traditional\"``)."
+              },
+              "fc_calculator_options": {
+                "type": "str | None",
+                "description": "Options string forwarded to the chosen calculator. Use ``\"<fc2_opts>|<fc3_opts>\"`` to set separate options for fc2 and fc3; without ``\"|\"`` the same options apply to both. For example, ``\"cutoff=4|cutoff=3\"`` sets cutoff 4 for fc2 and 3 for fc3."
+              },
+              "use_symfc_projector": {
+                "type": "bool | None",
+                "description": "**Deprecated.** Passing any value emits a ``DeprecationWarning``. Call ``symmetrize_fc3(use_symfc_projector=True)`` after :meth:`produce_fc3` instead. Default is ``None``."
+              }
+            },
+            "output": null,
+            "ori_input": "self, symmetrize_fc3r: bool | None = None, is_compact_fc: bool = True, fc_calculator: Literal['traditional', 'symfc', 'alm'] | None = None, fc_calculator_options: str | None = None, use_symfc_projector: bool | None = None",
+            "ori_description": "Calculate fc3 (and optionally fc2) from displacements and forces.  The solver is chosen by ``fc_calculator``:  - ``None`` (default) or ``\"traditional\"``: built-in finite-difference solver. The returned fc3 is **not** symmetrized; to enforce translational and permutation invariance, call :meth:`symmetrize_fc3` afterwards (and :meth:`symmetrize_fc2` when applicable). - ``\"symfc\"``: symfc solver, which returns symmetrized force constants in one shot. When a cutoff distance is configured via ``fc_calculator_options``, it is captured into :attr:`fc3_cutoff` (and :attr:`fc2_cutoff` when fc2 is produced here), and the boolean mask of non-zero atomic triplets is captured into :attr:`fc3_nonzero_indices`. - ``\"alm\"``: ALM solver, which handles symmetrization internally.  When ``phonon_supercell_matrix`` is not set, fc2 is produced alongside fc3 and stored in :attr:`fc2`. When ``phonon_supercell_matrix`` is set, :attr:`fc2` is **not** populated here -- call :meth:`produce_fc2` to compute fc2 in the larger phonon supercell.  Parameters ---------- symmetrize_fc3r : bool, optional **Deprecated.** Passing any value emits a ``DeprecationWarning``. With the traditional solver, call :meth:`symmetrize_fc3` (and :meth:`symmetrize_fc2` when applicable) after :meth:`produce_fc3` instead. Default is ``None``. is_compact_fc : bool, optional fc3 shape::  True: (primitive, supercell, supercell, 3, 3, 3) False: (supercell, supercell, supercell, 3, 3, 3)  Default is ``True``. fc_calculator : str, optional Force-constants calculator. One of ``None``, ``\"traditional\"``, ``\"symfc\"``, or ``\"alm\"``. Default is ``None`` (equivalent to ``\"traditional\"``). fc_calculator_options : str, optional Options string forwarded to the chosen calculator. Use ``\"<fc2_opts>|<fc3_opts>\"`` to set separate options for fc2 and fc3; without ``\"|\"`` the same options apply to both. For example, ``\"cutoff=4|cutoff=3\"`` sets cutoff 4 for fc2 and 3 for fc3. use_symfc_projector : bool, optional **Deprecated.** Passing any value emits a ``DeprecationWarning``. Call ``symmetrize_fc3(use_symfc_projector=True)`` after :meth:`produce_fc3` instead. Default is ``None``."
+          },
+          {
+            "name": "symmetrize_fc2",
+            "description": "Symmetrize fc2 by symfc projector or the traditional approach.",
+            "input": {
+              "self": null,
+              "use_symfc_projector": {
+                "type": "bool",
+                "description": "If ``True``, symmetrize force constants with the symfc projector instead of the traditional approach."
+              },
+              "options": {
+                "type": "str | None",
+                "description": "Options string. Accepted values depend on the backend::  symfc projector: \"use_mkl=true\" call sparse_dot_mkl (requires sparse_dot_mkl to be installed). traditional: \"level=N\" apply translational and permutation symmetries alternately N times. Default level is 3."
+              }
+            },
+            "output": null,
+            "ori_input": "self, use_symfc_projector: bool = False, options: str | None = None",
+            "ori_description": "Symmetrize fc2 by symfc projector or the traditional approach.  Parameters ---------- use_symfc_projector : bool, optional If ``True``, symmetrize force constants with the symfc projector instead of the traditional approach. options : str or None, optional Options string. Accepted values depend on the backend::  symfc projector: \"use_mkl=true\" call sparse_dot_mkl (requires sparse_dot_mkl to be installed). traditional: \"level=N\" apply translational and permutation symmetries alternately N times. Default level is 3."
+          },
+          {
+            "name": "symmetrize_fc3",
+            "description": "Symmetrize fc3 by symfc projector or the traditional approach.",
+            "input": {
+              "self": null,
+              "use_symfc_projector": {
+                "type": "bool",
+                "description": "If ``True``, symmetrize force constants with the symfc projector instead of the traditional approach."
+              },
+              "options": {
+                "type": "str | None",
+                "description": "Options string. Accepted values depend on the backend::  symfc projector: \"use_mkl=true\" call sparse_dot_mkl (requires sparse_dot_mkl to be installed). traditional: \"level=N\" apply translational and permutation symmetries alternately N times. Default level is 3."
+              }
+            },
+            "output": null,
+            "ori_input": "self, use_symfc_projector: bool = False, options: str | None = None",
+            "ori_description": "Symmetrize fc3 by symfc projector or the traditional approach.  Parameters ---------- use_symfc_projector : bool, optional If ``True``, symmetrize force constants with the symfc projector instead of the traditional approach. options : str or None, optional Options string. Accepted values depend on the backend::  symfc projector: \"use_mkl=true\" call sparse_dot_mkl (requires sparse_dot_mkl to be installed). traditional: \"level=N\" apply translational and permutation symmetries alternately N times. Default level is 3."
+          },
+          {
+            "name": "run_thermal_conductivity",
+            "description": "Run a lattice thermal conductivity calculation.  Result is stored in :attr:`thermal_conductivity` (an ``RTACalculator`` when ``is_LBTE=False``, an ``LBTECalculator`` otherwise).",
+            "input": {
+              "self": null,
+              "is_LBTE": {
+                "type": "bool",
+                "description": "``False`` for the relaxation-time approximation (RTA), ``True`` for the direct solution of the linearized Boltzmann equation (LBTE) and the Wigner transport equation. Default is ``False``."
+              },
+              "temperatures": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": "Temperatures at which thermal conductivity is computed. ``shape=(temperature_points,)``, ``dtype='double'``. With ``None`` (default), the defaults depend on ``is_LBTE``::  is_LBTE=False: [0, 10, ..., 1000] is_LBTE=True: [300]"
+              },
+              "is_isotope": {
+                "type": "bool",
+                "description": "Include isotope scattering. Default is ``False``."
+              },
+              "mass_variances": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": "Mass variances for isotope scattering. With ``None`` (default) and ``is_isotope=True``, the values stored in the phono3py instance are used. ``shape=(atoms_in_primitive,)``, ``dtype='double'``."
+              },
+              "grid_points": {
+                "type": "Sequence[int] | NDArray[np.int64] | None",
+                "description": "Grid-point indices at which mode thermal conductivities are computed. With ``None`` (default), all required grid points are chosen internally. ``shape=(num_grid_points,)``, ``dtype='int64'``."
+              },
+              "boundary_mfp": {
+                "type": "float | None",
+                "description": "Mean free path in micrometers used to model a simple boundary-scattering contribution. ``None`` (default) disables this contribution."
+              },
+              "solve_collective_phonon": {
+                "type": "bool",
+                "description": "Option for an under-development feature. Default is ``False``."
+              },
+              "use_ave_pp": {
+                "type": "bool",
+                "description": "RTA only (``is_LBTE=False``). Use an averaged ph-ph interaction strength to compute phonon lifetimes. This does not reduce computational cost; it is mainly a modelling tool for analyzing the result. Default is ``False``."
+              },
+              "is_reducible_collision_matrix": {
+                "type": "bool",
+                "description": "Direct-solution only (``is_LBTE=True``). Experimental: with ``True``, the full collision matrix is constructed and solved. Default is ``False``."
+              },
+              "is_kappa_star": {
+                "type": "bool",
+                "description": "With ``True`` (default), use crystal symmetry to reduce the grid points at which mode thermal conductivities are sampled."
+              },
+              "gv_delta_q": {
+                "type": "float | None",
+                "description": "Q-distance (in 1/Angstrom) for the central finite-difference scheme used to compute group velocity. Default is ``None``, which selects the analytical derivative of the dynamical matrix (including Gonze-Lee NAC, with phonopy>=4.1.0). To reproduce the finite-difference behavior of phono3py v4.0.x and earlier with NAC, set ``1e-5``."
+              },
+              "is_full_pp": {
+                "type": "bool",
+                "description": "With ``True``, compute all elements of the ph-ph interaction strength. With ``False`` (default) and the tetrahedron method, elements known to be zero are skipped, giving a substantial speed-up. With the smearing method, all elements are computed regardless of this flag unless :attr:`sigma_cutoff` is set."
+              },
+              "pinv_cutoff": {
+                "type": "float | None",
+                "description": "Direct-solution only (``is_LBTE=True``). Threshold to decide whether an eigenvalue is treated as zero in the pseudo-inverse of the collision matrix. See also ``pinv_method``. Default is ``None`` (typically ``1.0e-8``)."
+              },
+              "pinv_method": {
+                "type": "int",
+                "description": "Direct-solution only (``is_LBTE=True``). Pseudo-inverse zero-eigenvalue criterion::  0: abs(eigenvalue) < pinv_cutoff 1: eigenvalue < pinv_cutoff  Default is ``0``."
+              },
+              "pinv_solver": {
+                "type": "int",
+                "description": "Direct-solution only (``is_LBTE=True``). Choice of solver for the pseudo-inverse of the collision matrix. ``0`` selects the default automatically. Choices other than ``1`` and ``4`` are dangerous and not recommended::  0: default (1 with MKL LAPACKE or scipy unavailable; 4 otherwise). 1: LAPACKE dsyev -- smaller memory than dsyevd, but slower. Default when MKL LAPACKE is integrated or scipy is not installed. 2: LAPACKE dsyevd -- larger memory than dsyev, but faster. Not recommended (occasional wrong result). 3: numpy dsyevd (linalg.eigh). Not recommended (occasional wrong result). 4: scipy dsyev. Default when scipy is installed and MKL LAPACKE is not integrated. 5: scipy dsyevd. Not recommended (occasional wrong result).  Default is ``0``."
+              },
+              "write_gamma": {
+                "type": "bool",
+                "description": "RTA only (``is_LBTE=False``). Write mode thermal conductivity properties to files, one per grid point. When :attr:`band_indices` or multiple :attr:`sigmas` are specified, a file is written per band-index group and per sigma. Default is ``False``."
+              },
+              "read_gamma": {
+                "type": "bool",
+                "description": "RTA only (``is_LBTE=False``). Read files written by ``write_gamma=True`` instead of recomputing ph-ph interaction strengths and imaginary self-energies. Default is ``False``."
+              },
+              "is_N_U": {
+                "type": "bool",
+                "description": "RTA only (``is_LBTE=False``). Separate the imaginary self-energy into normal and Umklapp contributions. Default is ``False``."
+              },
+              "transport_type": {
+                "type": "str | None",
+                "description": "``\"SMM19\"``, ``\"NJC23\"``, ``\"IBDB19\"``, or ``None``. Default is ``None``."
+              },
+              "write_kappa": {
+                "type": "bool",
+                "description": "Write thermal conductivity and related properties to a file. With multiple :attr:`sigmas`, one file is written per sigma. Default is ``False``."
+              },
+              "write_gamma_detail": {
+                "type": "bool",
+                "description": "RTA only (``is_LBTE=False``). Write detailed imaginary self-energy information alongside the files produced by ``write_gamma``. Default is ``False``."
+              },
+              "write_collision": {
+                "type": "bool",
+                "description": "Direct-solution only (``is_LBTE=True``). Write the collision matrix to a file. With multiple :attr:`sigmas`, one file is written per sigma. The file can be very large. Default is ``False``."
+              },
+              "read_collision": {
+                "type": "str | Sequence[int] | None",
+                "description": "Direct-solution only (``is_LBTE=True``). Read the collision matrix from a file. Default is ``None``."
+              },
+              "write_pp": {
+                "type": "bool",
+                "description": "Write ph-ph interaction strength to files, one per grid point. Assumes a single value in :attr:`sigmas`. Default is ``False``."
+              },
+              "read_pp": {
+                "type": "bool",
+                "description": "Read ph-ph interaction strength from files. Default is ``False``."
+              },
+              "read_elph": {
+                "type": "int | None",
+                "description": "Index used to read electron-phonon gammas from a file. Default is ``None``."
+              },
+              "write_LBTE_solution": {
+                "type": "bool",
+                "description": "Direct-solution only (``is_LBTE=True``). Write the collision-matrix eigenvectors as row vectors (column vectors when ``pinv_solver=3``). With multiple :attr:`sigmas`, one file is written per sigma. The file can be very large. Default is ``False``."
+              },
+              "compression": {
+                "type": "Literal['gzip', 'lzf'] | int | None",
+                "description": "HDF5 compression for large datasets. See the h5py documentation. Default is ``\"gzip\"``."
+              },
+              "input_filename": {
+                "type": "str | None",
+                "description": "**Deprecated.** When set, the string is inserted before the filename extension in read paths. Default is ``None``."
+              },
+              "output_filename": {
+                "type": "str | None",
+                "description": "**Deprecated.** When set, the string is inserted before the filename extension in write paths. Default is ``None``."
+              },
+              "log_level": {
+                "type": "int | None",
+                "description": "Override the instance-level :attr:`log_level` for this call. Default is ``None`` (use the instance value)."
+              }
+            },
+            "output": null,
+            "ori_input": "self, is_LBTE: bool = False, temperatures: Sequence[float] | NDArray[np.double] | None = None, is_isotope: bool = False, mass_variances: Sequence[float] | NDArray[np.double] | None = None, grid_points: Sequence[int] | NDArray[np.int64] | None = None, boundary_mfp: float | None = None, solve_collective_phonon: bool = False, use_ave_pp: bool = False, is_reducible_collision_matrix: bool = False, is_kappa_star: bool = True, gv_delta_q: float | None = None, is_full_pp: bool = False, pinv_cutoff: float | None = None, pinv_method: int = 0, pinv_solver: int = 0, write_gamma: bool = False, read_gamma: bool = False, is_N_U: bool = False, transport_type: str | None = None, write_kappa: bool = False, write_gamma_detail: bool = False, write_collision: bool = False, read_collision: str | Sequence[int] | None = None, write_pp: bool = False, read_pp: bool = False, read_elph: int | None = None, write_LBTE_solution: bool = False, compression: Literal['gzip', 'lzf'] | int | None = 'gzip', input_filename: str | None = None, output_filename: str | None = None, log_level: int | None = None",
+            "ori_description": "Run a lattice thermal conductivity calculation.  Result is stored in :attr:`thermal_conductivity` (an ``RTACalculator`` when ``is_LBTE=False``, an ``LBTECalculator`` otherwise).  Parameters ---------- is_LBTE : bool, optional ``False`` for the relaxation-time approximation (RTA), ``True`` for the direct solution of the linearized Boltzmann equation (LBTE) and the Wigner transport equation. Default is ``False``. temperatures : array_like, optional Temperatures at which thermal conductivity is computed. ``shape=(temperature_points,)``, ``dtype='double'``. With ``None`` (default), the defaults depend on ``is_LBTE``::  is_LBTE=False: [0, 10, ..., 1000] is_LBTE=True: [300]  is_isotope : bool, optional Include isotope scattering. Default is ``False``. mass_variances : array_like, optional Mass variances for isotope scattering. With ``None`` (default) and ``is_isotope=True``, the values stored in the phono3py instance are used. ``shape=(atoms_in_primitive,)``, ``dtype='double'``. grid_points : array_like, optional Grid-point indices at which mode thermal conductivities are computed. With ``None`` (default), all required grid points are chosen internally. ``shape=(num_grid_points,)``, ``dtype='int64'``. boundary_mfp : float, optional Mean free path in micrometers used to model a simple boundary-scattering contribution. ``None`` (default) disables this contribution. solve_collective_phonon : bool, optional Option for an under-development feature. Default is ``False``. use_ave_pp : bool, optional RTA only (``is_LBTE=False``). Use an averaged ph-ph interaction strength to compute phonon lifetimes. This does not reduce computational cost; it is mainly a modelling tool for analyzing the result. Default is ``False``. is_reducible_collision_matrix : bool, optional Direct-solution only (``is_LBTE=True``). Experimental: with ``True``, the full collision matrix is constructed and solved. Default is ``False``. is_kappa_star : bool, optional With ``True`` (default), use crystal symmetry to reduce the grid points at which mode thermal conductivities are sampled. gv_delta_q : float, optional Q-distance (in 1/Angstrom) for the central finite-difference scheme used to compute group velocity. Default is ``None``, which selects the analytical derivative of the dynamical matrix (including Gonze-Lee NAC, with phonopy>=4.1.0). To reproduce the finite-difference behavior of phono3py v4.0.x and earlier with NAC, set ``1e-5``. is_full_pp : bool, optional With ``True``, compute all elements of the ph-ph interaction strength. With ``False`` (default) and the tetrahedron method, elements known to be zero are skipped, giving a substantial speed-up. With the smearing method, all elements are computed regardless of this flag unless :attr:`sigma_cutoff` is set. pinv_cutoff : float, optional Direct-solution only (``is_LBTE=True``). Threshold to decide whether an eigenvalue is treated as zero in the pseudo-inverse of the collision matrix. See also ``pinv_method``. Default is ``None`` (typically ``1.0e-8``). pinv_method : int, optional Direct-solution only (``is_LBTE=True``). Pseudo-inverse zero-eigenvalue criterion::  0: abs(eigenvalue) < pinv_cutoff 1: eigenvalue < pinv_cutoff  Default is ``0``. pinv_solver : int, optional Direct-solution only (``is_LBTE=True``). Choice of solver for the pseudo-inverse of the collision matrix. ``0`` selects the default automatically. Choices other than ``1`` and ``4`` are dangerous and not recommended::  0: default (1 with MKL LAPACKE or scipy unavailable; 4 otherwise). 1: LAPACKE dsyev -- smaller memory than dsyevd, but slower. Default when MKL LAPACKE is integrated or scipy is not installed. 2: LAPACKE dsyevd -- larger memory than dsyev, but faster. Not recommended (occasional wrong result). 3: numpy dsyevd (linalg.eigh). Not recommended (occasional wrong result). 4: scipy dsyev. Default when scipy is installed and MKL LAPACKE is not integrated. 5: scipy dsyevd. Not recommended (occasional wrong result).  Default is ``0``. write_gamma : bool, optional RTA only (``is_LBTE=False``). Write mode thermal conductivity properties to files, one per grid point. When :attr:`band_indices` or multiple :attr:`sigmas` are specified, a file is written per band-index group and per sigma. Default is ``False``. read_gamma : bool, optional RTA only (``is_LBTE=False``). Read files written by ``write_gamma=True`` instead of recomputing ph-ph interaction strengths and imaginary self-energies. Default is ``False``. is_N_U : bool, optional RTA only (``is_LBTE=False``). Separate the imaginary self-energy into normal and Umklapp contributions. Default is ``False``. transport_type : str, optional ``\"SMM19\"``, ``\"NJC23\"``, ``\"IBDB19\"``, or ``None``. Default is ``None``. write_kappa : bool, optional Write thermal conductivity and related properties to a file. With multiple :attr:`sigmas`, one file is written per sigma. Default is ``False``. write_gamma_detail : bool, optional RTA only (``is_LBTE=False``). Write detailed imaginary self-energy information alongside the files produced by ``write_gamma``. Default is ``False``. write_collision : bool, optional Direct-solution only (``is_LBTE=True``). Write the collision matrix to a file. With multiple :attr:`sigmas`, one file is written per sigma. The file can be very large. Default is ``False``. read_collision : str or Sequence[int], optional Direct-solution only (``is_LBTE=True``). Read the collision matrix from a file. Default is ``None``. write_pp : bool, optional Write ph-ph interaction strength to files, one per grid point. Assumes a single value in :attr:`sigmas`. Default is ``False``. read_pp : bool, optional Read ph-ph interaction strength from files. Default is ``False``. read_elph : int, optional Index used to read electron-phonon gammas from a file. Default is ``None``. write_LBTE_solution : bool, optional Direct-solution only (``is_LBTE=True``). Write the collision-matrix eigenvectors as row vectors (column vectors when ``pinv_solver=3``). With multiple :attr:`sigmas`, one file is written per sigma. The file can be very large. Default is ``False``. compression : str, optional HDF5 compression for large datasets. See the h5py documentation. Default is ``\"gzip\"``. input_filename : str, optional **Deprecated.** When set, the string is inserted before the filename extension in read paths. Default is ``None``. output_filename : str, optional **Deprecated.** When set, the string is inserted before the filename extension in write paths. Default is ``None``. log_level : int, optional Override the instance-level :attr:`log_level` for this call. Default is ``None`` (use the instance value).  Raises ------ RuntimeError When :meth:`init_phph_interaction` has not been called."
+          },
+          {
+            "name": "save",
+            "description": "Save the Phono3py instance state to a YAML file.",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "str | os.PathLike",
+                "description": "Output file path. Default is ``\"phono3py_params.yaml\"``."
+              },
+              "settings": {
+                "type": "dict | None",
+                "description": "Selects which sections to write. Only keys whose values differ from the defaults need to be supplied. The defaults are::  {'force_sets': True, 'displacements': True, 'force_constants': False, 'born_effective_charge': True, 'dielectric_constant': True}"
+              }
+            },
+            "output": null,
+            "ori_input": "self, filename: str | os.PathLike = 'phono3py_params.yaml', settings: dict | None = None",
+            "ori_description": "Save the Phono3py instance state to a YAML file.  Parameters ---------- filename : str or os.PathLike, optional Output file path. Default is ``\"phono3py_params.yaml\"``. settings : dict, optional Selects which sections to write. Only keys whose values differ from the defaults need to be supplied. The defaults are::  {'force_sets': True, 'displacements': True, 'force_constants': False, 'born_effective_charge': True, 'dielectric_constant': True}"
+          }
+        ]
+      },
+      {
+        "name": "ConductivityCalculatorBase",
+        "type": "class",
+        "module": "phono3py.conductivity.calculators",
+        "input": "abc.ABC",
+        "description": "Shared base for RTACalculator and LBTECalculator.  Provides the common pipeline (heat capacity -> velocity -> isotope -> main loop -> finalize), shared properties, and array management.  Subclasses must implement: - ``_allocate_values`` - ``_compute_at_grid_point`` - ``_finalize``  Subclasses may override: - ``_pre_run_check`` (default: no-op) - ``_pre_main_loop`` (default: no-op) - ``_post_main_loop`` (default: no-op) - ``_show_log_at_grid_point`` (default: basic frequency/gv printout)",
+        "function": [
+          {
+            "name": "mesh_numbers",
+            "description": "Return BZ mesh numbers.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return BZ mesh numbers."
+          },
+          {
+            "name": "frequencies",
+            "description": "Return phonon frequencies at the iterated grid points.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return phonon frequencies at the iterated grid points."
+          },
+          {
+            "name": "qpoints",
+            "description": "Return q-point coordinates of the iterated grid points.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return q-point coordinates of the iterated grid points."
+          },
+          {
+            "name": "grid_points",
+            "description": "Return BZ grid point indices that were iterated.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return BZ grid point indices that were iterated."
+          },
+          {
+            "name": "grid_weights",
+            "description": "Return symmetry weights of the iterated grid points.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return symmetry weights of the iterated grid points."
+          },
+          {
+            "name": "temperatures",
+            "description": "Return temperatures in Kelvin.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return temperatures in Kelvin."
+          },
+          {
+            "name": "sigmas",
+            "description": "Return smearing widths.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return smearing widths."
+          },
+          {
+            "name": "gamma",
+            "description": "",
+            "input": {
+              "self": null,
+              "value": {
+                "type": "NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, value: NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "gamma_isotope",
+            "description": "Return isotope gamma, shape (num_sigma, num_gp, num_band0).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return isotope gamma, shape (num_sigma, num_gp, num_band0)."
+          },
+          {
+            "name": "group_velocities",
+            "description": "Return group velocities, shape (num_gp, num_band0, 3).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return group velocities, shape (num_gp, num_band0, 3)."
+          },
+          {
+            "name": "mode_heat_capacities",
+            "description": "Return mode heat capacities, shape (num_temp, num_gp, num_band0).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return mode heat capacities, shape (num_temp, num_gp, num_band0)."
+          }
+        ]
+      },
+      {
+        "name": "RTACalculator",
+        "type": "class",
+        "module": "phono3py.conductivity.calculators",
+        "input": "ConductivityCalculatorBase",
+        "description": "RTA lattice thermal conductivity calculator.  Variant-specific output properties (``kappa_P_RTA``, ``kappa_C``, etc.) are forwarded transparently to the kappa solver via ``__getattr__``.",
+        "function": [
+          {
+            "name": "kappa",
+            "description": "Return kappa tensor, shape (num_sigma, num_temp, 6).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return kappa tensor, shape (num_sigma, num_temp, 6)."
+          },
+          {
+            "name": "mode_kappa",
+            "description": "Return mode kappa, shape (num_sigma, num_temp, num_gp, num_band0, 6).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return mode kappa, shape (num_sigma, num_temp, num_gp, num_band0, 6)."
+          },
+          {
+            "name": "number_of_ignored_phonon_modes",
+            "description": "Return count of ignored modes, shape (num_sigma, num_temp).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return count of ignored modes, shape (num_sigma, num_temp)."
+          }
+        ]
+      },
+      {
+        "name": "PhonopyAtoms",
+        "type": "class",
+        "module": "phonopy.structure.atoms",
+        "input": "",
+        "description": "Class to represent crystal structure.  Originally this class aimed to be compatible with the ASE ``Atoms`` class, but the APIs have since diverged.  A cell is described by basis vectors (``cell``), per-atom positions (``positions`` / ``scaled_positions``), and per-atom species information. Species can be expressed either as plain chemical symbols (``symbols``) / atomic numbers (``numbers``) for ordinary cells, or as a deduplicated table plus per-atom indices (``species_table`` / ``species_ids``) which additionally supports mixed-species sites for site mixtures. See :ref:`phonopy_Atoms` for the tutorial-style overview and per-attribute documentation below for details.  A chemical symbol may carry a natural-number suffix (\"Cl1\"). The suffix is a calculator-facing label (e.g. distinct pseudopotentials or isotopes in a Quantum ESPRESSO ``ATOMIC_SPECIES`` block); \"Cl\" and \"Cl1\" are distinct species that share the same atomic number. The three species views treat the suffix differently: ``symbols`` and ``species_ids`` distinguish \"Cl\" from \"Cl1\", while ``numbers`` does not (both are 17). Whether symmetry analysis distinguishes them is controlled by ``distinguish_symbol_index`` (see :meth:`totuple`), which selects ``species_ids`` (distinguish) or ``numbers`` (do not, the default); force constants do not depend on the suffix.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Set crystal structure parameters.  Exactly one of the species inputs (``symbols``, ``numbers``, or the ``species_table`` / ``species_ids`` pair) must be supplied. Exactly one of the position inputs (``positions`` or ``scaled_positions``) must be supplied.",
+            "input": {
+              "self": null,
+              "symbols": {
+                "type": "Sequence[str] | None",
+                "description": "Per-atom chemical symbols (``\"Si\"``, ``\"Cl1\"``, ...). Shorthand for ordinary cells. Atomic numbers and default masses are derived from these."
+              },
+              "numbers": {
+                "type": "Sequence[int] | NDArray[np.int64] | None",
+                "description": "Per-atom atomic numbers in 1..118. Shorthand alternative to ``symbols``."
+              },
+              "masses": {
+                "type": "Sequence[float] | NDArray[np.double] | None",
+                "description": "Per-atom atomic masses. If omitted, masses are derived from the species."
+              },
+              "magnetic_moments": {
+                "type": "Sequence[float] | Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Per-atom magnetic moments. ``shape=(natom,)`` for scalar moments or ``shape=(natom, 3)`` for vector moments."
+              },
+              "scaled_positions": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Per-atom positions in fractional (crystallographic) coordinates. ``shape=(natom, 3)``. Mutually exclusive with ``positions``."
+              },
+              "positions": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Per-atom positions in Cartesian coordinates. ``shape=(natom, 3)``. Mutually exclusive with ``scaled_positions``."
+              },
+              "cell": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double] | None",
+                "description": "Basis vectors as row vectors. ``shape=(3, 3)``."
+              },
+              "species_table": {
+                "type": "Sequence[_Species] | None",
+                "description": "Canonical deduplicated species table. Used together with ``species_ids``. Required for cells containing mixed-species sites (see :func:`build_species_table_from_mixtures`) and by cell-manipulation helpers (supercell, primitive, trimmed cell) that already know the species identity."
+              },
+              "species_ids": {
+                "type": "Sequence[int] | NDArray[np.int64] | None",
+                "description": "Per-atom index into ``species_table``. Used together with ``species_table``."
+              }
+            },
+            "output": null,
+            "ori_input": "self, symbols: Sequence[str] | None = None, numbers: Sequence[int] | NDArray[np.int64] | None = None, masses: Sequence[float] | NDArray[np.double] | None = None, magnetic_moments: Sequence[float] | Sequence[Sequence[float]] | NDArray[np.double] | None = None, scaled_positions: Sequence[Sequence[float]] | NDArray[np.double] | None = None, positions: Sequence[Sequence[float]] | NDArray[np.double] | None = None, cell: Sequence[Sequence[float]] | NDArray[np.double] | None = None, species_table: Sequence[_Species] | None = None, species_ids: Sequence[int] | NDArray[np.int64] | None = None",
+            "ori_description": "Set crystal structure parameters.  Exactly one of the species inputs (``symbols``, ``numbers``, or the ``species_table`` / ``species_ids`` pair) must be supplied. Exactly one of the position inputs (``positions`` or ``scaled_positions``) must be supplied.  Parameters ---------- symbols : sequence of str, optional Per-atom chemical symbols (``\"Si\"``, ``\"Cl1\"``, ...). Shorthand for ordinary cells. Atomic numbers and default masses are derived from these. numbers : sequence of int, optional Per-atom atomic numbers in 1..118. Shorthand alternative to ``symbols``. species_table : sequence of _Species, optional Canonical deduplicated species table. Used together with ``species_ids``. Required for cells containing mixed-species sites (see :func:`build_species_table_from_mixtures`) and by cell-manipulation helpers (supercell, primitive, trimmed cell) that already know the species identity. species_ids : sequence of int, optional Per-atom index into ``species_table``. Used together with ``species_table``. masses : sequence of float, optional Per-atom atomic masses. If omitted, masses are derived from the species. magnetic_moments : array_like, optional Per-atom magnetic moments. ``shape=(natom,)`` for scalar moments or ``shape=(natom, 3)`` for vector moments. cell : array_like Basis vectors as row vectors. ``shape=(3, 3)``. positions : array_like, optional Per-atom positions in Cartesian coordinates. ``shape=(natom, 3)``. Mutually exclusive with ``scaled_positions``. scaled_positions : array_like, optional Per-atom positions in fractional (crystallographic) coordinates. ``shape=(natom, 3)``. Mutually exclusive with ``positions``."
+          },
+          {
+            "name": "cell",
+            "description": "",
+            "input": {
+              "self": null,
+              "cell": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, cell: Sequence[Sequence[float]] | NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "scaled_positions",
+            "description": "",
+            "input": {
+              "self": null,
+              "scaled_positions": {
+                "type": "Sequence[Sequence[float]] | NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, scaled_positions: Sequence[Sequence[float]] | NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "symbols",
+            "description": "Chemical symbols per atom.  Chemical symbol with an appended natural number is allowed, e.g., ``\"Cl1\"``. Mixed-species sites carry a composite label formed by concatenating constituent symbols (e.g., ``\"GeSn\"``).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Chemical symbols per atom.  Chemical symbol with an appended natural number is allowed, e.g., ``\"Cl1\"``. Mixed-species sites carry a composite label formed by concatenating constituent symbols (e.g., ``\"GeSn\"``)."
+          },
+          {
+            "name": "masses",
+            "description": "",
+            "input": {
+              "self": null,
+              "masses": {
+                "type": "Sequence[float] | NDArray[np.double]",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, masses: Sequence[float] | NDArray[np.double]",
+            "ori_description": ""
+          },
+          {
+            "name": "volume",
+            "description": "Return the cell volume.  Computed as the determinant of the basis-vector matrix. The unit follows that of the input ``cell`` (e.g., Angstrom^3 for an Angstrom-valued ``cell``).",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the cell volume.  Computed as the determinant of the basis-vector matrix. The unit follows that of the input ``cell`` (e.g., Angstrom^3 for an Angstrom-valued ``cell``)."
+          },
+          {
+            "name": "copy",
+            "description": "Return an independent copy of this cell.  Internal arrays (cell, scaled positions, masses, magnetic moments, species ids) are re-allocated by the constructor so that mutating one cell does not affect the other. The species table entries themselves are frozen dataclasses and are safe to share.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return an independent copy of this cell.  Internal arrays (cell, scaled positions, masses, magnetic moments, species ids) are re-allocated by the constructor so that mutating one cell does not affect the other. The species table entries themselves are frozen dataclasses and are safe to share."
+          },
+          {
+            "name": "get_yaml_lines",
+            "description": "Return the crystal structure as a list of yaml text lines.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Return the crystal structure as a list of yaml text lines."
+          }
+        ]
+      }
+    ],
+    "init_ref_tasks": [
+      "载入官方Si-PBEsol力数据计算300 K的RTA热导，发现3³网格未达到固定参考；改为9³后重新初始化并求解，断言对角热导约107.694 W/(m K)、非对角为零且符合立方对称。",
+      "在相同Si模型、300 K和9³网格上启用同位素散射重新求解，比较热导；断言三个对角分量仍为正、低于未启用值，并接近97.296 W/(m K)的发布版参考。"
+    ],
+    "others": {
+      "basic_info": [
+        {
+          "source": "pypi",
+          "url": [
+            "https://github.com/phonopy/phono3py",
+            "https://pypi.org/project/phono3py/",
+            "https://phonopy.github.io/phono3py/"
+          ],
+          "name": "phono3py",
+          "version": "v4.5.0",
+          "index": 23,
+          "description": "phono3py 是三阶力常数和声子输运分析工具，支持三阶位移超胞、散射相空间、三声子相互作用、晶格热导率及相关频率和寿命数据的计算与读写，通常与 phonopy 和外部 DFT 力数据配合使用。"
+        },
+        {
+          "source": "pypi",
+          "url": [
+            "https://github.com/phonopy/phonopy",
+            "https://pypi.org/project/phonopy/",
+            "https://phonopy.github.io/phonopy/"
+          ],
+          "name": "phonopy",
+          "version": "v4.5.0",
+          "index": 22,
+          "description": "phonopy 是晶格动力学和声子性质计算工具，提供超胞生成、位移结构、力常数、动力学矩阵、声子频率与本征矢、态密度和热力学量分析接口，可读取外部第一性原理计算得到的原子力。"
+        }
+      ],
+      "pypi_package": [
+        "phono3py",
+        "phonopy"
+      ],
+      "package_relation": "phono3py: primary，提供给定力数据的二/三阶力常数和RTA热输运。；phonopy: complement，硬依赖且负责PhonopyAtoms结构；不重复暴露谐波后处理。；hiphive: excluded，官方1.5支持稀疏高阶力常数拟合；当前已有完整官方位移/力fixture，不引入训练、误差评估和另一套力常数拟合状态。",
+      "package_metadata": [
+        {
+          "source_metadata": {
+            "repository": "https://github.com/phonopy/phono3py",
+            "documentation": "https://phonopy.github.io/phono3py/",
+            "pypi": "https://pypi.org/project/phono3py/",
+            "pypi_version": "4.5.0",
+            "tag": "v4.5.0",
+            "commit": "21fa8f3817fbcc603254656f525bb5aec113afb6",
+            "release_published_at": "2026-09-10T09:41:19.602746Z",
+            "checked_on": "2026-09-17",
+            "github_prerelease": null,
+            "notes": [
+              "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。",
+              "官方releases/latest无Release，使用PyPI稳定版与官方远程标签；不能沿用旧清单的GitHub Release表述。"
+            ],
+            "release_url": "https://github.com/phonopy/phono3py/releases/tag/v4.5.0",
+            "release_api": "https://api.github.com/repos/phonopy/phono3py/releases/latest",
+            "selection_rule": "GitHub releases/latest returned404; latest stable PyPI version plus exact official remote tag and tagged version source checked. Timestamp is PyPI publication.",
+            "source_directory": "seed_pypi_raw/phono3py",
+            "submodule_status": []
+          },
+          "python_source_extraction": {
+            "strategy": "static_ast",
+            "requested_modules": [
+              "phono3py"
+            ],
+            "source_files": [
+              "phono3py/__init__.py",
+              "phono3py/_lang.py",
+              "phono3py/api_isotope.py",
+              "phono3py/api_jointdos.py",
+              "phono3py/api_phono3py.py",
+              "phono3py/conductivity/__init__.py",
+              "phono3py/conductivity/build_components.py",
+              "phono3py/conductivity/calculators.py",
+              "phono3py/conductivity/collision_matrix_kernel.py",
+              "phono3py/conductivity/exceptions.py",
+              "phono3py/conductivity/factory.py",
+              "phono3py/conductivity/grid_point_data.py",
+              "phono3py/conductivity/heat_capacity_solvers.py",
+              "phono3py/conductivity/ibdb19/__init__.py",
+              "phono3py/conductivity/interband_kappa_formula.py",
+              "phono3py/conductivity/interband_kappa_solvers.py",
+              "phono3py/conductivity/interband_variant.py",
+              "phono3py/conductivity/kappa_solvers.py",
+              "phono3py/conductivity/lbte_collision_solver.py",
+              "phono3py/conductivity/lbte_init.py",
+              "phono3py/conductivity/njc23/__init__.py",
+              "phono3py/conductivity/output.py",
+              "phono3py/conductivity/protocols.py",
+              "phono3py/conductivity/rta_init.py",
+              "phono3py/conductivity/scattering_solvers.py",
+              "phono3py/conductivity/smm19/__init__.py",
+              "phono3py/conductivity/utils.py",
+              "phono3py/conductivity/velocity_solvers.py",
+              "phono3py/cui/create_force_constants.py",
+              "phono3py/cui/create_force_sets.py",
+              "phono3py/cui/create_supercells.py",
+              "phono3py/cui/kaccum_script.py",
+              "phono3py/cui/kdeplot_script.py",
+              "phono3py/cui/load.py",
+              "phono3py/cui/phono3py_argparse.py",
+              "phono3py/cui/phono3py_script.py",
+              "phono3py/cui/settings.py",
+              "phono3py/cui/show_log.py",
+              "phono3py/cui/triplets_info.py",
+              "phono3py/file_IO.py",
+              "phono3py/interface/calculator.py",
+              "phono3py/interface/fc_calculator.py",
+              "phono3py/interface/phono3py_yaml.py",
+              "phono3py/interface/wien2k.py",
+              "phono3py/other/isotope.py",
+              "phono3py/phonon/func.py",
+              "phono3py/phonon/heat_capacity_matrix.py",
+              "phono3py/phonon/solver.py",
+              "phono3py/phonon/velocity_matrix.py",
+              "phono3py/phonon3/collision_matrix.py",
+              "phono3py/phonon3/dataset.py",
+              "phono3py/phonon3/displacement_fc3.py",
+              "phono3py/phonon3/fc3.py",
+              "phono3py/phonon3/gruneisen.py",
+              "phono3py/phonon3/imag_self_energy.py",
+              "phono3py/phonon3/interaction.py",
+              "phono3py/phonon3/joint_dos.py",
+              "phono3py/phonon3/real_self_energy.py",
+              "phono3py/phonon3/real_to_reciprocal.py",
+              "phono3py/phonon3/reciprocal_to_normal.py",
+              "phono3py/phonon3/spectral_function.py",
+              "phono3py/phonon3/triplets.py",
+              "phono3py/phonon4/api_phono4py.py",
+              "phono3py/phonon4/dataset.py",
+              "phono3py/phonon4/displacement_fc4.py",
+              "phono3py/phonon4/fc4.py",
+              "phono3py/phonon4/file_IO.py",
+              "phono3py/phonon4/frequency_shift.py",
+              "phono3py/phonon4/phono4py_yaml.py",
+              "phono3py/phonon4/real_to_reciprocal.py",
+              "phono3py/scripts/phono3py.py",
+              "phono3py/scripts/phono3py_coleigplot.py",
+              "phono3py/scripts/phono3py_init.py",
+              "phono3py/scripts/phono3py_kaccum.py",
+              "phono3py/scripts/phono3py_kdeplot.py",
+              "phono3py/scripts/phono3py_load.py",
+              "phono3py/sscha/sscha.py"
+            ],
+            "source_file_sha256": {
+              "phono3py/__init__.py": "57fb27d6ef0fe6860d041379de22220d6c2611063f4cf323395709d3bc5317ba",
+              "phono3py/_lang.py": "1216ab1414ed03ac3d6f6b1724ac1b77e3732055174b27a0374861508a07145e",
+              "phono3py/api_isotope.py": "717e25732b531f368325e18af9eef72d6893944d89bb00d029f054909d3c4f20",
+              "phono3py/api_jointdos.py": "b3cfc608d8be02f532ff23108752b74f808d6168280a65fa566096230817b21a",
+              "phono3py/api_phono3py.py": "94c7b228585592c548b1783861e1ab805e6fea21e24205f87d018b995529a8d5",
+              "phono3py/conductivity/__init__.py": "45564987a89d9d241c020f63f371d547359962d11e0225220b3c718fb9975abe",
+              "phono3py/conductivity/build_components.py": "2bf0f1b2c037ceea4d5255867c9172e03fb4f080deb19b8139ec20d3e167807a",
+              "phono3py/conductivity/calculators.py": "db0b7e3bc439865a16ab0e35179c904eced2587bde933e7d50dae44558e33856",
+              "phono3py/conductivity/collision_matrix_kernel.py": "549eea9040f0bfe46a70e8b0a7a814a93790c6634564fd195f09c111a7c68405",
+              "phono3py/conductivity/exceptions.py": "2e8b8eb7f1ef8fd405476e119db93cea973fb46bf0c761b419e5ffd9251347d6",
+              "phono3py/conductivity/factory.py": "40cd608f4e406d800894527805a89a8de1217a1238350978f4261f59275be1a5",
+              "phono3py/conductivity/grid_point_data.py": "9871c9c13897c864732130ea073b63d3f6353a8978e305b1f61e8a441141735d",
+              "phono3py/conductivity/heat_capacity_solvers.py": "5a0e48126ae4e0ee44f7c13e848d36c4c447bb360a4ad3dc58e79ace1c5f8a51",
+              "phono3py/conductivity/ibdb19/__init__.py": "4df76310a63bcb7c3e2aed5b6d912a6a8e1fe7832de749640c26e31b17370574",
+              "phono3py/conductivity/interband_kappa_formula.py": "49efa533d5f59c90b5ac935c19cc2763ad93ba42930007d93613c9fee1768138",
+              "phono3py/conductivity/interband_kappa_solvers.py": "9b910e6eae7ffdea3a066c13f72e212f4ecc0450dc0889bce62e282ac3712e6b",
+              "phono3py/conductivity/interband_variant.py": "c3ce424e7fec67ac78c87f5df7a057e920ee0f9d54882fda8ac833d73a449256",
+              "phono3py/conductivity/kappa_solvers.py": "9f9d7c0c319be6224f4a1b418ff39d368582c1839cc8bf3dd9dbdd61b9f6a24e",
+              "phono3py/conductivity/lbte_collision_solver.py": "430eec9ed8450c8e0ac87ec82b8e739f50cb09f7c9a21bd86999da8985255317",
+              "phono3py/conductivity/lbte_init.py": "63eed298d6856b75bcb141ca8076cdce907f7545c5b149550b8e1b67093dfcd4",
+              "phono3py/conductivity/njc23/__init__.py": "77c2637a9f3f161e4f8312bfbd80fff15818c3c53068e8089e33d1c8e8cc0b27",
+              "phono3py/conductivity/output.py": "a572e4c54700102e9dd4e755310875306644b11336a6267769ddf28a077c1855",
+              "phono3py/conductivity/protocols.py": "088afde7f621f7b1f6de2b6a2fd4624f99791bfcd58c7072be0717b941fe6e0f",
+              "phono3py/conductivity/rta_init.py": "1d23851b07d939c4ca42a649e848533767368fcb115f0433b764db6c999fd0cf",
+              "phono3py/conductivity/scattering_solvers.py": "cce85bf6143020d88b0753c853750d44c7977dbad3b8d57c64075fd9b251a4fe",
+              "phono3py/conductivity/smm19/__init__.py": "54d6df15db8ed840bdf9210a9788dc38db32c76cdfba91d0902f615aa51556a5",
+              "phono3py/conductivity/utils.py": "25f765324b6a127051e70e3f1d2598efb3ceaa5225eeeffd594654e1ef855f9e",
+              "phono3py/conductivity/velocity_solvers.py": "ecd7dd2ae826b384d664dc8ee01fd3e40eab5f148ee4f70effa5bc1b16b6fad6",
+              "phono3py/cui/create_force_constants.py": "3d1dc15c3e2c4357193309b6511558a0d60d0003f602e2cd8c939dc516b5213b",
+              "phono3py/cui/create_force_sets.py": "3d767f66c9510dda88752f3774120c922f4c95aafb5093c8220785b26fafc610",
+              "phono3py/cui/create_supercells.py": "8091289d5885c99af790b2f131d26147182d5f089b0868983eac2c3d5ebfc87a",
+              "phono3py/cui/kaccum_script.py": "8fbfe45d58ee5b9fd8cc0c9656f51ee43b19546dbb011e040892b59fbf97dda2",
+              "phono3py/cui/kdeplot_script.py": "e77030661b244823eba09bc0af6b009fe4def938f0d94eb34de90223d154627a",
+              "phono3py/cui/load.py": "30b752e86a33c56bdc384121df4fb824c9f08c7c227faa9715c6856538ca98a8",
+              "phono3py/cui/phono3py_argparse.py": "66024d1b909a8b19080329e75e879331002e12411a2e43e6df943a980376693f",
+              "phono3py/cui/phono3py_script.py": "de0884bca8d206f0bba604384afd8146e1031875ea438eb1851701f5a24f374d",
+              "phono3py/cui/settings.py": "ffe1c1e9f8257a84a00de31cce41ea27a3ea5cee680e3f6a0e7ba79a609ecffc",
+              "phono3py/cui/show_log.py": "079acf5f771e4c59e098e7f0ea90c0f25b778b6963da55c1b1b59df8f64ee176",
+              "phono3py/cui/triplets_info.py": "2d3e0e29c1e216616b096bc39254f8269e25698eebbd71a98fba45520bbc0de5",
+              "phono3py/file_IO.py": "96e8b29e47d65baa7ec4b847c502823b9d655bcc77368ade45c452807ebb81f8",
+              "phono3py/interface/calculator.py": "09aea09fbdde4a7a323c9c8546520b5d5a99ba67f7e34e24b73db882163c5f64",
+              "phono3py/interface/fc_calculator.py": "2ef9e648e2dc427659314061c0fbea601b5a7d4d39fa6bc5e04f08912832dc1a",
+              "phono3py/interface/phono3py_yaml.py": "07779e55f2ef71ee70b7023e76774fa10f69892591d525f0c05bf09c2c6ca3ac",
+              "phono3py/interface/wien2k.py": "790a0563abdd281ae4e0e2271104fc2de092aa246cff110de662b379abc83912",
+              "phono3py/other/isotope.py": "678398d4de334073df41aba8d85dd07712eb7b4ce09b4c521b2aa1fc6b617244",
+              "phono3py/phonon/func.py": "9ba080cd0622fc16f75b8199d8d947f75245c912430665aa970f0a6ae69eb4ee",
+              "phono3py/phonon/heat_capacity_matrix.py": "d5b06761150ffbadc4e99aa4aabd5cfaec1cbba87bf1ff29097d506663d7b66b",
+              "phono3py/phonon/solver.py": "5548f89ec5987a362980cb6363b522c7d931cc5bde74acca0f4c082b4968941f",
+              "phono3py/phonon/velocity_matrix.py": "4e7d66b86180599afce1d73740beef4b79cab6b2bc0892d9fd32c0dfcabbccc6",
+              "phono3py/phonon3/collision_matrix.py": "6356bd5facc4abc951b28e441258efd785ce0d1e6783793633ad25d838b031db",
+              "phono3py/phonon3/dataset.py": "616668548ca765e0ccda578edf2f82cf6fcee8d17887f5d1dc84bc7dfcf9bdbc",
+              "phono3py/phonon3/displacement_fc3.py": "371ac0c3f22dd41bbedd0b82c7df0c648f768484059a095d8c3b5f010b2f321d",
+              "phono3py/phonon3/fc3.py": "4aa1295eb4958a02c2a04f41d01c6e897b386fd7f98c4c59610dceb0b76f12b0",
+              "phono3py/phonon3/gruneisen.py": "cb6922e5cc4185552ea38259f8bcadec25626c2c7ab33efbf3d5a6ab62ea2c1c",
+              "phono3py/phonon3/imag_self_energy.py": "5c47e9953bf42b06aa266c0e82148a3421540b8918baa734e315e4691df9988c",
+              "phono3py/phonon3/interaction.py": "08fd28b07cd4a73af24c5dc4ce3348edea847bf1fdfdb496bb7d2e1d6b0d8b19",
+              "phono3py/phonon3/joint_dos.py": "ceeaa0a0c656695884f11d5028d5645a5d04f01a21cedf31bd5c593a5fe95ab5",
+              "phono3py/phonon3/real_self_energy.py": "de9ad34dcdb46c5940ec0a7aa186036c7c09267ffc437d3d6434499458adc497",
+              "phono3py/phonon3/real_to_reciprocal.py": "081ba95a70d346f54dd0d5bb6148027f5ad64e554a91e14eb69977f117c1f2f2",
+              "phono3py/phonon3/reciprocal_to_normal.py": "cc2049c3ae122d33bf24ba3add80f154666fc66d8e3e65fc6cb2bd40f23997a8",
+              "phono3py/phonon3/spectral_function.py": "2d01f5a15bf5425012559fe02c3269b95f7d9127c498edb3cb56393575294c06",
+              "phono3py/phonon3/triplets.py": "8886fb662d15ee2fdc77ecd3571c04f55d6a981e035835856c420173f69f0043",
+              "phono3py/phonon4/api_phono4py.py": "6026573fe67b31aa358d95da86848d7e91189386744eb7acfbc33fb0fee8e973",
+              "phono3py/phonon4/dataset.py": "c5f9f772342789d58ab6c6e40a597d50dfaad7581d3f2e14590621ae817858ba",
+              "phono3py/phonon4/displacement_fc4.py": "9c37a8eebe280227a4722a61512e66903d87644c7cfe7e00c580bbde4338cd94",
+              "phono3py/phonon4/fc4.py": "759e3f8bade6158c37657cf0dfbfcf3b7a1916349ddc660c350899711e1cc932",
+              "phono3py/phonon4/file_IO.py": "8c43b7d69ac97c708fa042b4ba5a127b0759053c87bd54c7c06025f2e997f04e",
+              "phono3py/phonon4/frequency_shift.py": "44b0011408c72eff72fceabe70085a82a2a1ce6e7c4d3b0ab0ff983c666117f1",
+              "phono3py/phonon4/phono4py_yaml.py": "483323e08b806c2c92f78961267fcbe67da4132bf1c4f873a1e318d16efae726",
+              "phono3py/phonon4/real_to_reciprocal.py": "248cf65c1ff8c87bf2498a7e58f242aa1ecf3fc47c05376a387ceecdc5b43859",
+              "phono3py/scripts/phono3py.py": "82cce3a75a0be8d1227ca4c48b2ceaf6e20d9eefb39ed425f4cb32354c16d3b3",
+              "phono3py/scripts/phono3py_coleigplot.py": "1fb61b285c9d1ad6d2a29381e2e1648a925d1a22019d1678563172279b180559",
+              "phono3py/scripts/phono3py_init.py": "4aeba9f21197ea11c6b97f6d121b171cfb82ba37e9527ab915cbf2cf03d96a6d",
+              "phono3py/scripts/phono3py_kaccum.py": "0af3debea0302c4ef498adceba949c2e78da5a957f2b5bd46cab2c991b764361",
+              "phono3py/scripts/phono3py_kdeplot.py": "2f1d84fbae7120df4aeb9bb32f281cc562ce7acf47edce15469365e26131f87e",
+              "phono3py/scripts/phono3py_load.py": "e7f1e6dc589180030f5bbf92578611ea7d85ec93ed1a314557cce8c188a24d13",
+              "phono3py/sscha/sscha.py": "4223d18d3da77d7f96b002fd8992fd548ac5598ed7d880f4e1820adffa426f40"
+            },
+            "source_version": "v4.5.0",
+            "source_commit": "21fa8f3817fbcc603254656f525bb5aec113afb6",
+            "native_function_count": 0,
+            "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+            "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+            "docstring_mapping": {
+              "description": "summary before Google/NumPy sections or reStructuredText fields",
+              "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+              "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+              "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+              "ori_description": "complete normalized source docstring or native embedded documentation"
+            },
+            "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+            "runtime_verified": false
+          }
+        },
+        {
+          "source_metadata": {
+            "repository": "https://github.com/phonopy/phonopy",
+            "documentation": "https://phonopy.github.io/phonopy/",
+            "pypi": "https://pypi.org/project/phonopy/",
+            "pypi_version": "4.5.0",
+            "tag": "v4.5.0",
+            "commit": "6683c731a54b3aed2a739138a54138a6b2782013",
+            "release_published_at": "2026-09-08T07:01:09.681503Z",
+            "checked_on": "2026-09-17",
+            "github_prerelease": null,
+            "notes": [
+              "核查官方仓库、文档、发布记录和本地tag/HEAD/remote；全量API静态解析不等于外部求解器已运行。",
+              "官方releases/latest无Release，使用PyPI稳定版与官方远程标签；不能沿用旧清单的GitHub Release表述。"
+            ],
+            "release_url": "https://github.com/phonopy/phonopy/releases/tag/v4.5.0",
+            "release_api": "https://api.github.com/repos/phonopy/phonopy/releases/latest",
+            "selection_rule": "GitHub releases/latest returned404; latest stable PyPI version plus exact official remote tag and tagged version source checked. Timestamp is PyPI publication.",
+            "source_directory": "seed_pypi_raw/phonopy",
+            "submodule_status": []
+          },
+          "python_source_extraction": {
+            "strategy": "static_ast",
+            "requested_modules": [
+              "phonopy"
+            ],
+            "source_files": [
+              "phonopy/__init__.py",
+              "phonopy/_lang.py",
+              "phonopy/api_gruneisen.py",
+              "phonopy/api_phonopy.py",
+              "phonopy/api_qha.py",
+              "phonopy/cui/collect_cell_info.py",
+              "phonopy/cui/create_force_sets.py",
+              "phonopy/cui/load.py",
+              "phonopy/cui/load_helper.py",
+              "phonopy/cui/phonopy_anisotropic_qha_dataset_script.py",
+              "phonopy/cui/phonopy_anisotropic_qha_script.py",
+              "phonopy/cui/phonopy_argparse.py",
+              "phonopy/cui/phonopy_bandplot_script.py",
+              "phonopy/cui/phonopy_gruneisen_script.py",
+              "phonopy/cui/phonopy_mlpsscha_script.py",
+              "phonopy/cui/phonopy_qe_born_script.py",
+              "phonopy/cui/phonopy_qha_script.py",
+              "phonopy/cui/phonopy_script.py",
+              "phonopy/cui/phonopy_strain_cells_script.py",
+              "phonopy/cui/phonopy_vasp_efe_script.py",
+              "phonopy/cui/settings.py",
+              "phonopy/cui/show_symmetry.py",
+              "phonopy/exception.py",
+              "phonopy/file_IO.py",
+              "phonopy/gruneisen/band_structure.py",
+              "phonopy/gruneisen/core.py",
+              "phonopy/gruneisen/mesh.py",
+              "phonopy/harmonic/derivative_dynmat.py",
+              "phonopy/harmonic/displacement.py",
+              "phonopy/harmonic/dynamical_matrix.py",
+              "phonopy/harmonic/dynmat_to_fc.py",
+              "phonopy/harmonic/force_constants.py",
+              "phonopy/interface/abacus.py",
+              "phonopy/interface/abinit.py",
+              "phonopy/interface/aims.py",
+              "phonopy/interface/alm.py",
+              "phonopy/interface/calculator.py",
+              "phonopy/interface/castep.py",
+              "phonopy/interface/cif.py",
+              "phonopy/interface/cp2k.py",
+              "phonopy/interface/crystal.py",
+              "phonopy/interface/dftbp.py",
+              "phonopy/interface/elk.py",
+              "phonopy/interface/exciting.py",
+              "phonopy/interface/fc_calculator.py",
+              "phonopy/interface/fleur.py",
+              "phonopy/interface/lammps.py",
+              "phonopy/interface/mlp.py",
+              "phonopy/interface/octopus.py",
+              "phonopy/interface/phonopy_yaml.py",
+              "phonopy/interface/pwmat.py",
+              "phonopy/interface/pypolymlp.py",
+              "phonopy/interface/qe.py",
+              "phonopy/interface/qlm.py",
+              "phonopy/interface/siesta.py",
+              "phonopy/interface/symfc.py",
+              "phonopy/interface/turbomole.py",
+              "phonopy/interface/vasp.py",
+              "phonopy/interface/wien2k.py",
+              "phonopy/phonon/animation.py",
+              "phonopy/phonon/band_structure.py",
+              "phonopy/phonon/character_table.py",
+              "phonopy/phonon/degeneracy.py",
+              "phonopy/phonon/dos.py",
+              "phonopy/phonon/grid.py",
+              "phonopy/phonon/group_velocity.py",
+              "phonopy/phonon/irreps.py",
+              "phonopy/phonon/mesh.py",
+              "phonopy/phonon/modulation.py",
+              "phonopy/phonon/moment.py",
+              "phonopy/phonon/plot.py",
+              "phonopy/phonon/qpoints.py",
+              "phonopy/phonon/random_displacements.py",
+              "phonopy/phonon/spectrum.py",
+              "phonopy/phonon/tetrahedron_mesh.py",
+              "phonopy/phonon/tetrahedron_method.py",
+              "phonopy/phonon/thermal_displacement.py",
+              "phonopy/phonon/thermal_properties.py",
+              "phonopy/physical_units.py",
+              "phonopy/qha/anisotropic.py",
+              "phonopy/qha/anisotropic_dataset.py",
+              "phonopy/qha/anisotropic_output.py",
+              "phonopy/qha/anisotropic_plot.py",
+              "phonopy/qha/calc.py",
+              "phonopy/qha/core.py",
+              "phonopy/qha/electron.py",
+              "phonopy/qha/electron_kpoint_sum.py",
+              "phonopy/qha/electron_states.py",
+              "phonopy/qha/eos.py",
+              "phonopy/qha/free_energy_io.py",
+              "phonopy/qha/lattice.py",
+              "phonopy/qha/lattice_sampling.py",
+              "phonopy/qha/lattice_smoothing.py",
+              "phonopy/qha/output.py",
+              "phonopy/qha/plot.py",
+              "phonopy/qha/qha.py",
+              "phonopy/qha/thermal.py",
+              "phonopy/scripts/phonopy.py",
+              "phonopy/scripts/phonopy_anisotropic_qha.py",
+              "phonopy/scripts/phonopy_anisotropic_qha_dataset.py",
+              "phonopy/scripts/phonopy_bandplot.py",
+              "phonopy/scripts/phonopy_calc_convert.py",
+              "phonopy/scripts/phonopy_collect.py",
+              "phonopy/scripts/phonopy_crystal_born.py",
+              "phonopy/scripts/phonopy_gruneisen.py",
+              "phonopy/scripts/phonopy_gruneisenplot.py",
+              "phonopy/scripts/phonopy_init.py",
+              "phonopy/scripts/phonopy_load.py",
+              "phonopy/scripts/phonopy_mlpsscha.py",
+              "phonopy/scripts/phonopy_octopus_born.py",
+              "phonopy/scripts/phonopy_pdosplot.py",
+              "phonopy/scripts/phonopy_propplot.py",
+              "phonopy/scripts/phonopy_qe_born.py",
+              "phonopy/scripts/phonopy_qha.py",
+              "phonopy/scripts/phonopy_strain_cells.py",
+              "phonopy/scripts/phonopy_symmetry.py",
+              "phonopy/scripts/phonopy_tdplot.py",
+              "phonopy/scripts/phonopy_vasp_born.py",
+              "phonopy/scripts/phonopy_vasp_efe.py",
+              "phonopy/scripts/phonopy_vasp_mlp_dataset.py",
+              "phonopy/spectrum/dynamic_structure_factor.py",
+              "phonopy/spectrum/velocity.py",
+              "phonopy/sscha/core.py",
+              "phonopy/sscha/output.py",
+              "phonopy/sscha/trace.py",
+              "phonopy/structure/atomic_data.py",
+              "phonopy/structure/atoms.py",
+              "phonopy/structure/brillouin_zone.py",
+              "phonopy/structure/cells.py",
+              "phonopy/structure/dataset.py",
+              "phonopy/structure/mixture.py",
+              "phonopy/structure/snf.py",
+              "phonopy/structure/symmetry.py",
+              "phonopy/unfolding/core.py",
+              "phonopy/units.py",
+              "phonopy/utils.py"
+            ],
+            "source_file_sha256": {
+              "phonopy/__init__.py": "8a64890425387146d1b2c50897e3c9a1aefbc51b4fa7b4ffdfbff15d73d8382d",
+              "phonopy/_lang.py": "cfc77936f2e8237215875f983ccb1628b3391f5984f5d05535513b894468e81d",
+              "phonopy/api_gruneisen.py": "14d3213039f5391392380566c738554ca15eec7dec21fd04f0ccd1e0526690da",
+              "phonopy/api_phonopy.py": "58e580c4083ae3879f6889798d17375f4f8571015c97e98694bf195d5707fc76",
+              "phonopy/api_qha.py": "7ed3b2aad713736fdc78c92483272bbc2c919e59f9ce44548f7da1f921b9fe62",
+              "phonopy/cui/collect_cell_info.py": "03e5837e517b22493c0028d1929d78fded670eeae248f920f92a6922d6d12848",
+              "phonopy/cui/create_force_sets.py": "b69d9415ba79a1e6eb139dcc6b340f08e359dc3ab0afc67b063cd5007931c0b7",
+              "phonopy/cui/load.py": "802f5660c232204658124c07c25b5bafd52bba7b443973675c7c6b7ae306ef1a",
+              "phonopy/cui/load_helper.py": "df7a6bc91f8ee18d7f5176572e300be899468383e9660d8133d665666028b438",
+              "phonopy/cui/phonopy_anisotropic_qha_dataset_script.py": "3cd79b1bd05823f0da13eac29ec8df540d4d7f2cdb855def9614ca9bf595cdd7",
+              "phonopy/cui/phonopy_anisotropic_qha_script.py": "5bdaf6d7b093185fe914278faad055f02c2c9c690b373a9efc4e11483659c328",
+              "phonopy/cui/phonopy_argparse.py": "bdb8e4ebc068aaa667fd484b33deadff9af178479f5981e3d2d85f66f00cbda3",
+              "phonopy/cui/phonopy_bandplot_script.py": "25ad7531f29542de2185b8aed7e0e299cae9d7d0972c277fbcdc17fefb8454f0",
+              "phonopy/cui/phonopy_gruneisen_script.py": "203eb506080bda3b5045351faf179c66795bf0a856bb69fa88321a8626b52120",
+              "phonopy/cui/phonopy_mlpsscha_script.py": "97072a2343aea20d01409109e7c5044076d5bd3c11c432f06ef8a11739bafcca",
+              "phonopy/cui/phonopy_qe_born_script.py": "b85ee922bf237cc7d5fe00eca6d0891a546c02d6e663f01bf84eb2d838157262",
+              "phonopy/cui/phonopy_qha_script.py": "313d2fa0d37a24c1d49598f82c5408d3080aae5ce7f7d1b9109e3349a297ce10",
+              "phonopy/cui/phonopy_script.py": "5ad556e2f86b3623ad82b78c1feb6d07d97f6209d9ba8f1d7bbc6486a2b8dcf4",
+              "phonopy/cui/phonopy_strain_cells_script.py": "4d11d8bbb77053253096360cab84d4d0bd3c3c5e0476a6d89fd6f4f5880a5946",
+              "phonopy/cui/phonopy_vasp_efe_script.py": "62a70d5d9a71982a064641bb2220a8f80348928acc38cff94961bf89658b5313",
+              "phonopy/cui/settings.py": "83bf6dbdf1ecd8f8e7cd2d68117844c87dccaab53607e8c110c3d617cbaa34c4",
+              "phonopy/cui/show_symmetry.py": "8711e13ad481e118383cd055c8953ae2df73ad18ed82ae4809327fac5cfe5e45",
+              "phonopy/exception.py": "59ba99ac41dd8adc46d9a7352c0ec2e56b18f85756a90134b2aa5ccc60ccb498",
+              "phonopy/file_IO.py": "6bbc37f1e70705863187cb4e5d3e4e29509341b24f7c2719074f0e672c3713f5",
+              "phonopy/gruneisen/band_structure.py": "2738d6c2a289693c9dc289756918c28c03ef6eeb18250a1aa00baa0273d8f3a0",
+              "phonopy/gruneisen/core.py": "1cbbe986f93998bcb5eef5e34fc7d6a2dee8b94f0be5e1e55b893883e5c41eab",
+              "phonopy/gruneisen/mesh.py": "36abf0bee4df88d29fa9338499aa26cacaed67f0d052efba78baf279cb606985",
+              "phonopy/harmonic/derivative_dynmat.py": "f6b127c315d0f329b119b8338adb86c9ae409938f2c0bb3e1f3029edbef4354d",
+              "phonopy/harmonic/displacement.py": "481166e6dd029ca324c4cc6f30669125d80c588b9e488c472db2f2758a1f7d97",
+              "phonopy/harmonic/dynamical_matrix.py": "b8095fb9fdbb4dcb89f700b563253b00fdf361c9e7e1938a4944cd925e882bde",
+              "phonopy/harmonic/dynmat_to_fc.py": "8a25ef021c479bdb209dd69634efda989428a5d02aaefe290aace8d8ebbf31c0",
+              "phonopy/harmonic/force_constants.py": "4d038c50d02a7d1c483acaa2c17dd9eaa662de91967d344ad60f3da97b72d4e5",
+              "phonopy/interface/abacus.py": "09bb6a859c3d52f864905a44a79c9e3a4a8dfc17347039c310591424dfd627f1",
+              "phonopy/interface/abinit.py": "5860fe03339dd3882c5f84d943501ab9fa5dbf889e8bd100cca7bbd4a2360eb6",
+              "phonopy/interface/aims.py": "9a819e98633d3c6e0d393e3470f197952f470ad4b53516b19127e5b2316b10ee",
+              "phonopy/interface/alm.py": "443d3df88ae03c1207fac9b1917c302cf32926a6c04c4cb9055c4a1ff610de6f",
+              "phonopy/interface/calculator.py": "9534ef0f30022eeb8448f8c2f3969a6da763e110d00431370be14f0a30f4b576",
+              "phonopy/interface/castep.py": "b4f664725f0d819752d421db2ab582ff3d97a2d4acd68e0809c1195ed4fea65f",
+              "phonopy/interface/cif.py": "46bf93ab0894f266578f77aee9bd20c60db46f862bbe3af56cd6bc5d7b8e7f40",
+              "phonopy/interface/cp2k.py": "0bbaf9489fe899649fe4b93756f8b983b8e3bd1c0c01a888387430763f5ae471",
+              "phonopy/interface/crystal.py": "c83cda3b0c3dafa1e38109530494fafb707f40c5fb6d043deb8e44949cb26d5b",
+              "phonopy/interface/dftbp.py": "873c286a6f2d5babd452e9a9e0fb6fad4d504e79fd45f9d2ea4738711fa1750c",
+              "phonopy/interface/elk.py": "3467260d0db24ad6d87e2d18a5832d011dcfad72234efbcea0fb4fd74c4620ac",
+              "phonopy/interface/exciting.py": "c4aa89f8b53752aad888bf7a47eeb9cce11e731db71d918e7a10fdeccff8f16d",
+              "phonopy/interface/fc_calculator.py": "3c30b557f308bdad85970f75043a215af4a83e1ea4205407d3830f856972b3ed",
+              "phonopy/interface/fleur.py": "2cae068f37c34d29dd1eb2c3794578cfc0021461409b9adbf21394ba6e718aac",
+              "phonopy/interface/lammps.py": "88c34a1702cd739f8e227ad645dd1c89a45ab83fb7a83e6f442e78ec466b9192",
+              "phonopy/interface/mlp.py": "1e1deaa1d34047958ee9257330d1b5844ff3ab68288042bac8b9ab5aaa2c7b84",
+              "phonopy/interface/octopus.py": "aee63e2fca809525828e2e4d15e93acd4a2ccafc30e8f69e2e6394e19724da85",
+              "phonopy/interface/phonopy_yaml.py": "dff28405e91c05d8c7e0e9ffde33cb9597dafa91f262e95ae43e0199236f0dd8",
+              "phonopy/interface/pwmat.py": "23a71c25af6fcd1bb218118410b7c337e9931bafcdb0a6bdb2fae29e7c8624d6",
+              "phonopy/interface/pypolymlp.py": "5af6d5c599cdcbdcd17f1742c1c7139c1676e50cc0381f15b7bc3dc51f7e08e4",
+              "phonopy/interface/qe.py": "ccb116877f873b2daeec95cf590aae30d6880f967fbea3a517d10983b94c3653",
+              "phonopy/interface/qlm.py": "2866307b469a24ece1d7a5e23df05992a79b6fa0b4a9614fc00a6d90f477f281",
+              "phonopy/interface/siesta.py": "342b7d14c107d96de87290c0b7e36f3dfd34022ebfd9b58f7c387c7aea7ed4d1",
+              "phonopy/interface/symfc.py": "8cd732a19cbbe7a76b9c9ffe1e0ca7ad21ad8e467b342359f8878788b8c5df0e",
+              "phonopy/interface/turbomole.py": "88cdf592afe4dba61da88bfe4fd1f30aa723b05a3816fee15fa20167c898a20d",
+              "phonopy/interface/vasp.py": "8b29b281c3d27d8963c5f1a6aebf5b66c5017233902501061023bbc4766c8cf1",
+              "phonopy/interface/wien2k.py": "03510a6492e9c4f1402057e7f0e806f071d0a5a546fddd62aabe4dbd920dc80c",
+              "phonopy/phonon/animation.py": "241cb535a2ac7ee2ac7c0d725ceae591716d15fdf9341d247310049e522ea17d",
+              "phonopy/phonon/band_structure.py": "cca01da3200d4554e24a99c13e3aadd0757fa9a74cf1b5e32692366dcfe01281",
+              "phonopy/phonon/character_table.py": "aa32f330de2f0ef8cd754e5f41db3365d76c78ceed2910d90cb931d784dcc192",
+              "phonopy/phonon/degeneracy.py": "fb73226cc5220d64d57e5f5e30d1f4c82de5211e936308391a34564751224250",
+              "phonopy/phonon/dos.py": "c6f44899cffbf71e890e354abb1088d914d552ac861c42dff4d31d27fe5ceb66",
+              "phonopy/phonon/grid.py": "b01a3da5120d4860beab40e748274518618539363cc51a45b5d4a6cdff2dc529",
+              "phonopy/phonon/group_velocity.py": "ccd9082b644489080c41d1ef849bd50a7136ce28ee34854fd7f75492b7578298",
+              "phonopy/phonon/irreps.py": "52f8412b58c4b89a690f9f4512d415e78b9b0f28c91accec0b09dcfe146421a2",
+              "phonopy/phonon/mesh.py": "6466b6bf2f68cdc3a966734ed3808d5be3a8c9c88573e1e4212157e47e3df0fc",
+              "phonopy/phonon/modulation.py": "96e60a5187372d2cf6dd107dbde9c0a36c5c2e2791429a591743dfccbc739f1d",
+              "phonopy/phonon/moment.py": "422678efac217a3dee907e577f1eb63cf209c4d8ef2e2e4b3720c64f511b391c",
+              "phonopy/phonon/plot.py": "9bceb9d4e0ff4358ef27e49ad38f8b7fe4d84d0d083fb240ca375c5abc9eb139",
+              "phonopy/phonon/qpoints.py": "d6e170b76df5da4f949407c79441f3c741bfb57c78b3bb560e959fc70e998dd7",
+              "phonopy/phonon/random_displacements.py": "782ef070a93de0d2b3b50463b36869528377e6b3e1e7e444774e91b5c49f5f8e",
+              "phonopy/phonon/spectrum.py": "ce4598a68270d588a69d7d2260977b12a8c501bb3c3d287b0d6e82815a7efa88",
+              "phonopy/phonon/tetrahedron_mesh.py": "a01512b2b78dafeeb1689a2d8e8e45c2fcdbf49ca6dccbe7cae8758665c04f04",
+              "phonopy/phonon/tetrahedron_method.py": "1be2e49bf88848538bd2c466ff0d6ffb7ffac527fd4d878c24add73d539c14e6",
+              "phonopy/phonon/thermal_displacement.py": "7c5b9b0c049993057d1e293531d394334996f216e2f5fb4e68c6360457d9ff06",
+              "phonopy/phonon/thermal_properties.py": "d0a16794bb91cf4beda62bc2d3b1132a35e83294637861b81535992322a86568",
+              "phonopy/physical_units.py": "08f72f4d9c87fa1110fc3e1511b4496f212c7eca99f58d9d9ce1b0086a431025",
+              "phonopy/qha/anisotropic.py": "a8f6e486bffcb6c01f0efd55824c36d4eb37c6aef3edc1df5e0bb6a061ffbec2",
+              "phonopy/qha/anisotropic_dataset.py": "3031176f4af5a43be78afab87d0838501c1b080599d48387ddc4766e256ab45a",
+              "phonopy/qha/anisotropic_output.py": "6fdc4d21bb97fadeefbb663cc965d55f247788587159afba008d0c5666306d3c",
+              "phonopy/qha/anisotropic_plot.py": "3642e6a2ca702d25009e16812115f5dcb9d85e345cc8c85f38c216eb2a9a154e",
+              "phonopy/qha/calc.py": "78468ecbbc5c5cb605249f5544f45b585f4c110fa556cf17600296318ba5c9f5",
+              "phonopy/qha/core.py": "a9045b768b709e93e4652a9eb5bdc128daa98511998db5d4c2d1a5e5348ca788",
+              "phonopy/qha/electron.py": "5f2ba94f8e1d259a76cf863e12faedaba0b21cb13c58bacd4168162d88cba785",
+              "phonopy/qha/electron_kpoint_sum.py": "ffc5f7c24b67f52669dae43ce759e0d08d8b5da4f0f3b0ead34f3c5a5ffec196",
+              "phonopy/qha/electron_states.py": "e7611b1c1c56a8dac226f65258371bca17a78c3e0efb1d179da776f703ebe133",
+              "phonopy/qha/eos.py": "49143bf8dc5920b588700751713de667039504e55222b326a06509424527dcd5",
+              "phonopy/qha/free_energy_io.py": "1fcbf159fc04daa0f682a132be9835505d3dee21be29b3e42cf20414f4511ee3",
+              "phonopy/qha/lattice.py": "7dff265173ae08a50a18e5e49513fb350f9c1de4e4f15dd087eb627f86edb438",
+              "phonopy/qha/lattice_sampling.py": "57e7962bbe7e66f04bf5addc2349491e29a56f1e8b7922682aeec8e750e278c1",
+              "phonopy/qha/lattice_smoothing.py": "6689f7261ab957f01cd60762309da25c4fef262a8543253b6ef37c0a17bc91bb",
+              "phonopy/qha/output.py": "79dcbf54505ec4a9dc2e396f74bb7b67deeaa8614da18b6745e8ed1c74ecacfa",
+              "phonopy/qha/plot.py": "5289d4999870a4737b23ea1b1a35263468e7b0ad1192e66c82a342236c19e5a4",
+              "phonopy/qha/qha.py": "1664ff4e5a465520f8386cd79fa589d6c3133fbbd8269d5b87b7289f27638235",
+              "phonopy/qha/thermal.py": "fc133e0c45abef615dfbf04ca98a3449e50763ee3558a6b0faf84038f6de2f1c",
+              "phonopy/scripts/phonopy.py": "330524c4d2396205634d767fdc3740b1278aa6439c27182e09298df88e34b1a9",
+              "phonopy/scripts/phonopy_anisotropic_qha.py": "2bb8bc46d96222431a6d907c731cc5761d8d2dd11aa089d23e3e6efb88c3f90b",
+              "phonopy/scripts/phonopy_anisotropic_qha_dataset.py": "506b8539dbde17d981416c7ad124ba36bcc970f0b68362660034bdf00468922c",
+              "phonopy/scripts/phonopy_bandplot.py": "a497298511767542edc47b5e70ce1de7ff200f1011b2154d8941865d8e65c109",
+              "phonopy/scripts/phonopy_calc_convert.py": "7df71a8a01d7d2df2bac680a0232233dcd5323090c24a54f8085807a93b56103",
+              "phonopy/scripts/phonopy_collect.py": "00dc0d4019f366b66f5488a5140204f5b955d9745ccfddff7e92ee6dd0ddafa4",
+              "phonopy/scripts/phonopy_crystal_born.py": "20b088e689a42051632c4298a83b71b2825b07374f0a6ed4a356d33bd220c8ec",
+              "phonopy/scripts/phonopy_gruneisen.py": "9cd40dabfba2c0a852ab677b538f09aa6c9681fc9a97758768b1f9209895985e",
+              "phonopy/scripts/phonopy_gruneisenplot.py": "af094c03e10088414c716050982b1b1b1688b3c49f07ff61f17e0f3c0523ceef",
+              "phonopy/scripts/phonopy_init.py": "5d0546161fd7eb399a94640e367c76a331cc2abef63093407de32699cf2fb239",
+              "phonopy/scripts/phonopy_load.py": "56c6284e48bdae5f299b3a2f44f5afc11c58b9d73ee777f1c013f32bf0ea90b6",
+              "phonopy/scripts/phonopy_mlpsscha.py": "2a3e9a7fee5a13cf7a05aa76da96cab222b3b41d442ea298d0406c92c4911343",
+              "phonopy/scripts/phonopy_octopus_born.py": "46f93e90acc9499647011574864c388d42e0b04330e2b90744043d375d854fe9",
+              "phonopy/scripts/phonopy_pdosplot.py": "8b834ae753c16682a4757b58106571aae2e500fd6ccb71b585d29ceb8b24772f",
+              "phonopy/scripts/phonopy_propplot.py": "47f2743f0a00b6e047bc1874e9d8cd4f8292df138aa4881b915c2c0b0c650e95",
+              "phonopy/scripts/phonopy_qe_born.py": "62ba0148bc5d05c41dcbc7367f6198732eb160ecb3c7401c17e1a0c85145a383",
+              "phonopy/scripts/phonopy_qha.py": "0304269ad954090bc38eeee4935af7ceef6004e09d034c0e0d8a94ef7ec40c20",
+              "phonopy/scripts/phonopy_strain_cells.py": "17da7a471c454627dd9a4c13d0ce18c9c24c00981c1de0e9c1bea8ebc91d5e9a",
+              "phonopy/scripts/phonopy_symmetry.py": "9f5ebca12348ea819951b5448b6d5ab079fde6e1ad3491f3fc4e2cb71e34841e",
+              "phonopy/scripts/phonopy_tdplot.py": "91a2ae793710e23145be6f3d642e21709fae78329480ec438781eab6de068d66",
+              "phonopy/scripts/phonopy_vasp_born.py": "5fcf841731a10b22802563a609ab71b0e7f4951089b06a60b8d522c9e324d9aa",
+              "phonopy/scripts/phonopy_vasp_efe.py": "345f4cef88473d34e1de46a917d046d94e52bf99b65b33c0ef32927af6185f39",
+              "phonopy/scripts/phonopy_vasp_mlp_dataset.py": "a7792e1ea2c93e284dea0931430f0e1cb223e76f58b55125563e78581766aab6",
+              "phonopy/spectrum/dynamic_structure_factor.py": "7776a05073278ee92c45f0ea6f8d0515b3e47d498a8893d2b4f491f2961f8b50",
+              "phonopy/spectrum/velocity.py": "75edee88072cf37d7b4e5c451e5b5e2e8a2fab90e68a6d6c84aa7c76c740c41c",
+              "phonopy/sscha/core.py": "c0bec477c1535382f6bd3aa810c1472e21973111db39e144550b54669c4962ff",
+              "phonopy/sscha/output.py": "d64dff491f6d5f8e1853170c98e06a5d1f2dc1579f2fbaea59ee5e21614a6329",
+              "phonopy/sscha/trace.py": "64c52f86342cde9df460a7a99455456d7c28d5fb43c4585f1aff6de47440e9d2",
+              "phonopy/structure/atomic_data.py": "9a75b23ade5fb6ecc216965281a80fef9cf39102d5ecdc7ba77209424b570c57",
+              "phonopy/structure/atoms.py": "ea8d266ad30db9fc28e0981a02f5a562ccb5d4b14fb577acb9f4653faba9550e",
+              "phonopy/structure/brillouin_zone.py": "91beb6dd60a37fab63f25bde0afc463957e255058683f978f88aaa17b933d0b5",
+              "phonopy/structure/cells.py": "43ef15713bb055894a4a3b244688cd2efcea64c42901df578fbcf39e43b7dcb9",
+              "phonopy/structure/dataset.py": "20bd1e10b8a9e90c38014e411ac8713a3633e5478b2db5fa4e98755a37580e0a",
+              "phonopy/structure/mixture.py": "bb9db3d3f8d27f876e5ced5f6bd3c18da0c6f6787f8ada3a8de2c6392cebbbfe",
+              "phonopy/structure/snf.py": "faa1db0a6e90c98a18ec6e7f65f62aee71b9190c329eb9d45a1647bee486daa5",
+              "phonopy/structure/symmetry.py": "6a234cf54af0c9d085deee272c94a3a227dc6817c8a6f6242a383ade3d149b26",
+              "phonopy/unfolding/core.py": "dfaeb6e9c22213d8fe8ef3cbbdb4884e8121ace6c3b1cbd11f2d6d77f982d2f0",
+              "phonopy/units.py": "1d1e025f24fd76f824bf8715a081c05d4bf7f864379410e5f8b98fbc1088adc4",
+              "phonopy/utils.py": "19baf6be940865d4da6a81cffcb1eb53f2bb5570ae864f98ce151fbe08e627f7"
+            },
+            "source_version": "v4.5.0",
+            "source_commit": "6683c731a54b3aed2a739138a54138a6b2782013",
+            "native_function_count": 0,
+            "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+            "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+            "docstring_mapping": {
+              "description": "summary before Google/NumPy sections or reStructuredText fields",
+              "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+              "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+              "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+              "ori_description": "complete normalized source docstring or native embedded documentation"
+            },
+            "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+            "runtime_verified": false
+          }
+        }
+      ],
+      "scenario_design": {
+        "entities": [
+          {
+            "name": "force_dataset",
+            "identity": "force_dataset_id",
+            "attributes": [
+              "structure",
+              "displacement_ids",
+              "forces",
+              "unit",
+              "supercell",
+              "source_hash"
+            ],
+            "lifecycle": "读取→核对单位与构型顺序→生成FC；输入改变使原FC失效。"
+          },
+          {
+            "name": "anharmonic_model",
+            "identity": "anharmonic_model_id",
+            "attributes": [
+              "fc2",
+              "fc3",
+              "primitive",
+              "supercell",
+              "masses",
+              "revision"
+            ],
+            "lifecycle": "拟合/读取→对称与有限性检查→初始化相互作用；FC改变后重新初始化。"
+          },
+          {
+            "name": "transport_run",
+            "identity": "transport_run_id",
+            "attributes": [
+              "model_revision",
+              "mesh",
+              "temperatures",
+              "isotope",
+              "sigma",
+              "kappa",
+              "mode_kappa",
+              "gamma"
+            ],
+            "lifecycle": "配置→初始化→求解→张量和参考验收→保存；每次条件改变需重新计算。"
+          }
+        ],
+        "capabilities": [
+          {
+            "id": "load",
+            "required": true
+          },
+          {
+            "id": "transport",
+            "required": true
+          },
+          {
+            "id": "observe",
+            "required": true
+          },
+          {
+            "id": "structure",
+            "required": true
+          }
+        ],
+        "bridges": [
+          {
+            "from": "phonopy PhonopyAtoms + released force files",
+            "to": "phono3py model -> RTACalculator",
+            "contract": "YAML记录位移/超胞身份，FORCES_FC3按位移顺序排列；单位来自原VASP输入，热导W/(m K)，温度K；结构不换成另一套对象。"
+          }
+        ],
+        "runtime_infrastructure": [
+          {
+            "reference": "runtime.transport_oracle",
+            "reason": "读取官方版本化测试常数，用NumPy比较张量；两线程OpenMP限制资源，未隐藏替代输运求解器。"
+          }
+        ],
+        "boundaries": [
+          "9³网格是固定回归目标，未验证实际材料的网格收敛；粗网格失败是未达到既定参考条件。",
+          "使用已发布预计算力文件，没有新运行VASP/QE，也没有训练hiPhive模型。",
+          "只实跑RTA与同位素项，不含完整迭代LBTE、四声子或电子声子散射。",
+          "文档4.4.0与发布源码4.5.0的差异保留，具体方法由4.5.0重新解析。"
+        ],
+        "proposed_facade": [],
+        "task_recipes": [
+          {
+            "id": "repair_transport_mesh",
+            "description": "载入官方Si-PBEsol力数据计算300 K的RTA热导，发现3³网格未达到固定参考；改为9³后重新初始化并求解，断言对角热导约107.694 W/(m K)、非对角为零且符合立方对称。",
+            "initial_state": "v4.5.0 test/phono3py_si_pbesol.yaml与FORCES_FC3_si_pbesol；make_r0_average=True。",
+            "fixture": "seed_gen/scenario_collection/verify_materials_anharmonic.py",
+            "steps": [
+              {
+                "action": "加载模型并核对力常数",
+                "tool_refs": [
+                  "phono3py.cui.load.load",
+                  "phono3py.api_phono3py.Phono3py.fc2",
+                  "phono3py.api_phono3py.Phono3py.fc3"
+                ]
+              },
+              {
+                "action": "修改网格并计算",
+                "tool_refs": [
+                  "phono3py.api_phono3py.Phono3py.mesh_numbers",
+                  "phono3py.api_phono3py.Phono3py.init_phph_interaction",
+                  "phono3py.api_phono3py.Phono3py.run_thermal_conductivity"
+                ]
+              },
+              {
+                "action": "读取热导张量",
+                "tool_refs": [
+                  "phono3py.api_phono3py.Phono3py.thermal_conductivity",
+                  "phono3py.conductivity.calculators.RTACalculator.kappa"
+                ]
+              }
+            ],
+            "assertions": [
+              "粗网格不满足参考±0.5；9³三个对角均107.694±0.5；非对角及对角差<1e-6。"
+            ],
+            "validation_status": "passed_fixed_fixture"
+          },
+          {
+            "id": "isotope_scattering_comparison",
+            "description": "在相同Si模型、300 K和9³网格上启用同位素散射重新求解，比较热导；断言三个对角分量仍为正、低于未启用值，并接近97.296 W/(m K)的发布版参考。",
+            "initial_state": "沿用修复后的固定模型和网格，仅改变is_isotope。",
+            "fixture": "seed_gen/scenario_collection/verify_materials_anharmonic.py",
+            "steps": [
+              {
+                "action": "重新初始化和求解",
+                "tool_refs": [
+                  "phono3py.api_phono3py.Phono3py.init_phph_interaction",
+                  "phono3py.api_phono3py.Phono3py.run_thermal_conductivity"
+                ]
+              },
+              {
+                "action": "比较散射前后结果",
+                "tool_refs": [
+                  "phono3py.api_phono3py.Phono3py.thermal_conductivity",
+                  "phono3py.conductivity.calculators.RTACalculator.kappa"
+                ]
+              }
+            ],
+            "assertions": [
+              "同位素热导对角97.296±0.5；全部>0且低于无同位素值。"
+            ],
+            "validation_status": "passed_fixed_fixture"
+          }
+        ],
+        "status": "seed_design; reference APIs are not an implemented agent tool server"
+      },
+      "research_sources": [
+        {
+          "url": "https://phonopy.github.io/phono3py/phono3py-api.html",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://phonopy.github.io/phono3py/phono3py-api.html",
+          "title": "Phono3py API — Phono3py v.4.4.0",
+          "content_file": "seed_gen/scenario_collection/research/materials_workflow_physics_web/a65d59ce0bd21432.txt",
+          "content_sha256": "2fa50cdb703ff04609a8e6d412910f116a01ca3c9de6a14c0a6fbcb8232d8a59",
+          "content_length": 23173,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "AlN-LDA API案例使用PhonopyAtoms和Phono3py串联结构、位移/力及声子计算；站点标4.4.0，所选源码为正式4.5.0。",
+            "entities": [
+              "structure",
+              "forces",
+              "fc2",
+              "fc3"
+            ],
+            "tools": [
+              "load",
+              "Phono3py"
+            ],
+            "tasks": [
+              "固定外部力数据构造模型"
+            ]
+          }
+        },
+        {
+          "url": "https://phonopy.github.io/phono3py/examples.html",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://phonopy.github.io/phono3py/examples.html",
+          "title": "Examples — Phono3py v.4.4.0",
+          "content_file": "seed_gen/scenario_collection/research/materials_anharmonic_web/5eca55997bc0efa5.txt",
+          "content_sha256": "5d8ebfeccfa7d697e9612f21612e76dc750a273de6a2b58128994b8d4a7619d5",
+          "content_length": 405,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "官方提供VASP/Pwscf硅示例，指向Si-PBEsol Python流程；用于确定可本地后处理的输入边界。",
+            "entities": [
+              "dataset",
+              "transport_result"
+            ],
+            "tools": [
+              "run_thermal_conductivity"
+            ],
+            "tasks": [
+              "复用固定力文件而不执行外部DFT"
+            ]
+          }
+        },
+        {
+          "url": "https://github.com/phonopy/phono3py/blob/v4.5.0/test/conductivity/test_kappa_RTA.py",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://github.com/phonopy/phono3py/blob/v4.5.0/test/conductivity/test_kappa_RTA.py",
+          "title": "phono3py/test/conductivity/test_kappa_RTA.py at v4.5.0 · phonopy/phono3py · GitHub",
+          "content_file": "seed_gen/scenario_collection/research/materials_anharmonic_web/5b53089851d4ed83.txt",
+          "content_sha256": "e0ebea155d9c09887ee4152c66583f4971c80a6b672b70008883508dd650c496",
+          "content_length": 12199,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "发布版测试给出300 K、9³网格非compact力常数RTA参考107.694以及同位素散射97.296 W/(m K)，atol0.5；独立固定值用于本地验收。",
+            "entities": [
+              "mesh",
+              "temperature",
+              "isotope",
+              "kappa"
+            ],
+            "tools": [
+              "init_phph_interaction",
+              "run_thermal_conductivity"
+            ],
+            "tasks": [
+              "网格修复和散射开关对比"
+            ]
+          }
+        },
+        {
+          "url": "https://hiphive.materialsmodeling.org/",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://hiphive.materialsmodeling.org/",
+          "title": "hiPhive — High-order force constants for the masses — hiPhive  documentation",
+          "content_file": "seed_gen/scenario_collection/research/materials_anharmonic_web/331a3c774241afe7.txt",
+          "content_sha256": "c08b69415d1e2ba9fd29e6cc69f06114d56d826f5fb9b2973d87e0e2ab0070a9",
+          "content_length": 2906,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "官方示例为ClusterSpace→StructureContainer→Optimizer训练→ForceConstantPotential，可从更少构型估计高阶力常数；此能力不等于RTA求解主接口。",
+            "entities": [
+              "training_structures",
+              "force_constant_model"
+            ],
+            "tools": [
+              "ForceConstantPotential"
+            ],
+            "tasks": [
+              "明确互补拟合阶段，当前场景排除以控制范围"
+            ]
+          }
+        }
+      ],
+      "joint_selection": {
+        "profile_sha256": "de40969aa531f9947ca39076008c60512c0a01192572fda17448f323cc031201",
+        "candidate_packages": [
+          {
+            "name": "phono3py",
+            "version": "v4.5.0",
+            "role": "primary",
+            "reason": "提供给定力数据的二/三阶力常数和RTA热输运。",
+            "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/phono3py_v4.5.0.json",
+            "raw_sha256": "548c80e9007b8e2f71aa1bfd32a1dd11d195dd3de194d4c908eba6dec0564482",
+            "release_manifest": "seed_gen/scenario_collection/materials_workflow_physics_sources.json"
+          },
+          {
+            "name": "phonopy",
+            "version": "v4.5.0",
+            "role": "complement",
+            "reason": "硬依赖且负责PhonopyAtoms结构；不重复暴露谐波后处理。",
+            "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/phonopy_v4.5.0.json",
+            "raw_sha256": "cbf5287a5d31aa0b10ad21932816dbc7303643df6930eddbaeecc53f5a420f53",
+            "release_manifest": "seed_gen/scenario_collection/materials_workflow_physics_sources.json"
+          },
+          {
+            "name": "hiphive",
+            "version": "1.5",
+            "role": "excluded",
+            "reason": "官方1.5支持稀疏高阶力常数拟合；当前已有完整官方位移/力fixture，不引入训练、误差评估和另一套力常数拟合状态。",
+            "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/hiphive_1.5.json",
+            "raw_sha256": "64fdce8e143e586c972aa6f3986ca571d14c52566cc88db27d601e14f7431a62",
+            "release_manifest": "seed_gen/scenario_collection/materials_anharmonic_sources.json"
+          }
+        ],
+        "classification_source": "seed_gen/scenario_collection/classification.normalized.md",
+        "classification_sha256": "5f4c8b089168c2f3c54caf96165436c79a3b3b9425c6f1961a153d7093cfb33a",
+        "count_policy": "all_func = function + class_func; reference operations, including constructors/properties"
+      }
+    }
+  }
+]

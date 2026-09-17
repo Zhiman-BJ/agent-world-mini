@@ -1,0 +1,128 @@
+[
+  {
+    "name": "pymatgen-analysis-diffusion",
+    "index": 101,
+    "directory": "pymatgen-analysis-diffusion",
+    "source_root": "src",
+    "modules": [
+      "pymatgen.analysis.diffusion"
+    ],
+    "repository": "https://github.com/materialsvirtuallab/pymatgen-analysis-diffusion",
+    "tag": "v2025.11.14",
+    "commit": "6f9fe6a7df1f66074a8c5407646aa17a3eb7d4a2",
+    "documentation": "https://materialsvirtuallab.github.io/pymatgen-analysis-diffusion/",
+    "description": "pymatgen-analysis-diffusion基于原子轨迹分析均方位移、扩散系数、Arrhenius关系、概率密度与迁移路径，提供AIMD后处理和NEB路径构造工具。输入轨迹及时间单位须正确，不能以短样例替代充分采样的扩散计算。",
+    "pypi": "https://pypi.org/project/pymatgen-analysis-diffusion/",
+    "pypi_version": "2025.11.15",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/materialsvirtuallab/pymatgen-analysis-diffusion/releases/latest",
+    "release_url": "https://github.com/materialyzeai/pymatgen-analysis-diffusion/releases/tag/v2025.11.14",
+    "release_published_at": "2025-11-14T14:40:11Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release, with current PyPI difference explicitly retained.",
+    "notes": [
+      "GitHub正式版2025.11.14，PyPI2025.11.15；按指南固定正式Release并从本地源码安装。官方文档站404，研究采用发布文档/示例。"
+    ]
+  },
+  {
+    "name": "sumo",
+    "index": 102,
+    "directory": "sumo",
+    "source_root": ".",
+    "modules": [
+      "sumo"
+    ],
+    "repository": "https://github.com/SMTG-Bham/sumo",
+    "tag": "v3.0.0",
+    "commit": "00b907454bb0df49049f4b21f6b6aed7cb8b70a5",
+    "documentation": "https://smtg-bham.github.io/sumo/",
+    "description": "sumo是固体电子结构后处理工具，提供能带、态密度、带边与有效质量分析和绘图，并支持多种第一性原理输出格式；它本身不运行DFT求解。",
+    "pypi": "https://pypi.org/project/sumo/",
+    "pypi_version": "3.0.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/SMTG-Bham/sumo/releases/latest",
+    "release_url": "https://github.com/SMTG-Bham/sumo/releases/tag/v3.0.0",
+    "release_published_at": "2026-09-03T11:00:34Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release, with current PyPI difference explicitly retained.",
+    "notes": []
+  },
+  {
+    "name": "pyprocar",
+    "index": 103,
+    "directory": "pyprocar",
+    "source_root": ".",
+    "modules": [
+      "pyprocar"
+    ],
+    "repository": "https://github.com/romerogroup/pyprocar",
+    "tag": "v6.5.0",
+    "commit": "4a2ec9049af78fdd35b6214eef68fe40e5f356ed",
+    "documentation": "https://pyprocar.readthedocs.io/en/latest/",
+    "description": "PyProcar提供电子能带、投影态密度、自旋纹理和费米面等分析/可视化接口，支持多种电子结构程序输出；处理对象依赖外部计算结果与正确的倒易晶格约定。",
+    "pypi": "https://pypi.org/project/pyprocar/",
+    "pypi_version": "6.5.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/romerogroup/pyprocar/releases/latest",
+    "release_url": "https://github.com/romerogroup/pyprocar/releases/tag/v6.5.0",
+    "release_published_at": "2025-06-20T18:23:45Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release, with current PyPI difference explicitly retained.",
+    "notes": [
+      "Windows大小写文件碰撞；plotBands.py与plotbands.py Git blob均97d24d2617cd6151a4faee218ff3c02690974fbb，显式补齐同字节模块别名。",
+      "要求NumPy<2，与sumo3.0的NumPy>=2不能直接共存；保留候选池，联合选择时处理替代关系。",
+      "发布说明确认文档已迁往ReadTheDocs，旧GitHub Pages示例404。"
+    ],
+    "identical_source_aliases": {
+      "pyprocar/pyposcar/plotBands.py": "pyprocar/pyposcar/plotbands.py"
+    }
+  },
+  {
+    "name": "effmass",
+    "index": 104,
+    "directory": "effmass",
+    "source_root": ".",
+    "modules": [
+      "effmass"
+    ],
+    "repository": "https://github.com/lucydot/effmass",
+    "tag": "v2.3.0",
+    "commit": "e6c209928d6660b3c43ca27f5d0ac9cbc740f2b3",
+    "documentation": "https://effmass.readthedocs.io/en/latest/",
+    "description": "effmass从半导体电子能带片段定位极值并拟合色散，计算曲率、输运及光学有效质量与非抛物性指标。它提供数据适配、片段生成、拟合和诊断接口，结果依赖k路径单位、采样及拟合区间。",
+    "pypi": "https://pypi.org/project/effmass/",
+    "pypi_version": "2.3.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/lucydot/effmass/releases/latest",
+    "release_url": "https://github.com/lucydot/effmass/releases/tag/v2.3.0",
+    "release_published_at": "2023-05-31T20:25:44Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release, with current PyPI difference explicitly retained.",
+    "notes": [
+      "GitHub正式版2.3.0，PyPI2.3.1，在线latest文档2.3.2.dev3；签名按v2.3.0。"
+    ]
+  },
+  {
+    "name": "openbandparams",
+    "index": 105,
+    "directory": "openbandparams",
+    "source_root": "src",
+    "modules": [
+      "openbandparams"
+    ],
+    "repository": "https://github.com/duarte-jfs/openbandparams",
+    "tag": "v1.0",
+    "commit": "e115fccda355e344d5913fcd4f92c3cc2964c14e",
+    "documentation": "https://duarte-jfs.github.io/openbandparams/",
+    "description": "openbandparams为III-V半导体及其合金提供带隙、有效质量、晶格、应变相关参数和温度/组分插值，并保留参数文献参考，可用于能带与异质结构模型输入准备。",
+    "pypi": "https://pypi.org/project/openbandparams/",
+    "pypi_version": "1.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/duarte-jfs/openbandparams/releases/latest",
+    "release_url": "https://github.com/duarte-jfs/openbandparams/releases/tag/v1.0",
+    "release_published_at": "2025-09-01T13:03:29Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release, with current PyPI difference explicitly retained.",
+    "notes": []
+  }
+]

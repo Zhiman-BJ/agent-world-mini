@@ -1,0 +1,2231 @@
+[
+  {
+    "global_id": "semiconductor_scenario_01_02_01",
+    "schema_version": "scenario-1.0",
+    "environment": {
+      "basic_info": {
+        "source": "deep research",
+        "url": [
+          "https://spglib.readthedocs.io/en/stable/python-interface.html",
+          "https://spglib.readthedocs.io/en/stable/definition.html",
+          "https://pymatgen.org/pymatgen.symmetry.html",
+          "https://pymatgen.org/usage.html"
+        ],
+        "name": "标准化结构、判断 symmetry breaking",
+        "version": "2026-09-17",
+        "index": 5
+      },
+      "description": "以pymatgen结构记录晶格、分数坐标及原子编号，由spglib统一完成非磁晶体对称性和标准晶胞分析；区分基矢变换、数值容差与真实对称破缺，保留独立结构目标及修复链。",
+      "domain": {
+        "level1": "01 材料与器件研发",
+        "level2": "01.02 晶体对称性",
+        "level3": "01.02.01 Space Group / 标准晶胞"
+      },
+      "nums": {
+        "class": 5,
+        "function": 6,
+        "class_func": 48,
+        "all_func": 54
+      }
+    },
+    "init_ref_tools": [
+      {
+        "name": "Lattice",
+        "type": "class",
+        "module": "pymatgen.core.lattice",
+        "input": "MSONable",
+        "description": "Essentially a matrix with conversion matrices. In general, it is assumed that lengths are in Angstrom and angles are in degrees unless otherwise stated.  Properties lazily generated for efficiency.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Create a lattice from any sequence of 9 numbers. Note that the sequence is assumed to be read one row at a time. Each row represents one lattice vector.",
+            "input": {
+              "self": null,
+              "matrix": {
+                "type": "ArrayLike",
+                "description": "Sequence of numbers in any form. Examples of acceptable input. i) An actual numpy array. ii) [[1, 0, 0], [0, 1, 0], [0, 0, 1]] iii) [1, 0, 0 , 0, 1, 0, 0, 0, 1] iv) (1, 0, 0, 0, 1, 0, 0, 0, 1) Each row should correspond to a lattice vector. e.g. [[10, 0, 0], [20, 10, 0], [0, 0, 30]] specifies a lattice with lattice vectors [10, 0, 0], [20, 10, 0] and [0, 0, 30]."
+              },
+              "pbc": {
+                "type": "tuple[bool, bool, bool]",
+                "description": "a tuple defining the periodic boundary conditions along the three axis of the lattice."
+              }
+            },
+            "output": null,
+            "ori_input": "self, matrix: ArrayLike, pbc: tuple[bool, bool, bool] = (True, True, True)",
+            "ori_description": "Create a lattice from any sequence of 9 numbers. Note that the sequence is assumed to be read one row at a time. Each row represents one lattice vector.  Args: matrix: Sequence of numbers in any form. Examples of acceptable input. i) An actual numpy array. ii) [[1, 0, 0], [0, 1, 0], [0, 0, 1]] iii) [1, 0, 0 , 0, 1, 0, 0, 0, 1] iv) (1, 0, 0, 0, 1, 0, 0, 0, 1) Each row should correspond to a lattice vector. e.g. [[10, 0, 0], [20, 10, 0], [0, 0, 30]] specifies a lattice with lattice vectors [10, 0, 0], [20, 10, 0] and [0, 0, 30]. pbc: a tuple defining the periodic boundary conditions along the three axis of the lattice."
+          },
+          {
+            "name": "cubic",
+            "description": "Convenience constructor for a cubic lattice.",
+            "input": {
+              "cls": null,
+              "a": {
+                "type": "float",
+                "description": "The *a* lattice parameter of the cubic cell."
+              },
+              "pbc": {
+                "type": "tuple[bool, bool, bool]",
+                "description": "a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Cubic lattice of dimensions (a x a x a)."
+              }
+            },
+            "ori_input": "cls, a: float, pbc: tuple[bool, bool, bool] = (True, True, True)",
+            "ori_description": "Convenience constructor for a cubic lattice.  Args: a (float): The *a* lattice parameter of the cubic cell. pbc (tuple): a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions.  Returns: Cubic lattice of dimensions (a x a x a)."
+          },
+          {
+            "name": "tetragonal",
+            "description": "Convenience constructor for a tetragonal lattice.",
+            "input": {
+              "cls": null,
+              "a": {
+                "type": "float",
+                "description": "*a* lattice parameter of the tetragonal cell."
+              },
+              "c": {
+                "type": "float",
+                "description": "*c* lattice parameter of the tetragonal cell."
+              },
+              "pbc": {
+                "type": "tuple[bool, bool, bool]",
+                "description": "The periodic boundary conditions along the three axis of the lattice. If None periodic in all directions."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Tetragonal lattice of dimensions (a x a x c)."
+              }
+            },
+            "ori_input": "cls, a: float, c: float, pbc: tuple[bool, bool, bool] = (True, True, True)",
+            "ori_description": "Convenience constructor for a tetragonal lattice.  Args: a (float): *a* lattice parameter of the tetragonal cell. c (float): *c* lattice parameter of the tetragonal cell. pbc (tuple): The periodic boundary conditions along the three axis of the lattice. If None periodic in all directions.  Returns: Tetragonal lattice of dimensions (a x a x c)."
+          },
+          {
+            "name": "orthorhombic",
+            "description": "Convenience constructor for an orthorhombic lattice.",
+            "input": {
+              "cls": null,
+              "a": {
+                "type": "float",
+                "description": "*a* lattice parameter of the orthorhombic cell."
+              },
+              "b": {
+                "type": "float",
+                "description": "*b* lattice parameter of the orthorhombic cell."
+              },
+              "c": {
+                "type": "float",
+                "description": "*c* lattice parameter of the orthorhombic cell."
+              },
+              "pbc": {
+                "type": "tuple[bool, bool, bool]",
+                "description": "a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Orthorhombic lattice of dimensions (a x b x c)."
+              }
+            },
+            "ori_input": "cls, a: float, b: float, c: float, pbc: tuple[bool, bool, bool] = (True, True, True)",
+            "ori_description": "Convenience constructor for an orthorhombic lattice.  Args: a (float): *a* lattice parameter of the orthorhombic cell. b (float): *b* lattice parameter of the orthorhombic cell. c (float): *c* lattice parameter of the orthorhombic cell. pbc (tuple): a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions.  Returns: Orthorhombic lattice of dimensions (a x b x c)."
+          },
+          {
+            "name": "hexagonal",
+            "description": "Convenience constructor for a hexagonal lattice.",
+            "input": {
+              "cls": null,
+              "a": {
+                "type": "float",
+                "description": "*a* lattice parameter of the hexagonal cell."
+              },
+              "c": {
+                "type": "float",
+                "description": "*c* lattice parameter of the hexagonal cell."
+              },
+              "pbc": {
+                "type": "tuple[bool, bool, bool]",
+                "description": "a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Hexagonal lattice of dimensions (a x a x c)."
+              }
+            },
+            "ori_input": "cls, a: float, c: float, pbc: tuple[bool, bool, bool] = (True, True, True)",
+            "ori_description": "Convenience constructor for a hexagonal lattice.  Args: a (float): *a* lattice parameter of the hexagonal cell. c (float): *c* lattice parameter of the hexagonal cell. pbc (tuple): a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions.  Returns: Hexagonal lattice of dimensions (a x a x c)."
+          },
+          {
+            "name": "from_parameters",
+            "description": "Create a Lattice using unit cell lengths (in Angstrom) and angles (in degrees).",
+            "input": {
+              "cls": null,
+              "a": {
+                "type": "float",
+                "description": "*a* lattice parameter."
+              },
+              "b": {
+                "type": "float",
+                "description": "*b* lattice parameter."
+              },
+              "c": {
+                "type": "float",
+                "description": "*c* lattice parameter."
+              },
+              "alpha": {
+                "type": "float",
+                "description": "*alpha* angle in degrees."
+              },
+              "beta": {
+                "type": "float",
+                "description": "*beta* angle in degrees."
+              },
+              "gamma": {
+                "type": "float",
+                "description": "*gamma* angle in degrees."
+              },
+              "vesta": {
+                "type": "bool",
+                "description": "True if you import Cartesian coordinates from VESTA."
+              },
+              "pbc": {
+                "type": "tuple[bool, bool, bool]",
+                "description": "a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Lattice with the specified lattice parameters."
+              }
+            },
+            "ori_input": "cls, a: float, b: float, c: float, alpha: float, beta: float, gamma: float, *, vesta: bool = False, pbc: tuple[bool, bool, bool] = (True, True, True)",
+            "ori_description": "Create a Lattice using unit cell lengths (in Angstrom) and angles (in degrees).  Args: a (float): *a* lattice parameter. b (float): *b* lattice parameter. c (float): *c* lattice parameter. alpha (float): *alpha* angle in degrees. beta (float): *beta* angle in degrees. gamma (float): *gamma* angle in degrees. vesta (bool): True if you import Cartesian coordinates from VESTA. pbc (tuple): a tuple defining the periodic boundary conditions along the three axis of the lattice. If None periodic in all directions.  Returns: Lattice with the specified lattice parameters."
+          },
+          {
+            "name": "matrix",
+            "description": "Copy of matrix representing the Lattice.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Copy of matrix representing the Lattice."
+          },
+          {
+            "name": "lengths",
+            "description": "Lattice lengths.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The lengths (a, b, c) of the lattice."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Lattice lengths.  Returns: The lengths (a, b, c) of the lattice."
+          },
+          {
+            "name": "angles",
+            "description": "Lattice angles.",
+            "input": {
+              "self": null
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "The angles (alpha, beta, gamma) of the lattice."
+              }
+            },
+            "ori_input": "self",
+            "ori_description": "Lattice angles.  Returns: The angles (alpha, beta, gamma) of the lattice."
+          },
+          {
+            "name": "volume",
+            "description": "Volume of the unit cell in Angstrom^3.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Volume of the unit cell in Angstrom^3."
+          },
+          {
+            "name": "get_cartesian_coords",
+            "description": "Get the Cartesian coordinates given fractional coordinates.",
+            "input": {
+              "self": null,
+              "fractional_coords": {
+                "type": "ArrayLike",
+                "description": "Fractional coords."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Cartesian coordinates"
+              }
+            },
+            "ori_input": "self, fractional_coords: ArrayLike",
+            "ori_description": "Get the Cartesian coordinates given fractional coordinates.  Args: fractional_coords (3x1 or Nx3 array): Fractional coords.  Returns: Cartesian coordinates"
+          },
+          {
+            "name": "get_fractional_coords",
+            "description": "Get the fractional coordinates given Cartesian coordinates.",
+            "input": {
+              "self": null,
+              "cart_coords": {
+                "type": "ArrayLike",
+                "description": "Cartesian coords."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Fractional coordinates."
+              }
+            },
+            "ori_input": "self, cart_coords: ArrayLike",
+            "ori_description": "Get the fractional coordinates given Cartesian coordinates.  Args: cart_coords (3x1 or Nx3 array): Cartesian coords.  Returns: Fractional coordinates."
+          },
+          {
+            "name": "reciprocal_lattice",
+            "description": "The reciprocal lattice. Note that this is the standard reciprocal lattice used for solid state physics with a factor of 2 * pi. If you are looking for the crystallographic reciprocal lattice, use the reciprocal_lattice_crystallographic property. The property is lazily generated for efficiency.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "The reciprocal lattice. Note that this is the standard reciprocal lattice used for solid state physics with a factor of 2 * pi. If you are looking for the crystallographic reciprocal lattice, use the reciprocal_lattice_crystallographic property. The property is lazily generated for efficiency."
+          },
+          {
+            "name": "scale",
+            "description": "Return a new Lattice with volume new_volume by performing a scaling of the lattice vectors so that length proportions and angles are preserved.",
+            "input": {
+              "self": null,
+              "new_volume": {
+                "type": "float",
+                "description": "New volume to scale to."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "New lattice with desired volume."
+              }
+            },
+            "ori_input": "self, new_volume: float",
+            "ori_description": "Return a new Lattice with volume new_volume by performing a scaling of the lattice vectors so that length proportions and angles are preserved.  Args: new_volume: New volume to scale to.  Returns: New lattice with desired volume."
+          },
+          {
+            "name": "as_dict",
+            "description": "MSONable dict representation of the Lattice.",
+            "input": {
+              "self": null,
+              "verbosity": {
+                "type": "Literal[0, 1]",
+                "description": "Default of 0 only includes the matrix representation. Set to 1 to include the lattice parameters."
+              }
+            },
+            "output": null,
+            "ori_input": "self, verbosity: Literal[0, 1] = 0",
+            "ori_description": "MSONable dict representation of the Lattice.  Args: verbosity (0 | 1): Default of 0 only includes the matrix representation. Set to 1 to include the lattice parameters."
+          },
+          {
+            "name": "from_dict",
+            "description": "Create a Lattice from a dictionary.  If fmt is None, the dict should contain the a, b, c, alpha, beta, and gamma parameters.  If fmt == \"abivars\", the function build a `Lattice` object from a dictionary with the Abinit variables `acell` and `rprim` in Bohr. If acell is not given, the Abinit default is used i.e. [1,1,1] Bohr  Example: Lattice.from_dict(fmt=\"abivars\", acell=3*[10], rprim=np.eye(3))",
+            "input": {
+              "cls": null,
+              "dct": {
+                "type": "dict",
+                "description": ""
+              },
+              "fmt": {
+                "type": "str | None",
+                "description": ""
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "cls, dct: dict, fmt: str | None = None, **kwargs",
+            "ori_description": "Create a Lattice from a dictionary.  If fmt is None, the dict should contain the a, b, c, alpha, beta, and gamma parameters.  If fmt == \"abivars\", the function build a `Lattice` object from a dictionary with the Abinit variables `acell` and `rprim` in Bohr. If acell is not given, the Abinit default is used i.e. [1,1,1] Bohr  Example: Lattice.from_dict(fmt=\"abivars\", acell=3*[10], rprim=np.eye(3))"
+          }
+        ]
+      },
+      {
+        "name": "Composition",
+        "type": "class",
+        "module": "pymatgen.core.composition",
+        "input": "collections.abc.Hashable, collections.abc.Mapping, MSONable, Stringify",
+        "description": "Represents a `Composition`, a mapping of {element/species: amount} with enhanced functionality tailored for handling chemical compositions. The class is immutable, hashable, and designed for robust usage in material science and chemistry computations.  Key Features: - Supports both `Element` and `Species` as keys, with differentiation between oxidation states (e.g., Fe2+ and Fe3+ are distinct keys). - Behaves like a dictionary but returns 0 for missing keys, making it similar to a `defaultdict` while remaining immutable. - Provides numerous utility methods for chemical computations, such as calculating fractions, weights, and formula representations.  Highlights: - **Input Flexibility**: Accepts formulas as strings, dictionaries, or keyword arguments for construction. - **Convenience Methods**: Includes `get_fraction`, `reduced_formula`, and weight-related utilities. - **Enhanced Formula Representation**: Supports reduced, normalized, and IUPAC-sorted formulas.  Examples: >>> comp = Composition(\"LiFePO4\") >>> comp.get_atomic_fraction(Element(\"Li\")) 0.14285714285714285 >>> comp.num_atoms 7.0 >>> comp.reduced_formula 'LiFePO4' >>> comp.formula 'Li1 Fe1 P1 O4' >>> comp.get_wt_fraction(Element(\"Li\")) 0.04399794666951898 >>> comp.num_atoms 7.0  Attributes: - `amount_tolerance` (float): Tolerance for distinguishing composition amounts. Default is 1e-8 to minimize floating-point errors. - `charge_balanced_tolerance` (float): Tolerance for verifying charge balance. - `special_formulas` (dict): Custom formula mappings for specific compounds (e.g., `\"LiO\"` → `\"Li2O2\"`). - `oxi_prob` (dict or None): Prior probabilities of oxidation states, used for oxidation state guessing.  Functionality: - Arithmetic Operations: Add, subtract, multiply, or divide compositions. For example: >>> comp1 = Composition(\"Fe2O3\") >>> comp2 = Composition(\"FeO\") >>> result = comp1 + comp2 # Produces \"Fe3O4\" - Representation: - `formula`: Full formula string with elements sorted by electronegativity. - `reduced_formula`: Simplified formula with minimal ratios. - `hill_formula`: Hill notation (C and H prioritized, others alphabetically sorted). - Utilities: - `get_atomic_fraction`: Returns the atomic fraction of a given element/species. - `get_wt_fraction`: Returns the weight fraction of a given element/species. - `is_element`: Checks if the composition is a pure element. - `reduced_composition`: Normalizes the composition by the greatest common denominator. - `fractional_composition`: Returns the normalized composition where sums equal 1. - Oxidation State Handling: - `oxi_state_guesses`: Suggests charge-balanced oxidation states. - `charge_balanced`: Checks if the composition is charge balanced. - `add_charges_from_oxi_state_guesses`: Assigns oxidation states based on guesses. - Validation: - `valid`: Ensures all elements/species are valid.  Notes: - When constructing from strings, both `Element` and `Species` types are handled. For example: - `Composition(\"Fe2+\")` differentiates Fe2+ from Fe3+. - `Composition(\"Fe2O3\")` auto-parses standard formulas.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Very flexible Composition construction, similar to the built-in Python dict(). Also extended to allow simple string init.  Takes any inputs supported by the Python built-in dict function.  1. A dict of either {Element/Species: amount},  {string symbol:amount}, or {atomic number:amount} or any mixture of these. e.g. {Element(\"Li\"): 2, Element(\"O\"): 1}, {\"Li\":2, \"O\":1}, {3: 2, 8: 1} all result in a Li2O composition. 2. Keyword arg initialization, similar to a dict, e.g.  Composition(Li = 2, O = 1)  In addition, the Composition constructor also allows a single string as an input formula. e.g. Composition(\"Li2O\").",
+            "input": {
+              "self": null,
+              "args": {
+                "type": "*args",
+                "description": "Any number of 2-tuples as key-value pairs."
+              },
+              "strict": {
+                "type": "bool",
+                "description": "Only allow valid Elements and Species in the Composition. Defaults to False."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Additional kwargs supported by the dict() constructor."
+              }
+            },
+            "output": null,
+            "ori_input": "self, *args, strict: bool = False, **kwargs",
+            "ori_description": "Very flexible Composition construction, similar to the built-in Python dict(). Also extended to allow simple string init.  Takes any inputs supported by the Python built-in dict function.  1. A dict of either {Element/Species: amount},  {string symbol:amount}, or {atomic number:amount} or any mixture of these. e.g. {Element(\"Li\"): 2, Element(\"O\"): 1}, {\"Li\":2, \"O\":1}, {3: 2, 8: 1} all result in a Li2O composition. 2. Keyword arg initialization, similar to a dict, e.g.  Composition(Li = 2, O = 1)  In addition, the Composition constructor also allows a single string as an input formula. e.g. Composition(\"Li2O\").  Args: *args: Any number of 2-tuples as key-value pairs. strict (bool): Only allow valid Elements and Species in the Composition. Defaults to False. allow_negative (bool): Whether to allow negative compositions. Defaults to False. **kwargs: Additional kwargs supported by the dict() constructor."
+          },
+          {
+            "name": "get_el_amt_dict",
+            "description": "Get a dict of element symbols mapped to their (unreduced) amount, e.g. {\"Fe\": 4.0, \"O\": 6.0}.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Get a dict of element symbols mapped to their (unreduced) amount, e.g. {\"Fe\": 4.0, \"O\": 6.0}."
+          },
+          {
+            "name": "get_atomic_fraction",
+            "description": "Calculate atomic fraction of an Element or Species.",
+            "input": {
+              "self": null,
+              "el": {
+                "type": "SpeciesLike",
+                "description": "Element or Species to get fraction for."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Atomic fraction for element el in Composition"
+              }
+            },
+            "ori_input": "self, el: SpeciesLike",
+            "ori_description": "Calculate atomic fraction of an Element or Species.  Args: el (SpeciesLike): Element or Species to get fraction for.  Returns: Atomic fraction for element el in Composition"
+          },
+          {
+            "name": "reduced_formula",
+            "description": "A normalized formula, i.e., \"LiFePO4\" instead of \"Li4Fe4P4O16\".",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "A normalized formula, i.e., \"LiFePO4\" instead of \"Li4Fe4P4O16\"."
+          },
+          {
+            "name": "num_atoms",
+            "description": "Total number of atoms in Composition. For negative amounts, sum of absolute values.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Total number of atoms in Composition. For negative amounts, sum of absolute values."
+          },
+          {
+            "name": "almost_equals",
+            "description": "Get true if compositions are equal within a tolerance.",
+            "input": {
+              "self": null,
+              "other": {
+                "type": "Composition",
+                "description": "Other composition to check"
+              },
+              "rtol": {
+                "type": "float",
+                "description": "Relative tolerance"
+              },
+              "atol": {
+                "type": "float",
+                "description": "Absolute tolerance"
+              }
+            },
+            "output": null,
+            "ori_input": "self, other: Composition, rtol: float = 0.1, atol: float = 1e-08",
+            "ori_description": "Get true if compositions are equal within a tolerance.  Args: other (Composition): Other composition to check rtol (float): Relative tolerance atol (float): Absolute tolerance"
+          }
+        ]
+      },
+      {
+        "name": "SiteCollection",
+        "type": "class",
+        "module": "pymatgen.core.structure",
+        "input": "Sequence[SiteType], ABC, Generic[SiteType]",
+        "description": "Basic SiteCollection. Essentially a sequence of Sites or PeriodicSites. This serves as a base class for Molecule (a collection of Site, i.e., no periodicity) and Structure (a collection of PeriodicSites, i.e., periodicity). Not meant to be instantiated directly.",
+        "function": [
+          {
+            "name": "num_sites",
+            "description": "Number of sites.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Number of sites."
+          },
+          {
+            "name": "composition",
+            "description": "The structure's corresponding Composition object.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "The structure's corresponding Composition object."
+          },
+          {
+            "name": "atomic_numbers",
+            "description": "Tuple of atomic numbers.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Tuple of atomic numbers."
+          },
+          {
+            "name": "indices_from_symbol",
+            "description": "Get a tuple with the sequential indices of the sites that contain an element with the given chemical symbol.",
+            "input": {
+              "self": null,
+              "symbol": {
+                "type": "str",
+                "description": ""
+              }
+            },
+            "output": null,
+            "ori_input": "self, symbol: str",
+            "ori_description": "Get a tuple with the sequential indices of the sites that contain an element with the given chemical symbol."
+          },
+          {
+            "name": "cart_coords",
+            "description": "An np.array of the Cartesian coordinates of sites in the structure.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "An np.array of the Cartesian coordinates of sites in the structure."
+          },
+          {
+            "name": "is_valid",
+            "description": "True if SiteCollection does not contain atoms that are too close together. Note that the distance definition is based on type of SiteCollection. Cartesian distances are used for non-periodic Molecules, while PBC is taken into account for periodic structures.",
+            "input": {
+              "self": null,
+              "tol": {
+                "type": "float",
+                "description": "Distance tolerance. Default is 0.5 Angstrom, which is fairly large."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "bool",
+                "description": "True if SiteCollection does not contain atoms that are too close together."
+              }
+            },
+            "ori_input": "self, tol: float = DISTANCE_TOLERANCE",
+            "ori_description": "True if SiteCollection does not contain atoms that are too close together. Note that the distance definition is based on type of SiteCollection. Cartesian distances are used for non-periodic Molecules, while PBC is taken into account for periodic structures.  Args: tol (float): Distance tolerance. Default is 0.5 Angstrom, which is fairly large.  Returns: bool: True if SiteCollection does not contain atoms that are too close together."
+          }
+        ]
+      },
+      {
+        "name": "IStructure",
+        "type": "class",
+        "module": "pymatgen.core.structure",
+        "input": "SiteCollection[PeriodicSite], MSONable",
+        "description": "Basic immutable Structure object with periodicity. Essentially a sequence of PeriodicSites having a common lattice. IStructure is made to be (somewhat) immutable so that they can function as keys in a dict. To make modifications, use the standard Structure object instead. Structure extends Sequence and Hashable, which means that in many cases, it can be used like any Python sequence. Iterating through a structure is equivalent to going through the sites in sequence.",
+        "function": [
+          {
+            "name": "from_spacegroup",
+            "description": "Generate a structure using a spacegroup. Note that only symmetrically distinct species and coords should be provided. All equivalent sites are generated from the spacegroup operations.",
+            "input": {
+              "cls": null,
+              "sg": {
+                "type": "str | int",
+                "description": "The spacegroup. If a string, it will be interpreted as one of the notations supported by pymatgen.symmetry.groups.Spacegroup. e.g. \"R-3c\" or \"Fm-3m\". If an int, it will be interpreted as an international number."
+              },
+              "lattice": {
+                "type": "ArrayLike | Lattice",
+                "description": "The lattice, either as a pymatgen.core.Lattice or simply as any 2D array. Each row should correspond to a lattice vector. e.g. [[10,0,0], [20,10,0], [0,0,30]] specifies a lattice with lattice vectors [10,0,0], [20,10,0] and [0,0,30]. Note that no attempt is made to check that the lattice is compatible with the spacegroup specified. This may be introduced in a future version."
+              },
+              "species": {
+                "type": "Sequence[str | Element | Species | DummySpecies | Composition]",
+                "description": "Sequence of species on each site. Can take in flexible input, including:  i. A sequence of element / species specified either as string symbols, e.g. [\"Li\", \"Fe2+\", \"P\", ...] or atomic numbers, e.g. (3, 56, ...) or actual Element or Species objects.  ii. List of dict of elements/species and occupancies, e.g. [{\"Fe\" : 0.5, \"Mn\":0.5}, ...]. This allows the setup of disordered structures."
+              },
+              "coords": {
+                "type": "Sequence[ArrayLike]",
+                "description": "list of fractional/cartesian coordinates of each species."
+              },
+              "site_properties": {
+                "type": "dict[str, Sequence] | None",
+                "description": "Properties associated with the sites as a dict of sequences, e.g. {\"magmom\":[5,5,5,5]}. The sequences have to be the same length as the atomic species and fractional_coords. Defaults to None for no properties."
+              },
+              "coords_are_cartesian": {
+                "type": "bool",
+                "description": "Set to True if you are providing coordinates in Cartesian coordinates. Defaults to False."
+              },
+              "tol": {
+                "type": "float",
+                "description": "A fractional tolerance to deal with numerical precision issues in determining if orbits are the same."
+              },
+              "labels": {
+                "type": "Sequence[str | None] | None",
+                "description": "Labels associated with the sites as a list of strings, e.g. ['Li1', 'Li2']. Must have the same length as the species and fractional coords. Defaults to None for no labels."
+              }
+            },
+            "output": null,
+            "ori_input": "cls, sg: str | int, lattice: ArrayLike | Lattice, species: Sequence[str | Element | Species | DummySpecies | Composition], coords: Sequence[ArrayLike], site_properties: dict[str, Sequence] | None = None, coords_are_cartesian: bool = False, tol: float = 1e-05, labels: Sequence[str | None] | None = None",
+            "ori_description": "Generate a structure using a spacegroup. Note that only symmetrically distinct species and coords should be provided. All equivalent sites are generated from the spacegroup operations.  Args: sg (str | int): The spacegroup. If a string, it will be interpreted as one of the notations supported by pymatgen.symmetry.groups.Spacegroup. e.g. \"R-3c\" or \"Fm-3m\". If an int, it will be interpreted as an international number. lattice (Lattice/3x3 array): The lattice, either as a pymatgen.core.Lattice or simply as any 2D array. Each row should correspond to a lattice vector. e.g. [[10,0,0], [20,10,0], [0,0,30]] specifies a lattice with lattice vectors [10,0,0], [20,10,0] and [0,0,30]. Note that no attempt is made to check that the lattice is compatible with the spacegroup specified. This may be introduced in a future version. species ([Species]): Sequence of species on each site. Can take in flexible input, including:  i. A sequence of element / species specified either as string symbols, e.g. [\"Li\", \"Fe2+\", \"P\", ...] or atomic numbers, e.g. (3, 56, ...) or actual Element or Species objects.  ii. List of dict of elements/species and occupancies, e.g. [{\"Fe\" : 0.5, \"Mn\":0.5}, ...]. This allows the setup of disordered structures. coords (Nx3 array): list of fractional/cartesian coordinates of each species. coords_are_cartesian (bool): Set to True if you are providing coordinates in Cartesian coordinates. Defaults to False. site_properties (dict): Properties associated with the sites as a dict of sequences, e.g. {\"magmom\":[5,5,5,5]}. The sequences have to be the same length as the atomic species and fractional_coords. Defaults to None for no properties. tol (float): A fractional tolerance to deal with numerical precision issues in determining if orbits are the same. labels (list[str]): Labels associated with the sites as a list of strings, e.g. ['Li1', 'Li2']. Must have the same length as the species and fractional coords. Defaults to None for no labels."
+          },
+          {
+            "name": "copy",
+            "description": "Convenience method to get a copy of the structure, with options to add site properties.",
+            "input": {
+              "self": null,
+              "site_properties": {
+                "type": "dict[str, Any] | None",
+                "description": "Properties to add or override. The properties are specified in the same way as the constructor, i.e., as a dict of the form {property: [values]}. The properties should be in the order of the *original* structure if you are performing sanitization."
+              },
+              "sanitize": {
+                "type": "bool",
+                "description": "If True, this method will return a sanitized structure. Sanitization performs a few things: (i) The sites are sorted by electronegativity, (ii) a LLL lattice reduction is carried out to obtain a relatively orthogonalized cell, (iii) all fractional coords for sites are mapped into the unit cell."
+              },
+              "properties": {
+                "type": "dict[str, Any] | None",
+                "description": "General properties to add or override."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "A copy of the Structure, with optionally new site_properties and optionally sanitized."
+              }
+            },
+            "ori_input": "self, site_properties: dict[str, Any] | None = None, sanitize: bool = False, properties: dict[str, Any] | None = None",
+            "ori_description": "Convenience method to get a copy of the structure, with options to add site properties.  Args: site_properties (dict): Properties to add or override. The properties are specified in the same way as the constructor, i.e., as a dict of the form {property: [values]}. The properties should be in the order of the *original* structure if you are performing sanitization. sanitize (bool): If True, this method will return a sanitized structure. Sanitization performs a few things: (i) The sites are sorted by electronegativity, (ii) a LLL lattice reduction is carried out to obtain a relatively orthogonalized cell, (iii) all fractional coords for sites are mapped into the unit cell. properties (dict): General properties to add or override.  Returns: A copy of the Structure, with optionally new site_properties and optionally sanitized."
+          },
+          {
+            "name": "volume",
+            "description": "The volume of the structure in Angstrom^3.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "The volume of the structure in Angstrom^3."
+          },
+          {
+            "name": "lattice",
+            "description": "Lattice of the structure.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Lattice of the structure."
+          },
+          {
+            "name": "frac_coords",
+            "description": "Fractional coordinates as a Nx3 numpy array.",
+            "input": {
+              "self": null
+            },
+            "output": null,
+            "ori_input": "self",
+            "ori_description": "Fractional coordinates as a Nx3 numpy array."
+          },
+          {
+            "name": "as_dict",
+            "description": "Dict representation of Structure.",
+            "input": {
+              "self": null,
+              "verbosity": {
+                "type": "Literal[0, 1]",
+                "description": "Verbosity level. Default of 1 includes both direct and Cartesian coordinates for all sites, lattice parameters, etc. Useful for reading and for insertion into a database. Set to 0 for an extremely lightweight version that only includes sufficient information to reconstruct the object."
+              },
+              "fmt": {
+                "type": "Literal['abivars'] | None",
+                "description": "Specifies a format for the dict. Defaults to None, which is the default format used in pymatgen. Or \"abivars\"."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Allow passing of other kwargs needed for certain formats, e.g. \"abivars\"."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "JSON-serializable dict representation."
+              }
+            },
+            "ori_input": "self, verbosity: Literal[0, 1] = 1, fmt: Literal['abivars'] | None = None, **kwargs",
+            "ori_description": "Dict representation of Structure.  Args: verbosity (0 | 1): Verbosity level. Default of 1 includes both direct and Cartesian coordinates for all sites, lattice parameters, etc. Useful for reading and for insertion into a database. Set to 0 for an extremely lightweight version that only includes sufficient information to reconstruct the object. fmt (\"abivars\" | None): Specifies a format for the dict. Defaults to None, which is the default format used in pymatgen. Or \"abivars\". **kwargs: Allow passing of other kwargs needed for certain formats, e.g. \"abivars\".  Returns: JSON-serializable dict representation."
+          },
+          {
+            "name": "from_dict",
+            "description": "Reconstitute a Structure from a dict representation of Structure created using as_dict().",
+            "input": {
+              "cls": null,
+              "dct": {
+                "type": "dict[str, Any]",
+                "description": "Dict representation of structure."
+              },
+              "fmt": {
+                "type": "Literal['abivars'] | None",
+                "description": "Use structure_from_abivars() to parse the dict. Defaults to None."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Structure object"
+              }
+            },
+            "ori_input": "cls, dct: dict[str, Any], fmt: Literal['abivars'] | None = None",
+            "ori_description": "Reconstitute a Structure from a dict representation of Structure created using as_dict().  Args: dct (dict): Dict representation of structure. fmt ('abivars' | None): Use structure_from_abivars() to parse the dict. Defaults to None.  Returns: Structure object"
+          },
+          {
+            "name": "to",
+            "description": "Output the structure to a string (and to a file when filename is given).",
+            "input": {
+              "self": null,
+              "filename": {
+                "type": "PathLike",
+                "description": "If provided, output will be written to a file. If fmt is not specified, the format is determined from the filename. Defaults is None, i.e. string output."
+              },
+              "fmt": {
+                "type": "FileFormats",
+                "description": "Format to output to. Defaults to JSON unless filename is provided. If specified, it overrides whatever the filename is. Options include \"cif\", \"poscar\", \"cssr\", \"json\", \"xsf\", \"mcsqs\", \"prismatic\", \"yaml\", \"yml\", \"fleur-inpgen\", \"pwmat\", \"aims\", or any format registered via `pymatgen.io.registry`. Case-insensitive."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Kwargs pass thru to relevant methods. This allows the passing of parameters like `symprec` to the `CifWriter.__init__ method` for generation of symmetric CIFs."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "str",
+                "description": "String representation of structure in given format. If a filename is provided, the same string is written to the file."
+              }
+            },
+            "ori_input": "self, filename: PathLike = '', fmt: FileFormats = '', **kwargs",
+            "ori_description": "Output the structure to a string (and to a file when filename is given).  Args: filename (PathLike): If provided, output will be written to a file. If fmt is not specified, the format is determined from the filename. Defaults is None, i.e. string output. fmt (str): Format to output to. Defaults to JSON unless filename is provided. If specified, it overrides whatever the filename is. Options include \"cif\", \"poscar\", \"cssr\", \"json\", \"xsf\", \"mcsqs\", \"prismatic\", \"yaml\", \"yml\", \"fleur-inpgen\", \"pwmat\", \"aims\", or any format registered via `pymatgen.io.registry`. Case-insensitive. **kwargs: Kwargs pass thru to relevant methods. This allows the passing of parameters like `symprec` to the `CifWriter.__init__ method` for generation of symmetric CIFs.  Returns: str: String representation of structure in given format. If a filename is provided, the same string is written to the file."
+          },
+          {
+            "name": "from_file",
+            "description": "Read a structure from a file. For example, anything ending in a \"cif\" is assumed to be a Crystallographic Information Format file. Supported formats include CIF, POSCAR/CONTCAR, CHGCAR, LOCPOT, vasprun.xml, CSSR, NetCDF, pymatgen's JSON-serialized structures, and any format registered via `pymatgen.io.registry`.",
+            "input": {
+              "cls": null,
+              "filename": {
+                "type": "PathLike",
+                "description": "The file to read."
+              },
+              "primitive": {
+                "type": "bool",
+                "description": "Whether to convert to a primitive cell. Defaults to False. Only honored by formats that support it (notably CIF)."
+              },
+              "sort": {
+                "type": "bool",
+                "description": "Whether to sort sites. Default to False."
+              },
+              "merge_tol": {
+                "type": "float",
+                "description": "If this is some positive number, sites that are within merge_tol from each other will be merged. Usually 0.01 should be enough to deal with common numerical issues."
+              },
+              "kwargs": {
+                "type": "**kwargs",
+                "description": "Passthrough to relevant reader. E.g. if the file has CIF format, the kwargs will be passed through to CifParser."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "Structure."
+              }
+            },
+            "ori_input": "cls, filename: PathLike, primitive: bool = False, sort: bool = False, merge_tol: float = 0.0, **kwargs",
+            "ori_description": "Read a structure from a file. For example, anything ending in a \"cif\" is assumed to be a Crystallographic Information Format file. Supported formats include CIF, POSCAR/CONTCAR, CHGCAR, LOCPOT, vasprun.xml, CSSR, NetCDF, pymatgen's JSON-serialized structures, and any format registered via `pymatgen.io.registry`.  Args: filename (PathLike): The file to read. primitive (bool): Whether to convert to a primitive cell. Defaults to False. Only honored by formats that support it (notably CIF). sort (bool): Whether to sort sites. Default to False. merge_tol (float): If this is some positive number, sites that are within merge_tol from each other will be merged. Usually 0.01 should be enough to deal with common numerical issues. kwargs: Passthrough to relevant reader. E.g. if the file has CIF format, the kwargs will be passed through to CifParser.  Returns: Structure."
+          },
+          {
+            "name": "get_distance",
+            "description": "Get distance between site i and j assuming periodic boundary conditions. If the index jimage of two sites atom j is not specified it selects the jimage nearest to the i atom and returns the distance and jimage indices in terms of lattice vector translations if the index jimage of atom j is specified it returns the distance between the i atom and the specified jimage atom.",
+            "input": {
+              "self": null,
+              "i": {
+                "type": "int",
+                "description": "1st site index"
+              },
+              "j": {
+                "type": "int",
+                "description": "2nd site index"
+              },
+              "jimage": {
+                "type": "",
+                "description": "Number of lattice translations in each lattice direction. Default is None for nearest image."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "distance"
+              }
+            },
+            "ori_input": "self, i: int, j: int, jimage = None",
+            "ori_description": "Get distance between site i and j assuming periodic boundary conditions. If the index jimage of two sites atom j is not specified it selects the jimage nearest to the i atom and returns the distance and jimage indices in terms of lattice vector translations if the index jimage of atom j is specified it returns the distance between the i atom and the specified jimage atom.  Args: i (int): 1st site index j (int): 2nd site index jimage: Number of lattice translations in each lattice direction. Default is None for nearest image.  Returns: distance"
+          }
+        ]
+      },
+      {
+        "name": "Structure",
+        "type": "class",
+        "module": "pymatgen.core.structure",
+        "input": "IStructure, MutableSequence[PeriodicSite]",
+        "description": "Mutable version of structure.",
+        "function": [
+          {
+            "name": "__init__",
+            "description": "Create a periodic structure.",
+            "input": {
+              "self": null,
+              "lattice": {
+                "type": "ArrayLike | Lattice",
+                "description": "The lattice, either as a pymatgen.core.Lattice or simply as any 2D array. Each row should correspond to a lattice vector. e.g. [[10,0,0], [20,10,0], [0,0,30]] specifies a lattice with lattice vectors [10,0,0], [20,10,0] and [0,0,30]."
+              },
+              "species": {
+                "type": "Sequence[CompositionLike]",
+                "description": "List of species on each site. Can take in flexible input,"
+              },
+              "coords": {
+                "type": "Sequence[ArrayLike] | ArrayLike",
+                "description": "Array of fractional/cartesian coordinates of each species."
+              },
+              "charge": {
+                "type": "float | None",
+                "description": "Overall charge of the structure. Defaults to behavior in SiteCollection where total charge is the sum of the oxidation states."
+              },
+              "validate_proximity": {
+                "type": "bool",
+                "description": "Whether to check if there are sites that are less than 0.01 Ang apart. Defaults to False."
+              },
+              "to_unit_cell": {
+                "type": "bool",
+                "description": "Whether to map all sites into the unit cell, i.e., fractional coords between 0 and 1. Defaults to False."
+              },
+              "coords_are_cartesian": {
+                "type": "bool",
+                "description": "Set to True if you are providing coordinates in Cartesian coordinates. Defaults to False."
+              },
+              "site_properties": {
+                "type": "dict | None",
+                "description": "Properties associated with the sites as a dict of sequences, e.g. {\"magmom\":[5,5,5,5]}. The sequences have to be the same length as the atomic species and fractional_coords. Defaults to None for no properties."
+              },
+              "labels": {
+                "type": "Sequence[str | None] | None",
+                "description": "Labels associated with the sites as a list of strings, e.g. ['Li1', 'Li2']. Must have the same length as the species and fractional coords. Defaults to None for no labels."
+              },
+              "properties": {
+                "type": "dict | None",
+                "description": "Properties associated with the whole structure. Will be serialized when writing the structure to JSON or YAML but is lost when converting to other formats."
+              }
+            },
+            "output": null,
+            "ori_input": "self, lattice: ArrayLike | Lattice, species: Sequence[CompositionLike], coords: Sequence[ArrayLike] | ArrayLike, charge: float | None = None, validate_proximity: bool = False, to_unit_cell: bool = False, coords_are_cartesian: bool = False, site_properties: dict | None = None, labels: Sequence[str | None] | None = None, properties: dict | None = None",
+            "ori_description": "Create a periodic structure.  Args: lattice: The lattice, either as a pymatgen.core.Lattice or simply as any 2D array. Each row should correspond to a lattice vector. e.g. [[10,0,0], [20,10,0], [0,0,30]] specifies a lattice with lattice vectors [10,0,0], [20,10,0] and [0,0,30]. species: List of species on each site. Can take in flexible input, including:  i. A sequence of element / species specified either as string symbols, e.g. [\"Li\", \"Fe2+\", \"P\", ...] or atomic numbers, e.g. (3, 56, ...) or actual Element or Species objects.  ii. List of dict of elements/species and occupancies, e.g. [{\"Fe\" : 0.5, \"Mn\":0.5}, ...]. This allows the setup of disordered structures. coords (Nx3 array): Array of fractional/cartesian coordinates of each species. charge (float): Overall charge of the structure. Defaults to behavior in SiteCollection where total charge is the sum of the oxidation states. validate_proximity (bool): Whether to check if there are sites that are less than 0.01 Ang apart. Defaults to False. to_unit_cell (bool): Whether to map all sites into the unit cell, i.e., fractional coords between 0 and 1. Defaults to False. coords_are_cartesian (bool): Set to True if you are providing coordinates in Cartesian coordinates. Defaults to False. site_properties (dict): Properties associated with the sites as a dict of sequences, e.g. {\"magmom\":[5,5,5,5]}. The sequences have to be the same length as the atomic species and fractional_coords. Defaults to None for no properties. labels (list[str]): Labels associated with the sites as a list of strings, e.g. ['Li1', 'Li2']. Must have the same length as the species and fractional coords. Defaults to None for no labels. properties (dict): Properties associated with the whole structure. Will be serialized when writing the structure to JSON or YAML but is lost when converting to other formats."
+          },
+          {
+            "name": "make_supercell",
+            "description": "Create a supercell.",
+            "input": {
+              "self": null,
+              "scaling_matrix": {
+                "type": "ArrayLike",
+                "description": "A scaling matrix for transforming the lattice vectors. Has to be all integers. Several options are possible:  a. A full 3x3 scaling matrix defining the linear combination the old lattice vectors. e.g. [[2,1,0],[0,3,0],[0,0, 1]] generates a new structure with lattice vectors a' = 2a + b, b' = 3b, c' = c where a, b, and c are the lattice vectors of the original structure. b. An sequence of three scaling factors. e.g. [2, 1, 1] specifies that the supercell should have dimensions 2a x b x c. c. A number, which simply scales all lattice vectors by the same factor."
+              },
+              "to_unit_cell": {
+                "type": "bool",
+                "description": "Whether or not to fold sites back into the unit cell if they have fractional coords > 1. Defaults to True."
+              },
+              "in_place": {
+                "type": "bool",
+                "description": "Whether to perform the operation in-place or to return a new Structure object. Defaults to True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self if in_place is True else self.copy() after making supercell"
+              }
+            },
+            "ori_input": "self, scaling_matrix: ArrayLike, to_unit_cell: bool = True, in_place: bool = True",
+            "ori_description": "Create a supercell.  Args: scaling_matrix (ArrayLike): A scaling matrix for transforming the lattice vectors. Has to be all integers. Several options are possible:  a. A full 3x3 scaling matrix defining the linear combination the old lattice vectors. e.g. [[2,1,0],[0,3,0],[0,0, 1]] generates a new structure with lattice vectors a' = 2a + b, b' = 3b, c' = c where a, b, and c are the lattice vectors of the original structure. b. An sequence of three scaling factors. e.g. [2, 1, 1] specifies that the supercell should have dimensions 2a x b x c. c. A number, which simply scales all lattice vectors by the same factor. to_unit_cell (bool): Whether or not to fold sites back into the unit cell if they have fractional coords > 1. Defaults to True. in_place (bool): Whether to perform the operation in-place or to return a new Structure object. Defaults to True.  Returns: Structure: self if in_place is True else self.copy() after making supercell"
+          },
+          {
+            "name": "replace",
+            "description": "Replace a single site. Takes either a species or a dict of species and occupations.",
+            "input": {
+              "self": null,
+              "idx": {
+                "type": "SupportsIndex",
+                "description": "Index of the site in the sites list."
+              },
+              "species": {
+                "type": "CompositionLike",
+                "description": "Species of replacement site"
+              },
+              "coords": {
+                "type": "ArrayLike | None",
+                "description": "Coordinates of replacement site. If None, the current coordinates are assumed."
+              },
+              "coords_are_cartesian": {
+                "type": "bool",
+                "description": "Whether coordinates are cartesian. Defaults to False."
+              },
+              "properties": {
+                "type": "dict | None",
+                "description": "Properties associated with the site."
+              },
+              "label": {
+                "type": "str | None",
+                "description": "Label associated with the site."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self with replaced site."
+              }
+            },
+            "ori_input": "self, idx: SupportsIndex, species: CompositionLike, coords: ArrayLike | None = None, coords_are_cartesian: bool = False, properties: dict | None = None, label: str | None = None",
+            "ori_description": "Replace a single site. Takes either a species or a dict of species and occupations.  Args: idx (SupportsIndex): Index of the site in the sites list. species (species-like): Species of replacement site coords (3x1 array): Coordinates of replacement site. If None, the current coordinates are assumed. coords_are_cartesian (bool): Whether coordinates are cartesian. Defaults to False. properties (dict): Properties associated with the site. label (str): Label associated with the site.  Returns: Structure: self with replaced site."
+          },
+          {
+            "name": "remove_sites",
+            "description": "Delete sites with at indices.",
+            "input": {
+              "self": null,
+              "indices": {
+                "type": "Sequence[SupportsIndex | None]",
+                "description": "Sequence of indices of sites to delete."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self with sites removed."
+              }
+            },
+            "ori_input": "self, indices: Sequence[SupportsIndex | None]",
+            "ori_description": "Delete sites with at indices.  Args: indices: Sequence of indices of sites to delete.  Returns: Structure: self with sites removed."
+          },
+          {
+            "name": "append",
+            "description": "Append a site to the structure.",
+            "input": {
+              "self": null,
+              "species": {
+                "type": "CompositionLike",
+                "description": "Species of inserted site"
+              },
+              "coords": {
+                "type": "ArrayLike",
+                "description": "Coordinates of inserted site"
+              },
+              "coords_are_cartesian": {
+                "type": "bool",
+                "description": "Whether coordinates are cartesian. Defaults to False."
+              },
+              "validate_proximity": {
+                "type": "bool",
+                "description": "Whether to check if inserted site is too close to an existing site. Defaults to False."
+              },
+              "properties": {
+                "type": "dict | None",
+                "description": "Properties of the site."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "",
+                "description": "New structure with inserted site."
+              }
+            },
+            "ori_input": "self, species: CompositionLike, coords: ArrayLike, coords_are_cartesian: bool = False, validate_proximity: bool = False, properties: dict | None = None",
+            "ori_description": "Append a site to the structure.  Args: species: Species of inserted site coords (3x1 array): Coordinates of inserted site coords_are_cartesian (bool): Whether coordinates are cartesian. Defaults to False. validate_proximity (bool): Whether to check if inserted site is too close to an existing site. Defaults to False. properties (dict): Properties of the site.  Returns: New structure with inserted site."
+          },
+          {
+            "name": "translate_sites",
+            "description": "Translate specific sites by some vector, keeping the sites within the unit cell. Modifies the structure in place.",
+            "input": {
+              "self": null,
+              "indices": {
+                "type": "SupportsIndex | Iterable[SupportsIndex]",
+                "description": "Integer or iterable of site indices on which to perform the translation."
+              },
+              "vector": {
+                "type": "ArrayLike",
+                "description": "Translation vector for sites."
+              },
+              "frac_coords": {
+                "type": "bool",
+                "description": "Whether the vector corresponds to fractional or Cartesian coordinates."
+              },
+              "to_unit_cell": {
+                "type": "bool",
+                "description": "Whether the new coordinates are transformed to the unit cell."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self with translated sites."
+              }
+            },
+            "ori_input": "self, indices: SupportsIndex | Iterable[SupportsIndex], vector: ArrayLike, frac_coords: bool = True, to_unit_cell: bool = True",
+            "ori_description": "Translate specific sites by some vector, keeping the sites within the unit cell. Modifies the structure in place.  Args: indices: Integer or iterable of site indices on which to perform the translation. vector: Translation vector for sites. frac_coords (bool): Whether the vector corresponds to fractional or Cartesian coordinates. to_unit_cell (bool): Whether the new coordinates are transformed to the unit cell.  Returns: Structure: self with translated sites."
+          },
+          {
+            "name": "rotate_sites",
+            "description": "Rotate specific sites by some angle around vector at anchor. Modifies the structure in place.",
+            "input": {
+              "self": null,
+              "indices": {
+                "type": "Iterable[SupportsIndex] | None",
+                "description": "Site indices on which to perform the rotation. None: All indices."
+              },
+              "theta": {
+                "type": "float",
+                "description": "Angle in radians."
+              },
+              "axis": {
+                "type": "ArrayLike | None",
+                "description": "Rotation axis vector."
+              },
+              "anchor": {
+                "type": "ArrayLike | None",
+                "description": "Point of rotation."
+              },
+              "to_unit_cell": {
+                "type": "bool",
+                "description": "Whether new sites are transformed to unit cell"
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self with rotated sites."
+              }
+            },
+            "ori_input": "self, indices: Iterable[SupportsIndex] | None = None, theta: float = 0.0, axis: ArrayLike | None = None, anchor: ArrayLike | None = None, to_unit_cell: bool = True",
+            "ori_description": "Rotate specific sites by some angle around vector at anchor. Modifies the structure in place.  Args: indices (Iterable[SupportsIndex]): Site indices on which to perform the rotation. None: All indices. theta (float): Angle in radians. axis (3x1 array): Rotation axis vector. anchor (3x1 array): Point of rotation. to_unit_cell (bool): Whether new sites are transformed to unit cell  Returns: Structure: self with rotated sites."
+          },
+          {
+            "name": "apply_strain",
+            "description": "Apply a strain to the lattice.",
+            "input": {
+              "self": null,
+              "strain": {
+                "type": "ArrayLike",
+                "description": "Amount of strain to apply. Can be a float, or a sequence of 3 numbers. e.g. 0.01 means all lattice vectors are increased by 1%. This is equivalent to calling modify_lattice with a lattice with lattice parameters that are 1% larger."
+              },
+              "inplace": {
+                "type": "bool",
+                "description": "True applies the strain in-place, False returns a Structure copy. Defaults to True."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self if inplace=True else new structure with strain applied."
+              }
+            },
+            "ori_input": "self, strain: ArrayLike, inplace: bool = True",
+            "ori_description": "Apply a strain to the lattice.  Args: strain (float or list): Amount of strain to apply. Can be a float, or a sequence of 3 numbers. e.g. 0.01 means all lattice vectors are increased by 1%. This is equivalent to calling modify_lattice with a lattice with lattice parameters that are 1% larger. inplace (bool): True applies the strain in-place, False returns a Structure copy. Defaults to True.  Returns: Structure: self if inplace=True else new structure with strain applied."
+          },
+          {
+            "name": "scale_lattice",
+            "description": "Perform scaling of the lattice vectors so that length proportions and angles are preserved.",
+            "input": {
+              "self": null,
+              "volume": {
+                "type": "float",
+                "description": "New volume of the unit cell in A^3."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self with scaled lattice."
+              }
+            },
+            "ori_input": "self, volume: float",
+            "ori_description": "Perform scaling of the lattice vectors so that length proportions and angles are preserved.  Args: volume (float): New volume of the unit cell in A^3.  Returns: Structure: self with scaled lattice."
+          },
+          {
+            "name": "sort",
+            "description": "Sort a structure in place. The parameters have the same meaning as in list.sort(). By default, sites are sorted by the electronegativity of the species. The difference between this method and get_sorted_structure (which also works in IStructure) is that the latter returns a new Structure, while this modifies the original.",
+            "input": {
+              "self": null,
+              "key": {
+                "type": "Callable | None",
+                "description": "Specifies a function of one argument that is used to extract a comparison key from each list element: key=str.lower. The default value is None (compare the elements directly)."
+              },
+              "reverse": {
+                "type": "bool",
+                "description": "If set to True, then the list elements are sorted as if each comparison were reversed."
+              }
+            },
+            "output": {
+              "return": {
+                "type": "Structure",
+                "description": "self sorted."
+              }
+            },
+            "ori_input": "self, key: Callable | None = None, reverse: bool = False",
+            "ori_description": "Sort a structure in place. The parameters have the same meaning as in list.sort(). By default, sites are sorted by the electronegativity of the species. The difference between this method and get_sorted_structure (which also works in IStructure) is that the latter returns a new Structure, while this modifies the original.  Args: key: Specifies a function of one argument that is used to extract a comparison key from each list element: key=str.lower. The default value is None (compare the elements directly). reverse (bool): If set to True, then the list elements are sorted as if each comparison were reversed.  Returns: Structure: self sorted."
+          }
+        ]
+      },
+      {
+        "name": "get_symmetry_dataset",
+        "type": "function",
+        "module": "spglib.spg",
+        "description": "Search symmetry dataset from an input cell.",
+        "input": {
+          "cell": {
+            "type": "SpgCell",
+            "description": "See :func:`get_symmetry`."
+          },
+          "symprec": {
+            "type": "float",
+            "description": "See :func:`get_symmetry`."
+          },
+          "angle_tolerance": {
+            "type": "float",
+            "description": "See :func:`get_symmetry`."
+          },
+          "hall_number": {
+            "type": "int",
+            "description": "If a serial number of Hall symbol (>0) is given, the database corresponding to the Hall symbol is made.  The mapping from Hall symbols to a space-group-type is the many-to-one mapping. Without specifying this option (i.e., in the case of ``hall_number=0``), always the first one (the smallest serial number corresponding to the space-group-type in [list of space groups (Seto's web site)](https://yseto.net/en/sg/sg1)) among possible choices and settings is chosen as default. This argument is useful when the other choice (or setting) is expected to be hooked.  This affects to the obtained values of `international`, `hall`, `choice`, `transformation_matrix`, `origin shift`, `wyckoffs`, `std_lattice`, `std_positions`, `std_types` and `std_rotation_matrix`, but not to `rotations` and `translations` since the later set is defined with respect to the basis vectors of user's input (the `cell` argument).  See also :ref:`dataset_spg_get_dataset_spacegroup_type`."
+          },
+          "_throw": {
+            "type": "bool",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "dataset",
+            "description": ":class:`SpglibDataset` | None If it fails, None is returned. Otherwise a dictionary is returned. More details are found at :ref:`spglib-dataset`."
+          }
+        },
+        "ori_input": "cell: SpgCell, symprec: float = 1e-05, angle_tolerance: float = -1.0, hall_number: int = 0, _throw: bool = False",
+        "ori_description": "Search symmetry dataset from an input cell.  Parameters ---------- cell, symprec, angle_tolerance: See :func:`get_symmetry`. hall_number : int If a serial number of Hall symbol (>0) is given, the database corresponding to the Hall symbol is made.  The mapping from Hall symbols to a space-group-type is the many-to-one mapping. Without specifying this option (i.e., in the case of ``hall_number=0``), always the first one (the smallest serial number corresponding to the space-group-type in [list of space groups (Seto's web site)](https://yseto.net/en/sg/sg1)) among possible choices and settings is chosen as default. This argument is useful when the other choice (or setting) is expected to be hooked.  This affects to the obtained values of `international`, `hall`, `choice`, `transformation_matrix`, `origin shift`, `wyckoffs`, `std_lattice`, `std_positions`, `std_types` and `std_rotation_matrix`, but not to `rotations` and `translations` since the later set is defined with respect to the basis vectors of user's input (the `cell` argument).  See also :ref:`dataset_spg_get_dataset_spacegroup_type`.  Returns ------- dataset: :class:`SpglibDataset` | None If it fails, None is returned. Otherwise a dictionary is returned. More details are found at :ref:`spglib-dataset`."
+      },
+      {
+        "name": "get_symmetry",
+        "type": "function",
+        "module": "spglib.spg",
+        "description": "Find symmetry operations from a crystal structure and site tensors.  .. warning:: :func:`get_symmetry` with ``is_magnetic=True`` is deprecated at version 2.0.  Use :func:`get_magnetic_symmetry` for magnetic symmetry search.",
+        "input": {
+          "cell": {
+            "type": "Cell",
+            "description": "Crystal structure given in tuple. It has to follow the following form, (basis vectors, atomic points, types in integer numbers, ...)  - basis vectors : array_like shape=(3, 3), order='C', dtype='double'  .. code-block:: python  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]  - atomic points : array_like shape=(num_atom, 3), order='C', dtype='double'  Atomic position vectors with respect to basis vectors, i.e., given in fractional coordinates. - types : array_like shape=(num_atom, ), dtype='intc'  Integer numbers to distinguish species. - optional data : case-I: Scalar shape=(num_atom, ), dtype='double'  Each atomic site has a scalar value. With is_magnetic=True, values are included in the symmetry search in a way of collinear magnetic moments. case-II: Vectors shape=(num_atom, 3), order='C', dtype='double'  Each atomic site has a vector. With is_magnetic=True, vectors are included in the symmetry search in a way of non-collinear magnetic moments."
+          },
+          "symprec": {
+            "type": "float",
+            "description": "Symmetry search tolerance in the unit of length."
+          },
+          "angle_tolerance": {
+            "type": "float",
+            "description": "Symmetry search tolerance in the unit of angle deg. Normally it is not recommended to use this argument. See a bit more detail at :ref:`variables_angle_tolerance`. If the value is negative, an internally optimized routine is used to judge symmetry."
+          },
+          "mag_symprec": {
+            "type": "float",
+            "description": "Tolerance for magnetic symmetry search in the unit of magnetic moments. If not specified, use the same value as symprec."
+          },
+          "is_magnetic": {
+            "type": "bool",
+            "description": "When optional data (4th element of cell tuple) is given in case-II, the symmetry search is performed considering magnetic symmetry, which may be corresponding to that for non-collinear calculation. Default is True, but this does nothing unless optional data is supplied."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "dict",
+            "description": "Rotation parts and translation parts of symmetry operations are represented with respect to basis vectors. When the search failed, :code:`None` is returned. - 'rotations' : ndarray shape=(num_operations, 3, 3), order='C', dtype='intc' Rotation (matrix) parts of symmetry operations - 'translations' : ndarray shape=(num_operations, 3), dtype='double' Translation (vector) parts of symmetry operations - 'time_reversals': ndarray (exists when the optional data is given) shape=(num_operations, ), dtype='bool\\_' Time reversal part of magnetic symmetry operations. True indicates time reversal operation, and False indicates an ordinary operation. - 'equivalent_atoms' : ndarray shape=(num_atoms, ), dtype='intc' A mapping table of atoms to symmetrically independent atoms. This is used to find symmetrically equivalent atoms. The numbers contained are the indices of atoms starting from 0, i.e., the first atom is numbered as 0, and then 1, 2, 3, ... :code:`np.unique(equivalent_atoms)` gives representative symmetrically independent atoms. A list of atoms that are symmetrically equivalent to some independent atom (here for example 1 is in :code:`equivalent_atom`) is found by :code:`np.where(equivalent_atom=1)[0]`."
+          }
+        },
+        "ori_input": "cell: Cell, symprec: float = 1e-05, angle_tolerance: float = -1.0, mag_symprec: float = -1.0, is_magnetic: bool = True",
+        "ori_description": "Find symmetry operations from a crystal structure and site tensors.  .. warning:: :func:`get_symmetry` with ``is_magnetic=True`` is deprecated at version 2.0.  Use :func:`get_magnetic_symmetry` for magnetic symmetry search.  Parameters ---------- cell : tuple Crystal structure given in tuple. It has to follow the following form, (basis vectors, atomic points, types in integer numbers, ...)  - basis vectors : array_like shape=(3, 3), order='C', dtype='double'  .. code-block:: python  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]  - atomic points : array_like shape=(num_atom, 3), order='C', dtype='double'  Atomic position vectors with respect to basis vectors, i.e., given in fractional coordinates. - types : array_like shape=(num_atom, ), dtype='intc'  Integer numbers to distinguish species. - optional data : case-I: Scalar shape=(num_atom, ), dtype='double'  Each atomic site has a scalar value. With is_magnetic=True, values are included in the symmetry search in a way of collinear magnetic moments. case-II: Vectors shape=(num_atom, 3), order='C', dtype='double'  Each atomic site has a vector. With is_magnetic=True, vectors are included in the symmetry search in a way of non-collinear magnetic moments. symprec : float Symmetry search tolerance in the unit of length. angle_tolerance : float Symmetry search tolerance in the unit of angle deg. Normally it is not recommended to use this argument. See a bit more detail at :ref:`variables_angle_tolerance`. If the value is negative, an internally optimized routine is used to judge symmetry. mag_symprec : float Tolerance for magnetic symmetry search in the unit of magnetic moments. If not specified, use the same value as symprec. is_magnetic : bool When optional data (4th element of cell tuple) is given in case-II, the symmetry search is performed considering magnetic symmetry, which may be corresponding to that for non-collinear calculation. Default is True, but this does nothing unless optional data is supplied.  Returns ------- symmetry: dict Rotation parts and translation parts of symmetry operations are represented with respect to basis vectors. When the search failed, :code:`None` is returned.  - 'rotations' : ndarray shape=(num_operations, 3, 3), order='C', dtype='intc'  Rotation (matrix) parts of symmetry operations - 'translations' : ndarray shape=(num_operations, 3), dtype='double'  Translation (vector) parts of symmetry operations - 'time_reversals': ndarray (exists when the optional data is given) shape=(num_operations, ), dtype='bool\\_'  Time reversal part of magnetic symmetry operations. True indicates time reversal operation, and False indicates an ordinary operation. - 'equivalent_atoms' : ndarray shape=(num_atoms, ), dtype='intc'  A mapping table of atoms to symmetrically independent atoms. This is used to find symmetrically equivalent atoms. The numbers contained are the indices of atoms starting from 0, i.e., the first atom is numbered as 0, and then 1, 2, 3, ... :code:`np.unique(equivalent_atoms)` gives representative symmetrically independent atoms. A list of atoms that are symmetrically equivalent to some independent atom (here for example 1 is in :code:`equivalent_atom`) is found by :code:`np.where(equivalent_atom=1)[0]`.  Notes ----- The orders of the rotation matrices and the translation vectors correspond with each other, e.g. , the second symmetry operation is organized by the set of the second rotation matrix and second translation vector in the respective arrays. Therefore a set of symmetry operations may obtained by  .. code-block:: python  [(r, t) for r, t in zip(dataset['rotations'], dataset['translations'])]  The operations are given with respect to the fractional coordinates (not for Cartesian coordinates). The rotation matrix and translation vector are used as follows:  .. code-block::  new_vector[3x1] = rotation[3x3] * vector[3x1] + translation[3x1]  The three values in the vector are given for the a, b, and c axes, respectively."
+      },
+      {
+        "name": "get_spacegroup_type",
+        "type": "function",
+        "module": "spglib.spg",
+        "description": "Translate Hall number to space group type information. If it fails, return None.  This function allows to directly access to the space-group-type database in spglib (spg_database.c). To specify the space group type with a specific choice, ``hall_number`` is used. The definition of ``hall_number`` is found at :ref:`dataset_spg_get_dataset_spacegroup_type`.",
+        "input": {
+          "hall_number": {
+            "type": "int",
+            "description": "Serial number for Hall symbol"
+          },
+          "_throw": {
+            "type": "bool",
+            "description": ""
+          }
+        },
+        "output": {
+          "return": {
+            "type": "",
+            "description": "class:`SpaceGroupType` or None .. versionadded:: 1.9.4"
+          }
+        },
+        "ori_input": "hall_number: int, _throw: bool = False",
+        "ori_description": "Translate Hall number to space group type information. If it fails, return None.  This function allows to directly access to the space-group-type database in spglib (spg_database.c). To specify the space group type with a specific choice, ``hall_number`` is used. The definition of ``hall_number`` is found at :ref:`dataset_spg_get_dataset_spacegroup_type`.  :param hall_number: Serial number for Hall symbol :return: :class:`SpaceGroupType` or None  .. versionadded:: 1.9.4"
+      },
+      {
+        "name": "standardize_cell",
+        "type": "function",
+        "module": "spglib.cell",
+        "description": "Return standardized cell. When the search failed, ``None`` is returned.",
+        "input": {
+          "cell": {
+            "type": "SpgCell",
+            "description": "See the docstring of get_symmetry."
+          },
+          "to_primitive": {
+            "type": "bool",
+            "description": "If True, the standardized primitive cell is created."
+          },
+          "no_idealize": {
+            "type": "bool",
+            "description": "If True, it is disabled to idealize lengths and angles of basis vectors and positions of atoms according to crystal symmetry."
+          },
+          "symprec": {
+            "type": "float",
+            "description": "See the docstring of get_symmetry."
+          },
+          "angle_tolerance": {
+            "type": "float",
+            "description": "See the docstring of get_symmetry."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "The standardized unit cell or primitive cell is returned by a tuple of",
+            "description": "(lattice, positions, numbers). If it fails, None is returned."
+          }
+        },
+        "ori_input": "cell: SpgCell, to_primitive: bool = False, no_idealize: bool = False, symprec: float = 1e-05, angle_tolerance: float = -1.0",
+        "ori_description": "Return standardized cell. When the search failed, ``None`` is returned.  Parameters ---------- cell, symprec, angle_tolerance: See the docstring of get_symmetry. to_primitive : bool If True, the standardized primitive cell is created. no_idealize : bool If True, it is disabled to idealize lengths and angles of basis vectors and positions of atoms according to crystal symmetry.  Returns ------- The standardized unit cell or primitive cell is returned by a tuple of (lattice, positions, numbers). If it fails, None is returned.  Notes ----- .. versionadded:: 1.8  Now :func:`refine_cell` and :func:`find_primitive` are shorthands of this method with combinations of these options. About the default choice of the setting, see the documentation of ``hall_number`` argument of :func:`get_symmetry_dataset`. More detailed explanation is shown in the spglib (C-API) document."
+      },
+      {
+        "name": "niggli_reduce",
+        "type": "function",
+        "module": "spglib.reduce",
+        "description": "Run Niggli reduction. When the search failed, ``None`` is returned.  The transformation from original basis vectors :math:`( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} )` to final basis vectors :math:`( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )` is achieved by linear combination of basis vectors with integer coefficients without rotating coordinates. Therefore the transformation matrix is obtained by :math:`\\mathbf{P} = ( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} ) ( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )^{-1}` and the matrix elements have to be almost integers.  The algorithm detail is found at https://atztogo.github.io/niggli/ and the references are there in.",
+        "input": {
+          "lattice": {
+            "type": "ArrayLike[np.double]",
+            "description": "Lattice parameters in the form of  .. code-block::  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]"
+          },
+          "eps": {
+            "type": "float",
+            "description": "Tolerance parameter, but unlike `symprec` the unit is not a length. This is used to check if difference of norms of two basis vectors is close to zero or not and if two basis vectors are orthogonal by the value of dot product being close to zero or not. The detail is shown at https://atztogo.github.io/niggli/."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "niggli_lattice",
+            "description": "ndarray, (3, 3) if the Niggli reduction succeeded: Reduced lattice parameters are given as a numpy 'double' array: .. code-block:: [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]] otherwise None is returned."
+          }
+        },
+        "ori_input": "lattice: ArrayLike[np.double], eps: float = 1e-05",
+        "ori_description": "Run Niggli reduction. When the search failed, ``None`` is returned.  The transformation from original basis vectors :math:`( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} )` to final basis vectors :math:`( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )` is achieved by linear combination of basis vectors with integer coefficients without rotating coordinates. Therefore the transformation matrix is obtained by :math:`\\mathbf{P} = ( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} ) ( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )^{-1}` and the matrix elements have to be almost integers.  The algorithm detail is found at https://atztogo.github.io/niggli/ and the references are there in.  Parameters ---------- lattice: ndarray Lattice parameters in the form of  .. code-block::  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]  eps: float Tolerance parameter, but unlike `symprec` the unit is not a length. This is used to check if difference of norms of two basis vectors is close to zero or not and if two basis vectors are orthogonal by the value of dot product being close to zero or not. The detail is shown at https://atztogo.github.io/niggli/.  Returns ------- niggli_lattice: ndarray, (3, 3) if the Niggli reduction succeeded: Reduced lattice parameters are given as a numpy 'double' array:  .. code-block::  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]  otherwise None is returned.  Notes ----- .. versionadded:: 1.9.4"
+      },
+      {
+        "name": "delaunay_reduce",
+        "type": "function",
+        "module": "spglib.reduce",
+        "description": "Run Delaunay reduction. When the search failed, `None` is returned.  The transformation from original basis vectors :math:`( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} )` to final basis vectors :math:`( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )` is achieved by linear combination of basis vectors with integer coefficients without rotating coordinates. Therefore the transformation matrix is obtained by :math:`\\mathbf{P} = ( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} ) ( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )^{-1}` and the matrix elements have to be almost integers.  The algorithm is found in the international tables for crystallography volume A.",
+        "input": {
+          "lattice": {
+            "type": "ArrayLike[np.double]",
+            "description": "Lattice parameters in the form of  .. code-block::  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]"
+          },
+          "eps": {
+            "type": "float",
+            "description": "Tolerance parameter, but unlike `symprec` the unit is not a length. Tolerance to check if volume is close to zero or not and if two basis vectors are orthogonal by the value of dot product being close to zero or not."
+          }
+        },
+        "output": {
+          "return": {
+            "type": "delaunay_lattice",
+            "description": "ndarray, (3, 3) Reduced lattice parameters are given as a numpy 'double' array: .. code-block:: [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]"
+          }
+        },
+        "ori_input": "lattice: ArrayLike[np.double], eps: float = 1e-05",
+        "ori_description": "Run Delaunay reduction. When the search failed, `None` is returned.  The transformation from original basis vectors :math:`( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} )` to final basis vectors :math:`( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )` is achieved by linear combination of basis vectors with integer coefficients without rotating coordinates. Therefore the transformation matrix is obtained by :math:`\\mathbf{P} = ( \\mathbf{a} \\; \\mathbf{b} \\; \\mathbf{c} ) ( \\mathbf{a}' \\; \\mathbf{b}' \\; \\mathbf{c}' )^{-1}` and the matrix elements have to be almost integers.  The algorithm is found in the international tables for crystallography volume A.  Parameters ---------- lattice: ndarray, (3, 3) Lattice parameters in the form of  .. code-block::  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]  eps: float Tolerance parameter, but unlike `symprec` the unit is not a length. Tolerance to check if volume is close to zero or not and if two basis vectors are orthogonal by the value of dot product being close to zero or not.  Returns ------- delaunay_lattice: ndarray, (3, 3) Reduced lattice parameters are given as a numpy 'double' array:  .. code-block::  [[a_x, a_y, a_z], [b_x, b_y, b_z], [c_x, c_y, c_z]]  Notes ----- .. versionadded:: 1.9.4"
+      }
+    ],
+    "init_ref_tasks": [
+      "将8原子GaAs常规胞转换为spglib输入，获取空间群并生成标准原胞；重建结构，断言空间群216、2个位点、体积a³/4及Ga:As=1:1。",
+      "检查单原子位移导致的GaAs对称破缺；在固定symprec下验证空间群已偏离216，然后恢复原子位置并再次核验空间群与周期坐标。"
+    ],
+    "others": {
+      "basic_info": [
+        {
+          "source": "pypi",
+          "url": [
+            "https://github.com/spglib/spglib",
+            "https://pypi.org/project/spglib/",
+            "https://spglib.readthedocs.io/"
+          ],
+          "name": "spglib",
+          "version": "v2.7.0",
+          "index": 19,
+          "description": "spglib 是晶体对称性分析库的 Python 接口，能够识别空间群、标准化晶胞、寻找对称操作、生成等价原子位置并分析网格点的对称性，可用于 pymatgen 和 ASE 结构预处理与验证。核心数值实现位于 C 扩展。"
+        },
+        {
+          "source": "pypi",
+          "url": [
+            "https://github.com/materialsproject/pymatgen-core",
+            "https://pypi.org/project/pymatgen-core/",
+            "https://pymatgen.org/"
+          ],
+          "name": "pymatgen-core",
+          "version": "v2026.8.30",
+          "index": 1,
+          "description": "pymatgen-core提供晶体、晶格、组成、对称性、文件转换及材料计算结果分析的基础数据结构和方法，作为当前材料场景的统一结构状态。"
+        }
+      ],
+      "pypi_package": [
+        "spglib",
+        "pymatgen-core"
+      ],
+      "package_relation": "spglib: primary，承担空间群、等价位点和标准化；避免重复暴露pymatgen SpacegroupAnalyzer包装的同一后端。；pymatgen-core: complement，提供可修改、可保存的结构与组成实体，显式输出spglib tuple；只选对称分析所需结构能力。",
+      "package_metadata": [
+        {
+          "source_metadata": {
+            "repository": "https://github.com/spglib/spglib",
+            "documentation": "https://spglib.readthedocs.io/",
+            "pypi": "https://pypi.org/project/spglib/",
+            "pypi_version": "2.7.0",
+            "tag": "v2.7.0",
+            "commit": "12355c77fb7c505a55f52cae36341d73b781a065",
+            "release_published_at": "2025-12-29T09:50:26Z",
+            "checked_on": "2026-09-17",
+            "github_prerelease": false,
+            "notes": [
+              "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+              "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。"
+            ],
+            "release_url": "https://github.com/spglib/spglib/releases/tag/v2.7.0",
+            "release_api": "https://api.github.com/repos/spglib/spglib/releases/latest",
+            "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+            "source_directory": "seed_pypi_raw/spglib",
+            "submodule_status": []
+          },
+          "python_source_extraction": {
+            "strategy": "static_ast",
+            "requested_modules": [
+              "spglib"
+            ],
+            "source_files": [
+              "python/spglib/__init__.py",
+              "python/spglib/_compat/__init__.py",
+              "python/spglib/_compat/importlib/__init__.py",
+              "python/spglib/_compat/importlib/resources.py",
+              "python/spglib/_compat/typing.py",
+              "python/spglib/_compat/warnings.py",
+              "python/spglib/_internal.py",
+              "python/spglib/cell.py",
+              "python/spglib/error.py",
+              "python/spglib/kpoints.py",
+              "python/spglib/msg.py",
+              "python/spglib/reduce.py",
+              "python/spglib/spg.py",
+              "python/spglib/utils.py"
+            ],
+            "source_file_sha256": {
+              "python/spglib/__init__.py": "87202aa0d215e1ebb85aac0f3dba53070ab431901673e11407c55918cc4167c3",
+              "python/spglib/_compat/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "python/spglib/_compat/importlib/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "python/spglib/_compat/importlib/resources.py": "eb1245688740d36afa9d30870482c6147d098bcb3f0763d3089752099ec578e1",
+              "python/spglib/_compat/typing.py": "9e0dfe9b09a7904286cd85a2dd1d2720d3d805c073eb5995b7eecd8b298d5c4b",
+              "python/spglib/_compat/warnings.py": "8881fedd7d085fe56cd1d945260451d39e7ec7074cd76d6241bfc4734886b210",
+              "python/spglib/_internal.py": "b6151eca2e650bcedd88c6e09a0150d29d549724d50933e31d3719014cd9aed9",
+              "python/spglib/cell.py": "cffcdc7c8103edf21c8c31de2c9add672dfdc8213bbef3167a7148f3ebd3049f",
+              "python/spglib/error.py": "2eb8c8ecd3c7f6ea266372289c77ac8572df8f5524e46411f5647030dcbf798b",
+              "python/spglib/kpoints.py": "6cdf0ff6995b354d92ab985a1f7100d1d02d9276c883767601e5e99b1e13fe0c",
+              "python/spglib/msg.py": "a4139910c4d42c803c6158047d9365296e1e98ceb49e9252f2b975767bcc6fe5",
+              "python/spglib/reduce.py": "3a386bdd756557d2107d4e3379c711d5fb65fe291df2c62dc72e510f61a0c345",
+              "python/spglib/spg.py": "8da0c06fd0a08833dad149241f3e8c6ce27066bfe7bca2754d1c7d44f4d40be4",
+              "python/spglib/utils.py": "eecb6373bc278a3a8d5e81b488ff66535fa54a413c456ea16af00481b9bf79fc"
+            },
+            "source_version": "v2.7.0",
+            "source_commit": "12355c77fb7c505a55f52cae36341d73b781a065",
+            "native_function_count": 0,
+            "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+            "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+            "docstring_mapping": {
+              "description": "summary before Google/NumPy sections or reStructuredText fields",
+              "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+              "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+              "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+              "ori_description": "complete normalized source docstring or native embedded documentation"
+            },
+            "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+            "runtime_verified": false
+          }
+        },
+        {
+          "source_metadata": {
+            "repository": "https://github.com/materialsproject/pymatgen-core",
+            "documentation": "https://pymatgen.org/",
+            "pypi": "https://pypi.org/project/pymatgen-core/",
+            "pypi_version": "2026.8.30",
+            "tag": "v2026.8.30",
+            "commit": "73af4e53f5f24e1dcf11e0d94ca13be10ea956ad",
+            "release_published_at": "2026-08-30T02:43:08Z",
+            "checked_on": "2026-09-17",
+            "github_prerelease": false,
+            "notes": [
+              "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+              "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。"
+            ],
+            "release_url": "https://github.com/materialsproject/pymatgen-core/releases/tag/v2026.8.30",
+            "release_api": "https://api.github.com/repos/materialsproject/pymatgen-core/releases/latest",
+            "selection_rule": "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch",
+            "source_directory": "seed_pypi_raw/pymatgen-core",
+            "submodule_status": []
+          },
+          "python_source_extraction": {
+            "strategy": "static_ast",
+            "requested_modules": [
+              "pymatgen"
+            ],
+            "source_files": [
+              "src/pymatgen/alchemy/__init__.py",
+              "src/pymatgen/alchemy/filters.py",
+              "src/pymatgen/alchemy/materials.py",
+              "src/pymatgen/alchemy/transmuters.py",
+              "src/pymatgen/analysis/chempot_diagram.py",
+              "src/pymatgen/analysis/phase_diagram.py",
+              "src/pymatgen/analysis/reaction_calculator.py",
+              "src/pymatgen/command_line/__init__.py",
+              "src/pymatgen/command_line/bader_caller.py",
+              "src/pymatgen/command_line/chargemol_caller.py",
+              "src/pymatgen/command_line/critic2_caller.py",
+              "src/pymatgen/command_line/enumlib_caller.py",
+              "src/pymatgen/command_line/gulp_caller.py",
+              "src/pymatgen/command_line/mcsqs_caller.py",
+              "src/pymatgen/core/__init__.py",
+              "src/pymatgen/core/adsorption.py",
+              "src/pymatgen/core/bond_valence.py",
+              "src/pymatgen/core/bonds.py",
+              "src/pymatgen/core/composition.py",
+              "src/pymatgen/core/constants.py",
+              "src/pymatgen/core/elasticity/__init__.py",
+              "src/pymatgen/core/elasticity/elastic.py",
+              "src/pymatgen/core/elasticity/strain.py",
+              "src/pymatgen/core/elasticity/stress.py",
+              "src/pymatgen/core/energy_models.py",
+              "src/pymatgen/core/entries.py",
+              "src/pymatgen/core/ewald.py",
+              "src/pymatgen/core/graphs.py",
+              "src/pymatgen/core/interface.py",
+              "src/pymatgen/core/ion.py",
+              "src/pymatgen/core/lattice.py",
+              "src/pymatgen/core/libxcfunc.py",
+              "src/pymatgen/core/local_env.py",
+              "src/pymatgen/core/molecular_orbitals.py",
+              "src/pymatgen/core/molecule_matcher.py",
+              "src/pymatgen/core/molecule_structure_comparator.py",
+              "src/pymatgen/core/operations.py",
+              "src/pymatgen/core/periodic_table.py",
+              "src/pymatgen/core/sites.py",
+              "src/pymatgen/core/spectrum.py",
+              "src/pymatgen/core/structure.py",
+              "src/pymatgen/core/structure_analyzer.py",
+              "src/pymatgen/core/structure_matcher.py",
+              "src/pymatgen/core/structure_prediction/__init__.py",
+              "src/pymatgen/core/structure_prediction/dopant_predictor.py",
+              "src/pymatgen/core/structure_prediction/substitution_probability.py",
+              "src/pymatgen/core/structure_prediction/substitutor.py",
+              "src/pymatgen/core/structure_prediction/volume_predictor.py",
+              "src/pymatgen/core/surface.py",
+              "src/pymatgen/core/tensors.py",
+              "src/pymatgen/core/trajectory.py",
+              "src/pymatgen/core/units.py",
+              "src/pymatgen/core/xcfunc.py",
+              "src/pymatgen/electronic_structure/__init__.py",
+              "src/pymatgen/electronic_structure/bandstructure.py",
+              "src/pymatgen/electronic_structure/boltztrap.py",
+              "src/pymatgen/electronic_structure/boltztrap2.py",
+              "src/pymatgen/electronic_structure/cohp.py",
+              "src/pymatgen/electronic_structure/core.py",
+              "src/pymatgen/electronic_structure/dos.py",
+              "src/pymatgen/electronic_structure/plotter.py",
+              "src/pymatgen/io/abinit/__init__.py",
+              "src/pymatgen/io/abinit/abiobjects.py",
+              "src/pymatgen/io/abinit/abitimer.py",
+              "src/pymatgen/io/abinit/inputs.py",
+              "src/pymatgen/io/abinit/netcdf.py",
+              "src/pymatgen/io/abinit/pseudos.py",
+              "src/pymatgen/io/abinit/variable.py",
+              "src/pymatgen/io/adf.py",
+              "src/pymatgen/io/ase.py",
+              "src/pymatgen/io/atat.py",
+              "src/pymatgen/io/babel.py",
+              "src/pymatgen/io/cif.py",
+              "src/pymatgen/io/common.py",
+              "src/pymatgen/io/core.py",
+              "src/pymatgen/io/cp2k/__init__.py",
+              "src/pymatgen/io/cp2k/inputs.py",
+              "src/pymatgen/io/cp2k/outputs.py",
+              "src/pymatgen/io/cp2k/sets.py",
+              "src/pymatgen/io/cp2k/utils.py",
+              "src/pymatgen/io/cssr.py",
+              "src/pymatgen/io/exciting/__init__.py",
+              "src/pymatgen/io/exciting/inputs.py",
+              "src/pymatgen/io/feff/__init__.py",
+              "src/pymatgen/io/feff/inputs.py",
+              "src/pymatgen/io/feff/outputs.py",
+              "src/pymatgen/io/feff/sets.py",
+              "src/pymatgen/io/fiesta.py",
+              "src/pymatgen/io/gaussian.py",
+              "src/pymatgen/io/icet.py",
+              "src/pymatgen/io/jarvis.py",
+              "src/pymatgen/io/jdftx/__init__.py",
+              "src/pymatgen/io/jdftx/_output_utils.py",
+              "src/pymatgen/io/jdftx/generic_tags.py",
+              "src/pymatgen/io/jdftx/inputs.py",
+              "src/pymatgen/io/jdftx/jdftxinfile_default_inputs.py",
+              "src/pymatgen/io/jdftx/jdftxinfile_master_format.py",
+              "src/pymatgen/io/jdftx/jdftxinfile_ref_options.py",
+              "src/pymatgen/io/jdftx/jdftxoutfileslice.py",
+              "src/pymatgen/io/jdftx/jelstep.py",
+              "src/pymatgen/io/jdftx/jminsettings.py",
+              "src/pymatgen/io/jdftx/joutstructure.py",
+              "src/pymatgen/io/jdftx/joutstructures.py",
+              "src/pymatgen/io/jdftx/outputs.py",
+              "src/pymatgen/io/jdftx/sets.py",
+              "src/pymatgen/io/lammps/__init__.py",
+              "src/pymatgen/io/lammps/data.py",
+              "src/pymatgen/io/lammps/generators.py",
+              "src/pymatgen/io/lammps/inputs.py",
+              "src/pymatgen/io/lammps/outputs.py",
+              "src/pymatgen/io/lammps/sets.py",
+              "src/pymatgen/io/lammps/utils.py",
+              "src/pymatgen/io/lmto.py",
+              "src/pymatgen/io/lobster/__init__.py",
+              "src/pymatgen/io/lobster/future/__init__.py",
+              "src/pymatgen/io/lobster/future/constants.py",
+              "src/pymatgen/io/lobster/future/core.py",
+              "src/pymatgen/io/lobster/future/inputs.py",
+              "src/pymatgen/io/lobster/future/lobsterenv.py",
+              "src/pymatgen/io/lobster/future/outputs/__init__.py",
+              "src/pymatgen/io/lobster/future/outputs/bands.py",
+              "src/pymatgen/io/lobster/future/outputs/coxxcar.py",
+              "src/pymatgen/io/lobster/future/outputs/doscar.py",
+              "src/pymatgen/io/lobster/future/outputs/icoxxlist.py",
+              "src/pymatgen/io/lobster/future/outputs/lobsterout.py",
+              "src/pymatgen/io/lobster/future/outputs/misc.py",
+              "src/pymatgen/io/lobster/future/outputs/populations.py",
+              "src/pymatgen/io/lobster/future/types.py",
+              "src/pymatgen/io/lobster/future/utils.py",
+              "src/pymatgen/io/lobster/future/versioning.py",
+              "src/pymatgen/io/lobster/inputs.py",
+              "src/pymatgen/io/lobster/lobsterenv.py",
+              "src/pymatgen/io/lobster/outputs.py",
+              "src/pymatgen/io/lobster/sets.py",
+              "src/pymatgen/io/multiwfn.py",
+              "src/pymatgen/io/nwchem.py",
+              "src/pymatgen/io/openff.py",
+              "src/pymatgen/io/optimade.py",
+              "src/pymatgen/io/packmol.py",
+              "src/pymatgen/io/phonopy.py",
+              "src/pymatgen/io/prismatic.py",
+              "src/pymatgen/io/pwmat/__init__.py",
+              "src/pymatgen/io/pwmat/inputs.py",
+              "src/pymatgen/io/pwmat/outputs.py",
+              "src/pymatgen/io/pwscf.py",
+              "src/pymatgen/io/qchem/__init__.py",
+              "src/pymatgen/io/qchem/inputs.py",
+              "src/pymatgen/io/qchem/outputs.py",
+              "src/pymatgen/io/qchem/sets.py",
+              "src/pymatgen/io/qchem/utils.py",
+              "src/pymatgen/io/registry.py",
+              "src/pymatgen/io/res.py",
+              "src/pymatgen/io/shengbte.py",
+              "src/pymatgen/io/template.py",
+              "src/pymatgen/io/vasp/__init__.py",
+              "src/pymatgen/io/vasp/help.py",
+              "src/pymatgen/io/vasp/inputs.py",
+              "src/pymatgen/io/vasp/optics.py",
+              "src/pymatgen/io/vasp/outputs.py",
+              "src/pymatgen/io/vasp/sets.py",
+              "src/pymatgen/io/wannier90.py",
+              "src/pymatgen/io/xcrysden.py",
+              "src/pymatgen/io/xr.py",
+              "src/pymatgen/io/xtb/__init__.py",
+              "src/pymatgen/io/xtb/inputs.py",
+              "src/pymatgen/io/xtb/outputs.py",
+              "src/pymatgen/io/xyz.py",
+              "src/pymatgen/io/zeopp.py",
+              "src/pymatgen/optimization/__init__.py",
+              "src/pymatgen/phonon/__init__.py",
+              "src/pymatgen/phonon/bandstructure.py",
+              "src/pymatgen/phonon/dos.py",
+              "src/pymatgen/phonon/gruneisen.py",
+              "src/pymatgen/phonon/ir_spectra.py",
+              "src/pymatgen/phonon/plotter.py",
+              "src/pymatgen/phonon/thermal_displacements.py",
+              "src/pymatgen/symmetry/__init__.py",
+              "src/pymatgen/symmetry/analyzer.py",
+              "src/pymatgen/symmetry/bandstructure.py",
+              "src/pymatgen/symmetry/groups.py",
+              "src/pymatgen/symmetry/kpath.py",
+              "src/pymatgen/symmetry/maggroups.py",
+              "src/pymatgen/symmetry/settings.py",
+              "src/pymatgen/symmetry/site_symmetries.py",
+              "src/pymatgen/symmetry/structure.py",
+              "src/pymatgen/transformations/__init__.py",
+              "src/pymatgen/transformations/advanced_transformations.py",
+              "src/pymatgen/transformations/site_transformations.py",
+              "src/pymatgen/transformations/standard_transformations.py",
+              "src/pymatgen/transformations/transformation_abc.py",
+              "src/pymatgen/util/__init__.py",
+              "src/pymatgen/util/coord.py",
+              "src/pymatgen/util/due.py",
+              "src/pymatgen/util/graph_hashing.py",
+              "src/pymatgen/util/io_utils.py",
+              "src/pymatgen/util/joblib.py",
+              "src/pymatgen/util/misc.py",
+              "src/pymatgen/util/num.py",
+              "src/pymatgen/util/numba.py",
+              "src/pymatgen/util/plotting.py",
+              "src/pymatgen/util/provenance.py",
+              "src/pymatgen/util/string.py",
+              "src/pymatgen/util/testing.py",
+              "src/pymatgen/util/typing.py"
+            ],
+            "source_file_sha256": {
+              "src/pymatgen/alchemy/__init__.py": "a087421ab2af9cb8ce47be80940f1ca3520a1d6088f6dfc7f95172cb208d2045",
+              "src/pymatgen/alchemy/filters.py": "2175f676f8299dda2be52cfe3ccce0e7ad9f707005a171d095563cd651b62577",
+              "src/pymatgen/alchemy/materials.py": "fe331ed0e97f8aba0a0835d81d226cab7cceafc709a80e56460c528d40efa5a1",
+              "src/pymatgen/alchemy/transmuters.py": "796c30cd516cb54ae9bb7c5ee001e6b19993b36d991c840a75cbfd1229819066",
+              "src/pymatgen/analysis/chempot_diagram.py": "492c513d10af7b2d04bd1e682fce2d0d3753b1a3b4bf66348e71f94a1d8cf7d7",
+              "src/pymatgen/analysis/phase_diagram.py": "d5cff8dfaac07dd0952160c7af6e0e8fbcffeb962a2d72c04faffc66ec519158",
+              "src/pymatgen/analysis/reaction_calculator.py": "dd466f3b98bd7c5b4b302cbd58dc4d77f852e9758dcf96af9390fa98bc65483f",
+              "src/pymatgen/command_line/__init__.py": "bd9fbeec5078081ba5431ee9dc4521c86fffc1f202f345501f6a11842b9b52eb",
+              "src/pymatgen/command_line/bader_caller.py": "5b0a617b6b6f4b7dce0f65bc8888f7993b48940d3b9b29ca8b8a42f727983ec2",
+              "src/pymatgen/command_line/chargemol_caller.py": "4a7692d9006ee21efc7758a2a6d97317b9a509db295feabba139abb3293c541e",
+              "src/pymatgen/command_line/critic2_caller.py": "12ea036a1b022b3bd2f54c6d55276e4c1888012e753b2070c7b92c4fa54670f4",
+              "src/pymatgen/command_line/enumlib_caller.py": "297d87e94312d47feb8e4df4f5810c69a0b50cf2204f045c0eb30501449a2784",
+              "src/pymatgen/command_line/gulp_caller.py": "9ebff8af6c16184b553b3814c18d8c7d029f64f172008d9a04c9ef9b2b42d695",
+              "src/pymatgen/command_line/mcsqs_caller.py": "b08e19826c79de34fde4f01fc3f9707078ab3b698c30c20c25376a25f275d540",
+              "src/pymatgen/core/__init__.py": "1f1e5869bef0dcf3854722d153fed0e700bdf3426bb385adb1957218dc294032",
+              "src/pymatgen/core/adsorption.py": "2dfd57af0be60a0e90bba1053b5896ba4556e90db5935e80ae512cac0e2fd0bf",
+              "src/pymatgen/core/bond_valence.py": "cd2867daf3320572995cc06a7a41b152c0c7b16eb9e6d257f155fdd38e9d56b4",
+              "src/pymatgen/core/bonds.py": "7e9e36133668226869dbadfc49d949eaa1f16a58631c1a5b19e52431d5af2609",
+              "src/pymatgen/core/composition.py": "caa867271ce022b4379eeac25ab62c4062c82e5517a99c2ae3c0450625efbe56",
+              "src/pymatgen/core/constants.py": "73f5fc1e39f165efe49e30daa1fb7f09861aeb87eb2352aa71e81f8854a3fdc0",
+              "src/pymatgen/core/elasticity/__init__.py": "a680ac5f3fcd5abae81700f09b768689046092c18766c8e72965299edebd2c1a",
+              "src/pymatgen/core/elasticity/elastic.py": "f795623b056a523efde8f5e3a8e071eb597a1769cf1c4bae63ea866f06f6ff0d",
+              "src/pymatgen/core/elasticity/strain.py": "4a74ba66e9ddc30ed38dd4ce1498c2bc514f784d35e5ae69f2ddb61b4e61ce17",
+              "src/pymatgen/core/elasticity/stress.py": "ab034d74f6091889d4fa5083f0bbe9d1930c01a3b149ec7130f89f92b7d64b40",
+              "src/pymatgen/core/energy_models.py": "e5c7ed890fd40f6d4b7bd52ae4dffa7346cc36b58a5ea6c1107b024503969a9f",
+              "src/pymatgen/core/entries.py": "6996cfc97cfa39c82c5d64947364bfcb92ab38dc3259676c88eb166146fa1ba9",
+              "src/pymatgen/core/ewald.py": "c9fd4c52b686ab65eebc2a238fbc265cb5356f1f5b13b168fab0cd003185f984",
+              "src/pymatgen/core/graphs.py": "dc961fa1d8fe0631197cfbeb8b7c9cc742fe5281a40ae94c43a04e86394f478f",
+              "src/pymatgen/core/interface.py": "be0d3218e14473e4ed939ea9e3e733c8d405774224f759da0c3caa051f0cb127",
+              "src/pymatgen/core/ion.py": "0b20714a339cd31861c7f1978543af79fbd01eb8aa17328742c84872d08099b9",
+              "src/pymatgen/core/lattice.py": "df40d5b87a70d7f94c67895b4237f054971434ab969498afb3ff374fd1cadfe0",
+              "src/pymatgen/core/libxcfunc.py": "a61bdf271fd60af6729a476f5f70832108c060df864a64c4fe6a9236826f8bf7",
+              "src/pymatgen/core/local_env.py": "b4dbe2c89314f33696cf2f7afb6e6e99d252bd00dce48cfbee6b4ea424f313a4",
+              "src/pymatgen/core/molecular_orbitals.py": "f810c34e63934cb3bbecc7924022a50bf95ee177d32565bebc99f1b93becf441",
+              "src/pymatgen/core/molecule_matcher.py": "9a424b6eeca69a00f675b3fbf0831db8c10c5f2a3d51793bfd89d0b8192223ca",
+              "src/pymatgen/core/molecule_structure_comparator.py": "1c0b39fcd8d481d88ba7cd639be054e0c6d6c34bea2d391052a2eac5ec39166c",
+              "src/pymatgen/core/operations.py": "32b1e38ec128ea5397936daa464461b2fa8c9f0c43d887c7640b72b2776e8264",
+              "src/pymatgen/core/periodic_table.py": "8180a742e443f68dc7e0bad23bfa1bd33431ab95af6bb922e67f8615634b4be2",
+              "src/pymatgen/core/sites.py": "4073539d891c2c0df5a5b0c5da5c6ca12e2e06569cd23b7a6bfdc82c6ba48cff",
+              "src/pymatgen/core/spectrum.py": "083321a558fa03c6e769283b3e159f9db9bde3d25a14fc21c37add7905c479ff",
+              "src/pymatgen/core/structure.py": "c43dbbee3ececbf0b0a856deb285828ba735469a7f91f52e69a4b32f8dbbcf4c",
+              "src/pymatgen/core/structure_analyzer.py": "b4ef6c906e7c336378ba08e178d11bfb803fc76e5365740a5f122b00a48995f2",
+              "src/pymatgen/core/structure_matcher.py": "8ac86f28d0ecd46ecb064192508ab38a552ae267d733e92bcbf1a983cb6ff1aa",
+              "src/pymatgen/core/structure_prediction/__init__.py": "dbc8ccde7c74c9108642862016065ca1be2f37643755e0702ece97dba3f49810",
+              "src/pymatgen/core/structure_prediction/dopant_predictor.py": "cb2551efd8de9e5f6b977c6ef1347e76ef6ca0ea5af2a26e9d44eebb9af09626",
+              "src/pymatgen/core/structure_prediction/substitution_probability.py": "b060b04260ea9d29b2b2ee18c2e481905a9c788b5991a66d3a5dc0cf2a93fa44",
+              "src/pymatgen/core/structure_prediction/substitutor.py": "b6abdfd3394ccddae45eec88331429bceb546e9de5299af6ff9904e2f4367b3d",
+              "src/pymatgen/core/structure_prediction/volume_predictor.py": "3bc2b537caa067e91cd66331cb08e53b5e1758737521c24732a4a7142563be76",
+              "src/pymatgen/core/surface.py": "0fdf31f79f24068c149a43fd83ff4794ab975a48153f4144d3e003828c2c06a2",
+              "src/pymatgen/core/tensors.py": "39ab4a1f10943932af6d7077e4714cd940d1811c717b8e364b9d13b6ec73044b",
+              "src/pymatgen/core/trajectory.py": "6a8c23cf8fa3727881251ad79d9b62e5fff5bbea4cb58eaea1465dbfb7b0cde7",
+              "src/pymatgen/core/units.py": "ea7b7b40e95307aa20850d72090f27d75f5d5c7e9af85338488126e03686c598",
+              "src/pymatgen/core/xcfunc.py": "c613950d246dc469f27e0a77c5d9e1aed0d4aebb42c9a0d22eab1aaa81a4fe83",
+              "src/pymatgen/electronic_structure/__init__.py": "860fcd3eb6832a8744ddd75ec46357452e9279c835b42c0170103c59d9d902a8",
+              "src/pymatgen/electronic_structure/bandstructure.py": "72df6bfa68c96061c09ba240a9090870f943bc9cb6c6e445eaf3af2766425d04",
+              "src/pymatgen/electronic_structure/boltztrap.py": "4ab739cecfa8e96438ae9b797a5881b6331b4dad9c0d8140daf72c024cf40680",
+              "src/pymatgen/electronic_structure/boltztrap2.py": "f40c792b2880dc75af11d03236af8be2078f240f508196a971f12894aa2eef36",
+              "src/pymatgen/electronic_structure/cohp.py": "7d0f0c258190994aba4768a1811c9ada0b02b98b7b99ed6a9e40533f1976d2cc",
+              "src/pymatgen/electronic_structure/core.py": "d39323e84b18501241fec29130bdcec094f86e1f1f253803e9d42ec58b130fa3",
+              "src/pymatgen/electronic_structure/dos.py": "0eb03f8b039599b3dea157b153477b49b07fca0d84799ffa876e4e86429cd8b7",
+              "src/pymatgen/electronic_structure/plotter.py": "b7681818d98e712228a86d0bb51f6486136e43814132707141c8c55c62b81565",
+              "src/pymatgen/io/abinit/__init__.py": "6b453c8fcd04ecb3568e3576e422c31c94d3d4080e72f45ca93d0b4f620b6463",
+              "src/pymatgen/io/abinit/abiobjects.py": "233ec0e12a83a9b53f33a4b87f6e738255e1da6927f6300c657ba9a0ced08f93",
+              "src/pymatgen/io/abinit/abitimer.py": "37f635c5efb01eff898d021df35d0193882a6260592d9a1c9792f13d63429623",
+              "src/pymatgen/io/abinit/inputs.py": "d1d32f5320437dae40010502e5731ed33d2f01ddd04d890d874c85641e98305c",
+              "src/pymatgen/io/abinit/netcdf.py": "31584b8c151174324b02d82aaacc902efec4ad97a8baaba2d088bd3de16b4823",
+              "src/pymatgen/io/abinit/pseudos.py": "ca9a9646293657b974d99aed610603ef8857286e99cad79fca78d0888106d4fd",
+              "src/pymatgen/io/abinit/variable.py": "96a85c455f0de941a31cde0fde76ca6c1f576492f89b66aba727774c39d6863d",
+              "src/pymatgen/io/adf.py": "3a9717e9eaa9a86dbf6d13ab67208ab03da5372acec84cec51a610aef86cc113",
+              "src/pymatgen/io/ase.py": "767848360f9c5fd463ba54842c444a3bfbba08478f20ed8d2f97b0bf3615fe31",
+              "src/pymatgen/io/atat.py": "8c22f0f9669bf5704943c4095ea3923fd3b8b51c7a6451ab39b6c3158dcda8bb",
+              "src/pymatgen/io/babel.py": "308c589415fb7a16f0badfc3e1c1438b4fbb362c3f4e9fea0f67428ef9473322",
+              "src/pymatgen/io/cif.py": "237a28c974d033cd50b821f0af837e972ff95dfae67058542a2aaf39994e341c",
+              "src/pymatgen/io/common.py": "cdf857b2b92db679ee968052f2e8a9ed34c07440984687a7c9e2a690a8e54943",
+              "src/pymatgen/io/core.py": "8dc57b0f86585eefb4f923c61fb39310b3c66529aa651aaf38dd8550bd5dbb45",
+              "src/pymatgen/io/cp2k/__init__.py": "90ade856a00bf6d619ba4bcc340d6ba58a8e37f1a3105bbba06685a81b221565",
+              "src/pymatgen/io/cp2k/inputs.py": "0e6eb4f2b4a25ca4ffbd44fcf132a51f1026020e08b47cabe764ce587521e6d6",
+              "src/pymatgen/io/cp2k/outputs.py": "76d6ef8488d217bd4046acdd96c6810e88dc432608e25a9ef8b4a1b83e910469",
+              "src/pymatgen/io/cp2k/sets.py": "6fcbe1d540c0bedc94877c75cc114bdd07a565eedb336abc610e833c2a3db757",
+              "src/pymatgen/io/cp2k/utils.py": "237f6a88ded54a4b3a439d52d0e42a241d88ba2c8362e4570fa47233b709150f",
+              "src/pymatgen/io/cssr.py": "b5bcb3461773d7f0342f69e1e94f45ba875c54daae50262f269a19d22fdc5b7f",
+              "src/pymatgen/io/exciting/__init__.py": "1d84c0c35a99f8dd21a1309a5d83291877ab9335c461a4fc2308d8462d55fa51",
+              "src/pymatgen/io/exciting/inputs.py": "5ebebfdf4040204329b18bb69cf06451bdc31b7fc4247173d5cd765954fc09e4",
+              "src/pymatgen/io/feff/__init__.py": "835e774e7cebd27edfa12047443a4e72b938451348866b0adb4680559bebe53b",
+              "src/pymatgen/io/feff/inputs.py": "802933178dbb41d1f8dd9855ac67550493084921988d96bffb57ffead69d38f4",
+              "src/pymatgen/io/feff/outputs.py": "7aaa9f9a238c539182ed2aa4002b8fb2cb05a4040894a7d494ee8bd3d61f1f77",
+              "src/pymatgen/io/feff/sets.py": "9c68730cd6a478fe67217c3af50257de93d449577b59743c4fb6c812783706be",
+              "src/pymatgen/io/fiesta.py": "cd5d3e4f12843312bba533d9b26c71bd230fa72bc3a82d053bb639217ff6c439",
+              "src/pymatgen/io/gaussian.py": "48435ee64cb3ebfc93397de497266abc03c67e853bdb520c917b96cda09fdf76",
+              "src/pymatgen/io/icet.py": "a644e786deb2958c1532bdb0e88ab29b5c144fd004e71d4ae4c8c85719483eaf",
+              "src/pymatgen/io/jarvis.py": "eb37cb2d44dd47576a580abd718ef554483c4f7e3f517f42c23c2d8abc547527",
+              "src/pymatgen/io/jdftx/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "src/pymatgen/io/jdftx/_output_utils.py": "746395d15f0492ef518edb1e096efd08e59f12996cc708834fd99f7f962770b9",
+              "src/pymatgen/io/jdftx/generic_tags.py": "6a8b3b1bea7c1f27fdac04a1b798576810a5ba5bbc8e7a01af27e1623aae9c01",
+              "src/pymatgen/io/jdftx/inputs.py": "815ae4d5fd68857a45264843f4a3f04998a441ee3626031bc08b96233762aba9",
+              "src/pymatgen/io/jdftx/jdftxinfile_default_inputs.py": "913e79673dddc3e35b83b2b7ffe820acd2a0b7b4cdb2171a5b9cfbde69e71b61",
+              "src/pymatgen/io/jdftx/jdftxinfile_master_format.py": "4d9e21158ffd194dd29d79b18c8644e3be72c11c377addd4d934a5bff145c2ab",
+              "src/pymatgen/io/jdftx/jdftxinfile_ref_options.py": "5de852802f2a760973c6761828d5e4742dbb49bbbe295dea3aeaeed3f47c1e28",
+              "src/pymatgen/io/jdftx/jdftxoutfileslice.py": "288aec06c8e2404578eb1082947c9db1df95d74566da25db39953fa4643cd3b1",
+              "src/pymatgen/io/jdftx/jelstep.py": "012fd0430de41c03ebb8a52cd7c34b2fdcb649bb20e1111764e3fa289a68ee34",
+              "src/pymatgen/io/jdftx/jminsettings.py": "3f86af8c7d4f25ecece7db45d78d5c99a99dc950ea41df1f06a1f9c9e9111318",
+              "src/pymatgen/io/jdftx/joutstructure.py": "841455ce195dbf4e7938be15f7703f8ace1b5288942ea7df73fbcb644c26c86a",
+              "src/pymatgen/io/jdftx/joutstructures.py": "6b414d0825d8acd16e5219b5930aa1ce2d53e0d73b5c8278a7b4fad464bfa8d4",
+              "src/pymatgen/io/jdftx/outputs.py": "c373b9dc53451bbef8a55b39b0d7c19fe870dfa586bfda47e3ee08018e713d92",
+              "src/pymatgen/io/jdftx/sets.py": "3956acdfc2acf63e30670a1f4e99447df686d460da0a92490e79803abbb4c8a1",
+              "src/pymatgen/io/lammps/__init__.py": "63a54cacd2a1a57aabc623c5ec0dd17392b6005f03bf8487e7e38ca5970665c2",
+              "src/pymatgen/io/lammps/data.py": "f003714da5434d98fcf2478b8d59119da285cd0d075e98884e4cb8d8cef8c460",
+              "src/pymatgen/io/lammps/generators.py": "34dd176d8dfa0f69be9f06d7526f51e188e6e2708ba73270a37421c53fa52bc0",
+              "src/pymatgen/io/lammps/inputs.py": "40c5a3c802ed95e4f5f6bf982f1da9e03653e129497d5b88d902a133404756c6",
+              "src/pymatgen/io/lammps/outputs.py": "00ffa132f05c6dc9e5e140f4eb7763c51ee10f6a59841d24e1cfd16e544cd6a1",
+              "src/pymatgen/io/lammps/sets.py": "0603700ec1b9e313a4c1b34b475550aa0e7dc9c72cd835014309f2ea419e1c9d",
+              "src/pymatgen/io/lammps/utils.py": "7b198fb4dc5f6a8906d5af1fc069e06e8d0e816262cfd9477da3de7a7461b225",
+              "src/pymatgen/io/lmto.py": "739879f82c33a440f3092295f5fea7396ec265667dcd3e566fe46fa05623f7f7",
+              "src/pymatgen/io/lobster/__init__.py": "50caf7cac2f4c016ac0bc1ca333a977ed319ab682ce5e2e06505603eae394af3",
+              "src/pymatgen/io/lobster/future/__init__.py": "0d4074e1f1ec764e5b73c1f5c4639ebddf6dba78bcf9e090228708d8578eea10",
+              "src/pymatgen/io/lobster/future/constants.py": "9565c787c8769877a791ac4b25751583e2c95c709a391fda75b8f32446cfd64f",
+              "src/pymatgen/io/lobster/future/core.py": "c92c431a6619f914d621ab5319931cdae6e9e5838a7becb4ea04f046229288c9",
+              "src/pymatgen/io/lobster/future/inputs.py": "8cfeedec2ad470441463086f255461f0316aead31c254fec1d0e34fd5717568e",
+              "src/pymatgen/io/lobster/future/lobsterenv.py": "392486c02942028ed8d7d4de889f0fad68303cec5ceabf48cbb715beb17dd8eb",
+              "src/pymatgen/io/lobster/future/outputs/__init__.py": "08026543d0cb54139afa6bde4a5ab45a48d5cdacc95ef2d6f0acb9c47a93d0c0",
+              "src/pymatgen/io/lobster/future/outputs/bands.py": "24e38b283bbb9168903281417c9dbad47246c5856c41e4e1b042df0b5720d447",
+              "src/pymatgen/io/lobster/future/outputs/coxxcar.py": "9f1b6c636476d3aab6e02f2c99253fa2c0d9b1ca14aa092b623837579d467099",
+              "src/pymatgen/io/lobster/future/outputs/doscar.py": "25fd806bbd93c89bc723a8cef1a65184793d858af3bff6350691dc8decfd0796",
+              "src/pymatgen/io/lobster/future/outputs/icoxxlist.py": "83742ff9daeaf0acba3afc28673f245e4c46291de6e470b26c395d451fac29dd",
+              "src/pymatgen/io/lobster/future/outputs/lobsterout.py": "549144f0a0b10b4ddb2f1899c9d14517fd3e1d93e53a7187d617b35262d1da11",
+              "src/pymatgen/io/lobster/future/outputs/misc.py": "526e87ff66ae8ae377b393b2be8271d8f3766292bed9caa5601c9b47e786a01c",
+              "src/pymatgen/io/lobster/future/outputs/populations.py": "febcd9f10644759217a71c989019d83f404e9de073a0c4684fcce20ba80b5be5",
+              "src/pymatgen/io/lobster/future/types.py": "7016548a1b80224c4ad1da56193d8200e38859b59b6f3ad7765b6fd70263ccd2",
+              "src/pymatgen/io/lobster/future/utils.py": "c2e141498a475b741f58c0e5f23834146f935df3c8eef40466e25110f4383a41",
+              "src/pymatgen/io/lobster/future/versioning.py": "24bef0f34c2f773e87186b9e0042ca3b4c4f097579dea2ed493226bf713315f3",
+              "src/pymatgen/io/lobster/inputs.py": "fea0748d63deb8c186d4d002008892e34639a8ce3948dc9b153e2cac9e5cfeb4",
+              "src/pymatgen/io/lobster/lobsterenv.py": "392486c02942028ed8d7d4de889f0fad68303cec5ceabf48cbb715beb17dd8eb",
+              "src/pymatgen/io/lobster/outputs.py": "e6e5eed34a11c4f319c142ca90baa6a09f4639831d2858f5258531f65553e08d",
+              "src/pymatgen/io/lobster/sets.py": "5ef4ba7ac574dda1a7a6dd924062d0774ff08f86e814bf9650a712d450613fa4",
+              "src/pymatgen/io/multiwfn.py": "307c4d32c08b523decdecbec55e5f1527c21086793cb8f217b04c241212e5b04",
+              "src/pymatgen/io/nwchem.py": "b03b89c20306998309a4ba717effe4080c9cdc0946627dd20182851d5e7b7806",
+              "src/pymatgen/io/openff.py": "452d402f8128b9b2f51b87dedcefc5fcd75c51aa2e7a90475d30ec2e346747b0",
+              "src/pymatgen/io/optimade.py": "122692511693adcd7b2c6df12a03bebfa50e042483a94d10b0d294ae50979953",
+              "src/pymatgen/io/packmol.py": "503e5156fc0deecbba4fb5ab1845209dde49cf21e9aadc8cc7706ad886618e18",
+              "src/pymatgen/io/phonopy.py": "4cbff3af82fcae6ec9bec23325138a495f7ca84ede82069e07f54510a70223c5",
+              "src/pymatgen/io/prismatic.py": "8f4dfa8ece0a2e9a8ebcd333429b29d01907944a31721a1fac3c565d9108248b",
+              "src/pymatgen/io/pwmat/__init__.py": "b8fb490f202a28bdbc96836d5b3cb22c628bf65a48f83cd49a149e97bf716b80",
+              "src/pymatgen/io/pwmat/inputs.py": "462ddce65c316398085a7454c9adc07763571bf242e401b778318ea139eaf20e",
+              "src/pymatgen/io/pwmat/outputs.py": "f052a53ba35e9cf45383d54f5efaeec38a29897fdc2c90b4aa51fa52f7503b79",
+              "src/pymatgen/io/pwscf.py": "0f58ee96b702ddfc245a79cb1971ba18577fb719aa975df9e37f62e0045d808b",
+              "src/pymatgen/io/qchem/__init__.py": "3fd92984750529c66c424bd23a2e12eee9342c5e21483b11d57ef636cc5ee26e",
+              "src/pymatgen/io/qchem/inputs.py": "604c4e24c9bd4848b80be9b13bbab5c71f8f3803cf623fc85efa4590c6631a8f",
+              "src/pymatgen/io/qchem/outputs.py": "3b4548959e6ccd5fd1d7a5352bae52fbe2f23ea4d7906af72c069fb3b24b14c9",
+              "src/pymatgen/io/qchem/sets.py": "ad65a1884c8073ecbbff0ab83b4fa173bbc6e974a4a66d69f21cf43e2af510db",
+              "src/pymatgen/io/qchem/utils.py": "fc53e9d07bab055a786ef742a1593fd710982d71fda2b87010e9a282d070ca7b",
+              "src/pymatgen/io/registry.py": "508c5fd1b5242e325d63ba7fc4bcbf1322e5bce20eb7ca5255ec225c36ea4728",
+              "src/pymatgen/io/res.py": "830089ad11fa26a52bb218fa19e8262700f80dc650c5139c6505554c3d67af9b",
+              "src/pymatgen/io/shengbte.py": "9b51783005ff094a5a554593cdda6e40c8de4e78d35ab82f83e16dc0a2ffdfbc",
+              "src/pymatgen/io/template.py": "accb34609113ae072a00cf83cde7e8acd4ece00951c0eac88ea369db5dff9a37",
+              "src/pymatgen/io/vasp/__init__.py": "f7677c8d9bc33ecf5f22122a190c01161ac3dc55f4cd53c596c1731fb2995b13",
+              "src/pymatgen/io/vasp/help.py": "3a4c112c40da885ae0254469f969d39213f788d263d738182393c996ef741dcc",
+              "src/pymatgen/io/vasp/inputs.py": "dc3b928cf6d36249b720a4fb89556883f3b8c5914ddfd9b7e3c447ffbb8ce329",
+              "src/pymatgen/io/vasp/optics.py": "a999a7bf898a759b4eea7341119fe80759ebb28994c96ac5565b82027ca9f917",
+              "src/pymatgen/io/vasp/outputs.py": "bcbf78190f1f53dec1afdb4faac3a600098134e914052732ddef9cee9aa26f9f",
+              "src/pymatgen/io/vasp/sets.py": "c886986cad5ed1041587f850db12314263ed5b36cdfcb4c05b063b313b14f196",
+              "src/pymatgen/io/wannier90.py": "fe40fa14f364ce516d3c11071925224629c4246f02200a6dad55add522b224ee",
+              "src/pymatgen/io/xcrysden.py": "4acfc816db9524a398b879d79bb9a0614f339fb3c0236b696e8bc6709b5f899f",
+              "src/pymatgen/io/xr.py": "d1d384cd3a79e24003e65b475b4bf814a8752ad23f85afcea4575738c5f2e064",
+              "src/pymatgen/io/xtb/__init__.py": "1ed9b0eda9e9ff9f464f6bb6349d79ece99673ac36a76e55718e428da5648d98",
+              "src/pymatgen/io/xtb/inputs.py": "4ba6ab5dba78b48d56373c9901f45fed7c44e2c69b9a2125c3d2dc443bb8ba73",
+              "src/pymatgen/io/xtb/outputs.py": "fa864aad5d9d6117ed917d6a4caf4a4169c19c1cbab6f7c0086e0e7c5d08ee26",
+              "src/pymatgen/io/xyz.py": "c48367da1136d5c028759076a83e15c4dbd9a844b12f30b206795c462a51519c",
+              "src/pymatgen/io/zeopp.py": "a41e9093a0a58edd7206879c070ac9b18f30fc8fa38d057cea28938374f23e63",
+              "src/pymatgen/optimization/__init__.py": "d8981fb211448bddaecdb3318f4ee1b585036e2d48b300228c725df8ae9b7981",
+              "src/pymatgen/phonon/__init__.py": "c9502851ecb351936df9a77376793678dffcc3a5543c2a38b093899444aa3ccc",
+              "src/pymatgen/phonon/bandstructure.py": "123e8ba59e608e205874a3a513e514f28cc9eea455d367ece0f5694998e4c415",
+              "src/pymatgen/phonon/dos.py": "e9b5042ccb9f6f2d70225bef05762d7a7bcde36efe3adc8dfe1da998a0c7fbea",
+              "src/pymatgen/phonon/gruneisen.py": "e1382a2a3b61cd399367a697fa952392e3251aa33b6c3f9e2c32e414ed9f20fe",
+              "src/pymatgen/phonon/ir_spectra.py": "5d6732d8bff2cc9f35624c1c84012f510020180892ebb2c64e140ff702f53328",
+              "src/pymatgen/phonon/plotter.py": "341f923caa9aeaa405fc1f520d178aed1d341e3b8ebc1ebccf5a715d9f8534d5",
+              "src/pymatgen/phonon/thermal_displacements.py": "9572e299a3386ec1df57b5047c755611e6e3f9188e4130ec2c52db4bc5829cc2",
+              "src/pymatgen/symmetry/__init__.py": "2255d2de727fc5c874753776c6d251c1ce171f93d5374d5feaba88253ff95f29",
+              "src/pymatgen/symmetry/analyzer.py": "5255dad7f28df0ddbc329c2aa1508228fef39e6afec06d60f82fea012c7e94cd",
+              "src/pymatgen/symmetry/bandstructure.py": "b493be7a567a66465d99c77ac71032f87177fd37822ccd7dcc53001fb44e2b6e",
+              "src/pymatgen/symmetry/groups.py": "49190d2f7633df9a5f6200a9f4798e16f817ad1144249b05a94c7a4417fb91ca",
+              "src/pymatgen/symmetry/kpath.py": "7f96bedd44ff8d75b06bdc03b14dc0abdd808579a7cea827b457fbc5f603587a",
+              "src/pymatgen/symmetry/maggroups.py": "cea09bd5f8e38dfe7b3f7feaf8122ee1a6a6e53a3e50f611546cb6919b643544",
+              "src/pymatgen/symmetry/settings.py": "3285c840461a07db332a00e9d8b925451f9d0e4e8fc9c75b71dec6bcbcd4c4ea",
+              "src/pymatgen/symmetry/site_symmetries.py": "42dc6d8636a40134e24652e12c7981451767986f2474dd0e35bad7224f1572bf",
+              "src/pymatgen/symmetry/structure.py": "5e1e2c29fc2f57ead799339f043d6829594a180629d98c2798f97b9098b6b0a1",
+              "src/pymatgen/transformations/__init__.py": "3a8733584f506699376f8a618a734349c4290d78c7f9b89d745ceedd28abee7c",
+              "src/pymatgen/transformations/advanced_transformations.py": "fb2045743bfcb90612636a4b80704f80ce519142b93a19cfd18b3e2dc562f5d0",
+              "src/pymatgen/transformations/site_transformations.py": "fe05981b823fbace46dc7c4b5ace5ee3f20af50497dd0b987ab20c3bf07119df",
+              "src/pymatgen/transformations/standard_transformations.py": "f92522061829622bd8b4dbbcd83c5c52dee812b0f09be227678f3dff319db8af",
+              "src/pymatgen/transformations/transformation_abc.py": "d8b7adebca34bc95b4199b342240a2ad713ca4be34eb97c7ae4665201d8d6df7",
+              "src/pymatgen/util/__init__.py": "09149201be2d25a2806f59275186898330ed197462f131f2b80ab63874dd25fa",
+              "src/pymatgen/util/coord.py": "216dd7f83f9ecf2ce48ce066fe617a2d1438f35e59b4f015967057edd38168a0",
+              "src/pymatgen/util/due.py": "f6595e212231026b2ff8f1588174648d8dbe7264ca0bfb8000b6de714bbc40ac",
+              "src/pymatgen/util/graph_hashing.py": "77f7d6ab651806119daa6338be3f8578ad29018275e80fbdd1838fee5bbafa80",
+              "src/pymatgen/util/io_utils.py": "6e7a412b791f4f4fee5424ca93380d901ac2806a8e213ce666706233e3ff9efe",
+              "src/pymatgen/util/joblib.py": "bc3a84ab301b95ec3891e5ba2ccb7e8141c9b658ab48fa7142fdd8693f9dad43",
+              "src/pymatgen/util/misc.py": "981aad23fddcf9fdba6f09af8e1f103444a69cc1821c1bdaf6a8e2eb8200bf4f",
+              "src/pymatgen/util/num.py": "f415d9168493a7d3a853fd8293fee66e3b8bbe0e07723dfb1f139b7b23799755",
+              "src/pymatgen/util/numba.py": "8a1c5ad0a1d1e84cba1069e75b45b7f5a842600f6492a02b545c038ccbaa700d",
+              "src/pymatgen/util/plotting.py": "a19d2792e1524685fe977e615b31e28002f5c8a69d04244cd835790ec02b61f8",
+              "src/pymatgen/util/provenance.py": "83078b301b4cac93b5ca7e918ba32bf2caa261a38e11a8af77089c5d1e49cabb",
+              "src/pymatgen/util/string.py": "c0c31a06872915499c4680570c1fb510c008926de829c85c93184612f803476c",
+              "src/pymatgen/util/testing.py": "0bc93193f9187b98419d84f5032a82f962fcc3fbb7e62e5e83ddae6fbbfc7584",
+              "src/pymatgen/util/typing.py": "114abaf0ae2ab72fbefde50072f03fa761e6019aa2705d1194c07a3a889abc26"
+            },
+            "source_version": "v2026.8.30",
+            "source_commit": "73af4e53f5f24e1dcf11e0d94ca13be10ea956ad",
+            "native_function_count": 0,
+            "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
+            "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+            "docstring_mapping": {
+              "description": "summary before Google/NumPy sections or reStructuredText fields",
+              "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",
+              "output": "Returns/Yields or reStructuredText return/rtype; null if undocumented",
+              "ori_input": "AST-rendered parameters, or DEVSIM native documented signature parameters",
+              "ori_description": "complete normalized source docstring or native embedded documentation"
+            },
+            "missing_values": "Undocumented text is an empty string; missing return sections and self/cls entries are null; missing lists are empty",
+            "runtime_verified": false
+          }
+        }
+      ],
+      "scenario_design": {
+        "entities": [
+          {
+            "name": "structure",
+            "identity": "structure_id",
+            "attributes": [
+              "revision",
+              "lattice[3,3] Angstrom",
+              "sites: species + fractional coordinates",
+              "composition",
+              "parent_id"
+            ],
+            "lifecycle": "create/load -> copy/edit -> observe -> save/reload/reset；变更坐标、物种或晶格后，所有symmetry/bridge/interface派生产物失效。"
+          },
+          {
+            "name": "result",
+            "identity": "result_id",
+            "attributes": [
+              "source_structure_id",
+              "source_revision",
+              "settings",
+              "status",
+              "artifact_path",
+              "metrics"
+            ],
+            "lifecycle": "按结构版本生成，修改上游后标记stale；验收不能读取旧结果冒充当前解。"
+          },
+          {
+            "name": "symmetry_dataset",
+            "identity": "analysis_id",
+            "attributes": [
+              "spacegroup_number",
+              "hall_number",
+              "symprec Angstrom",
+              "equivalent_atoms",
+              "transformation_matrix"
+            ],
+            "lifecycle": "绑定结构版本和容差；位点或容差修改使旧分析过期。"
+          }
+        ],
+        "capabilities": [
+          {
+            "id": "state",
+            "required": true,
+            "description": "构造、持久化和重置"
+          },
+          {
+            "id": "edit",
+            "required": true,
+            "description": "受控结构变换"
+          },
+          {
+            "id": "observe",
+            "required": true,
+            "description": "结构与组成验收"
+          },
+          {
+            "id": "symmetry",
+            "required": true,
+            "description": "空间群和对称操作"
+          },
+          {
+            "id": "standardize",
+            "required": true,
+            "description": "标准晶胞与基矢规约"
+          }
+        ],
+        "bridges": [
+          {
+            "from": "pymatgen.Structure",
+            "to": "spglib cell tuple",
+            "tool": "显式读取已选Lattice.matrix/IStructure.frac_coords/SiteCollection.atomic_numbers",
+            "contract": "矩阵行向量，Angstrom长度，Nx3分数坐标，N个整数原子序数；不得传入笛卡尔位置。标准化返回的新晶胞用Structure.__init__重建并检查组成比例。"
+          }
+        ],
+        "runtime_infrastructure": [
+          {
+            "reference": "python.numpy_json_pathlib",
+            "kind": "infrastructure",
+            "reason": "数组表示、独立计数/行列式/容差断言与本地JSON存储；不提供额外物理求解器。"
+          }
+        ],
+        "boundaries": [
+          "参考API不是已实现Agent工具服务器；稳定ID、权限、状态失效和reset隔离需后续实现。",
+          "固定样例仅覆盖报告中的调用；未运行全部精选接口。",
+          "无DFT/能量松弛/磁性空间群；结构合法不代表热力学稳定。",
+          "公开继承方法按源码定义类保留；通过Structure调用时需后续facade完成对象绑定。"
+        ],
+        "proposed_facade": [],
+        "task_recipes": [
+          {
+            "id": "standardize_gaas_cell",
+            "description": "将8原子GaAs常规胞转换为spglib输入，获取空间群并生成标准原胞；重建结构，断言空间群216、2个位点、体积a³/4及Ga:As=1:1。",
+            "initial_state": "已知a=5.653 Angstrom、空间群216的GaAs，symprec固定1e-5 Angstrom。",
+            "fixture": "verify_materials_structure.py:standardize_gaas_cell",
+            "steps": [
+              {
+                "action": "构造结构并读取真实输入表示",
+                "tool_refs": [
+                  "pymatgen.core.structure.IStructure.from_spacegroup",
+                  "pymatgen.core.lattice.Lattice.matrix",
+                  "pymatgen.core.structure.IStructure.frac_coords",
+                  "pymatgen.core.structure.SiteCollection.atomic_numbers"
+                ]
+              },
+              {
+                "action": "空间群识别和原胞标准化",
+                "tool_refs": [
+                  "spglib.spg.get_symmetry_dataset",
+                  "spglib.cell.standardize_cell"
+                ]
+              },
+              {
+                "action": "重建并校验组分和体积",
+                "tool_refs": [
+                  "pymatgen.core.structure.Structure.__init__",
+                  "pymatgen.core.composition.Composition.get_el_amt_dict",
+                  "pymatgen.core.lattice.Lattice.volume"
+                ]
+              }
+            ],
+            "assertions": [
+              "group216",
+              "8->2 atoms",
+              "V=a^3/4",
+              "Ga:As=1:1"
+            ],
+            "validation_status": "passed_fixed_fixture"
+          },
+          {
+            "id": "repair_symmetry_breaking",
+            "description": "检查单原子位移导致的GaAs对称破缺；在固定symprec下验证空间群已偏离216，然后恢复原子位置并再次核验空间群与周期坐标。",
+            "initial_state": "位点0的分数坐标偏移(0.017,0.009,0.023)，只读理想参考结构和固定容差。",
+            "fixture": "verify_materials_structure.py:repair_symmetry_breaking",
+            "steps": [
+              {
+                "action": "产生和诊断位移结构",
+                "tool_refs": [
+                  "pymatgen.core.structure.IStructure.copy",
+                  "pymatgen.core.structure.Structure.translate_sites",
+                  "spglib.spg.get_symmetry_dataset"
+                ]
+              },
+              {
+                "action": "修复位置并使用原判据复验",
+                "tool_refs": [
+                  "pymatgen.core.structure.Structure.translate_sites",
+                  "spglib.spg.get_symmetry_dataset",
+                  "pymatgen.core.structure.IStructure.frac_coords"
+                ]
+              }
+            ],
+            "assertions": [
+              "偏移结构空间群不是216",
+              "修复后216",
+              "周期坐标差atol1e-12",
+              "不得放宽symprec冒充修复"
+            ],
+            "validation_status": "passed_fixed_fixture"
+          }
+        ],
+        "status": "seed_design; reference APIs are not an implemented agent tool server"
+      },
+      "research_sources": [
+        {
+          "url": "https://spglib.readthedocs.io/en/stable/python-interface.html",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://spglib.readthedocs.io/en/stable/python-interface.html",
+          "title": "Spglib for Python — Spglib v2.7.0",
+          "content_file": "seed_gen/scenario_collection/research/materials_structure_web/70bb03db2dbe7927.txt",
+          "content_sha256": "c193e84d73549cd5119e9f52cb3b98da1582ebe616e257d67f6d717ab1acd7c1",
+          "content_length": 8108,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "Python接口说明cell=(lattice,positions,numbers)，晶格在Python中以行向量表示、位置用分数坐标。",
+            "entities": [
+              "cell",
+              "symmetry_dataset"
+            ],
+            "tools": [
+              "get_symmetry_dataset",
+              "standardize_cell"
+            ],
+            "tasks": [
+              "输入单位校验、原胞标准化"
+            ]
+          }
+        },
+        {
+          "url": "https://spglib.readthedocs.io/en/stable/definition.html",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://spglib.readthedocs.io/en/stable/definition.html",
+          "title": "Definitions and conventions — Spglib v2.7.0",
+          "content_file": "seed_gen/scenario_collection/research/materials_structure_web/0b67396cb52b4aae.txt",
+          "content_sha256": "6e9ec1d318b1a149519e6ce0c543530f27facf7410e193cae297399ba1016a2f",
+          "content_length": 25462,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "对称操作、分数坐标、基矢变换和原点移动的定义，用于标准晶胞等价性及物种映射检查。",
+            "entities": [
+              "basis",
+              "site_mapping"
+            ],
+            "tools": [
+              "standardize_cell",
+              "get_symmetry"
+            ],
+            "tasks": [
+              "区分坐标表示变化与真实对称破缺"
+            ]
+          }
+        },
+        {
+          "url": "https://pymatgen.org/pymatgen.symmetry.html",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://pymatgen.org/pymatgen.symmetry.html",
+          "title": "pymatgen.symmetry package — pymatgen 2026.7.27 documentation",
+          "content_file": "seed_gen/scenario_collection/research/materials_structure_web/88cd77f859b29fc2.txt",
+          "content_sha256": "2945df39b271d9b311d8552a26c0dc632e7776c50649ac4dc050d74514e74d8e",
+          "content_length": 547609,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "SpacegroupAnalyzer说明symprec、primitive/conventional cell和site property保留限制；本选集直接使用其底层spglib，避免重复wrapper。",
+            "entities": [
+              "structure",
+              "tolerance",
+              "standard_cell"
+            ],
+            "tools": [
+              "get_symmetry_dataset"
+            ],
+            "tasks": [
+              "识别位移后的空间群变化并按固定容差复验"
+            ]
+          }
+        },
+        {
+          "url": "https://pymatgen.org/usage.html",
+          "checked_on": "2026-09-17",
+          "status": 200,
+          "final_url": "https://pymatgen.org/usage.html",
+          "title": "Usage | pymatgen",
+          "content_file": "seed_gen/scenario_collection/research/materials_structure_web/d86b6d51248af052.txt",
+          "content_sha256": "2228894549e5e55f398c72763d3438f9c3b4fe98d1ee73a914638569364ab751",
+          "content_length": 24585,
+          "content_type": "text/html; charset=utf-8",
+          "relevance": {
+            "evidence": "结构对象、晶格和组成提供可持久化的场景状态。",
+            "entities": [
+              "structure",
+              "composition"
+            ],
+            "tools": [
+              "Structure",
+              "Lattice",
+              "as_dict"
+            ],
+            "tasks": [
+              "结构变更、保存和恢复"
+            ]
+          }
+        }
+      ],
+      "joint_selection": {
+        "profile_sha256": "a59acabb0f42ad311e4ac2dcf28fb06edc8f47caf55384bff4a12b9ca74b93d2",
+        "candidate_packages": [
+          {
+            "name": "spglib",
+            "version": "v2.7.0",
+            "role": "primary",
+            "reason": "承担空间群、等价位点和标准化；避免重复暴露pymatgen SpacegroupAnalyzer包装的同一后端。",
+            "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/spglib_v2.7.0.json",
+            "raw_sha256": "e2ba83a9e3f0c4d0aa0d1075852294ff6583eec98d6046f737666e5474cc38e2",
+            "release_manifest": "seed_gen/scenario_collection/materials_structure_sources.json",
+            "release_research": {
+              "package": "spglib",
+              "remote": "https://github.com/spglib/spglib.git",
+              "commit": "12355c77fb7c505a55f52cae36341d73b781a065",
+              "tag": "v2.7.0",
+              "clean_status": "",
+              "submodules": [],
+              "pypi_evidence": {
+                "url": "https://pypi.org/pypi/spglib/json",
+                "checked_on": "2026-09-17",
+                "status": 200,
+                "final_url": "https://pypi.org/pypi/spglib/json",
+                "title": "",
+                "content_file": "seed_gen/scenario_collection/research/materials_structure_web/12d0c0e172f6a998.txt",
+                "content_sha256": "9be086e4bd14d7161dfc27101a47944cefa0820c6f16fd0574f10f5f8e121cc8",
+                "content_length": 830368,
+                "content_type": "application/json",
+                "json_file": "seed_gen/scenario_collection/research/materials_structure_web/12d0c0e172f6a998.json"
+              },
+              "pypi_json_sha256": "ad0b1572e33afa0aadb758edbc9d73787adb20f18685c66887dc2cc4b3ec8b43",
+              "official_release_evidence": {
+                "url": "https://api.github.com/repos/spglib/spglib/releases/latest",
+                "checked_on": "2026-09-17",
+                "status": 200,
+                "final_url": "https://api.github.com/repos/spglib/spglib/releases/latest",
+                "title": "",
+                "content_file": "seed_gen/scenario_collection/research/materials_release_web/e33c6cda5ad0d8f8.txt",
+                "content_sha256": "1083fce709b9998e5c8ed10d837833be36b2847b84d0cb7289a0184019a9da67",
+                "content_length": 5470,
+                "content_type": "application/json; charset=utf-8",
+                "json_file": "seed_gen/scenario_collection/research/materials_release_web/e33c6cda5ad0d8f8.json"
+              },
+              "legacy_tools_identical": true,
+              "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/spglib_v2.7.0.json",
+              "nums": {
+                "class": 6,
+                "function": 31,
+                "class_func": 0,
+                "all_func": 31
+              }
+            }
+          },
+          {
+            "name": "pymatgen-core",
+            "version": "v2026.8.30",
+            "role": "complement",
+            "reason": "提供可修改、可保存的结构与组成实体，显式输出spglib tuple；只选对称分析所需结构能力。",
+            "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/pymatgen-core_v2026.8.30.json",
+            "raw_sha256": "1edd3301f610ef7d7246c37b028bbee485ff9ef345f2c54dc1aaeac18b51315f",
+            "release_manifest": "seed_gen/scenario_collection/materials_structure_sources.json",
+            "release_research": {
+              "package": "pymatgen-core",
+              "remote": "https://github.com/materialsproject/pymatgen-core.git",
+              "commit": "73af4e53f5f24e1dcf11e0d94ca13be10ea956ad",
+              "tag": "v2026.8.30",
+              "clean_status": "",
+              "submodules": [],
+              "pypi_evidence": {
+                "url": "https://pypi.org/pypi/pymatgen-core/json",
+                "checked_on": "2026-09-17",
+                "status": 200,
+                "final_url": "https://pypi.org/pypi/pymatgen-core/json",
+                "title": "",
+                "content_file": "seed_gen/scenario_collection/research/materials_structure_web/cd2e14d362a1adaf.txt",
+                "content_sha256": "66032b9cadd8b0b9c72ea978a17fe09f8c619f2adc3d20b50ddf826cbe5d2647",
+                "content_length": 240335,
+                "content_type": "application/json",
+                "json_file": "seed_gen/scenario_collection/research/materials_structure_web/cd2e14d362a1adaf.json"
+              },
+              "pypi_json_sha256": "d222aa5ce812d5b359b86682f99c0696c6d211550d01b92da2b43e4220a3c4e4",
+              "official_release_evidence": {
+                "url": "https://api.github.com/repos/materialsproject/pymatgen-core/releases/latest",
+                "checked_on": "2026-09-17",
+                "status": 200,
+                "final_url": "https://api.github.com/repos/materialsproject/pymatgen-core/releases/latest",
+                "title": "",
+                "content_file": "seed_gen/scenario_collection/research/materials_structure_additional_web/9e64767ba04d8b06.txt",
+                "content_sha256": "094f21110c58d04a2992030d9ab01b802a3f24f7a9dc7aed1e8cbc4af031a968",
+                "content_length": 7992,
+                "content_type": "application/json; charset=utf-8",
+                "json_file": "seed_gen/scenario_collection/research/materials_structure_additional_web/9e64767ba04d8b06.json"
+              },
+              "legacy_tools_identical": true,
+              "raw_path": "seed_gen/pypi_outputs/ori_all_funcs/scenario_collection/pymatgen-core_v2026.8.30.json",
+              "nums": {
+                "class": 652,
+                "function": 309,
+                "class_func": 3458,
+                "all_func": 3767
+              }
+            }
+          }
+        ],
+        "classification_source": "seed_gen/scenario_collection/classification.normalized.md",
+        "classification_sha256": "5f4c8b089168c2f3c54caf96165436c79a3b3b9425c6f1961a153d7093cfb33a",
+        "count_policy": "all_func = function + class_func; reference operations, including constructors/properties"
+      }
+    }
+  }
+]

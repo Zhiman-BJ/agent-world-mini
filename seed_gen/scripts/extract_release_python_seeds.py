@@ -19,6 +19,7 @@ from seed_gen.scripts.extract_python_ref_tools import (
     _doc_sections,
     _parse_output,
     _section_entries,
+    extract_file,
     extract_modules,
 )
 
@@ -74,6 +75,27 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
         raise ValueError(f"Tracked source modifications in {root}")
     source_root = root / spec.get("source_root", ".")
     tools, files = extract_modules(source_root, spec["modules"])
+    # A Windows checkout may collapse case-only Git paths. Only an explicit,
+    # byte-identical alias is recoverable from the existing working-tree file;
+    # differing blobs must never silently substitute for the missing source.
+    source_aliases = spec.get("identical_source_aliases", {})
+    for alias, canonical in source_aliases.items():
+        alias_path = source_root / alias
+        canonical_path = source_root / canonical
+        alias_git = alias_path.relative_to(root).as_posix()
+        canonical_git = canonical_path.relative_to(root).as_posix()
+        alias_blob = git(root, "rev-parse", f"{commit}:{alias_git}")
+        canonical_blob = git(root, "rev-parse", f"{commit}:{canonical_git}")
+        if alias_blob != canonical_blob or git(root, "hash-object", "--", str(canonical_path.resolve())) != canonical_blob:
+            raise ValueError(f"Non-identical source alias: {alias}")
+        # On a case-sensitive filesystem extraction may already include both.
+        if alias not in files:
+            module = alias.removesuffix('.py').replace('/', '.').removesuffix('.__init__')
+            tools.extend(extract_file(canonical_path, module))
+            files.append(alias)
+    if source_aliases:
+        tools.sort(key=lambda t: (t['module'], t['name'], t['type']))
+        files.sort()
     module_prefix = spec.get("module_prefix", "")
     if module_prefix:
         for tool in tools:
@@ -127,6 +149,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
             "python_source_extraction": {
                 "strategy": "static_ast_and_native_export_docs" if native_count else "static_ast",
                 "requested_modules": spec["modules"], "source_files": files,
+                **({"identical_source_aliases": source_aliases} if source_aliases else {}),
                 **({"module_prefix": module_prefix} if module_prefix else {}),
                 "source_file_sha256": {file: hashlib.sha256((root / file).read_bytes()).hexdigest() for file in files},
                 "source_version": spec["tag"], "source_commit": commit,
