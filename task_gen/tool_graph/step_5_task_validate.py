@@ -22,6 +22,7 @@ from typing import Any
 from .contracts import ValidateTasksInput, ValidateTasksOutput
 from .llm import BatchInferenceError, infer, parse_json_object
 from .prompt_principles import REVIEW_GUIDANCE, TASK_STATE_CHAIN
+from .step_3_chain_execute import _bounded_calls
 
 from jsonschema import validators
 
@@ -48,7 +49,7 @@ def validate_tasks(stage_input: ValidateTasksInput) -> ValidateTasksOutput:
         output.append(candidate)
         if not errors:
             review_items.append((len(output) - 1, _build_review_prompt(
-                environment, public_tools, candidate,
+                environment, public_tools, candidate, stage_input["config"].execution.get("tool_result_max_bytes", 65536),
             )))
 
     if review_items:
@@ -143,7 +144,7 @@ def _basic_errors(candidate: dict[str, Any], task: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[str, Any]], candidate: dict[str, Any]) -> str:
+def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[str, Any]], candidate: dict[str, Any], result_limit: int = 65536) -> str:
     execution = candidate["execution"]
     context = {
         "environment": {key: environment.get(key) for key in (("name", "summary", "description", "record_sets", "relationships", "filesystem_scopes") if environment.get("schema_version") == "2.0" else ("name", "description", "resources", "rules"))},
@@ -152,7 +153,7 @@ def _build_review_prompt(environment: dict[str, Any], public_tools: list[dict[st
         "task_text": candidate.get("task_text"),
         "reference_answer": candidate.get("reference_answer"),
         "chain": candidate.get("chain"),
-        "tool_calls": execution.get("tool_calls"),
+        "tool_calls": _bounded_calls(execution.get("tool_calls") or [], result_limit),
     }
     instruction = """对最终任务产物作独立质量判断，不修改任务、答案或执行记录。
 task_text 是唯一需求基准；review 中的初态观察和规划用于理解证据与路径，不能增加任务未要求的义务。
@@ -166,7 +167,7 @@ tools 是环境全部公开能力，chain 只是本次执行路径；不能因�
 每条错误用文字说明任务的具体要求、当前适用依据、实际证据与完成缺口，或明确指出无法判断的证据缺口；不能只以缺少某种调用为拒绝理由。
 严格只返回 JSON：{"execution_matches_task":true,"answer_matches_task":true,"task_is_usable":true,"errors":[]}。"""
     return "\n".join((instruction, TASK_STATE_CHAIN, REVIEW_GUIDANCE,
-                      "\n【待分析数据】", json.dumps(context, ensure_ascii=False)))
+                      "_truncated 表示工具结果已裁剪，预览并非完整证据，省略部分不代表不存在；证据不足时明确指出缺口，不推断全量结论。\n【待分析数据】", json.dumps(context, ensure_ascii=False, separators=(",", ":"))))
 
 
 def _parse_review(payload: dict[str, Any]) -> dict[str, Any]:

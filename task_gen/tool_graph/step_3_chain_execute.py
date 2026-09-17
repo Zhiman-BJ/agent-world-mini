@@ -392,13 +392,22 @@ def _public_environment(environment: dict[str, Any]) -> dict[str, Any]:
 
 
 def _bounded_calls(calls: list[dict[str, Any]], limit: int = 65536) -> list[dict[str, Any]]:
+    if type(limit) is not int or limit < 32:
+        raise ValueError("tool_result_max_bytes 必须是至少32的整数")
     bounded: list[dict[str, Any]] = []
     for call in calls:
         item = deepcopy(call)
         encoded = json.dumps(item.get("result"), ensure_ascii=False, separators=(",", ":"))
         if len(encoded.encode("utf-8")) > limit:
-            compact = _truncate_value(item["result"], max(16, limit // 8))
-            item["result"] = {"_truncated": True, "data": compact}
+            allowance = limit // 2
+            while allowance:
+                compact = {"_truncated": True, "data": _truncate_value(item["result"], allowance)}
+                if len(json.dumps(compact, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) <= limit:
+                    break
+                allowance //= 2
+            else:
+                compact = {"_truncated": True}
+            item["result"] = compact
         bounded.append(item)
     return bounded
 
@@ -406,7 +415,11 @@ def _bounded_calls(calls: list[dict[str, Any]], limit: int = 65536) -> list[dict
 def _truncate_value(value: Any, string_limit: int) -> Any:
     """保留小字段和标识值，裁掉大文本/大数组，避免参数 prompt 爆炸。"""
     if isinstance(value, str):
-        return value if len(value.encode("utf-8")) <= string_limit else "[已裁剪]"
+        raw = value.encode("utf-8")
+        return value if len(raw) <= string_limit else {
+            "_truncated": True, "original_bytes": len(raw),
+            "preview": raw[:string_limit].decode("utf-8", errors="ignore"),
+        }
     if isinstance(value, list):
         result: list[Any] = []
         size = 2
@@ -417,6 +430,8 @@ def _truncate_value(value: Any, string_limit: int) -> Any:
                 break
             result.append(compact)
             size += item_size
+        if len(result) < len(value):
+            return {"_truncated": True, "items": result, "omitted_items": len(value) - len(result)}
         return result
     if isinstance(value, dict):
         return {str(key): _truncate_value(item, string_limit) for key, item in value.items()}

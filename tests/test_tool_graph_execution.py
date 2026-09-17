@@ -322,7 +322,7 @@ def run(arguments, context):
     def test_truncates_large_result_before_next_argument_prompt(self) -> None:
         producer = tool("producer", """
 def run(arguments, context):
-    return {"success": True, "data": {"payload": "x" * 100, "item_id": "item-123"}}
+    return {"success": True, "data": {"payload": "x" * 1000, "item_id": "item-123"}}
 """)
         consumer = tool("consumer", """
 def run(arguments, context):
@@ -336,7 +336,7 @@ def run(arguments, context):
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             execute_chains({
-                "config": self.config(retry_count=0, tool_result_max_bytes=32),
+                "config": self.config(retry_count=0, tool_result_max_bytes=256),
                 "run_dir": self.run_dir,
                 "environment": {
                     "environment_id": "example", "resources": [], "rules": [],
@@ -346,8 +346,8 @@ def run(arguments, context):
             })
 
         self.assertEqual(len(captured), 2)
-        self.assertIn("已裁剪", captured[1])
-        self.assertNotIn("x" * 100, captured[1])
+        self.assertIn("_truncated", captured[1])
+        self.assertNotIn("x" * 1000, captured[1])
         self.assertIn("item-123", captured[1])
 
     def test_retries_business_failure_from_clean_workspace_then_removes_task(self) -> None:
