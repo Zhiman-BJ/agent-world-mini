@@ -109,9 +109,14 @@ try {
   const ended = await done;
   const context = await session.getContext();
   save('context.json', context);
-  const last = context.history.at(-1);
-  const answer = last?.role === 'assistant' && !last.toolCalls?.length
-    ? last.content.filter((part) => part.type === 'text').map((part) => part.text).join('') : '';
+  const finalMessages = [];
+  for (let index = context.history.length - 1; index >= 0; index -= 1) {
+    const message = context.history[index];
+    if (message.role !== 'assistant' || message.toolCalls?.length) break;
+    finalMessages.unshift(message);
+  }
+  const answer = finalMessages.flatMap((message) => message.content)
+    .filter((part) => part.type === 'text').map((part) => part.text).join('');
   outcome = { session_id: session.id, reason: ended.reason, answer, usage: await session.getUsage(),
     error: ended.reason === 'completed' ? undefined : errors.join('\n') || ended.reason };
   if (ended.reason === 'completed' && !answer.trim()) {

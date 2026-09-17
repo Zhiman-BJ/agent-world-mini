@@ -32,6 +32,7 @@ def model_server():
                 return
             time.sleep(delta.pop('_delay_seconds', 0))
             disconnect = delta.pop('_disconnect', False)
+            stream_error = delta.pop('_stream_error', None)
             chunk = {
                 'id': f'chat-{len(requests)}', 'object': 'chat.completion.chunk',
                 'created': 0, 'model': 'test-model',
@@ -41,7 +42,10 @@ def model_server():
             finish = {**chunk, 'choices': [{'index': 0, 'delta': {},
                        'finish_reason': 'tool_calls' if 'tool_calls' in delta else 'stop'}],
                       'usage': {'prompt_tokens': 100, 'completion_tokens': 10, 'total_tokens': 110}}
-            data = ''.join('data: ' + json.dumps(c) + '\n\n' for c in [chunk, finish]) + 'data: [DONE]\n\n'
+            data = ('data: ' + json.dumps(chunk) + '\n\nevent: error\ndata: ' +
+                    json.dumps({'error': {'message': stream_error, 'type': 'upstream_error'}}) + '\n\n'
+                    if stream_error else
+                    ''.join('data: ' + json.dumps(c) + '\n\n' for c in [chunk, finish]) + 'data: [DONE]\n\n')
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             if disconnect:
@@ -211,6 +215,24 @@ def test_api_retry_does_not_reexecute_tool(tmp_path, model_server, monkeypatch):
     assert len(requests) == 3
     logs = [json.loads(line) for line in (tmp_path / 'state.agent/llm_responses.jsonl').read_text().splitlines()]
     assert [row['status'] for row in sorted(logs, key=lambda r: r['request_id'])] == [200, 503, 200]
+
+
+def test_stream_retry_joins_final_answer_without_tool_commentary(tmp_path, model_server, monkeypatch):
+    from task_gen.task_eval import _run_agent
+    url, requests, replies = model_server
+    workspace, server, trace, options = setup_case(tmp_path, url)
+    monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
+    options['kimi']['max_attempts_per_step'] = 2
+    replies.extend([
+        {'content': 'I will inspect first. ',
+         **tool_call('mcp__agent_world_eval__inspect', {}, 'read')},
+        {'content': 'The complete answer starts here', '_stream_error': 'Upstream request failed'},
+        {'content': ' and ends here.'},
+    ])
+    assert _run_agent('Inspect.', workspace, server, trace, options) == (
+        'The complete answer starts here and ends here.')
+    assert len(requests) == 3
+    assert requests[-1]['messages'][-1]['content'] == 'The complete answer starts here'
 
 
 def test_timeout_preserves_completed_tool_and_partial_context(tmp_path, model_server, monkeypatch):
