@@ -25,6 +25,36 @@ COMMON_MODULES = {
     "yaml": {"purpose": "读取和写入 YAML 配置", "python_packages": ["PyYAML"]},
 }
 
+DEFAULT_PYPI_INDEX = "https://mirrors.aliyun.com/pypi/simple"
+OFFICIAL_PYPI_INDEX = "https://pypi.org/simple"
+DEFAULT_NPM_REGISTRY = "https://registry.npmmirror.com"
+OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org"
+
+
+def software_download_environment(
+    base: dict[str, str] | None = None,
+    *,
+    shared_root: Path | None = None,
+) -> dict[str, str]:
+    """Return download settings shared by batch runs and one-off ToolGen runs."""
+
+    environment = dict(os.environ if base is None else base)
+    primary = environment.get("TOOLGEN_PYPI_INDEX_URL", DEFAULT_PYPI_INDEX)
+    fallback = environment.get("TOOLGEN_PYPI_FALLBACK_URL", OFFICIAL_PYPI_INDEX)
+    environment.setdefault("UV_INDEX", primary)
+    environment.setdefault("UV_DEFAULT_INDEX", fallback)
+    environment.setdefault("UV_HTTP_TIMEOUT", "300")
+    environment.setdefault("UV_CONCURRENT_DOWNLOADS", "4")
+    environment.setdefault("PIP_INDEX_URL", primary)
+    environment.setdefault("PIP_EXTRA_INDEX_URL", fallback)
+    environment.setdefault("PIP_DEFAULT_TIMEOUT", "300")
+    if shared_root is not None:
+        environment.setdefault("UV_CACHE_DIR", str(shared_root / "cache/uv"))
+        environment.setdefault(
+            "UV_PYTHON_INSTALL_DIR", str(shared_root / "interpreters")
+        )
+    return environment
+
 
 def expanded_packages(plan: dict[str, Any]) -> list[str]:
     packages = []
@@ -74,11 +104,31 @@ def subprocess_environment(package_root: Path) -> dict[str, str]:
     return environment
 
 
-def _command(command: list[str], *, cwd: Path, log: Path, env: dict[str, str] | None = None) -> str:
+def _command(
+    command: list[str],
+    *,
+    cwd: Path,
+    log: Path,
+    env: dict[str, str] | None = None,
+    timeout_seconds: int = 900,
+) -> str:
     with log.open("a", encoding="utf-8") as output:
         output.write("\n" + json.dumps(command, ensure_ascii=False) + "\n")
         output.flush()
-        result = subprocess.run(command, cwd=cwd, env=env, text=True, stdout=output, stderr=subprocess.STDOUT, timeout=900)
+        try:
+            result = subprocess.run(
+                command,
+                cwd=cwd,
+                env=env,
+                text=True,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError(
+                f"软件命令运行超过 {timeout_seconds} 秒，详情：{log}"
+            ) from error
     if result.returncode:
         raise RuntimeError(f"软件准备失败（exit={result.returncode}），详情：{log}")
     return ""
@@ -106,26 +156,64 @@ def prepare_software(package_root: Path, *, restore: bool = False) -> dict[str, 
     if packages or version:
         # uv can obtain the requested Python without changing the host interpreter.
         uv = shutil.which("uv")
-        bootstrap_env = dict(os.environ)
-        bootstrap_env["UV_CACHE_DIR"] = str(root / "cache/uv")
-        bootstrap_env["UV_PYTHON_INSTALL_DIR"] = str(root / "interpreters")
+        bootstrap_env = software_download_environment(
+            shared_root=Path(
+                os.environ.get("TOOLGEN_SHARED_SOFTWARE_ROOT", str(root))
+            )
+        )
+        install_timeout = int(
+            bootstrap_env.get("TOOLGEN_INSTALL_TIMEOUT_SECONDS", "1800")
+        )
         if uv:
             uv_command = [uv]
         else:
             bootstrap = root / "bootstrap"
             if not (bootstrap / "uv").is_dir():
-                _command([sys.executable, "-m", "pip", "install", "--target", str(bootstrap), "uv"], cwd=root, log=log)
+                _command(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--target",
+                        str(bootstrap),
+                        "uv",
+                    ],
+                    cwd=root,
+                    log=log,
+                    env=bootstrap_env,
+                    timeout_seconds=install_timeout,
+                )
             bootstrap_env["PYTHONPATH"] = str(bootstrap)
             uv_command = [sys.executable, "-m", "uv"]
         requested = version or f"{sys.version_info.major}.{sys.version_info.minor}"
         venv = root / ("python-" + str(requested).replace("/", "-"))
         python_path = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         if not python_path.is_file():
-            _command([*uv_command, "venv", "--seed", "--python", version or f"{sys.version_info.major}.{sys.version_info.minor}", str(venv)], cwd=root, log=log, env=bootstrap_env)
+            _command(
+                [
+                    *uv_command,
+                    "venv",
+                    "--seed",
+                    "--python",
+                    version or f"{sys.version_info.major}.{sys.version_info.minor}",
+                    str(venv),
+                ],
+                cwd=root,
+                log=log,
+                env=bootstrap_env,
+                timeout_seconds=install_timeout,
+            )
         python, prefix = str(python_path), str(venv)
         locked = package_root / "tool_runtime/requirements.txt"
         install = ["-r", str(locked)] if restore and locked.is_file() else ["jsonschema>=4.18", *packages]
-        _command([*uv_command, "pip", "install", "--python", python, *install], cwd=root, log=log, env=bootstrap_env)
+        _command(
+            [*uv_command, "pip", "install", "--python", python, *install],
+            cwd=root,
+            log=log,
+            env=bootstrap_env,
+            timeout_seconds=install_timeout,
+        )
 
     recipe = package_root / "tool_runtime"
     recipe.mkdir(exist_ok=True)
@@ -147,7 +235,32 @@ def prepare_software(package_root: Path, *, restore: bool = False) -> dict[str, 
             if not (node_root / "package.json").is_file():
                 write_json(node_root / "package.json", {"private": True})
             command = [npm, "install", "--save-exact", "--no-audit", "--no-fund", *node_packages]
-        _command(command, cwd=node_root, log=log)
+        registries = list(
+            dict.fromkeys(
+                [
+                    os.environ.get("TOOLGEN_NPM_REGISTRY", DEFAULT_NPM_REGISTRY),
+                    OFFICIAL_NPM_REGISTRY,
+                ]
+            )
+        )
+        install_error: RuntimeError | None = None
+        for registry in registries:
+            try:
+                _command(
+                    [*command, "--registry", registry],
+                    cwd=node_root,
+                    log=log,
+                    env=software_download_environment(),
+                    timeout_seconds=int(
+                        os.environ.get("TOOLGEN_INSTALL_TIMEOUT_SECONDS", "1800")
+                    ),
+                )
+                install_error = None
+                break
+            except RuntimeError as error:
+                install_error = error
+        if install_error is not None:
+            raise install_error
         for name in ("package.json", "package-lock.json"):
             shutil.copy2(node_root / name, recipe / name)
 

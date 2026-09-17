@@ -12,12 +12,45 @@ from unittest.mock import patch
 
 from env_gen.tool_gen.compiler import ToolGenerator, ToolGenerationError
 from env_gen.tool_gen.runtime import ToolPackage, ToolRuntime
-from env_gen.tool_gen.software import expanded_packages, prepare_software, validate_in_runtime
+from env_gen.tool_gen.software import (
+    DEFAULT_PYPI_INDEX,
+    OFFICIAL_PYPI_INDEX,
+    expanded_packages,
+    prepare_software,
+    software_download_environment,
+    validate_in_runtime,
+)
 from tests import test_tool_gen as fixtures
 from tests.test_tool_gen import FakeAgent, tool
 
 
 class SoftwareTests(unittest.TestCase):
+    def test_download_environment_uses_shared_cache_and_mirror_fallback(self):
+        environment = software_download_environment({}, shared_root=Path("/shared"))
+        self.assertEqual(environment["UV_INDEX"], DEFAULT_PYPI_INDEX)
+        self.assertEqual(environment["UV_DEFAULT_INDEX"], OFFICIAL_PYPI_INDEX)
+        self.assertEqual(environment["PIP_INDEX_URL"], DEFAULT_PYPI_INDEX)
+        self.assertEqual(environment["PIP_EXTRA_INDEX_URL"], OFFICIAL_PYPI_INDEX)
+        self.assertEqual(environment["UV_CACHE_DIR"], "/shared/cache/uv")
+        self.assertEqual(
+            environment["UV_PYTHON_INSTALL_DIR"], "/shared/interpreters"
+        )
+
+    def test_download_environment_preserves_explicit_configuration(self):
+        environment = software_download_environment(
+            {
+                "UV_INDEX": "https://packages.example/simple",
+                "PIP_INDEX_URL": "https://packages.example/simple",
+                "UV_CACHE_DIR": "/existing/cache",
+            },
+            shared_root=Path("/shared"),
+        )
+        self.assertEqual(environment["UV_INDEX"], "https://packages.example/simple")
+        self.assertEqual(
+            environment["PIP_INDEX_URL"], "https://packages.example/simple"
+        )
+        self.assertEqual(environment["UV_CACHE_DIR"], "/existing/cache")
+
     def test_versions_and_standard_library(self):
         self.assertEqual(expanded_packages({"python_packages": [{"name": "numpy", "version": ">=2,<3"}],
             "common_modules": ["json", "matplotlib"]}), ["numpy>=2,<3", "matplotlib"])

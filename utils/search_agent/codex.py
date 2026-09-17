@@ -163,6 +163,9 @@ class CodexAgentClient:
             prompt,
             working_directory=working_directory,
             stop_when=required_paths,
+            stable_json_paths=tuple(
+                path for path in required_paths if path.suffix.lower() == ".json"
+            ),
         )
 
     def run_until_json_file(
@@ -178,7 +181,7 @@ class CodexAgentClient:
             prompt,
             working_directory=working_directory,
             stop_when=(required_path,),
-            stable_json_path=required_path,
+            stable_json_paths=(required_path,),
         )
 
     def _run_process(
@@ -187,7 +190,7 @@ class CodexAgentClient:
         *,
         working_directory: Path,
         stop_when: tuple[Path, ...] = (),
-        stable_json_path: Path | None = None,
+        stable_json_paths: tuple[Path, ...] = (),
     ) -> str:
         """启动 Codex；可选地在指定文件全部出现后终止子进程。"""
 
@@ -295,7 +298,7 @@ class CodexAgentClient:
                     deadline = time.monotonic() + self.timeout_seconds
                     while process.poll() is None:
                         if stop_when and all(path.resolve().is_file() for path in stop_when):
-                            if stable_json_path is None:
+                            if not stable_json_paths:
                                 stopped_at_checkpoint = True
                                 self._terminate_process_group(
                                     process,
@@ -303,7 +306,10 @@ class CodexAgentClient:
                                 )
                                 break
                             try:
-                                json.loads(stable_json_path.read_text(encoding="utf-8"))
+                                for stable_json_path in stable_json_paths:
+                                    json.loads(
+                                        stable_json_path.read_text(encoding="utf-8")
+                                    )
                             except (OSError, json.JSONDecodeError):
                                 stable_since = None
                             else:
