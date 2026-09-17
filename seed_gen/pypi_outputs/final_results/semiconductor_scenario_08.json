@@ -1,7 +1,7 @@
 [
   {
     "global_id": "semiconductor_scenario_08_01_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -2349,7 +2349,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -4118,7 +4118,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_03",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -6003,7 +6003,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_04",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -8419,7 +8419,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_05",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -10493,7 +10493,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_06",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -12452,7 +12452,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_01",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -19522,7 +19522,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_02",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -26723,7 +26723,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_03",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -34047,7 +34047,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_04",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
@@ -42940,7 +42940,7 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_05",
-    "schema_version": "scenario-1.0",
+    "schema_version": "1.1",
     "environment": {
       "basic_info": {
         "source": "deep research",
