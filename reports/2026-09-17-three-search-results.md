@@ -2,6 +2,90 @@
 
 建图和 objective 复用旧 Step2；以下为网络恢复后的 Step3→5。
 
+## 最新通过任务文本
+
+按每个候选最近一次完成的 Step5 结果汇总；尚在进行的补跑未覆盖旧结果。历史结果和问题记录在后文。记录调用数包含程序保留的部分参数错误，不等同于人工核定的有效链长。
+
+### pypi_atomate2_5 / task10
+
+请核验 Si 构型坐标项目中 q=1 和 q=2 的弛豫端点、各五点静态曲线、原始文件及 VASP 运行结果；全部通过后，重建保留本地来源追踪信息的双电荷态 CCD 结果，并交付质量加权端点位移、结构差异和核验摘要。
+
+记录调用数：28；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_compose_retry_20260917/pypi_atomate2_5/20260917_185738_102320_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task11
+
+请完成 GaN 中 Mg 替位 Ga 位缺陷形成能数据的发布前审计：核对项目登记与原始计算，覆盖体相及 q=-2、-1、0、+1 四个缺陷电荷态的运行状态、电子数、终态结构、总能量和有限尺寸修正，重建各电荷态缺陷条目；在 Ga-rich 化学势和完整带隙范围内给出稳定形成能包络、跃迁能级及稳定电荷态区间；列明所有影响发布且可追溯的不一致。
+
+记录调用数：29；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task13
+
+请完成 Si 双电荷态构型坐标/有限差分数据和 GaN 中 Mg 替位 Ga 点缺陷数据的发布前核验：确认登记记录、VASP 原件及已有 WSWQ 的可解析性和可追溯性，交付 Si 结构差异与重叠核验结果；在 Mg-rich 主边界和 N-rich 对照边界的完整带隙内，给出 GaN:Mg 的形成能包络、稳定电荷态区间、热力学跃迁能级及结构和势对齐证据，并明确异常及其对结论的影响。
+
+记录调用数：34；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task15
+
+请审计并整理已登记的 GaN 中 Mg_Ga 缺陷及 Si 构型坐标计算成果：核对原始 VASP 文件、运行与收敛状态，以及登记的能量、电荷、结构和局域电势；在 N-rich 化学势边界和 GaN 带隙范围内整理可追溯的 Mg_Ga 各电荷态缺陷条目、形成能、稳定电荷态区间和电荷跃迁结果，并明确标出未通过势对齐复核的分支。另请核对 Si 的 q=1 和 q=2 弛豫结构关系，计算质量加权位移，重建双电荷态构型坐标结果，并导出可用于复现和复核的 GaN 形成能审计数据与 Si 构型坐标分析汇总。
+
+记录调用数：32；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task3
+
+请核查“GaN Mg 替位缺陷形成能”和“Si 构型坐标非辐射样例”两个项目的登记记录、原始 VASP 文件及计算状态。整理 N-rich 条件下 Mg 替位 Ga 缺陷各电荷态在相对价带顶 0–3.4 eV 费米能级范围内的形成能，并给出完整带隙内的热力学跃迁能级和稳定电荷态区间；同时核实 Si q=1 与 q=2 弛豫结构的关系、质量加权位移及双电荷态静态构型坐标曲线。对无法完整解析或重算的内容，请明确说明限制。
+
+记录调用数：27；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task4
+
+请完成已登记的 GaN Mg_Ga 缺陷形成能项目和 Si q=1/q=2 构型坐标项目的入库前可追溯性审计。仅采用通过文件、运行状态及业务记录完整性核验的数据，交付 N-rich 相稳定条件下 Mg_Ga 各电荷态的修正形成能与热力学跃迁结果，以及 Si q=1/q=2 构型坐标曲线结果，并明确记录无法构建的 TaskDocument 和不可用于重算的 WAVECAR 分支。
+
+记录调用数：30；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task5
+
+请在 Mg-rich 生长边界下审计 GaN 中 Mg 替位 Ga 缺陷的 q=-2、-1、0、+1 四个电荷态，重建可追溯的缺陷形成能条目，核对相稳定性、形成能与跃迁能级、结构和电子数、局域电势修正以及 VASP 原始结果，并交付包含各电荷态能量上下文和所有未解释异常的审计结果。
+
+记录调用数：32；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_runtime_retry_20260917/pypi_atomate2_5/20260917_184815_047504_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task6
+
+请完成 GaN 中 Mg 替位缺陷形成能项目和 Si 双电荷态构型坐标项目的发布前审计。对 GaN 项目核对全部化学势边界、各电荷态修正及原始局域电势，重点比较 Ga-rich 与 Mg-rich 条件下的形成能；对 Si 项目核验两个电荷态的端点结构、质量加权位移、双曲线数据及相关 VASP 运行状态。最终按未解释的矛盾、关键输入缺失和计算可用性分别给出下游使用判定，并明确两个项目是否可发布。
+
+记录调用数：27；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_runtime_retry_20260917/pypi_atomate2_5/20260917_184815_047504_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task7
+
+请对 GaN 中 Mg 替位缺陷的形成能数据，以及 Si 的 q=1、q=2 构型坐标和有限差分数据进行发布前可信度审计。请核实缺陷条目、电荷态、计算运行、有限尺寸修正、CCD 端点、质量加权位移和现有 WSWQ 数据；在 Mg-rich 有效化学势边界下给出完整带隙范围内的稳定形成能、稳定电荷态区间和跃迁能级，并明确两个项目各自能否发布、可供哪些下游用途使用，以及仍需补齐或限制采信的内容。
+
+记录调用数：30；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_atomate2_5 / task8
+
+请计算 GaN 中 Mg 替位 Ga 缺陷在 N-rich 化学势边界下，q=-2、-1、0、+1 四个电荷态在完整带隙费米能级范围内经有限尺寸修正的形成能及稳定包络，并给出热力学电荷跃迁能级和各稳定电荷态对应的费米能级区间。
+
+记录调用数：26；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_runtime_retry_20260917/pypi_atomate2_5/20260917_184815_047504_pypi_atomate2_5_gpt-5.6-sol/tasks.json)。
+
+### pypi_doped_6 / task22
+
+请对 MgO 半导体点缺陷项目进行一次可追溯复核：核验现有原件、体相计算及代表性的 Mg_O +1 缺陷计算，审查批量解析、计算设置和 Kumagai 有限尺寸修正；根据竞争相重新确定 Mg-rich 与 O-rich 稳定边界；并在 1000 K、费米能级相对价带顶 2.3609 eV、Mg-rich 条件下重新计算 Mg_O 各电荷态的缺陷浓度，导出结构化结果。
+
+记录调用数：31；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_runtime_retry_20260917/pypi_doped_6/20260917_190817_326716_pypi_doped_6_gpt-5.6-sol/tasks.json)。
+
+### pypi_pymatgen_core_4 / task10
+
+请复核纤锌矿 GaN 的未应变基准与 e1、e3、e6 三个方向的 1% 压缩工况，确认结构变化、QE/EPW 输入及准粒子本征值的可比性；排除占位能带后，量化各物理能带的能量位移和代表性 k 点的简并劈裂，并判断观察到的差异是否足以归因于应变；证据不足之处请明确说明。
+
+记录调用数：27；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_pymatgen_core_4/20260917_171642_137193_pypi_pymatgen_core_4_gpt-5.6-sol/tasks.json)。
+
+### pypi_pymatgen_core_4 / task9
+
+请基于离线档案建立纤锌矿 GaN 的准粒子基准组，涵盖未应变以及沿 c 轴压缩和拉伸 1%、2%、3% 的工况。核验各工况的结构与 QE/EPW 计算协议是否具有可比性，以未应变工况为基准量化逐带总体能量位移及指定 k 点的简并劈裂；VASP 的带隙、轨道贡献、介电响应和体数据仅在能够验证与这些 GaN 工况同源时纳入。
+
+记录调用数：26；[原始任务文件](/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_pymatgen_core_4/20260917_171642_137193_pypi_pymatgen_core_4_gpt-5.6-sol/tasks.json)。
+
+## 各轮完整记录
+
 ## pypi_atomate2_5 — 网络恢复后首轮
 
 运行目录：`/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_recovered_20260917/pypi_atomate2_5/20260917_174048_670621_pypi_atomate2_5_gpt-5.6-sol`
@@ -1183,11 +1267,11 @@ Step3 已返回 3 条，其中执行成功 3 条。成功候选还会经 top-cou
 
 运行目录：`/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/review-web-reference/runs/three_search_runtime_retry_20260917/pypi_doped_6/20260917_190817_326716_pypi_doped_6_gpt-5.6-sol`
 
-状态：running；通过 待定；拒绝 待定。
+状态：completed；通过 1；拒绝 5。
 
-阶段耗时（秒）：`{}`
+阶段耗时（秒）：`{"step_3_chain_execute": 3678.196, "step_4_task_compose": 189.049, "step_5_task_validate": 32.223}`
 
-Step3 已返回 1 条，其中执行成功 0 条。成功候选还会经 top-count/多样性筛选，未入选者仅保留 agent_result.json。
+Step3 已返回 6 条，其中执行成功 3 条。成功候选还会经 top-count/多样性筛选，未入选者仅保留 agent_result.json。
 
 ### 调用、重连和工具错误
 
@@ -1196,74 +1280,109 @@ Step3 已返回 1 条，其中执行成功 0 条。成功候选还会经 top-cou
 `events`
 ```json
 {
+  "completed_web_search": 9,
+  "Reconnecting... 1/5 (stream disconnected before completion: Upstream request failed)": 5,
   "Reconnecting... 1/5 (stream disconnected before completion: Our servers are currently overloaded. Please try again later.)": 1,
   "Reconnecting... 2/5 (stream disconnected before completion: Our servers are currently overloaded. Please try again later.)": 1,
-  "completed_web_search": 1
+  "Reconnecting... 3/5 (stream disconnected before completion: Our servers are currently overloaded. Please try again later.)": 1,
+  "Reconnecting... 2/5 (stream disconnected before completion: Upstream request failed)": 1
 }
 ```
 
 `tool_errors`
 ```json
 {
+  "parse_single_defect_calculation: 工具返回值必须包含 success=true": 1,
+  "calculate_finite_size_correction: 工具返回值必须包含 success=true": 4,
+  "prepare_vasp_defect_inputs: 工具返回值必须包含 success=true": 6,
+  "generate_shakenbreak_distortions: PermissionError: 工具修改了只读或未声明状态：__undeclared_state__": 1,
+  "recompute_chemical_potential_limits: 工具返回值必须包含 success=true": 3,
+  "solve_charge_neutral_fermi_level: 工具返回值必须包含 success=true": 3,
+  "analyze_defect_thermodynamics: 工具返回值必须包含 success=true": 6,
+  "assess_dopability_limits: 工具返回值必须包含 success=true": 2,
   "identify_rich_poor_limits: 工具返回值必须包含 success=true": 2,
-  "rank_distortion_candidates: 工具返回值必须包含 success=true": 2,
-  "calculate_finite_size_correction: 工具返回值必须包含 success=true": 1,
-  "analyze_defect_thermodynamics: 工具返回值必须包含 success=true": 2
+  "rank_distortion_candidates: 工具返回值必须包含 success=true": 2
 }
 ```
 
 `usage`
 ```json
 {
-  "input_tokens": 1521534,
-  "cached_input_tokens": 1400832,
+  "input_tokens": 6980394,
+  "cached_input_tokens": 6405632,
   "cache_write_input_tokens": 0,
-  "output_tokens": 5784,
-  "reasoning_output_tokens": 1489
+  "output_tokens": 34102,
+  "reasoning_output_tokens": 9074,
+  "completion_tokens": 2502,
+  "prompt_tokens": 375564,
+  "total_tokens": 378066
 }
 ```
 
 ### task2
 
-执行成功：None；调用数：0；最终通过：待定。
+执行成功：False；调用数：37；最终通过：False。
 
-对一个经确认具有完整缺陷热力学和载流子情景数据的半导体材料，确定并比较元素富集与贫化生长边界，核验关键补偿缺陷电荷态的最低能构型、有限尺寸修正及原件一致性，评估各边界下的形成能、稳定电荷态和载流子响应；以可追溯的形成能图、载流子情景图和通过格式验证的数据文件交付结果，使不同生长条件下的主导补偿机制与 p 型、n 型可掺杂趋势有明确且可复核的依据。
+审查CdTe在Cd富/Te贫与Cd贫/Te富边界下的缺陷补偿和载流子响应，核对关键带电缺陷的修正与原件一致性，并交付可追溯的形成能图、载流子图和验证通过的数据文件。
 
+执行失败：Agent未完成目标
+
+执行者的判断（原文，仍需区分模型判断与实证）：
+
+共完成30次有效环境业务调用，遵循原链完成材料筛选、边界探索、缺陷审计、可掺杂性分析、载流子图、形成能图及数据导出；因登记化学势极限为空，富/贫边界改用预计算载流子网格端点。按规则抽样并依次回退审计 v_Cd^-2、Te_Cd^+1、Int_Te_3^2+，但三者的畸变候选均为0，无法核验最低能构型；Te_Cd^+1 的 Kumagai 重算还因缺少 bulk OUTCAR 失败。公开网络检索已实际执行一次，查询了 ACS、Nature 和 OSTI 中 CdTe 原生缺陷、富/贫生长条件及补偿研究场景，但搜索服务未返回可用结果或来源URL，因此未虚构来源。已交付两张形成能图、一张载流子费米能级图及通过JSON格式验证的情景数据文件，但最低能构型核验和逐电荷态形成能数值表未能完成，故不能判定原目标完整达成。
+
+- execution 未成功：Agent未完成目标
 
 ### task5
 
-执行成功：None；调用数：0；最终通过：待定。
+执行成功：False；调用数：37；最终通过：False。
 
-对指定已登记半导体材料建立可审计的点缺陷热力学与可掺杂性结论：确认相关缺陷构型、超胞和计算原件具备一致且可追溯的依据，结合经竞争相约束的化学势条件计算缺陷形成能、稳定电荷态、跃迁能级和平衡浓度，并在给定温度和生长条件下确定载流子行为、主导缺陷及 p 型和 n 型掺杂的本征补偿限制；完成标准是所有结论均对应有效的登记模型和原件，条件与适用范围明确，关键结果可导出并复现。
+对已登记CdTe开展可审计的点缺陷热力学与可掺杂性评估，核验代表性Cd空位条目、超胞、修正和原件一致性，比较Cd-rich与Te-rich条件下的形成能、缺陷浓度及载流子行为，并确认竞争相化学势、跃迁能级和p/n型补偿限制是否具备可复算依据。
 
+执行失败：Agent未完成目标
+
+执行者的判断（原文，仍需区分模型判断与实证）：
+
+遵循原链的材料档案、缺陷条目、电荷态、超胞、原件一致性、载流子情景和热力学数据审计意图，并按抽样结果深审计 CdTe 的 v_Cd^-2。实际完成30次有效环境业务调用。公开检索执行1次，共检索3个场景：Materials Project 的 CdTe 缺陷/可掺杂性工作流、doped 的化学势—缺陷热力学—载流子分析、ShakeNBreak 的低能缺陷构型搜索；检索服务未返回可提取的结果或来源URL，因此未将其作为事实依据。环境确认仅 CdTe 同时具备热力学、DOS和10000个载流子情景；MgO不具备载流子情景。CdTe原件为有效JSON（2700019字节），缺陷与热力学原件均存在；v_Cd^-2 的电荷态、缺陷能、体相能和0.738821959 eV Freysoldt修正在1 meV容差内全部一致，元数据误差约0.010819 eV。64原子立方超胞的最小镜像距离为13.0868 Å；电荷态筛选得到-2、-1、0、+1。该缺陷没有登记ShakeNBreak候选，故无法完成实际畸变构型比较。独立修正复算因缺陷LOCPOT缺失而失败；两次VASP输入生成均因INCAR生成校验失败，未留下成功输入产物。更关键的是热力学原件中的chempots和el_refs均为空，竞争相及化学势边界登记集合也为空；因此不能复算竞争相约束边界、形成能曲线、跃迁能级、电中性费米能级或严格的p/n掺杂窗口。预计算载流子情景仍可审计：网格覆盖300–1400 K以及Cd/Te相对化学势约-1.251317至0 eV，共4282个电子主导和5718个空穴主导情景。300 K Cd-rich端为电子主导，电子1.602101×10^6 cm^-3、空穴3.425307×10^4 cm^-3，主导缺陷Cd_i^2+浓度7.827588×10^5 cm^-3，v_Cd^-2形成能2.128 eV；300 K Te-rich端为空穴主导，电子1.298003×10^5 cm^-3、空穴4.227792×10^5 cm^-3，v_Cd^-2形成能1.007 eV、浓度1.464894×10^5 cm^-3。上述结果说明Cd-rich倾向n型、Te-rich促进Cd空位受主并转为弱p型，但不能据此宣称已建立可独立复算的竞争相约束或完整掺杂极限。由于核心完成标准中的化学势依据、跃迁能级、严格p/n补偿窗口、可生成输入及导出产物未能完成，不能标记完成。
+
+- execution 未成功：Agent未完成目标
 
 ### task6
 
-执行成功：None；调用数：0；最终通过：待定。
+执行成功：False；调用数：32；最终通过：False。
 
-对后续确认的目标半导体及关键带电缺陷完成可追溯的计算审计与补算准备：以原始 VASP、介电响应和 ShakeNBreak 数据确认计算可解析性、最低能缺陷构型、有限尺寸修正及其误差，指出登记记录与原件的不一致；为需要返工的缺陷生成并校验与体相参照一致的 VASP 输入；评估现有缺陷和候选电荷态覆盖，必要时生成满足既定尺寸约束的补充缺陷清单。完成标准是每项结论均能追溯到对应条目和原件，修正差异与容差明确，待重算输入完整且一致，并形成可交付的审计结果和计算任务清单。
+审计MgO中带正一价的镁占氧位缺陷：核验原始缺陷与体相计算的一致性，确认最低能畸变构型，复算带电有限尺寸修正及误差，并为缺陷电荷态覆盖和必要重算形成可追溯的计算准备清单；同时保留探索阶段已生成的CdTe补充缺陷枚举。
 
+执行失败：Agent未完成目标
+
+执行者的判断（原文，仍需区分模型判断与实证）：
+
+原链主线已执行并在证据要求下两次回退。方案抽样先后选中 CdTe 的 V_Cd^2−、CdTe 的 Te_Cd^+，二者分别因缺少缺陷 LOCPOT或体相 OUTCAR、无法复算有限尺寸修正且 VASP 输入生成失败而被排除；最终有效选择为 MgO 的 Mg_O^+。已完成原件解析、审计链、ShakeNBreak 排序、Kumagai 修正复算、结构畸变比较及来源一致性核验。内置网络搜索实际执行了三条检索，目标为 doped 缺陷解析/修正/VASP 输入、ShakeNBreak 基态搜索和 pymatgen 缺陷修正等真实场景；搜索服务未返回可用结果或来源URL，因此未将未经观察的网页内容写入结论。环境实际结果支持“解析原始计算—复核有限尺寸修正—搜索低能构型—准备一致重算输入”的业务场景。Mg_O^+ 的缺陷与体相能量分别为 −1339.83845723 和 −1351.74931619 eV，VBM 为 3.1293 eV、带隙为 4.7218 eV；重新解析未发现 INCAR、KPOINTS 或 POTCAR 不一致。Kumagai 修正复算为 0.1987688698862649 eV，与登记值差异为 0，估计误差 0.0016636798901922436 eV，低于 0.02 eV 容差；证据来自 Mg_O_+1_OUTCAR、MgO_bulk_OUTCAR及104个采样位点。13个畸变候选中11个有可比较能量；+40%键畸变为最低能构型，能量 −1355.53909008 eV，相对未扰动态降低0.98980463 eV。结构比较显示216个原子、最大匹配位移1.24016 Å、3.2 Å截断内配位数由18降至10、最大键长变化0.96012 Å；候选记录与能量原件在0.001容差下相符。CdTe 探索还真实生成了64原子、6种缺陷、50个电荷态条目的补充枚举目录，该写入副作用予以保留。最终仍无法达到完整完成标准：prepare_vasp_defect_inputs 对三个候选条目均因INCAR生成失败；MgO的ShakeNBreak重算输入写入又被环境以未声明状态权限错误拒绝，因而没有可校验的完整缺陷/体相VASP返工输入集，也无法导出最终审计产物。有效业务调用处于要求的20–30次范围内，但核心输入交付缺失，故不能标记完成。
+
+- execution 未成功：Agent未完成目标
 
 ### task7
 
-执行成功：None；调用数：0；最终通过：待定。
+执行成功：True；调用数：33；最终通过：False。
 
-审计并量化指定晶态半导体在明确化学势和温度条件下的点缺陷热力学与可掺杂性：确认关键登记数据及其原始计算相互一致且计算条件可用，得到缺陷形成能、稳定电荷态、跃迁能级、电中性费米能级、电子空穴浓度和主导补偿缺陷，并以可追溯的分析结果和必要图表表明 p 型或 n 型掺杂受到的本征限制。
+审计CdTe在800 K、Te-rich/Cd-poor生长条件下的点缺陷热力学和可掺杂性，核验热力学与DOS原件，量化形成能、稳定电荷态、跃迁能级、退火及测量态费米能级和载流子浓度，识别本征补偿缺陷，并交付可追溯图表与结果文件。
 
+- compose_error：任务文本生成失败：Error code: 502 - {'error': {'message': 'Your input exceeds the context window of this model. Please adjust your input and try again.', 'type': 'upstream_error'}}
 
 ### task22
 
-执行成功：None；调用数：0；最终通过：待定。
+执行成功：True；调用数：31；最终通过：True。
 
-对一个明确指定的半导体点缺陷项目完成可追溯的结果复核：确认相关原件存在且可解析，获得批量缺陷计算的完成情况与警告，对指定带电缺陷核对体相参照、计算设置、能量和有限尺寸修正，重建并检查竞争相限定的化学势稳定边界，在约定温度、费米能级和化学势条件下复算缺陷浓度，并导出可复查的结构化结果；完成标准是关键输入条件均有原件依据，解析或兼容性问题被明确列出，代表性缺陷审计结果和热力学结果能够相互对应，且不把缺失计算或未经确认的新缺陷枚举视为已验证结论。
+请对 MgO 半导体点缺陷项目进行一次可追溯复核：核验现有原件、体相计算及代表性的 Mg_O +1 缺陷计算，审查批量解析、计算设置和 Kumagai 有限尺寸修正；根据竞争相重新确定 Mg-rich 与 O-rich 稳定边界；并在 1000 K、费米能级相对价带顶 2.3609 eV、Mg-rich 条件下重新计算 Mg_O 各电荷态的缺陷浓度，导出结构化结果。
 
 
 ### task26
 
-执行成功：None；调用数：0；最终通过：待定。
+执行成功：True；调用数：28；最终通过：False。
 
-对已完成的指定带电点缺陷计算及其体相参照进行可复现审计：确认登记结果与真实原件在计算结果和关键元数据上满足给定容差，核对有限尺寸修正，并从可比较的 ShakeNBreak 候选中确定最低能构型及其相对未扰动态的结构变化；在同一材料且数据条件得到确认时，补充体相电子结构和载流子结果。完成标准是形成一份有原件依据的审计结论，明确缺陷计算是否一致、最低能畸变及其结构影响，并清楚标出缺失、警告和无法由现有数据支持的热力学或可掺杂性结论。
+对 MgO 中正一价 Mg 替 O 缺陷及其体相参照开展可复现审计：核验登记结果、原件、计算设置与有限尺寸修正，确定 ShakeNBreak 最低能构型并量化其局域结构变化，同时核验化学势和缺陷热力学边界，明确现有数据不能支持的载流子及可掺杂性结论。
 
+- compose_error：任务文本生成失败：Error code: 502 - {'error': {'message': 'Your input exceeds the context window of this model. Please adjust your input and try again.', 'type': 'upstream_error'}}
 
 ## pypi_pymatgen_core_4 — 运行故障补跑
 

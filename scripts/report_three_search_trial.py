@@ -13,6 +13,20 @@ def main():
     metas = sorted(RUNS.glob('*/*/run.json'))
     metas += sorted((ROOT / 'runs/three_search_runtime_retry_20260917').glob('*/*/run.json'))
     metas += sorted((ROOT / 'runs/three_search_compose_retry_20260917').glob('*/*/run.json'))
+    latest = {}
+    for meta in metas:
+        bundle = meta.parent / 'intermediate/step_5_bundle.json'
+        if bundle.exists():
+            for task in json.loads(bundle.read_text())['tasks']:
+                latest[(meta.parent.parent.name, task['task_id'])] = (meta.parent, task)
+    accepted = [(key, run, task) for key, (run, task) in sorted(latest.items())
+                if task.get('validation', {}).get('passed')]
+    lines += ['## 最新通过任务文本', '',
+              '按每个候选最近一次完成的 Step5 结果汇总；尚在进行的补跑未覆盖旧结果。历史结果和问题记录在后文。记录调用数包含程序保留的部分参数错误，不等同于人工核定的有效链长。', '']
+    for (name, task_id), run, task in accepted:
+        lines += [f'### {name} / {task_id}', '', task['task_text'], '',
+                  f"记录调用数：{len(task['execution']['tool_calls'])}；[原始任务文件]({run / 'tasks.json'})。", '']
+    lines += ['## 各轮完整记录', '']
     for meta in metas:
         run = meta.parent
         status = json.loads(meta.read_text())
