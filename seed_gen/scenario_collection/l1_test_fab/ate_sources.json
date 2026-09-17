@@ -1,0 +1,73 @@
+[
+  {
+    "name": "Semi-ATE-STDF",
+    "index": 551,
+    "directory": "l1_test_fab/Semi-ATE-STDF",
+    "source_root": ".",
+    "modules": [
+      "Semi_ATE.STDF"
+    ],
+    "repository": "https://github.com/Semi-ATE/STDF",
+    "tag": "0.1.33",
+    "commit": "5bbcbe76b522bb899fcc8d9d966d34b125f6516f",
+    "documentation": "https://github.com/Semi-ATE/STDF",
+    "description": "Semi-ATE-STDF提供半导体ATE的STDF记录读写、字段类型校验和ATDF转换，支持按发布记录格式解析晶圆/器件/测试信息；记录解析不自动解决重测、合批和良率业务语义。",
+    "pypi": "https://pypi.org/project/Semi-ATE-STDF/",
+    "pypi_version": "0.1.28",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Semi-ATE/STDF/releases/latest",
+    "release_url": "https://github.com/Semi-ATE/STDF/releases/tag/0.1.33",
+    "release_published_at": "2024-12-20T14:33:39Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": [
+      "最新正式Release0.1.33，PyPI同名分发0.1.28；采用源码正式Release，安装固定提交。"
+    ]
+  },
+  {
+    "name": "pystdf",
+    "index": 552,
+    "directory": "l1_test_fab/pystdf",
+    "source_root": ".",
+    "modules": [
+      "pystdf"
+    ],
+    "repository": "https://github.com/cmars/pystdf",
+    "tag": "v1.4.0",
+    "commit": "a8995763454460dee47e5467e8de3b1de6f92a84",
+    "documentation": "https://github.com/cmars/pystdf",
+    "description": "PySTDF以事件流解析STDF并提供表格/文本输出及记录映射，是ATE结果解析的另一实现；与Semi-ATE-STDF比较主入口和错误处理后择一。",
+    "pypi": "https://pypi.org/project/pystdf/",
+    "pypi_version": "1.4.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/cmars/pystdf/releases/latest",
+    "release_url": "https://github.com/cmars/pystdf/releases/tag/v1.4.0",
+    "release_published_at": "2026-08-20T03:33:21Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  },
+  {
+    "name": "wfmap",
+    "index": 553,
+    "directory": "l1_test_fab/wfmap",
+    "source_root": ".",
+    "modules": [
+      "wfmap"
+    ],
+    "repository": "https://github.com/xlhaw/wfmap",
+    "tag": "1.0.3",
+    "commit": "7afa981a3037a82f18896dbd3d63d5826e031fa5",
+    "documentation": "https://github.com/xlhaw/wfmap",
+    "description": "wfmap把晶粒坐标和类别/数值映射为晶圆可视化，提供样式、图像与图例构造；缺测、pass/fail和坐标方向需由工程数据契约明确。",
+    "pypi": "https://pypi.org/project/wfmap/",
+    "pypi_version": "1.0.3",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/xlhaw/wfmap/releases/latest",
+    "release_url": "https://github.com/xlhaw/wfmap/releases/tag/1.0.3",
+    "release_published_at": "2022-10-24T10:49:15Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  }
+]

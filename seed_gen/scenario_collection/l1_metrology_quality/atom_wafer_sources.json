@@ -1,0 +1,75 @@
+[
+  {
+    "name": "atomap",
+    "index": 780,
+    "directory": "l1_metrology_quality/atomap",
+    "source_root": ".",
+    "modules": [
+      "atomap"
+    ],
+    "repository": "https://gitlab.com/atomap/atomap",
+    "tag": "0.4.2",
+    "commit": "0e7def4986f69148afee12d3ce52f356776873b5",
+    "documentation": "https://atomap.org/",
+    "description": "Atomap从原子分辨HAADF-STEM图像寻找和精化原子列位置，构造子晶格/原子面并测量间距与位移；阈值和二维投影假设需独立检查。",
+    "pypi": "https://pypi.org/project/atomap/",
+    "pypi_version": "0.4.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://gitlab.com/api/v4/projects/atomap%2Fatomap/repository/tags?per_page=10",
+    "release_url": "https://gitlab.com/atomap/atomap/-/tags/0.4.2",
+    "selection_rule": "NoGitLabReleases; latestofficialstabletag0.4.2 agreesPyPI0.4.2",
+    "notes": [
+      "GitLabRelease列表为空，tag提交标题Release0.4.2；在线文档0.4.3.dev1领先固定源码。"
+    ],
+    "release_published_at": "2025-01-05T15:59:54+08:00",
+    "github_prerelease": false
+  },
+  {
+    "name": "wafermap",
+    "index": 781,
+    "directory": "l1_metrology_quality/wafermap",
+    "source_root": ".",
+    "modules": [
+      "wafermap"
+    ],
+    "repository": "https://github.com/cap1tan/wafermap",
+    "tag": "v0.3.2",
+    "commit": "2712191b5a9469aaf6c7410a6803efe96bdfad81",
+    "documentation": "https://github.com/cap1tan/wafermap",
+    "description": "wafermap按晶圆半径、notch、die网格、点和图像绘制半导体晶圆地图并保存HTML；坐标、bin语义和重测归并由上游契约维护。",
+    "pypi": "https://pypi.org/project/wafermap/",
+    "pypi_version": "0.3.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/cap1tan/wafermap/releases/latest",
+    "release_url": "https://github.com/cap1tan/wafermap/releases/tag/v0.3.2",
+    "selection_rule": "Latest official stableRelease",
+    "notes": [],
+    "release_published_at": "2025-12-08T16:37:02Z",
+    "github_prerelease": false
+  },
+  {
+    "name": "Semi-ATE-STDF",
+    "index": 551,
+    "directory": "l1_test_fab/Semi-ATE-STDF",
+    "source_root": ".",
+    "modules": [
+      "Semi_ATE.STDF"
+    ],
+    "repository": "https://github.com/Semi-ATE/STDF",
+    "tag": "0.1.33",
+    "commit": "5bbcbe76b522bb899fcc8d9d966d34b125f6516f",
+    "documentation": "https://github.com/Semi-ATE/STDF",
+    "description": "Semi-ATE-STDF提供半导体ATE的STDF记录读写、字段类型校验和ATDF转换，支持按发布记录格式解析晶圆/器件/测试信息；记录解析不自动解决重测、合批和良率业务语义。",
+    "pypi": "https://pypi.org/project/Semi-ATE-STDF/",
+    "pypi_version": "0.1.28",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Semi-ATE/STDF/releases/latest",
+    "release_url": "https://github.com/Semi-ATE/STDF/releases/tag/0.1.33",
+    "release_published_at": "2024-12-20T14:33:39Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": [
+      "最新正式Release0.1.33，PyPI同名分发0.1.28；采用源码正式Release，安装固定提交。"
+    ]
+  }
+]

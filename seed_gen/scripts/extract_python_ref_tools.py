@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import ast
+import copy
+from functools import lru_cache
 import json
 import re
 from pathlib import Path
@@ -307,14 +309,14 @@ def _signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return ", ".join(rendered)
 
 
-def _public_methods(class_node: ast.ClassDef) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+def _public_methods(class_node: ast.ClassDef, *, include_call_protocol: bool = False) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
     """Select source-defined public methods, including the constructor."""
     selected: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
     order: list[str] = []
     for node in class_node.body:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        if node.name != "__init__" and node.name.startswith("_"):
+        if node.name != "__init__" and node.name.startswith("_") and not (include_call_protocol and node.name == "__call__"):
             continue
         if node.name not in selected:
             order.append(node.name)
@@ -350,9 +352,18 @@ def _function_record(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, 
     }
 
 
-def extract_file(source_path: Path, module: str) -> list[dict[str, Any]]:
-    """Extract public top-level definitions from one Python source file."""
-    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+def extract_file(source_path: Path, module: str, *, include_call_protocol: bool = False) -> list[dict[str, Any]]:
+    """Read current source and return isolated records, reusing identical parsing."""
+    # A UTF-8 BOM is legal in Python source but ast.parse(str) does not remove it.
+    # Decode it here; provenance hashes still cover the untouched source bytes.
+    source = source_path.read_text(encoding="utf-8-sig")
+    return copy.deepcopy(_extract_source_records(source, str(source_path), module, include_call_protocol))
+
+
+@lru_cache(maxsize=4096)
+def _extract_source_records(source: str, filename: str, module: str, include_call_protocol: bool) -> list[dict[str, Any]]:
+    """Cache only pure parsing; release checks and file reads still run every time."""
+    tree = ast.parse(source, filename=filename)
     records: list[dict[str, Any]] = []
     selected_functions = _public_module_functions(tree.body)
     selected_classes = {
@@ -369,7 +380,7 @@ def extract_file(source_path: Path, module: str) -> list[dict[str, Any]]:
                     "module": module,
                     "input": ", ".join(ast.unparse(base) for base in node.bases),
                     "description": _description(node),
-                    "function": [_function_record(method) for method in _public_methods(node)],
+                    "function": [_function_record(method) for method in _public_methods(node, include_call_protocol=include_call_protocol)],
                 }
             )
         elif (
@@ -408,7 +419,7 @@ def _module_paths(source_root: Path, module: str) -> list[Path]:
     raise FileNotFoundError(f"Cannot resolve module {module!r} below {source_root}")
 
 
-def extract_modules(source_root: Path, modules: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
+def extract_modules(source_root: Path, modules: list[str], *, include_call_protocol: bool = False) -> tuple[list[dict[str, Any]], list[str]]:
     """Extract definitions from module files in deterministic path order."""
     paths: dict[Path, str] = {}
     for requested_module in modules:
@@ -421,7 +432,7 @@ def extract_modules(source_root: Path, modules: list[str]) -> tuple[list[dict[st
     source_files: list[str] = []
     for source_path, module in sorted(paths.items(), key=lambda item: item[1]):
         source_files.append(source_path.relative_to(source_root).as_posix())
-        tools.extend(extract_file(source_path, module))
+        tools.extend(extract_file(source_path, module, include_call_protocol=include_call_protocol))
     return tools, source_files
 
 

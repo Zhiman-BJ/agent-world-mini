@@ -43,6 +43,9 @@ def main():
             spec['notes'] = ['GitHub正式版2025.11.14，PyPI2025.11.15；按指南固定正式Release并从本地源码安装。官方文档站404，研究采用发布文档/示例。']
         if name == 'effmass':
             spec['notes'] = ['GitHub正式版2.3.0，PyPI2.3.1，在线latest文档2.3.2.dev3；签名按v2.3.0。']
+        if name == 'openbandparams':
+            spec['include_call_protocol'] = True
+            spec['notes'] = ['合金组分/晶格匹配与Parameter求值依赖源码定义的__call__，此包显式纳入调用协议；不改变其他包的默认提取边界。GaAs/InAs/InP/GaInAs为发布版数据对象，不伪造为顶层函数。']
         if name == 'pyprocar':
             spec['identical_source_aliases'] = {'pyprocar/pyposcar/plotBands.py': 'pyprocar/pyposcar/plotbands.py'}
             spec['notes'] = ['Windows大小写文件碰撞；plotBands.py与plotbands.py Git blob均97d24d2617cd6151a4faee218ff3c02690974fbb，显式补齐同字节模块别名。', '要求NumPy<2，与sumo3.0的NumPy>=2不能直接共存；保留候选池，联合选择时处理替代关系。', '发布说明确认文档已迁往ReadTheDocs，旧GitHub Pages示例404。']

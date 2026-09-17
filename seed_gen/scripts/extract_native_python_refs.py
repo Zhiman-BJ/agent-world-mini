@@ -264,6 +264,9 @@ def extract_cantera_stubs(root: Path) -> tuple[list[dict], list[str], dict]:
 
 
 def adapt_native(adapter: str, root: Path, python_tools: list[dict]) -> tuple[list[dict], list[str], dict]:
+    if adapter in ('kwant', 'tkwant'):
+        from seed_gen.scripts.extract_transport_cython_refs import extract_transport
+        return extract_transport(root, adapter, python_tools)
     if adapter == "gmsh":
         file = "api/gmsh.py"
         tools = extract_gmsh(root / file)
@@ -295,5 +298,13 @@ def adapt_native(adapter: str, root: Path, python_tools: list[dict]) -> tuple[li
         }
     if adapter == "cantera":
         native, files, metadata = extract_cantera_stubs(root)
+        return [*python_tools, *native], files, metadata
+    if adapter == "gdstk":
+        from seed_gen.scripts.extract_gdstk_refs import extract_gdstk_stubs
+        native, files, metadata = extract_gdstk_stubs(root)
+        return [*python_tools, *native], files, metadata
+    if adapter == "hdlconvertor":
+        from seed_gen.scripts.extract_hdlconvertor_refs import extract_hdlconvertor
+        native, files, metadata = extract_hdlconvertor(root)
         return [*python_tools, *native], files, metadata
     raise ValueError(f"Unknown native adapter: {adapter}")

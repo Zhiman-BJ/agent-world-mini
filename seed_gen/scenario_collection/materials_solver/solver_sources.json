@@ -1,0 +1,78 @@
+[
+  {
+    "name": "ase",
+    "index": 17,
+    "repository": "https://gitlab.com/ase/ase",
+    "documentation": "https://ase-lib.org/",
+    "pypi": "https://pypi.org/project/ase/",
+    "pypi_version": "3.29.0",
+    "tag": "3.29.0",
+    "commit": "f27c0005ae6a67ea419f996e728668865bfc1f86",
+    "release_published_at": "2026-06-21T16:03:03Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_url": "https://gitlab.com/ase/ase/-/tags/3.29.0",
+    "release_api": "",
+    "selection_rule": "Latest non-prerelease PyPI version and exact official GitLab tag agree; ASE uses GitLab rather than GitHub Releases.",
+    "directory": "ase",
+    "modules": [
+      "ase"
+    ],
+    "description": "ASE（Atomic Simulation Environment）是用于原子结构建模、计算任务配置和结果分析的 Python 框架，提供 Atoms、晶胞、约束、优化器、计算器、轨迹与多种文件格式接口，可连接 GPAW、VASP 等外部电子结构计算器。",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。",
+      "官方GitLab标签与PyPI版本3.29.0一致；多个旧文档链接404，保留失败HTTP记录，桥接依据固定源码及实际运行。"
+    ]
+  },
+  {
+    "name": "abipy",
+    "index": 128,
+    "directory": "abipy",
+    "source_root": ".",
+    "modules": [
+      "abipy"
+    ],
+    "repository": "https://github.com/abinit/abipy",
+    "tag": "v1.0.0",
+    "commit": "414ef88c4523fef2677da0fd954444e17884e536",
+    "documentation": "https://abinit.github.io/abipy/",
+    "pypi": "https://pypi.org/project/abipy/",
+    "pypi_version": "1.0.0",
+    "release_published_at": "2026-05-07T13:08:56.243230Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_api": "https://api.github.com/repos/abinit/abipy/releases/latest",
+    "release_url": "https://github.com/abinit/abipy/tree/v1.0.0",
+    "selection_rule": "Official GitHub Releases absent (404); latest stable PyPI version agrees with exact official Git tag. Date is PyPI upload, not a fabricated GitHub Release.",
+    "description": "AbiPy提供ABINIT输入生成、任务/工作流管理及电子结构输出分析，覆盖结构、能带、声子和响应计算；实际DFT求解需单独安装ABINIT与赝势数据。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  },
+  {
+    "name": "gpaw",
+    "index": 181,
+    "directory": "gpaw",
+    "source_root": ".",
+    "modules": [
+      "gpaw"
+    ],
+    "repository": "https://gitlab.com/gpaw/gpaw",
+    "tag": "26.7.0",
+    "commit": "9c6f4ccd94355b3e8c1c418b4b605d7ce7552e30",
+    "documentation": "https://gpaw.readthedocs.io/",
+    "pypi": "https://pypi.org/project/gpaw/",
+    "pypi_version": "26.7.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://gitlab.com/api/v4/projects/gpaw%2Fgpaw/repository/tags/26.7.0",
+    "release_url": "https://gitlab.com/gpaw/gpaw/-/tags/26.7.0",
+    "release_published_at": "2026-07-06T09:30:59.312830Z",
+    "github_prerelease": null,
+    "selection_rule": "Latest stable PyPI release agrees with exact official GitLab tag/commit; publication time is PyPI upload.",
+    "description": "GPAW基于投影缀加波方法实现密度泛函计算，提供平面波、实空间网格及局域轨道模式，通过ASE计算器接口接收原子结构和返回能量、力与电子态；常规后端使用编译扩展和数值库，26.7.0另有功能受限的官方纯Python后端，均需匹配PAW数据。",
+    "notes": [
+      "完整静态Python源码候选，不把原生扩展/动态继承宣称已完整反射；运行后端及PAW数据另行核验。"
+    ]
+  }
+]

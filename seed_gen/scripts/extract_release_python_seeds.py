@@ -74,7 +74,10 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
     if git(root, "status", "--porcelain", "--untracked-files=no"):
         raise ValueError(f"Tracked source modifications in {root}")
     source_root = root / spec.get("source_root", ".")
-    tools, files = extract_modules(source_root, spec["modules"])
+    include_call_protocol = spec.get("include_call_protocol", False)
+    if not isinstance(include_call_protocol, bool):
+        raise ValueError("include_call_protocol must be a boolean")
+    tools, files = extract_modules(source_root, spec["modules"], include_call_protocol=include_call_protocol)
     # A Windows checkout may collapse case-only Git paths. Only an explicit,
     # byte-identical alias is recoverable from the existing working-tree file;
     # differing blobs must never silently substitute for the missing source.
@@ -91,7 +94,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
         # On a case-sensitive filesystem extraction may already include both.
         if alias not in files:
             module = alias.removesuffix('.py').replace('/', '.').removesuffix('.__init__')
-            tools.extend(extract_file(canonical_path, module))
+            tools.extend(extract_file(canonical_path, module, include_call_protocol=include_call_protocol))
             files.append(alias)
     if source_aliases:
         tools.sort(key=lambda t: (t['module'], t['name'], t['type']))
@@ -150,12 +153,15 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
                 "strategy": "static_ast_and_native_export_docs" if native_count else "static_ast",
                 "requested_modules": spec["modules"], "source_files": files,
                 **({"identical_source_aliases": source_aliases} if source_aliases else {}),
+                **({"include_call_protocol": True, "additional_protocol_methods": ["__call__"]} if include_call_protocol else {}),
                 **({"module_prefix": module_prefix} if module_prefix else {}),
                 "source_file_sha256": {file: hashlib.sha256((root / file).read_bytes()).hexdigest() for file in files},
                 "source_version": spec["tag"], "source_commit": commit,
                 "native_function_count": native_count,
-                "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
-                "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+                "selection": ("public module classes/functions; __init__, __call__ and public source-defined class methods (including properties)"
+                              if include_call_protocol else "public module classes/functions; __init__ and public source-defined class methods (including properties)"),
+                "excluded": ("private definitions, magic methods except __init__/__call__, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories"
+                             if include_call_protocol else "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories"),
                 "docstring_mapping": {
                     "description": "summary before Google/NumPy sections or reStructuredText fields",
                     "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",

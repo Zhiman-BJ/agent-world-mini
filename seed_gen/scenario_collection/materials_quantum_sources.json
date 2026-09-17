@@ -1,0 +1,204 @@
+[
+  {
+    "name": "matgl",
+    "index": 121,
+    "directory": "matgl",
+    "source_root": "src",
+    "modules": [
+      "matgl"
+    ],
+    "repository": "https://github.com/materialyzeai/matgl",
+    "tag": "v4.0.3",
+    "commit": "a5d5afc8d088174266fa314ccdb7a819fff8ebd5",
+    "documentation": "https://matgl.ai",
+    "pypi": "https://pypi.org/project/matgl/",
+    "pypi_version": "4.0.3",
+    "release_published_at": "2026-07-02T00:45:46Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/materialsvirtuallab/matgl/releases/latest",
+    "release_url": "https://github.com/materialyzeai/matgl/releases/tag/v4.0.3",
+    "selection_rule": "Latest official stable GitHub Release at checked_on; use its exact tag even if PyPI differs.",
+    "description": "MatGL使用图神经网络构建材料能量、力和其他性质模型，提供模型加载、结构图转换、训练及ASE计算器接口；不同模型权重、图后端及硬件要求需单独验证。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。",
+      "旧官方仓库materialsvirtuallab/matgl重定向materialyzeai/matgl；主页明确链接该仓库。"
+    ]
+  },
+  {
+    "name": "chgnet",
+    "index": 122,
+    "directory": "chgnet",
+    "source_root": ".",
+    "modules": [
+      "chgnet"
+    ],
+    "repository": "https://github.com/CederGroupHub/chgnet",
+    "tag": "v0.4.2",
+    "commit": "8d04abc467630b30cd8349c2fe12eeab10f62171",
+    "documentation": "https://cedergrouphub.github.io/chgnet/",
+    "pypi": "https://pypi.org/project/chgnet/",
+    "pypi_version": "0.4.2",
+    "release_published_at": "2025-09-22T20:29:05Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/CederGroupHub/chgnet/releases/latest",
+    "release_url": "https://github.com/CederGroupHub/chgnet/releases/tag/v0.4.2",
+    "selection_rule": "Latest official stable GitHub Release at checked_on; use its exact tag even if PyPI differs.",
+    "description": "CHGNet是带磁矩信息约束的预训练通用原子势，提供晶体图、能量/力/应力预测、结构弛豫、分子动力学及训练接口；模型适用性和误差不由接口验证保证。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  },
+  {
+    "name": "mace-torch",
+    "index": 123,
+    "directory": "mace",
+    "source_root": ".",
+    "modules": [
+      "mace"
+    ],
+    "repository": "https://github.com/ACEsuit/mace",
+    "tag": "v0.3.16",
+    "commit": "4d2da09413ac1407f37cdbb6b81fa28e4c15655e",
+    "documentation": "https://mace-docs.readthedocs.io/",
+    "pypi": "https://pypi.org/project/mace-torch/",
+    "pypi_version": "0.3.16",
+    "release_published_at": "2026-05-10T18:06:35Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/ACEsuit/mace/releases/latest",
+    "release_url": "https://github.com/ACEsuit/mace/releases/tag/v0.3.16",
+    "selection_rule": "Latest official stable GitHub Release at checked_on; use its exact tag even if PyPI differs.",
+    "description": "MACE提供等变原子图神经网络势、模型训练和预训练势计算器，可连接ASE执行能量/力计算、弛豫及动力学；模型文件与数值后端需独立固定。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  },
+  {
+    "name": "pythtb",
+    "index": 124,
+    "directory": "pythtb",
+    "source_root": ".",
+    "modules": [
+      "pythtb"
+    ],
+    "repository": "https://github.com/pythtb/pythtb",
+    "tag": "v2.0.2",
+    "commit": "76b8f8e19bcaab8d1cfa4f2e0c126581eabeca43",
+    "documentation": "https://pythtb.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/pythtb/",
+    "pypi_version": "2.0.2",
+    "release_published_at": "2026-05-26T17:24:53Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/pythtb/pythtb/releases/latest",
+    "release_url": "https://github.com/pythtb/pythtb/releases/tag/v2.0.2",
+    "selection_rule": "Latest official stable GitHub Release at checked_on; use its exact tag even if PyPI differs.",
+    "description": "PythTB提供紧束缚晶格、轨道、跃迁和哈密顿量建模，可计算能带、本征态、Berry相位、Wilson环及拓扑指标，适合小型解析可验证晶格模型。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  },
+  {
+    "name": "pybinding",
+    "index": 125,
+    "directory": "pybinding",
+    "source_root": ".",
+    "modules": [
+      "pybinding"
+    ],
+    "repository": "https://github.com/dean0x7d/pybinding",
+    "tag": "v0.9.5",
+    "commit": "25ab8b61de90a640f14b5e2ec5c3051db4d32863",
+    "documentation": "https://docs.pybinding.site/",
+    "pypi": "https://pypi.org/project/pybinding/",
+    "pypi_version": "0.9.5",
+    "release_published_at": "2020-08-30T11:50:51Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/dean0x7d/pybinding/releases/latest",
+    "release_url": "https://github.com/dean0x7d/pybinding/releases/tag/v0.9.5",
+    "selection_rule": "Latest official stable GitHub Release at checked_on; use its exact tag even if PyPI differs.",
+    "description": "pybinding将晶格、几何、边界和扰动组合成紧束缚模型，提供稀疏求解、局域态和输运相关接口；核心C++扩展、继承接口和编译兼容需单独核查。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  },
+  {
+    "name": "wannierberri",
+    "index": 126,
+    "directory": "wannierberri",
+    "source_root": ".",
+    "modules": [
+      "wannierberri"
+    ],
+    "repository": "https://github.com/wannier-berri/wannier-berri",
+    "tag": "v1.7.0",
+    "commit": "50265d5d1cef184f8377f87ed691c8d9a2f6cdbf",
+    "documentation": "https://wannier-berri.org",
+    "pypi": "https://pypi.org/project/wannierberri/",
+    "pypi_version": "26.7.0",
+    "release_published_at": "2026-02-16T21:22:07Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_api": "https://api.github.com/repos/wannier-berri/wannier-berri/releases/latest",
+    "release_url": "https://github.com/wannier-berri/wannier-berri/releases/tag/v1.7.0",
+    "selection_rule": "Latest official stable GitHub Release at checked_on; use its exact tag even if PyPI differs.",
+    "description": "WannierBerri利用Wannier紧束缚表示插值能带和Berry相关量，支持布里渊区积分、输运响应与Wannier数据读取；具体积分精度、物理对称和输入矩阵约定需要验证。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。",
+      "GitHub最新正式Release仍为v1.7.0，PyPI为26.7.0；按当前指南优先正式Release，保留差异而不跟随默认分支。"
+    ]
+  },
+  {
+    "name": "tbmodels",
+    "index": 127,
+    "directory": "tbmodels",
+    "source_root": ".",
+    "modules": [
+      "tbmodels"
+    ],
+    "repository": "https://github.com/Z2PackDev/TBmodels",
+    "tag": "v1.4.3",
+    "commit": "fc412b5b7c4fb3a8a5b6106d7f0ce592de72eb0e",
+    "documentation": "https://tbmodels.greschd.ch",
+    "pypi": "https://pypi.org/project/tbmodels/",
+    "pypi_version": "1.4.3",
+    "release_published_at": "2021-04-27T09:15:50.446975Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_api": "https://api.github.com/repos/Z2PackDev/TBmodels/releases/latest",
+    "release_url": "https://github.com/Z2PackDev/TBmodels/tree/v1.4.3",
+    "selection_rule": "Official GitHub Releases absent (404); latest stable PyPI version agrees with exact official Git tag. Date is PyPI upload, not a fabricated GitHub Release.",
+    "description": "TBmodels用于构造、变换、求解和保存紧束缚模型，能读取Wannier90数据并表示轨道与跃迁矩阵，可作为拓扑计算的哈密顿量来源。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  },
+  {
+    "name": "abipy",
+    "index": 128,
+    "directory": "abipy",
+    "source_root": ".",
+    "modules": [
+      "abipy"
+    ],
+    "repository": "https://github.com/abinit/abipy",
+    "tag": "v1.0.0",
+    "commit": "414ef88c4523fef2677da0fd954444e17884e536",
+    "documentation": "https://abinit.github.io/abipy/",
+    "pypi": "https://pypi.org/project/abipy/",
+    "pypi_version": "1.0.0",
+    "release_published_at": "2026-05-07T13:08:56.243230Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_api": "https://api.github.com/repos/abinit/abipy/releases/latest",
+    "release_url": "https://github.com/abinit/abipy/tree/v1.0.0",
+    "selection_rule": "Official GitHub Releases absent (404); latest stable PyPI version agrees with exact official Git tag. Date is PyPI upload, not a fabricated GitHub Release.",
+    "description": "AbiPy提供ABINIT输入生成、任务/工作流管理及电子结构输出分析，覆盖结构、能带、声子和响应计算；实际DFT求解需单独安装ABINIT与赝势数据。",
+    "notes": [
+      "完整静态Python候选池；不据此声明原生扩展、继承/动态导出、模型权重、外部求解器或任务已验证。"
+    ]
+  }
+]

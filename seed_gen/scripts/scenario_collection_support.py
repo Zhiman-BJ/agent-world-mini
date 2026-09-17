@@ -24,14 +24,15 @@ def recipe(identifier,description,initial_state,steps,assertions,fixture,validat
 
 
 class Collection:
-    def __init__(self):
-        self.inventory=read(BASE/'inventory.json')
+    def __init__(self, *, base=BASE, raw=RAW, inventory_base=BASE):
+        self.base, self.raw, self.inventory_base = Path(base), Path(raw), Path(inventory_base)
+        self.inventory=read(self.inventory_base/'inventory.json')
         self.specs={}
-        for path in BASE.glob('*_sources.json'):
+        for path in self.base.glob('*_sources.json'):
             for spec in read(path):
                 require(spec['name'] not in self.specs,'Duplicate collection package spec')
                 self.specs[spec['name']]=(spec,path)
-        self.web={r['url']:r for path in (BASE/'research').glob('*web/index.json') for r in read(path)}
+        self.web={r['url']:r for path in (self.base/'research').glob('*web/index.json') for r in read(path)}
 
     def source(self,url,evidence,entities,tools,tasks):
         value=copy.deepcopy(self.web[url])
@@ -45,7 +46,7 @@ class Collection:
         packages=[]; payloads={}
         for name,role,reason in design['packages']:
             spec,path=self.specs[name]
-            raw_path=RAW/f'{name}_{spec["tag"]}.json'
+            raw_path=self.raw/f'{name}_{spec["tag"]}.json'
             payloads[name]=read(raw_path)
             packages.append({'name':name,'version':spec['tag'],'role':role,'reason':reason,
                              'raw_path':raw_path.as_posix(),'raw_sha256':_canonical_sha256(payloads[name]),
@@ -57,9 +58,11 @@ class Collection:
             raw=matches[0]
             if not raw.get('description') or any(not m.get('description') for m in raw.get('function',[]) if m['name'] in selected.get('methods',[])):
                 selected['missing_description_reason']='必要来源接口说明为空，保留空值；场景用途见reason，不编造源文档。'
-        research_path=BASE/f'research/{sid}.json'
+        (self.base/'research').mkdir(parents=True,exist_ok=True)
+        (self.base/'profiles').mkdir(parents=True,exist_ok=True)
+        research_path=self.base/f'research/{sid}.json'
         research_path.write_text(json.dumps(design,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-        normalized=BASE/'classification.normalized.md'
+        normalized=self.inventory_base/'classification.normalized.md'
         runtime=Path(design['runtime_report'])
         profile={'profile_version':'joint-scenario-1.0','scenario_id':sid,'index':row['index'],'checked_on':'2026-09-17',
                  'classification_source':normalized.as_posix(),'classification_sha256':file_sha(normalized),
@@ -72,6 +75,6 @@ class Collection:
                  'runtime_infrastructure':design['runtime_infrastructure'],'boundaries':design['boundaries'],
                  'tasks':design['tasks'],'runtime_reports':[{'path':runtime.as_posix(),'sha256':file_sha(runtime),'scope':design['runtime_scope']}]}
         if design.get('count_exception'): profile['count_exception']=design['count_exception']
-        path=BASE/'profiles'/f'{sid}.json'
+        path=self.base/'profiles'/f'{sid}.json'
         path.write_text(json.dumps(profile,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         print(path)

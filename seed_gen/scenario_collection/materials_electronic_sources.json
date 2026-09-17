@@ -123,6 +123,9 @@
     "release_published_at": "2025-09-01T13:03:29Z",
     "github_prerelease": false,
     "selection_rule": "Latest official stable GitHub release, with current PyPI difference explicitly retained.",
-    "notes": []
+    "notes": [
+      "合金组分/晶格匹配与Parameter求值依赖源码定义的__call__，此包显式纳入调用协议；不改变其他包的默认提取边界。GaAs/InAs/InP/GaInAs为发布版数据对象，不伪造为顶层函数。"
+    ],
+    "include_call_protocol": true
   }
 ]

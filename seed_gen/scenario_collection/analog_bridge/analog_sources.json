@@ -1,0 +1,107 @@
+[
+  {
+    "name": "skillbridge",
+    "index": 9801,
+    "directory": "analog_bridge/skillbridge",
+    "source_root": ".",
+    "modules": [
+      "skillbridge"
+    ],
+    "repository": "https://github.com/unihd-cag/skillbridge",
+    "tag": "releases/1.8.0",
+    "commit": "ca6105eec77a587db39d61c6e26f60be46065e48",
+    "documentation": "https://unihd-cag.github.io/skillbridge/",
+    "description": "Skillbridge将Python对象、参数和调用转换为Cadence Virtuoso的SKILL命令，通过远程会话读取/修改设计对象；实际原理图和版图执行依赖商业后端，官方测试通道仅用于离线协议验证。",
+    "pypi": "https://pypi.org/project/skillbridge/",
+    "pypi_version": "1.8.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/unihd-cag/skillbridge/releases/latest",
+    "release_url": "https://github.com/unihd-cag/skillbridge/releases/tag/releases/1.8.0",
+    "release_published_at": "2026-03-23T14:32:18Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "完整候选包含源码公开接口与显式__call__；ws.db/rod动态函数名不伪造成逐个源定义方法。",
+      "正式tag含斜杠，原始路径保留skillbridge_releases/1.8.0.json。"
+    ]
+  },
+  {
+    "name": "hdl21",
+    "index": 341,
+    "directory": "l1_design_lab/hdl21",
+    "source_root": ".",
+    "modules": [
+      "hdl21"
+    ],
+    "repository": "https://github.com/dan-fritchman/Hdl21",
+    "tag": "v6.0.0",
+    "commit": "3f5f3b325ca7eefaad51302a4faec2b2d19b4033",
+    "documentation": "https://github.com/dan-fritchman/Hdl21/blob/v6.0.0/readme.md",
+    "description": "HDL21以Python对象与参数生成器描述晶体管级原理图、信号、实例和层次连接，支持展开为VLSIR电路模型并通过VLSIRtools生成SPICE网表。",
+    "pypi": "https://pypi.org/project/hdl21/",
+    "pypi_version": "7.0.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/dan-fritchman/Hdl21/releases/latest",
+    "release_url": "https://github.com/dan-fritchman/Hdl21/tree/v6.0.0",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "官方无GitHubRelease；最新非开发Git标签6.0.0，与tag内pyproject版本一致。PyPI最新7.0.0但官方标签只有7.0.0.dev，当前选择可证实发布源码6.0.0并固定vlsir/vlsirtools6.0.0，未把main冒充7.0.0发布源码。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。",
+      "保留源代码明确定义的__call__协议以闭合ExternalModule/Generator参数调用；装饰器动态生成的实例调用只记入场景基础设施，不伪造源方法。"
+    ],
+    "include_call_protocol": true
+  },
+  {
+    "name": "vlsirtools",
+    "index": 342,
+    "directory": "l1_design_lab/vlsir",
+    "source_root": "VlsirTools",
+    "modules": [
+      "vlsirtools"
+    ],
+    "repository": "https://github.com/Vlsir/Vlsir",
+    "tag": "v6.0.0",
+    "commit": "9452f2c050b659ea4b3b14c7ae0822582bf76a8f",
+    "documentation": "https://github.com/Vlsir/Vlsir/blob/v6.0.0/VlsirTools/readme.md",
+    "description": "VLSIRtools对VLSIR电路和仿真Schema提供网表输出、仿真输入组织与结果解析，连接硬件描述和SPICE类外部求解器；网表生成不等于求解执行。",
+    "pypi": "https://pypi.org/project/vlsirtools/",
+    "pypi_version": "7.0.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Vlsir/Vlsir/releases/latest",
+    "release_url": "https://github.com/Vlsir/Vlsir/tree/v6.0.0",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "官方无GitHubRelease；最新稳定Git标签6.0.0，与VlsirTools/setup.py一致；PyPI7.0.0另记，当前与HDL21的6.0.0硬依赖组合。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。",
+      "protobuf生成的VLSIR消息是外部基础Schema数据对象；当前全量索引为vlsirtools包公开源类/函数，序列化Schema字段不伪造为可调用方法。"
+    ]
+  },
+  {
+    "name": "klayout",
+    "index": 333,
+    "directory": "klayout",
+    "source_root": "src/pymod/distutils_src",
+    "modules": [
+      "klayout"
+    ],
+    "repository": "https://github.com/KLayout/klayout",
+    "tag": "v0.30.12",
+    "commit": "e71272c3b178105bd2a2f25af54673a7af7ed60d",
+    "documentation": "https://www.klayout.de/doc-qt5/programming/python.html",
+    "description": "KLayout提供GDS/OASIS层次数据库、整数/浮点几何、区域布尔运算、设计规则检查和版图连接提取，支持无GUI的Python芯片版图处理。",
+    "pypi": "https://pypi.org/project/klayout/",
+    "pypi_version": "0.30.12",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/KLayout/klayout/releases/latest",
+    "release_url": "https://github.com/KLayout/klayout/releases/tag/v0.30.12",
+    "release_published_at": "2026-08-26T17:09:27Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方稳定Release；继承API按真实定义类保留，任务选择时明确状态/单位边界。",
+      "复用已存在相同发布commit且无追踪修改的源码，只读重新核验；官方core.pyi原生适配，不改变共享源码。"
+    ],
+    "adapter": "klayout"
+  }
+]

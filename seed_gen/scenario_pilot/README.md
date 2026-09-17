@@ -4,8 +4,10 @@
 
 ## 结果入口
 
-- [三场景合并种子](../pypi_outputs/scenario_pilot/semiconductor_scenario_pilot.json)
-- [计数与验证摘要](../pypi_outputs/scenario_pilot/reports/summary.json)
+2026-09-18清理：三场景试点输出及其审计副本已移出产物目录，整个`pypi_outputs/scenario_pilot/`不再上传；恢复位置见 [正式产物说明](../pypi_outputs/final_results/README.md)。保留研究记录、验证脚本、依赖锁和本地运行证据，按下方命令可重建。本试点不替换正式02快照。以下统计记录原试点执行结果。
+
+- 重建后合并种子：`../pypi_outputs/scenario_pilot/semiconductor_scenario_pilot.json`
+- 重建后计数与验证摘要：`../pypi_outputs/scenario_pilot/reports/summary.json`
 - [联合生成器](../scripts/build_joint_scenario_seeds.py)、[试点 profile 归一化脚本](../scripts/prepare_scenario_pilot_profiles.py)
 - `work/*_research.json`：原始研究记录，包括实际请求网页、发布版本、实体/属性、去重决策和具体任务配方。
 - `profiles/*.json`：审核后的显式符号/方法清单、来源哈希、能力与任务引用。

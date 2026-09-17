@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from seed_gen.scripts.extract_python_ref_tools import _function_record, extract_file
+from seed_gen.scripts.extract_python_ref_tools import _extract_source_records, _function_record, extract_file, extract_modules
 
 
 def parse_function(source: str) -> ast.FunctionDef:
@@ -16,6 +16,62 @@ def parse_function(source: str) -> ast.FunctionDef:
 
 
 class PythonRefToolExtractionTests(unittest.TestCase):
+    def test_parser_cache_reads_current_content_and_returns_isolated_records(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'cached.py'
+            path.write_text('def run(value=1):\n    """Original."""\n', encoding='utf-8')
+            _extract_source_records.cache_clear()
+            first = extract_file(path, 'one')
+            first[0]['description'] = 'consumer mutation'
+            first[0]['input']['value']['type'] = 'mutated'
+            second = extract_file(path, 'one')
+            self.assertEqual(second[0]['description'], 'Original.')
+            self.assertEqual(second[0]['input']['value']['type'], '')
+            self.assertEqual(_extract_source_records.cache_info().hits, 1)
+            self.assertEqual(extract_file(path, 'two')[0]['module'], 'two')
+            path.write_text('def run(value=2):\n    """Updated!."""\n', encoding='utf-8')
+            changed = extract_file(path, 'one')[0]
+            self.assertEqual(changed['description'], 'Updated!.')
+            self.assertEqual(changed['ori_input'], 'value = 2')
+            _extract_source_records.cache_clear()
+
+    def test_utf8_bom_is_legal_source_without_modifying_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'driver.py'
+            original = b'\xef\xbb\xbfdef measure():\n    """Read voltage."""\n    return 1.0\n'
+            path.write_bytes(original)
+            record = extract_file(path, 'driver')[0]
+            self.assertEqual(record['name'], 'measure')
+            self.assertEqual(record['description'], 'Read voltage.')
+            self.assertEqual(path.read_bytes(), original)
+
+    def test_callable_protocol_is_opt_in_and_keeps_source_contract(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'parameters.py'
+            path.write_text('''class Material:
+    def __init__(self): pass
+    def __call__(self, T=300):
+        """Evaluate material.
+
+        Args:
+            T (float): Temperature in K.
+        Returns:
+            float: Energy in eV.
+        """
+        return T
+    def _internal(self): pass
+    def __repr__(self): return "Material"
+''', encoding='utf-8')
+            default = extract_file(path, 'parameters')[0]
+            self.assertEqual([m['name'] for m in default['function']], ['__init__'])
+            extended, files = extract_modules(Path(temp), ['parameters'], include_call_protocol=True)
+            self.assertEqual(files, ['parameters.py'])
+            self.assertEqual([m['name'] for m in extended[0]['function']], ['__init__', '__call__'])
+            method = extended[0]['function'][1]
+            self.assertEqual(method['ori_input'], 'self, T = 300')
+            self.assertEqual(method['input']['T']['description'], 'Temperature in K.')
+            self.assertEqual(method['output']['return']['description'], 'Energy in eV.')
+
     def test_sphinx_fields_keep_summary_types_and_multiline_descriptions(self):
         function = parse_function('''
 def evaluate(layer, T=298):

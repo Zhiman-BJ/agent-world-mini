@@ -1,0 +1,268 @@
+[
+  {
+    "name": "hdl21",
+    "index": 341,
+    "directory": "l1_design_lab/hdl21",
+    "source_root": ".",
+    "modules": [
+      "hdl21"
+    ],
+    "repository": "https://github.com/dan-fritchman/Hdl21",
+    "tag": "v6.0.0",
+    "commit": "3f5f3b325ca7eefaad51302a4faec2b2d19b4033",
+    "documentation": "https://github.com/dan-fritchman/Hdl21/blob/v6.0.0/readme.md",
+    "description": "HDL21以Python对象与参数生成器描述晶体管级原理图、信号、实例和层次连接，支持展开为VLSIR电路模型并通过VLSIRtools生成SPICE网表。",
+    "pypi": "https://pypi.org/project/hdl21/",
+    "pypi_version": "7.0.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/dan-fritchman/Hdl21/releases/latest",
+    "release_url": "https://github.com/dan-fritchman/Hdl21/tree/v6.0.0",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "官方无GitHubRelease；最新非开发Git标签6.0.0，与tag内pyproject版本一致。PyPI最新7.0.0但官方标签只有7.0.0.dev，当前选择可证实发布源码6.0.0并固定vlsir/vlsirtools6.0.0，未把main冒充7.0.0发布源码。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。",
+      "保留源代码明确定义的__call__协议以闭合ExternalModule/Generator参数调用；装饰器动态生成的实例调用只记入场景基础设施，不伪造源方法。"
+    ],
+    "include_call_protocol": true
+  },
+  {
+    "name": "vlsirtools",
+    "index": 342,
+    "directory": "l1_design_lab/vlsir",
+    "source_root": "VlsirTools",
+    "modules": [
+      "vlsirtools"
+    ],
+    "repository": "https://github.com/Vlsir/Vlsir",
+    "tag": "v6.0.0",
+    "commit": "9452f2c050b659ea4b3b14c7ae0822582bf76a8f",
+    "documentation": "https://github.com/Vlsir/Vlsir/blob/v6.0.0/VlsirTools/readme.md",
+    "description": "VLSIRtools对VLSIR电路和仿真Schema提供网表输出、仿真输入组织与结果解析，连接硬件描述和SPICE类外部求解器；网表生成不等于求解执行。",
+    "pypi": "https://pypi.org/project/vlsirtools/",
+    "pypi_version": "7.0.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Vlsir/Vlsir/releases/latest",
+    "release_url": "https://github.com/Vlsir/Vlsir/tree/v6.0.0",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "官方无GitHubRelease；最新稳定Git标签6.0.0，与VlsirTools/setup.py一致；PyPI7.0.0另记，当前与HDL21的6.0.0硬依赖组合。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。",
+      "protobuf生成的VLSIR消息是外部基础Schema数据对象；当前全量索引为vlsirtools包公开源类/函数，序列化Schema字段不伪造为可调用方法。"
+    ]
+  },
+  {
+    "name": "skidl",
+    "index": 343,
+    "directory": "l1_design_lab/skidl",
+    "source_root": "src",
+    "modules": [
+      "skidl"
+    ],
+    "repository": "https://github.com/devbisme/skidl",
+    "tag": "2.3.0",
+    "commit": "b94f04d436b5012f09ca103d8830e6705874a6f4",
+    "documentation": "https://devbisme.github.io/skidl/",
+    "description": "SKiDL使用Python描述元件、引脚、网络、总线和层次原理图，执行电气规则检查并导出网表；当前晶体管级场景与HDL21互为替代，不重复暴露。",
+    "pypi": "https://pypi.org/project/skidl/",
+    "pypi_version": "2.3.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/devbisme/skidl/releases/latest",
+    "release_url": "https://github.com/devbisme/skidl/tree/2.3.0",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方非预发布Release2.3.0。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。"
+    ]
+  },
+  {
+    "name": "amaranth",
+    "index": 344,
+    "directory": "l1_design_lab/amaranth",
+    "source_root": ".",
+    "modules": [
+      "amaranth"
+    ],
+    "repository": "https://github.com/amaranth-lang/amaranth",
+    "tag": "v0.5.10",
+    "commit": "4ce62de58b3235cb9a39721bf151cd0f02a5532f",
+    "documentation": "https://amaranth-lang.org/docs/amaranth/v0.5.10/",
+    "description": "Amaranth用Python描述信号、组合/时序逻辑、接口和FIFO等标准组件，提供真实事件仿真、断言与波形输出，适合可重复的计数器/数据通路验证。",
+    "pypi": "https://pypi.org/project/amaranth/",
+    "pypi_version": "0.5.10",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/amaranth-lang/amaranth/releases/latest",
+    "release_url": "https://github.com/amaranth-lang/amaranth/tree/v0.5.10",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方非预发布Release0.5.10。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。"
+    ]
+  },
+  {
+    "name": "pymtl3",
+    "index": 345,
+    "directory": "l1_design_lab/pymtl3",
+    "source_root": ".",
+    "modules": [
+      "pymtl3"
+    ],
+    "repository": "https://github.com/pymtl/pymtl3",
+    "tag": "v3.1",
+    "commit": "659cfc059c28b5abeaf86a6f4c1e8c1b24f3ccd9",
+    "documentation": "https://pymtl3.readthedocs.io/",
+    "description": "PyMTL3支持Python硬件组件、位向量、接口、RTL仿真及Verilog翻译，提供多层抽象的建模与测试；本场景作为Amaranth的重叠替代候选。",
+    "pypi": "https://pypi.org/project/pymtl3/",
+    "pypi_version": "3.1.17",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pymtl/pymtl3/releases/latest",
+    "release_url": "https://github.com/pymtl/pymtl3/tree/v3.1",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "采用最新官方非预发布GitHubRelease v3.1；PyPI最新3.1.17差异保留，未混入其源码。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。"
+    ]
+  },
+  {
+    "name": "pyrtl",
+    "index": 346,
+    "directory": "l1_design_lab/pyrtl",
+    "source_root": ".",
+    "modules": [
+      "pyrtl"
+    ],
+    "repository": "https://github.com/UCSBarchlab/PyRTL",
+    "tag": "1.0.3",
+    "commit": "de8e3f8a36093a94ebe5a5dd9a4cd450e9d19265",
+    "documentation": "https://pyrtl.readthedocs.io/",
+    "description": "PyRTL提供Python寄存器传输级线网、仿真、综合、分析和Verilog输出，适合小型数字逻辑验证；当前场景不与Amaranth重复暴露同类操作。",
+    "pypi": "https://pypi.org/project/pyrtl/",
+    "pypi_version": "1.0.3",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/UCSBarchlab/PyRTL/releases/latest",
+    "release_url": "https://github.com/UCSBarchlab/PyRTL/tree/1.0.3",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "无GitHubRelease；官方稳定tag1.0.3与PyPI1.0.3对应。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。"
+    ]
+  },
+  {
+    "name": "myhdl",
+    "index": 347,
+    "directory": "l1_design_lab/myhdl",
+    "source_root": ".",
+    "modules": [
+      "myhdl.__init__",
+      "myhdl._always",
+      "myhdl._always_comb",
+      "myhdl._always_seq",
+      "myhdl._bin",
+      "myhdl._block",
+      "myhdl._compat",
+      "myhdl._concat",
+      "myhdl._Cosimulation",
+      "myhdl._delay",
+      "myhdl._enum",
+      "myhdl._extractHierarchy",
+      "myhdl._getcellvars",
+      "myhdl._getHierarchy",
+      "myhdl._instance",
+      "myhdl._intbv",
+      "myhdl._join",
+      "myhdl._misc",
+      "myhdl._modbv",
+      "myhdl._resolverefs",
+      "myhdl._ShadowSignal",
+      "myhdl._Signal",
+      "myhdl._Simulation",
+      "myhdl._simulator",
+      "myhdl._traceSignals",
+      "myhdl._tristate",
+      "myhdl._util",
+      "myhdl._visitors",
+      "myhdl._Waiter",
+      "myhdl.conversion.__init__",
+      "myhdl.conversion._analyze",
+      "myhdl.conversion._misc",
+      "myhdl.conversion._toVerilog",
+      "myhdl.conversion._toVHDL",
+      "myhdl.conversion._toVHDLPackage",
+      "myhdl.conversion._verify",
+      "myhdl.conversion._VHDLNameValidation",
+      "myhdl.debug"
+    ],
+    "repository": "https://github.com/myhdl/myhdl",
+    "tag": "0.11",
+    "commit": "c3a74de25f2d60284f909da1c6793793faa62b17",
+    "documentation": "https://docs.myhdl.org/",
+    "description": "MyHDL通过Python生成器、信号和仿真调度描述数字硬件，并可转换为Verilog/VHDL；作为当前Amaranth方案的替代线索保留。",
+    "pypi": "https://pypi.org/project/myhdl/",
+    "pypi_version": "0.11.52",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/myhdl/myhdl/releases/latest",
+    "release_url": "https://github.com/myhdl/myhdl/tree/0.11",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "官方无GitHubRelease；最高稳定版本tag0.11，PyPI维护版0.11.52另记，tag与分发版本不同，未将默认分支作为维护版源码。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。",
+      "逐文件枚举完整运行库，排除包内test/tests：含故意无效Python2反引号语法的负例，不是库公开API；未改源码或忽略运行库语法错误。"
+    ]
+  },
+  {
+    "name": "pyverilog",
+    "index": 348,
+    "directory": "l1_design_lab/pyverilog",
+    "source_root": ".",
+    "modules": [
+      "pyverilog"
+    ],
+    "repository": "https://github.com/PyHDI/Pyverilog",
+    "tag": "1.3.0",
+    "commit": "5a784301717786dc8901dd35519b03402ccd7d83",
+    "documentation": "https://github.com/PyHDI/Pyverilog/tree/1.3.0",
+    "description": "PyVerilog提供Verilog词法/语法AST、数据流与控制流分析及代码生成，支持结构检查、依赖追踪和可验证的源码变换；预处理文件流程依赖Icarus。",
+    "pypi": "https://pypi.org/project/pyverilog/",
+    "pypi_version": "1.3.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/PyHDI/Pyverilog/releases/latest",
+    "release_url": "https://github.com/PyHDI/Pyverilog/tree/1.3.0",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方非预发布Release1.3.0。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。"
+    ]
+  },
+  {
+    "name": "volare",
+    "index": 349,
+    "directory": "l1_design_lab/volare",
+    "source_root": ".",
+    "modules": [
+      "volare"
+    ],
+    "repository": "https://github.com/efabless/volare",
+    "tag": "0.20.6",
+    "commit": "19de4648e033819732232f218837c0007508bafa",
+    "documentation": "https://github.com/efabless/volare/tree/0.20.6",
+    "description": "Volare管理open_pdks布局的PDK版本、安装缓存和激活链接，支持下载/构建与版本匹配；本地版本管理验证不代表实际工艺库或流片签核。",
+    "pypi": "https://pypi.org/project/volare/",
+    "pypi_version": "0.20.6",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/efabless/volare/releases/latest",
+    "release_url": "https://github.com/efabless/volare/tree/0.20.6",
+    "release_published_at": "",
+    "github_prerelease": false,
+    "notes": [
+      "latest GitHubRelease是sky130等PDK数据release，非Python包release；采用官方Python版本tag0.20.6并与PyPI核对。仓库当前重定向chipfoundry/volare，保留原官方来源链。",
+      "固定标签候选仅为Python源API；属性按当前提取口径保存，场景会剔除无关内部/冗余方法。"
+    ]
+  }
+]

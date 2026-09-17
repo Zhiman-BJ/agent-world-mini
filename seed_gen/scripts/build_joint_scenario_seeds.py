@@ -320,11 +320,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--profiles', type=Path, default=DEFAULT_PROFILES)
     parser.add_argument('--output-dir', type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument('--scene-dir', type=Path, help='Directory for individual L3 files (default: output-dir)')
+    parser.add_argument('--reports-dir', type=Path, help='Directory for local audit reports (default: output-dir/reports)')
+    parser.add_argument('--include-seeds', type=Path, action='append', default=[],
+                        help='Preserved seed partition to include unchanged; does not claim new runtime verification')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--verify-sources', action='store_true', help='Compatibility flag; release-source re-extraction is always performed')
     parser.add_argument('--merged-name', default='semiconductor_scenario_pilot.json', help='Filename for the combined output')
     parser.add_argument('--group-by-l1', action='store_true', help='Also write semiconductor_scenario_XX.json by L1')
     args = parser.parse_args()
+    scene_dir = args.scene_dir or args.output_dir
+    reports_dir = args.reports_dir or args.output_dir / 'reports'
     profiles = sorted(args.profiles.glob('*.json'))
     require(profiles, 'No scenario profiles')
     outputs, summary, merged, seen, indices = {}, [], [], set(), set()
@@ -338,8 +344,8 @@ def main():
         if args.verify_sources:
             for check in report['source_reextraction']:
                 print('Source verified:', check['package'], check['source_commit'])
-        outputs[args.output_dir / f'{sid}.json'] = payload
-        outputs[args.output_dir / 'reports' / f'{sid}.json'] = report
+        outputs[scene_dir / f'{sid}.json'] = payload
+        outputs[reports_dir / f'{sid}.json'] = report
         merged.extend(payload)
         summary.append({'scenario_id': sid, 'name': payload[0]['environment']['basic_info']['name'],
                         'packages': payload[0]['others']['pypi_package'], 'nums': report['nums'],
@@ -348,14 +354,28 @@ def main():
                         'construction_gaps': report['construction_gaps'],
                         'pilot_task_gate_passed': report['pilot_task_gate_passed'],
                         'runtime_reports': report['runtime_reports']})
+    preserved_paths = {path.resolve() for path in args.include_seeds}
+    for path in args.include_seeds:
+        for seed in read(path):
+            sid = seed['environment']['domain']['level3'].split()[0]
+            require(re.fullmatch(r'\d{2}\.\d{2}\.\d{2}', sid), 'Invalid preserved scene ID')
+            require(sid not in seen, f'Duplicate preserved scene: {sid}')
+            seen.add(sid)
+            merged.append(seed)
+            outputs[scene_dir / f'{sid}.json'] = [seed]
+    merged.sort(key=lambda s: s['environment']['domain']['level3'].split()[0])
+    require(len({s['global_id'] for s in merged}) == len(merged), 'Duplicate global ID')
     require(Path(args.merged_name).name == args.merged_name and args.merged_name.endswith('.json'), 'Merged name must be a JSON filename')
     outputs[args.output_dir / args.merged_name] = merged
     if args.group_by_l1:
-        for l1 in sorted({s['environment']['domain']['level1'][:2] for s in merged}):
+        for l1 in sorted({s['environment']['domain']['level3'][:2] for s in merged}):
             outputs[args.output_dir / f'semiconductor_scenario_{l1}.json'] = [
-                s for s in merged if s['environment']['domain']['level1'].startswith(l1 + ' ')]
-    outputs[args.output_dir / 'reports/summary.json'] = summary
+                s for s in merged if s['environment']['domain']['level3'].startswith(l1 + '.')]
+    outputs[reports_dir / 'summary.json'] = summary
     for path, payload in outputs.items():
+        if path.resolve() in preserved_paths:
+            require(read(path) == payload, f'Cannot overwrite a preserved partition: {path}')
+            continue
         text = json.dumps(payload, ensure_ascii=False, indent=2) + '\n'
         if args.check:
             require(path.exists() and path.read_text(encoding='utf-8') == text, f'Artifact drift: {path}')
@@ -363,6 +383,8 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding='utf-8', newline='\n')
     print(f'{"Verified" if args.check else "Generated"} {len(profiles)} scenario-first seeds.')
+    if args.include_seeds:
+        print(f'Included {len(merged) - len(profiles)} preserved scenes without changing their verification scope.')
 
 
 if __name__ == '__main__':

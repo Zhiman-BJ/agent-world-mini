@@ -1,0 +1,142 @@
+[
+  {
+    "name": "secsgem",
+    "index": 571,
+    "directory": "l1_test_fab/secsgem",
+    "source_root": ".",
+    "modules": [
+      "secsgem"
+    ],
+    "repository": "https://github.com/bparzella/secsgem",
+    "tag": "v0.3.0",
+    "commit": "7c1fcd47d2470da32e8ca4d71cd578173f544f1e",
+    "documentation": "https://secsgem.readthedocs.io/en/latest/",
+    "description": "secsgem实现SECS-II数据项、消息、HSMS连接及GEM主机/设备协议，可用于固定本地消息或loopback交互；真实机台接入及SEMI一致性需另行验证。",
+    "pypi": "https://pypi.org/project/secsgem/",
+    "pypi_version": "0.3.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/bparzella/secsgem/releases/latest",
+    "release_url": "https://github.com/bparzella/secsgem/releases/tag/v0.3.0",
+    "release_published_at": "2024-09-14T17:47:18Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  },
+  {
+    "name": "asyncua",
+    "index": 572,
+    "directory": "l1_test_fab/asyncua",
+    "source_root": ".",
+    "modules": [
+      "asyncua"
+    ],
+    "repository": "https://github.com/FreeOpcUa/opcua-asyncio",
+    "tag": "v2.0.1",
+    "commit": "f0e48e3f9ae29793ecdbf51a7e4afe64901a7657",
+    "documentation": "https://opcua-asyncio.readthedocs.io/en/latest/",
+    "description": "asyncua提供异步OPC UA服务端、客户端、节点/属性和订阅，可构造本地设备变量模型并验证读取、写入及类型边界；不冒称实际PLC连通。",
+    "pypi": "https://pypi.org/project/asyncua/",
+    "pypi_version": "2.0.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/FreeOpcUa/opcua-asyncio/releases/latest",
+    "release_url": "https://github.com/FreeOpcUa/opcua-asyncio/releases/tag/v2.0.1",
+    "release_published_at": "2026-06-29T07:14:50Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  },
+  {
+    "name": "control",
+    "index": 573,
+    "directory": "l1_test_fab/control",
+    "source_root": ".",
+    "modules": [
+      "control"
+    ],
+    "repository": "https://github.com/python-control/python-control",
+    "tag": "0.10.2",
+    "commit": "abeb0e46a3d56c98b4534f73202a5a7ef5a0af87",
+    "documentation": "https://python-control.readthedocs.io/en/latest/",
+    "description": "python-control提供线性系统、传递函数、状态空间、反馈和时域响应，可表达工艺动态与离散run-to-run控制；工艺参数与扰动由固定模型给定。",
+    "pypi": "https://pypi.org/project/control/",
+    "pypi_version": "0.10.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/python-control/python-control/releases/latest",
+    "release_url": "https://github.com/python-control/python-control/releases/tag/0.10.2",
+    "release_published_at": "2025-07-05T21:10:31Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  },
+  {
+    "name": "do-mpc",
+    "index": 574,
+    "directory": "l1_test_fab/do-mpc",
+    "source_root": ".",
+    "modules": [
+      "do_mpc"
+    ],
+    "repository": "https://github.com/do-mpc/do-mpc",
+    "tag": "v5.1.2",
+    "commit": "6ec14cb70daa189d7eb70c0e6f6d90442db01c92",
+    "documentation": "https://www.do-mpc.com/en/latest/",
+    "description": "do-mpc结合CasADi构建动态模型、约束MPC、模拟器和移动窗估计，支持明确状态/输入/参数的控制与观测生命周期。",
+    "pypi": "https://pypi.org/project/do-mpc/",
+    "pypi_version": "5.1.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/do-mpc/do-mpc/releases/latest",
+    "release_url": "https://github.com/do-mpc/do-mpc/releases/tag/v5.1.2",
+    "release_published_at": "2026-09-03T12:49:53Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  },
+  {
+    "name": "ortools",
+    "index": 575,
+    "directory": "l1_test_fab/ortools",
+    "source_root": ".",
+    "modules": [
+      "ortools"
+    ],
+    "repository": "https://github.com/google/or-tools",
+    "tag": "v9.15",
+    "commit": "551ad10d94835c99e5e1e684500d3db398c0e345",
+    "documentation": "https://developers.google.com/optimization",
+    "description": "OR-Tools的CP-SAT Python接口提供变量、线性/布尔/区间约束和整数优化，可统一表示资源日历、作业及排程；原生求解器通过公开包装器调用。",
+    "pypi": "https://pypi.org/project/ortools/",
+    "pypi_version": "9.15.6755",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/google/or-tools/releases/latest",
+    "release_url": "https://github.com/google/or-tools/releases/tag/v9.15",
+    "release_published_at": "2026-01-12T15:38:30Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": [
+      "完整解析发布仓库ortools下Python源码；原生C++及构建期导出不冒称已完整反射。"
+    ]
+  },
+  {
+    "name": "pyomo",
+    "index": 576,
+    "directory": "l1_test_fab/pyomo",
+    "source_root": ".",
+    "modules": [
+      "pyomo"
+    ],
+    "repository": "https://github.com/Pyomo/pyomo",
+    "tag": "6.10.1",
+    "commit": "a656fd2342dda53cc7b4e53fb1a1dce64a3bf488",
+    "documentation": "https://pyomo.readthedocs.io/en/stable/",
+    "description": "Pyomo提供代数优化模型、变量、目标和约束以及求解器接口，是通用生产优化另一建模路线；选择时比较求解器安装与任务范围，避免重复暴露。",
+    "pypi": "https://pypi.org/project/pyomo/",
+    "pypi_version": "6.10.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Pyomo/pyomo/releases/latest",
+    "release_url": "https://github.com/Pyomo/pyomo/releases/tag/6.10.1",
+    "release_published_at": "2026-06-04T21:52:31Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub Release",
+    "notes": []
+  }
+]
