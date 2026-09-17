@@ -7,12 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs/three_search_recovered_20260917'
 
 
-def main():
-    lines = ['# 三环境试跑产物与逐任务结果', '',
-             '建图和 objective 复用旧 Step2；以下为网络恢复后的 Step3→5。', '']
-    metas = sorted(RUNS.glob('*/*/run.json'))
-    metas += sorted((ROOT / 'runs/three_search_runtime_retry_20260917').glob('*/*/run.json'))
-    metas += sorted((ROOT / 'runs/three_search_compose_retry_20260917').glob('*/*/run.json'))
+def main(run_roots=None, report_name='2026-09-17-three-search-results.md',
+         title='三环境试跑产物与逐任务结果',
+         intro='建图和 objective 复用旧 Step2；以下为网络恢复后的 Step3→5。'):
+    lines = ['# ' + title, '', intro, '']
+    roots = run_roots if run_roots is not None else [RUNS,
+        ROOT / 'runs/three_search_runtime_retry_20260917',
+        ROOT / 'runs/three_search_compose_retry_20260917']
+    metas = sorted((p for root in roots for p in root.glob('*/*/run.json')),
+                   key=lambda p: p.parent.name)
     latest = {}
     for meta in metas:
         bundle = meta.parent / 'intermediate/step_5_bundle.json'
@@ -88,7 +91,7 @@ def main():
             for error in validation.get('errors', []):
                 lines += ['- ' + str(error)]
             lines += ['']
-    path = ROOT / 'reports/2026-09-17-three-search-results.md'
+    path = ROOT / 'reports' / report_name
     path.write_text('\n'.join(lines))
     print(path)
 
