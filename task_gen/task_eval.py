@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import time
 from typing import Any, Callable
+from env_gen.tool_gen.mcp_protocol import public_tools
 
 from .task_eval_react import run_react_agent
 from .tool_graph.llm import capture_calls
@@ -131,11 +132,12 @@ def evaluate_case(
     source_signature = _workspace_signature(case.initial_state)
     shutil.copytree(case.initial_state, workspace)
     tools = _tools(case.environment)
-    expected_tools = [
+    expected_tools = public_tools(tools.values())
+    legacy_tools = [
         {key: tool[key] for key in ("name", "description", "inputSchema", "outputSchema", "usageConditions") if key in tool}
         for tool in tools.values()
     ]
-    if case.task.get("available_tools") != expected_tools:
+    if case.task.get("available_tools") not in (expected_tools, legacy_tools):
         raise ValueError("task.available_tools 与环境公开工具契约不一致")
     verifier_config = dict(llm_config.get("verifier", {}))
     # Verifier defaults come from .codex, independent of the solver API model.

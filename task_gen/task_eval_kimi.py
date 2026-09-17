@@ -15,6 +15,7 @@ from typing import Any
 
 from .tool_graph.llm import _client
 from .tool_result_reader import ResultReader
+from .task_eval_mcp import bind_delivery
 
 
 SYSTEM_PROMPT = """Complete the supplied task using the provided environment tools.
@@ -36,7 +37,7 @@ def run_kimi_agent(
         'sdk_path', 'node', 'provider_type', 'max_context_size', 'max_output_size',
         'timeout_seconds', 'max_steps_per_turn', 'max_attempts_per_step',
         'reserved_context_size', 'compaction_trigger_ratio', 'compaction_max_attempts',
-        'system_prompt', 'parallel_tool_calls', 'tool_result_page_chars',
+        'system_prompt', 'parallel_tool_calls', 'tool_result_page_chars', 'binding_path',
     }
     if unknown:
         raise ValueError('未知 llm.kimi 配置：' + ', '.join(sorted(unknown)))
@@ -47,6 +48,9 @@ def run_kimi_agent(
         raise ValueError("设置 llm.kimi.sdk_path 或 KIMI_CODE_SDK，指向编译后的官方 SDK dist/index.mjs")
     client = _client({**llm_config, "backend": "api"})
     config = json.loads(server_config.read_text(encoding="utf-8"))
+    if options.get('binding_path'):
+        config['binding_path'] = str(Path(options['binding_path']).expanduser().resolve())
+    config = bind_delivery(config)
     page_chars = options.get('tool_result_page_chars', 6000)
     reader = ResultReader(page_chars)  # Validate before starting the SDK.
     if any(tool['name'] == reader.name for tool in config['tools']):
@@ -99,10 +103,6 @@ def run_kimi_agent(
         root = Path(temporary)
         work_dir = root / "work"
         work_dir.mkdir()
-        # Rich public metadata remains visible through the standard description field.
-        for tool in config["tools"]:
-            extra = {k: tool[k] for k in ("usageConditions", "outputSchema") if k in tool}
-            tool["description"] = tool.get("description", "") + "\nPublic contract: " + json.dumps(extra, ensure_ascii=False)
         result_read_trace = log_dir / 'result_reads.jsonl'
         result_read_trace.touch()
         config.update(workspace=str(workspace.resolve()), trace=str(trace),
@@ -141,7 +141,7 @@ def run_kimi_agent(
                 "compactionMaxAttempts": integer_options['compaction_max_attempts'],
             },
             "mcp": {"name": "agent_world_eval", "transport": "stdio", "command": sys.executable,
-                    "args": [str(repository / "task_gen/task_eval_mcp.py"), str(private_server)],
+                    "args": [str(repository / "task_gen/task_eval_kimi_mcp.py"), str(private_server)],
                     "cwd": str(work_dir), "deferred": False,
                     "toolTimeoutMs": (int(config.get("timeout", 300)) + 30) * 1000},
         }

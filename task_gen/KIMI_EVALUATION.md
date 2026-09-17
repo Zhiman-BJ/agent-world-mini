@@ -61,9 +61,30 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 
 **长返回值读取：** SDK 原生超过 50,000 字符会外存并指示使用 Read/Grep，外存本身也有保留上限。现在在它之前分页：短返回保持原样，长返回给出 `result_id / total_chars / offset / next_offset / has_more / content`，内容是原始 JSON 文本的一段，不是摘要。模型用 `read_tool_result(result_id, offset, length)` 按需读取后续或任意位置；offset/length 按 Unicode 字符计数，页面可能切在 JSON 字段中间，只有拼接完整后才是完整 JSON。
 
-编号只能查到当前 MCP 进程已有的长结果；实现不接受文件路径、不读取环境状态目录。完整原文在进程内保留到运行结束，永久记录仍是 `tool_calls.jsonl`，新增 `result_id` 对应分页编号。辅助读取另记 `result_reads.jsonl`，不消耗环境调用预算，但受模型步数和总时限限制。目前内存占用随长结果累计增长，尚未改成磁盘缓存；会话结束后不能续用旧编号。没有添加摘要，也不开放 SDK 历史文件恢复指针。
+编号只能查到当前 Kimi 适配进程已有的长结果；实现不接受文件路径、不读取环境状态目录。完整原文在进程内保留到运行结束，永久记录仍是 `tool_calls.jsonl`；`result_index.jsonl` 将结果编号对应到业务调用序号。辅助读取另记 `result_reads.jsonl`，不消耗环境调用预算，但受模型步数和总时限限制。目前内存占用随长结果累计增长，尚未改成磁盘缓存；会话结束后不能续用旧编号。没有添加摘要，也不开放 SDK 历史文件恢复指针。
 
-仅 Kimi 模式启用分页。因为分页信封不符合原业务 outputSchema，MCP 传输层不声明业务 outputSchema；原契约仍完整展示在 description 中，Python 执行器仍按原 outputSchema 校验并决定状态是否提交。ReAct、任务生成和 verifier 路径不变，官方 SDK 无修改。
+正式环境 MCP 使用同事的共享协议，保留原业务 outputSchema。仅 Kimi 的展示适配层 `task_eval_kimi_mcp.py` 为了容纳分页信封，不向 SDK 声明结构化 outputSchema，而将它完整放入 description；Python 执行器仍按原 outputSchema 校验并决定状态是否提交。`read_tool_result` 也仅在这层注册，不进入任务 available_tools。这个适配层接收标准 handler 的完整结果再处理，不修改官方 SDK。工具自身的语义分页优先使用，长结果兜底作为补充。
+
+## 共享 MCP 与交付包接入（2026-09-17）
+
+共享代码来自 `/data1/agent_world/kimi-mcp-integration-20260917`：`env_gen/tool_gen/mcp_protocol.py` 原样迁入；`kimi_mcp.py`、`delivery.py`、binding Schema 和测试随同迁入。迁入后修正了虚拟环境 Python 路径不能提前 resolve 的问题，避免跳过 profile 中安装的依赖。`runtime.py` 仅引入 software_root 支持。
+
+新任务 `available_tools` 与 ToolGen、TaskGen 的正式环境 MCP `tools/list` 共用 `public_tools()`，包含名称、合并 usageConditions 后的说明、输入和输出 Schema。旧任务只接受与原环境逐字段一致的旧投影，以便复用历史任务；其他工具差异仍拒绝。业务失败保持原有 `success=false` 对象，不再套一层导致错误内容被客户端遮蔽。审查辅助工具和 Kimi 辅助读取不属于环境工具集合。
+
+在 YAML 中设置 `llm.kimi.binding_path` 即可选用正式交付包。启动时核对任务工具（含执行代码）及环境定义，拒绝不匹配。记录库和文件仍来自每个任务的初态副本，沿用 bubblewrap、只读资源检查、失败回滚以及原 verifier；不把交付包默认初态当成任务初态。依赖 profile 的 Python 用于确定解释器与 site-packages，依赖目录只读挂载，提供 `context.software_root=/software`。没有绑定包时继续支持现有 bundle 内的工具与环境。
+
+直接查看同事标准配置：`python -m env_gen.tool_gen.kimi_mcp /path/to/binding.json --print-kimi-config`。该入口从交付包默认初态启动 ToolGen runtime，是环境级服务；正式任务评测使用上述任务级入口，不能混用初态。原生共享配置和 Kimi 展示适配层的工具表不是同一层，不能将后者附加的辅助工具算进环境工具一致性等式。
+
+依赖包需适配运行主机。venv 启动链接所依赖的基础 Python 必须存在；旧包若把 python_path 写成 base Python，需要修正交付映射或重新发布。这里没有自动猜测错误映射，也没有把依赖或任意主机目录开放给模型。
+
+绑定软件模式限制 OpenBLAS/OMP/MKL 为单线程，避免多核主机上的默认线程池在导入时耗尽 2 GiB 沙箱内存。已用同事实际 calibration profile 的 NumPy 2.4.6 验证导入和数组计算；没有修改该 profile 或其交付包。
+
+本次集成验收：
+
+- 真实 Kimi SDK + MCP 集成测试覆盖 binding 加载、任务专属初态、工具集合一致、原包状态不变；模型响应使用可控 HTTP 服务。
+- 真实 Sol 长结果试跑：`runs/kimi_smoke/20260917_205924_174501/report.json`，600083 字符结果中的凭据可读取，380 → 387，3 次业务调用、1 次辅助读取，检查通过。
+- 真实 Hugeicons task4：`runs/kimi_mcp_real_task/20260917_205925_545616`，18 次业务调用，Kimi 耗时 228.42 秒，原 verifier 3/3 通过。两次业务失败完整反馈后恢复。verifier 另记录非阻断问题：附加 Markdown 文件不如最终回答完整，以及字体“有效”的措辞超过实际检查范围；这不是整套任务集质量评测。
+- 同事已有 calibration 包的 software mapping 指向 base Python，缺少包依赖；源 venv 可用。迁入代码已修复新发布包的 launcher 路径保留，旧包仍需上游修正或重新发布。这项旧产物问题未通过修改同事目录来掩盖。
 
 ## 留档与已发现的 SDK 接口差异
 

@@ -340,3 +340,30 @@ def test_long_result_read_is_scoped_and_does_not_spend_business_budget(tmp_path,
     assert 'HIDDEN_INITIAL_STATE' not in json.dumps(requests)
     reads = [json.loads(line) for line in (tmp_path / 'state.agent/result_reads.jsonl').read_text().splitlines()]
     assert len(reads) == 2 and reads[0]['error'] is None and reads[1]['error']
+
+
+def test_kimi_binding_uses_task_state_and_public_delivery_tools(tmp_path, model_server, monkeypatch):
+    import shutil
+    import sqlite3
+    from tests.test_kimi_mcp import KimiMcpTests
+    from env_gen.tool_gen.kimi_mcp import load_delivery
+    from task_gen.task_eval import _run_agent
+    url, requests, replies = model_server
+    workspace, server, trace, options = setup_case(tmp_path, url)
+    monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
+    binding = KimiMcpTests()._make_delivery(tmp_path)
+    delivery = load_delivery(binding)
+    shutil.copytree(delivery.package.package_root / 'state', workspace, dirs_exist_ok=True)
+    with sqlite3.connect(workspace / 'records.sqlite') as db:
+        db.execute("UPDATE tickets SET ticket_id='task-only'")
+    config = json.loads(server.read_text())
+    config.update(tools=delivery.package.tools, environment=delivery.package.environment)
+    server.write_text(json.dumps(config))
+    options['kimi']['binding_path'] = str(binding)
+    replies.extend([tool_call('mcp__agent_world_eval__resolve_ticket', {'ticket_id': 'task-only'}, 'resolve'),
+                    {'content': 'Resolved task-only.'}])
+    assert _run_agent('Resolve task-only.', workspace, server, trace, options) == 'Resolved task-only.'
+    assert json.loads(trace.read_text())['result']['data']['status'] == 'resolved'
+    assert 'Target objects:' in json.dumps(requests[0]['tools'])
+    with sqlite3.connect(delivery.package.package_root / 'state/records.sqlite') as db:
+        assert db.execute('SELECT status FROM tickets').fetchone()[0] == 'open'

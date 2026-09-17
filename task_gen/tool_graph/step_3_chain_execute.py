@@ -481,6 +481,7 @@ from types import SimpleNamespace
 
 payload = json.load(sys.stdin)
 sys.path.insert(0, '/dependencies')
+sys.path[:0] = payload.get('software_import_paths', [])
 try:
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
@@ -495,12 +496,12 @@ try:
         run = namespace.get("run")
         if not callable(run):
             raise ValueError("internal.code 没有定义 run(arguments, context)")
-        result = run(
-            deepcopy(payload["arguments"]),
-            runtime["Context"](Path("/workspace"), payload['environment'])
+        context = (runtime["Context"](Path("/workspace"), payload['environment'])
             if payload.get('environment', {}).get('schema_version') == '2.0'
-            else SimpleNamespace(workspace_root=Path('/workspace')),
-        )
+            else SimpleNamespace(workspace_root=Path('/workspace')))
+        if payload.get('software_root'):
+            context.software_root = Path(payload['software_root'])
+        result = run(deepcopy(payload["arguments"]), context)
     json.dumps(result, ensure_ascii=False)
     response = {"result": result, "error": None}
 except BaseException as error:
@@ -542,9 +543,12 @@ def _call_tool(
     memory_limit: int,
     write_limit: int,
     environment: dict[str, Any] | None = None,
+    *, software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    from functools import partial
+    run_tool = partial(_run_tool, software=software) if software else _run_tool
     if not environment or environment.get('schema_version') != '2.0':
-        return _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment)
+        return run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment)
     from .state_runtime import snapshot_state, state_diff
     workspace = workspace.resolve()
     try:
@@ -555,7 +559,7 @@ def _call_tool(
         with tempfile.TemporaryDirectory(prefix='.tool-state-', dir=workspace.parent) as temporary:
             candidate = Path(temporary) / 'state'
             shutil.copytree(workspace, candidate, symlinks=True)
-            outcome = _run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment)
+            outcome = run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment)
             result = outcome.get('result')
             if outcome.get('error') or not isinstance(result, dict) or result.get('success') is not True:
                 return outcome
@@ -577,7 +581,7 @@ def _call_tool(
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
 
 
-def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None):
+def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, *, software=None):
     import jsonschema
     workspace = workspace.resolve()
     if not workspace.is_dir():
@@ -590,6 +594,19 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         return {"kind": "exception", "result": None, "error": "未安装 bubblewrap，拒绝执行未隔离工具"}
     runtime_root = Path(sys.base_prefix).resolve()
     executable = Path(sys.executable).resolve()
+    software_imports = []
+    if software:
+        try:
+            # The interpreter is trusted delivery infrastructure, not tool code.
+            probe = subprocess.run([software['python'], '-I', '-c',
+                'import json,sys; print(json.dumps({"base":sys.base_prefix,"executable":sys.executable,"paths":sys.path}))'],
+                capture_output=True, text=True, check=True, timeout=min(timeout, 30))
+            info = json.loads(probe.stdout)
+            runtime_root, executable = Path(info['base']).resolve(), Path(info['executable']).resolve()
+            software_imports = [Path(p).resolve() for p in info['paths']
+                                if p and Path(p).is_dir() and Path(p).name in {'site-packages', 'dist-packages'}]
+        except Exception as error:
+            return {'kind': 'exception', 'result': None, 'error': f'软件 Profile 启动失败：{error}'}
     try:
         runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
     except ValueError:
@@ -616,6 +633,14 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
             command.extend(["--setenv", name, os.environ[name]])
+    if software:
+        command.extend(['--ro-bind', str(Path(software['root']).resolve()), '/software'])
+        # CPU libraries otherwise size thread pools from the host CPU count,
+        # which can exhaust this tool's memory/process limits on import alone.
+        for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS'):
+            command.extend(['--setenv', name, '1'])
+        for index, path in enumerate(software_imports):
+            command.extend(['--ro-bind', str(path), f'/profile-dependencies/{index}'])
     command.extend([str(runtime_executable), "-I", "-c", _TOOL_WORKER])
     payload = json.dumps({
         "code": code,
@@ -624,6 +649,8 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
         "memory_limit": memory_limit,
         "write_limit": write_limit,
+        "software_root": '/software' if software else None,
+        "software_import_paths": [f'/profile-dependencies/{i}' for i in range(len(software_imports))],
     }, ensure_ascii=False)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:

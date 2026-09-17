@@ -35,6 +35,7 @@
 | `llm.temperature / max_tokens` | 请求 temperature / models.maxOutputSize | 温度由适配层传入；输出上限用 SDK 接口 |
 | `llm.timeout_seconds` | 整次执行秒数，可被 kimi.timeout_seconds 覆盖 | 适配层进程管理 |
 | `llm.kimi.sdk_path / node` | 官方 SDK 构建入口、Node 命令 | 适配层；sdk_path 也可用 KIMI_CODE_SDK |
+| `llm.kimi.binding_path` | 可选正式 ToolGen 交付入口；核对工具与环境，执行仍用任务初态副本 | 同事交付加载器 + 我们的任务执行器 |
 | `llm.kimi.system_prompt` | 默认 agent 的完整正文，不继承编程助手 prompt | 适配层加载；SDK extraAgentDirs |
 | `llm.kimi.parallel_tool_calls` | 发往 Chat Completions 的同轮多调用开关 | 适配层传给标准 API 字段；不是工具执行并发 |
 | `llm.kimi.tool_result_page_chars` | 原始 JSON 文本预览及读取单页上限，默认 6000，范围 1–12000 字符 | 我们的 MCP 适配层，不是 SDK 原生配置 |
@@ -63,7 +64,7 @@ SDK 本身没有长结果阈值公共开关；`tool_result_page_chars` 在我们
 - [x] 验证：`KIMI_CODE_SDK=... python -m pytest tests/test_task_eval.py tests/test_task_eval_react.py tests/test_task_eval_kimi.py -q`：42 passed，35.94 秒；真实 Sol 试跑通过。
 - [x] 更新每项验收证据、未完成项与试跑结果；本文件随适配版本提交，保留 kimi 分支，不合并 main。
 
-R11 已补齐；R12 按批准方案不添加摘要。恒辉负责的正式 MCP 工具包接入不在本次改动范围。
+R11 已补齐；R12 不额外调用模型生成摘要，工具自身可返回确定性摘要和分页信息。同事 MCP 共享协议与 binding 加载器已迁入，任务级接入保留初态隔离和现有 verifier，细节见 `KIMI_EVALUATION.md` 的共享 MCP 小节。
 
 ## 验收证据
 
@@ -86,4 +87,8 @@ R11 已补齐；R12 按批准方案不添加摘要。恒辉负责的正式 MCP �
 正式任务单例：`runs/kimi_real_task/20260916_194130_051270`，Hugeicons task4，28 次工具调用，verifier 3/3 通过；遇到的 MCP 错误契约及方言兼容问题仍需正式工具包接入时对齐，不能据此声称整套任务评测完成。
 长返回值试跑：`runs/kimi_smoke/20260917_012857_674755/report.json`，Sol 从 600083 字符结果尾部读取凭据，将 157 更新为 164 并回读确认；3 次业务调用、2 次辅助读取，21.32 秒，检查通过。该项为合成场景功能测试，不是新一轮正式任务集评测。
 
-本次最终回归：`test_task_eval.py`、`test_task_eval_react.py`、`test_task_eval_kimi.py`、`test_tool_result_reader.py` 共 **45 passed，28.17 秒**。独立审查未发现权限或分页实现阻塞；其发现的旧压缩测试触发条件已调整并通过回归。
+分页初版回归：`test_task_eval.py`、`test_task_eval_react.py`、`test_task_eval_kimi.py`、`test_tool_result_reader.py` 共 **45 passed，28.17 秒**。独立审查未发现权限或分页实现阻塞；其发现的旧压缩测试触发条件已调整并通过回归。
+
+共享 MCP 接入新增验证：`test_kimi_mcp.py` 的交付与真实 venv 测试、`test_mcp_integration.py` 的协议一致性/任务初态/只读依赖测试，以及真实 SDK 的 binding 集成测试。真实 Sol 与 verifier 结果、旧交付包依赖映射问题见 `KIMI_EVALUATION.md`。审查发现的解释器路径和 BLAS 线程问题均已在迁入代码修正。
+
+共享 MCP 接入最终回归：评测、ReAct、Kimi、分页、交付、MCP 集成、Step3 执行、Step5、review 辅助工具、状态运行时和 ToolGen 共 12 个测试文件，**116 passed，39.37 秒**。

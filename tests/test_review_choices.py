@@ -15,7 +15,7 @@ class ChoicesTest(unittest.TestCase):
                       'max_tool_calls': 10, 'review_choice_seed': 42}
             path = root / 'config.json'
             path.write_text(json.dumps(config))
-            requests = [{'id': 1, 'method': 'tools/list'}, {'id': 2, 'method': 'tools/call', 'params': {
+            requests = [{'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}, {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {
                 'name': 'review_select_plan', 'arguments': {'question': '选择对象', 'options': [
                     {'description': '甲', 'basis': '记录甲'}, {'description': '乙', 'basis': '记录乙'}]}}}]
             output = io.StringIO()

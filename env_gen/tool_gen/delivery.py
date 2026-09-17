@@ -1,0 +1,173 @@
+"""Publish ToolGen outputs without coupling tools, environment state, and software."""
+
+from __future__ import annotations
+
+import json
+import hashlib
+import shutil
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+from utils.io import write_json
+
+from .compiler import ToolGenerationResult
+from .software import runtime_info
+
+
+BINDING_SCHEMA_VERSION = "1.0"
+
+
+@dataclass(frozen=True)
+class ToolDelivery:
+    package_root: Path
+    tools_root: Path
+    environment_root: Path
+    software_mapping_root: Path
+    binding_path: Path
+    software_profile: str | None
+
+
+def _copy_directory(source: Path, destination: Path) -> None:
+    if source.is_dir():
+        shutil.copytree(source, destination, dirs_exist_ok=True)
+
+
+def _replace_directory(staged: Path, destination: Path) -> None:
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staged.rename(destination)
+
+
+def _environment_validation_path(package_root: Path) -> Path:
+    path = package_root / "validation.json"
+    if not path.is_file():
+        raise ValueError(f"DataGen 环境缺少 validation.json：{package_root}")
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"DataGen validation.json 不是合法 JSON：{path}: {error}") from error
+    if not isinstance(receipt, dict) or receipt.get("valid") is not True:
+        raise ValueError(f"DataGen 环境未通过校验：{path}")
+    return path
+
+
+def _software_profile_id(software: dict[str, object]) -> str:
+    profile = software.get("profile_id")
+    if profile:
+        return str(profile)
+    plan = software.get("plan", {})
+    payload = json.dumps(plan, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return "py-" + hashlib.sha256(payload).hexdigest()[:12]
+
+
+def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
+    """Publish one completed environment into the shared ToolGen result layout."""
+    output_root = output_root.resolve()
+    environment_id = json.loads(
+        result.environment_path.read_text(encoding="utf-8")
+    )["environment_id"]
+    package_id = result.package_root.name
+    environments_parent = output_root / "environments"
+    environments_parent.mkdir(parents=True, exist_ok=True)
+    delivery_package_root = environments_parent / package_id
+    tools_root = delivery_package_root / "tools"
+    environment_root = delivery_package_root / "environment"
+    software_mapping_root = delivery_package_root / "software"
+    source_package_root = result.package_root
+    package_root = delivery_package_root
+    environment_validation_path = _environment_validation_path(source_package_root)
+    software = runtime_info(source_package_root)
+    profile = _software_profile_id(software) if software else None
+    software_source = Path(str(software["root"])).resolve() if software else None
+    if software_source and not software_source.is_dir():
+        raise ValueError(f"软件运行目录不存在：{software_source}")
+    software_profile_root = (
+        output_root / "software_profiles" / "profiles" / profile if profile else None
+    )
+    python_relative = "python/bin/python"
+    if software and software.get("python") and software_source:
+        launcher = Path(str(software["python"])).expanduser().absolute()
+        python_path = launcher.parent.resolve() / launcher.name
+        try:
+            python_relative = python_path.relative_to(software_source).as_posix()
+        except ValueError as error:
+            raise ValueError(f"软件 Python 不在运行目录内：{python_path}") from error
+
+    with tempfile.TemporaryDirectory(prefix=f".{package_id}-", dir=output_root) as temporary:
+        staging = Path(temporary)
+        staged_tools = staging / "tools"
+        staged_environment = staging / "environment"
+        staged_software = staging / "software"
+        staged_tools.mkdir()
+        staged_environment.mkdir()
+        staged_software.mkdir()
+        shutil.copy2(result.tools_path, staged_tools / "tools.json")
+        for source, name in (
+            (result.grounding_path, "tool_grounding.json"),
+            (result.validation_path, "tool_validation.json"),
+            (result.action_plan_path, "action_plan.json"),
+        ):
+            if source.is_file():
+                shutil.copy2(source, staged_tools / name)
+
+        for name in ("environment.json", "environment.md", "tool_runtime.json"):
+            source = source_package_root / name
+            if source.is_file():
+                shutil.copy2(source, staged_environment / name)
+        shutil.copy2(environment_validation_path, staged_environment / "validation.json")
+        _copy_directory(source_package_root / "state", staged_environment / "state")
+        _copy_directory(source_package_root / "provenance", staged_environment / "provenance")
+        _copy_directory(source_package_root / "tool_runtime", staged_environment / "tool_runtime")
+        write_json(
+            staged_software / "profile.json",
+            {
+                "profile_id": profile,
+                "profile_path": (
+                    f"software_profiles/profiles/{profile}" if profile else None
+                ),
+                "python_path": (
+                    f"software_profiles/profiles/{profile}/{python_relative}" if profile else None
+                ),
+                "requirements_path": (
+                    f"software_profiles/profiles/{profile}/requirements.txt" if profile else None
+                ),
+            },
+        )
+        _replace_directory(staged_tools, tools_root)
+        _replace_directory(staged_environment, environment_root)
+        _replace_directory(staged_software, software_mapping_root)
+
+    if software_source and software_profile_root and not software_profile_root.exists():
+        software_profile_root.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(software_source, software_profile_root, symlinks=True)
+        requirements = source_package_root / "tool_runtime/requirements.txt"
+        if requirements.is_file():
+            shutil.copy2(requirements, software_profile_root / "requirements.txt")
+
+    binding_path = package_root / "binding.json"
+    binding = {
+        "schema_version": BINDING_SCHEMA_VERSION,
+        "package_id": package_id,
+        "environment_id": environment_id,
+        "package_path": f"environments/{package_id}",
+        "tools_path": f"environments/{package_id}/tools/tools.json",
+        "tool_validation_path": f"environments/{package_id}/tools/tool_validation.json",
+        "environment_path": f"environments/{package_id}/environment",
+        "environment_validation_path": f"environments/{package_id}/environment/validation.json",
+        "software_mapping_path": f"environments/{package_id}/software/profile.json",
+        "software_profile": profile,
+        "software_profile_path": (
+            f"software_profiles/profiles/{profile}" if profile else None
+        ),
+    }
+    write_json(binding_path, binding)
+    return ToolDelivery(
+        package_root=package_root,
+        tools_root=tools_root,
+        environment_root=environment_root,
+        software_mapping_root=software_mapping_root,
+        binding_path=binding_path,
+        software_profile=profile,
+    )

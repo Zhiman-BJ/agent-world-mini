@@ -200,4 +200,5 @@ def _load_schema(path: Path):
 
 
 def _public_tool(tool: dict[str, Any]) -> dict[str, Any]:
-    return {key: tool.get(key) for key in ("name", "description", "inputSchema", "outputSchema", "usageConditions") if key in tool}
+    from env_gen.tool_gen.mcp_protocol import public_tool
+    return public_tool(tool)

@@ -289,7 +289,7 @@ def run(arguments, context):
             response = json.loads(stdout.getvalue())
             self.assertTrue(response["result"]["isError"])
             self.assertEqual(
-                response["result"]["structuredContent"]["tool_result"]["error"]["code"],
+                response["result"]["structuredContent"]["error"]["code"],
                 "not_found",
             )
 
