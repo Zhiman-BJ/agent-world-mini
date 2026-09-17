@@ -21,6 +21,8 @@ def main(run_roots=None, report_name='2026-09-17-three-search-results.md',
         bundle = meta.parent / 'intermediate/step_5_bundle.json'
         if bundle.exists():
             for task in json.loads(bundle.read_text())['tasks']:
+                if 'compose_retry' in str(meta.parent) and not task.get('execution', {}).get('success'):
+                    continue  # 转写跳过的旧执行失败不能覆盖更新的执行补跑结果。
                 latest[(meta.parent.parent.name, task['task_id'])] = (meta.parent, task)
     accepted = [(key, run, task) for key, (run, task) in sorted(latest.items())
                 if task.get('validation', {}).get('passed')]
@@ -33,7 +35,7 @@ def main(run_roots=None, report_name='2026-09-17-three-search-results.md',
     for meta in metas:
         run = meta.parent
         status = json.loads(meta.read_text())
-        round_name = '运行故障补跑' if 'runtime_retry' in str(run) else '网络恢复后首轮'
+        round_name = '运行故障补跑' if 'runtime_retry' in str(run) else '主轮'
         if 'compose_retry' in str(run):
             round_name = '仅补跑 Step4→5（复用原执行）'
         lines += [f'## {run.parent.name} — {round_name}', '', f'运行目录：`{run}`', '',
