@@ -426,6 +426,19 @@ def run(arguments, context):
         self.assertIsNone(outcome['error'], outcome)
         self.assertEqual(outcome['result'], {'success': True, 'sum': 8})
 
+    def test_plotting_library_cache_does_not_pollute_workspace(self) -> None:
+        import importlib.util
+        if importlib.util.find_spec('matplotlib') is None:
+            self.skipTest('matplotlib is not installed')
+        workspace = self.environment_dir / "workspace"
+        before = set(workspace.rglob('*'))
+        outcome = _call_tool(
+            "def run(arguments, context):\n import matplotlib.font_manager\n return {'success': True}",
+            {}, workspace, timeout=60, memory_limit=2 * 1024**3, write_limit=1024 * 1024,
+        )
+        self.assertIsNone(outcome['error'], outcome)
+        self.assertEqual(set(workspace.rglob('*')), before)
+
     def test_tool_cannot_write_outside_its_workspace(self) -> None:
         outside = self.root / "outside.txt"
         code = f"""

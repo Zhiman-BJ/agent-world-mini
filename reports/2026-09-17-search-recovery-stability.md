@@ -30,3 +30,7 @@
 - 17:16 开始 pymatgen 的 22 条候选 Step3→5，目录 `runs/three_search_recovered_20260917/pypi_pymatgen_core_4/20260917_171642_137193_pypi_pymatgen_core_4_gpt-5.6-sol`。各环境的 stability.jsonl 持续记录恢复、异常和最终任务数量；完整 prompt/回答及工具调用仍由原管线落档。
 - 17:21 左右，pymatgen 并发 16 的会话多次出现服务端 `Concurrency limit exceeded for user`，Codex 自动重连。后续新运行临时设 Step3/API 并发为 4，不修改仓库默认配置，不改变筛选要求；不额外叠加新环境以免放大限流。
 - 科学依赖镜像安装成功，133 个包。atomate2 的真实 `cross_validate_records_and_files` 重放成功；doped 的 `parse_defect_project_batch` 已不再缺依赖，但返回 IndexError，继续调查工具/数据兼容性。未把依赖导入成功等同于业务工具成功。
+- doped 解析错误追踪到 pymatgen 的 `ionic_steps[-1]`。原始 MgO bulk XML 有 277,808,698 字节且包含 calculation 元素，不能据此断言源文件缺失计算步骤；该业务解析问题仍保留。安装解析到 pymatgen 2026.5.4、pymatgen-core 2026.8.30、numpy 2.4.6，与上游冻结版本相符。
+- 使用真实 MgO 热力学输入（mgo:MgO-Mg、Fermi=0.5 eV），数值计算已成功，但原运行时生成 `.cache/matplotlib/fontlist-v3.11.0.json` 和 `.config/matplotlib`，被未声明状态保护拦截。新增真实缓存污染测试，修改前失败；设置 XDG_CACHE_HOME=/tmp/cache、XDG_CONFIG_HOME=/tmp/config 后 20 项执行测试通过。保护未放宽。
+- 17:40 启动 atomate2 的 15 条候选和 doped 的 26 条候选，各并发 4，使用独立 Python 3.11 + 上述依赖。运行目录见各环境 stability.jsonl。
+- pymatgen Step3 用时 1470.886 秒，22 条候选中 3 条 execution.success=true（task9、task10、task18），已进入 Step4。此次 16 并发下的超限与模型业务失败均保留在原日志中。
