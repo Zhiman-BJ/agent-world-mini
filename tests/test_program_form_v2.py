@@ -1,29 +1,24 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 import tempfile
 import unittest
-from io import StringIO
 from pathlib import Path
 
 from task_gen.program_form import (
     CompleteEnvironmentPackage,
     CompleteEnvironmentRuntime,
     ProgramGenerationPolicy,
+    ToolGenDelivery,
     execute_solution_code,
+    run_step0,
     run_step1,
     run_step2,
-    run_step3,
-    run_step4,
-    run_step5,
 )
-from task_gen.program_form.steps.step2_research_real_world_tasks import (
+from task_gen.program_form.step_1_task_research import (
     validate_task_research,
 )
-from task_gen.program_form.steps.step5_evaluate_difficulty import SolverResult
 from task_gen.program_form.utils.io import read_json, read_records, write_json
-from task_gen.program_form.utils.solver_mcp import serve
 
 
 def closed_object(properties: dict, required: list[str]) -> dict:
@@ -137,16 +132,46 @@ def run(arguments, context):
 
 class ReviewAgent:
     def run(self, _prompt: str, *, working_directory: Path) -> str:
+        request = read_json(working_directory / "review_request.json")
+
+        def leaf_paths(value, prefix=""):
+            if isinstance(value, dict):
+                if not value:
+                    return [prefix] if prefix else []
+                return [
+                    path
+                    for key, child in value.items()
+                    for path in leaf_paths(child, f"{prefix}/{key}")
+                ]
+            if isinstance(value, list):
+                if not value:
+                    return [prefix] if prefix else []
+                return [
+                    path
+                    for index, child in enumerate(value)
+                    for path in leaf_paths(child, f"{prefix}/{index}")
+                ]
+            return [prefix]
+
         write_json(working_directory / "review.json", {
             "accepted": True,
-            "checks": {
-                "research_grounded": True,
-                "requirements_preserved": True,
-                "no_implementation_leak": True,
-                "execution_aligned": True,
-                "output_schema_complete": True,
-                "environment_supported": True,
-            },
+            "reason": "The executed solution completes every requirement in the public task.",
+            "parameter_audit": [
+                {
+                    "call_index": index,
+                    "tool": call["tool"],
+                    "parameters": [
+                        {
+                            "path": path,
+                            "source": "task",
+                            "source_call_indices": [],
+                            "evidence": "The public task determines this test parameter.",
+                        }
+                        for path in leaf_paths(call["arguments"])
+                    ],
+                }
+                for index, call in enumerate(request["solution_trace"])
+            ],
             "issues": [],
         })
         return "done"
@@ -164,26 +189,9 @@ class RepairAgent:
         return "done"
 
 
-class RubricAgent:
-    def run(self, _prompt: str, *, working_directory: Path) -> str:
-        request = read_json(working_directory / "rubric_judge_request.json")
-        passed = (request.get("candidate_answer") or {}).get("selected_item_id") == "c"
-        write_json(working_directory / "rubric_review.json", {
-            "items": [
-                {
-                    "id": item["id"],
-                    "passed": passed,
-                    "reason": "The answer and state evidence agree." if passed else "Evidence does not satisfy the criterion.",
-                }
-                for item in request["rubric_items"]
-            ]
-        })
-        return "done"
-
-
 class ProgramFormV2Tests(unittest.TestCase):
-    def make_package(self, root: Path) -> Path:
-        package = root / "environment"
+    def make_package(self, root: Path, relative: str = "environment") -> Path:
+        package = root / relative
         state = package / "state"
         (state / "filesystem_scopes").mkdir(parents=True)
         write_json(package / "environment.json", {
@@ -253,6 +261,19 @@ class ProgramFormV2Tests(unittest.TestCase):
                 "internal": {"code": SELECT_CODE},
             },
         ]
+        for tool in tools:
+            tool["usageConditions"] = {
+                "targetResources": ["candidates"],
+                "targetObjects": [
+                    {"objectType": "candidate", "identifiedBy": ["item_id"]}
+                ],
+                "preconditions": [],
+                "sideEffects": (
+                    ["Updates one candidate status to selected."]
+                    if tool["name"] == "select_candidate"
+                    else []
+                ),
+            }
         write_json(package / "tools.json", {"tools": tools})
         return package
 
@@ -297,17 +318,16 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                 {
                     "archetype_id": "select_best_eligible_candidate",
                     "name": "Select the best eligible candidate",
-                    "role": "Review coordinator",
-                    "trigger": "A review cycle reaches the final candidate selection stage.",
-                    "business_goal": "Select the highest-scoring candidate who satisfies every eligibility condition and record the decision.",
-                    "workflow": [
-                        "Inspect the complete candidate pool and eligibility evidence.",
-                        "Compare eligible scores and record the final selection.",
+                    "description": (
+                        "A review coordinator handles the final stage of a candidate review cycle when a decision is needed. "
+                        "They inspect the complete pool and the evidence attached to each record, exclude anyone who fails a mandatory eligibility condition, "
+                        "compare the scores of the remaining candidates, record the selected person, and report the decision for audit. "
+                        "The work commonly fails when a coordinator chooses the highest score without checking eligibility or records a decision without preserving the evidence."
+                    ),
+                    "requirements": [
+                        "Check eligibility evidence and comparable scores for every candidate before selecting anyone.",
+                        "Never select an ineligible candidate; record the winning decision and verify the resulting status.",
                     ],
-                    "required_evidence": ["Eligibility and score evidence for every candidate."],
-                    "hard_constraints": ["Ineligible candidates cannot be selected."],
-                    "expected_deliverable": "A recorded selection and a structured summary of the winning candidate.",
-                    "common_failure_modes": ["Selecting the highest score without checking eligibility."],
                     "source_urls": [source],
                     "environment_support": {
                         "record_sets": ["candidates"],
@@ -338,54 +358,40 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                     "task_internal": "Inspect all current candidate records, enforce the eligibility gate, compare the eligible scores, persist the winning selection, and report the selected candidate and resulting status.",
                     "task_public": task_public or self.task_public(),
                     "output_schema": self.answer_schema(),
+                    "task_resources": {
+                        "record_sets": ["candidates"],
+                        "relationships": [],
+                        "files": [],
+                        "allowed_tools": [
+                            "list_candidates",
+                            "get_candidate",
+                            "select_candidate",
+                        ],
+                    },
                     "solution_code": solution or self.solution_code(),
                 }
             ]
         }
 
-    @staticmethod
-    def scoring_payload() -> dict:
-        return {
-            "rubric_items": [
-                {"id": "G1", "section": "general", "points": 3, "criterion": "The returned object follows every required output field and type exactly.", "evidence_sources": ["candidate_answer"], "judge_method": "deterministic"},
-                {"id": "G2", "section": "general", "points": 3, "criterion": "The reported result is supported by the executed business operation evidence.", "evidence_sources": ["candidate_answer", "tool_trace"], "judge_method": "rubric_judge"},
-                {"id": "T1", "section": "task_specific", "points": 3, "criterion": "Every candidate was considered before the final selection decision was made.", "evidence_sources": ["tool_trace"], "judge_method": "rubric_judge"},
-                {"id": "T2", "section": "task_specific", "points": 3, "criterion": "The selected candidate is eligible and has the highest eligible review score.", "evidence_sources": ["candidate_answer", "tool_trace"], "judge_method": "rubric_judge"},
-                {"id": "T3", "section": "task_specific", "points": 2, "criterion": "The final business state records the chosen candidate as selected.", "evidence_sources": ["final_state"], "judge_method": "deterministic"},
-            ],
-            "answer_verifier_code": "def verify(candidate_answer, ground_truth_answer):\n    return 1.0 if candidate_answer == ground_truth_answer else 0.0",
-            "state_verifier_code": "def verify_state(candidate_state, ground_truth_state, initial_state):\n    return 1.0 if candidate_state == ground_truth_state else 0.0",
-            "state_verification": {
-                "mode": "exact_final_state",
-                "required_effects": ["The chosen candidate status must be recorded as selected."],
-                "forbidden_effects": ["No unrelated candidate record may be modified by the task."],
-            },
-            "explanation": "The answer, business state, and observable execution evidence are checked separately so a plausible response cannot hide a missing selection operation.",
-        }
-
-    def prepare_through_step4(self, root: Path):
+    def prepare_through_step2(self, root: Path):
         package_path = self.make_package(root)
         output = root / "tasks"
         research_path = root / "research.json"
         candidate_path = root / "candidates.json"
-        scoring_path = root / "scoring.json"
         write_json(research_path, self.research_payload())
         write_json(candidate_path, self.candidate_payload())
-        write_json(scoring_path, self.scoring_payload())
-        step1 = run_step1(environment_package=package_path, output_dir=output)
-        step2 = run_step2(
-            step1_path=step1,
+        step0 = run_step0(environment_package=package_path, output_dir=output)
+        step1 = run_step1(
+            step0_path=step0,
             output_dir=output,
             agent=None,
             research_fixture_path=research_path,
         )
-        step3 = run_step3(
-            step1_path=step1,
-            step2_path=step2.output_path,
+        step2 = run_step2(
+            step0_path=step0,
+            step1_path=step1.output_path,
             output_dir=output,
             policy=ProgramGenerationPolicy(
-                min_tool_calls=5,
-                min_distinct_tools=3,
                 clean_replays=2,
                 require_state_change=True,
             ),
@@ -393,14 +399,7 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
             review_agent=ReviewAgent(),
             candidates_path=candidate_path,
         )
-        step4 = run_step4(
-            step3_path=step3.output_path,
-            output_dir=output,
-            policy=ProgramGenerationPolicy(),
-            agent=None,
-            scoring_fixture_path=scoring_path,
-        )
-        return step1, step2, step3, step4, output
+        return step0, step1, step2, output
 
     def test_runtime_executes_solution_against_isolated_logical_state(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -415,19 +414,81 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                 baseline = runtime.call("get_candidate", {"item_id": "c"})
             self.assertEqual(baseline["data"]["item"]["status"], "open")
 
-    def test_step2_rejects_unknown_environment_references(self):
+    def test_step0_accepts_complete_toolgen_binding(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            step1 = run_step1(
-                environment_package=self.make_package(root),
+            delivery = root / "delivery"
+            package = self.make_package(
+                delivery,
+                "environments/candidate_package/environment",
+            )
+            tools_dir = delivery / "environments" / "candidate_package" / "tools"
+            tools_dir.mkdir(parents=True)
+            tools = read_json(package / "tools.json")["tools"]
+            write_json(tools_dir / "tools.json", {
+                "schema_version": "1.0",
+                "environment_id": "candidate_review_v2",
+                "tools": tools,
+            })
+            write_json(tools_dir / "tool_validation.json", {
+                "schema_version": "1.0",
+                "environment_id": "candidate_review_v2",
+                "reports": [
+                    {"tool": tool["name"], "status": "passed"}
+                    for tool in tools
+                ],
+            })
+            binding = delivery / "environments" / "candidate_package" / "binding.json"
+            software = delivery / "environments" / "candidate_package" / "software"
+            software.mkdir()
+            write_json(software / "profile.json", {"profile_id": None})
+            write_json(binding, {
+                "schema_version": "1.0",
+                "package_id": "candidate_package",
+                "environment_id": "candidate_review_v2",
+                "package_path": "environments/candidate_package",
+                "tools_path": "environments/candidate_package/tools/tools.json",
+                "tool_validation_path": "environments/candidate_package/tools/tool_validation.json",
+                "environment_path": "environments/candidate_package/environment",
+                "environment_validation_path": (
+                    "environments/candidate_package/environment/validation.json"
+                ),
+                "software_mapping_path": (
+                    "environments/candidate_package/software/profile.json"
+                ),
+                "software_profile": None,
+                "software_profile_path": None,
+            })
+
+            resolved = ToolGenDelivery.load(binding, delivery_root=delivery)
+            receipt_path = run_step0(
+                binding_path=binding,
+                delivery_root=delivery,
                 output_dir=root / "out",
             )
-            package = CompleteEnvironmentPackage.load(root / "out" / "baseline_environment")
+            receipt = read_json(receipt_path)
+
+            self.assertEqual(resolved.environment_path, package.resolve())
+            self.assertEqual(
+                receipt["toolgen_delivery"]["package_id"],
+                "candidate_package",
+            )
+            self.assertTrue((root / "out/baseline_environment/delivery.json").is_file())
+
+    def test_step1_rejects_unknown_environment_references(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "out"
+            step0 = run_step0(
+                environment_package=self.make_package(root),
+                output_dir=output,
+            )
+            package = CompleteEnvironmentPackage.load(output / "baseline_environment")
             payload = self.research_payload()
             payload["task_archetypes"][0]["environment_support"]["tools"].append("missing_tool")
             schema = read_json(
                 Path(__file__).resolve().parents[1]
-                / "task_gen/program_form/schemas/task_research.schema.json"
+                / "task_gen/program/schemas/task_research.schema.json"
             )
             errors = validate_task_research(
                 payload,
@@ -436,9 +497,38 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                 env_id="candidate_review_v2",
             )
             self.assertTrue(any("missing_tool" in error for error in errors))
-            self.assertTrue(step1.is_file())
+            self.assertTrue(step0.is_file())
 
-    def test_step3_repairs_real_error_and_cleanly_replays(self):
+    def test_step1_rejects_shallow_task_archetype(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "out"
+            step0 = run_step0(
+                environment_package=self.make_package(root),
+                output_dir=output,
+            )
+            package = CompleteEnvironmentPackage.load(output / "baseline_environment")
+            payload = self.research_payload()
+            archetype = payload["task_archetypes"][0]
+            archetype["description"] = archetype["description"][:40]
+            archetype["requirements"] = archetype["requirements"][:1]
+            schema = read_json(
+                Path(__file__).resolve().parents[1]
+                / "task_gen/program/schemas/task_research.schema.json"
+            )
+
+            errors = validate_task_research(
+                payload,
+                schema=schema,
+                public_environment=package.public_environment(),
+                env_id="candidate_review_v2",
+            )
+
+            self.assertTrue(any("description" in error for error in errors))
+            self.assertTrue(any("requirements" in error for error in errors))
+            self.assertTrue(step0.is_file())
+
+    def test_step2_repairs_real_error_and_cleanly_replays(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             package_path = self.make_package(root)
@@ -448,20 +538,18 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
             write_json(research_path, self.research_payload())
             broken = self.solution_code().replace('["items"]', '["missing"]', 1)
             write_json(candidates_path, self.candidate_payload(solution=broken))
-            step1 = run_step1(environment_package=package_path, output_dir=output)
-            step2 = run_step2(
-                step1_path=step1,
+            step0 = run_step0(environment_package=package_path, output_dir=output)
+            step1 = run_step1(
+                step0_path=step0,
                 output_dir=output,
                 agent=None,
                 research_fixture_path=research_path,
             )
-            result = run_step3(
-                step1_path=step1,
-                step2_path=step2.output_path,
+            result = run_step2(
+                step0_path=step0,
+                step1_path=step1.output_path,
                 output_dir=output,
                 policy=ProgramGenerationPolicy(
-                    min_tool_calls=5,
-                    min_distinct_tools=3,
                     require_state_change=True,
                 ),
                 generation_agent=RepairAgent(self.solution_code()),
@@ -473,11 +561,14 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
             self.assertEqual(task["solution_validation"]["clean_replay_count"], 2)
             self.assertEqual(task["ground_truth"]["candidate_answer"]["selected_item_id"], "c")
 
-    def test_step3_rejects_public_tool_name_leakage(self):
+    def test_step2_rejects_public_tool_name_leakage(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             output = root / "tasks"
-            step1 = run_step1(environment_package=self.make_package(root), output_dir=output)
+            step0 = run_step0(
+                environment_package=self.make_package(root),
+                output_dir=output,
+            )
             research_path = root / "research.json"
             candidates_path = root / "candidates.json"
             write_json(research_path, self.research_payload())
@@ -490,136 +581,47 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                     )
                 ),
             )
-            step2 = run_step2(
-                step1_path=step1,
+            step1 = run_step1(
+                step0_path=step0,
                 output_dir=output,
                 agent=None,
                 research_fixture_path=research_path,
             )
             with self.assertRaisesRegex(RuntimeError, "0/1"):
-                run_step3(
-                    step1_path=step1,
-                    step2_path=step2.output_path,
+                run_step2(
+                    step0_path=step0,
+                    step1_path=step1.output_path,
                     output_dir=output,
                     policy=ProgramGenerationPolicy(),
                     generation_agent=None,
                     review_agent=ReviewAgent(),
                     candidates_path=candidates_path,
                 )
-            validation = read_json(output / "step3_validation.json")
+            validation = read_json(output / "step2_validation.json")
             self.assertIn("泄露工具名", validation["rejections"][0]["reasons"][0])
 
-    def test_step4_writes_all_three_scoring_layers(self):
+    def test_step2_exports_external_task_and_ground_truth_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
-            _, _, _, step4, _ = self.prepare_through_step4(Path(temporary))
-            task = read_records(step4.output_path)[0]
-            self.assertTrue(task["scoring_ready"])
-            self.assertEqual(task["rubric_total_score"], 14)
-            self.assertIn("def verify(", task["verifier_code"])
-            self.assertIn("def verify_state(", task["state_verifier_code"])
+            _, _, step2, output = self.prepare_through_step2(Path(temporary))
+            generated = read_records(step2.output_path)[0]
+            tasks = read_json(step2.tasks_path)
+            bundle = read_json(step2.bundle_path)
 
-    def test_step5_retries_infrastructure_then_publishes_valid_task(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            step1, _, _, step4, output = self.prepare_through_step4(Path(temporary))
-            task = read_records(step4.output_path)[0]
-            calls = 0
-
-            def solve(**_kwargs):
-                nonlocal calls
-                calls += 1
-                if calls == 1:
-                    return SolverResult(None, [], None, "", "MCP launch failed", True)
-                return SolverResult(
-                    task["ground_truth"]["candidate_answer"],
-                    task["solution_trace"],
-                    task["ground_truth"]["final_state"],
-                    "",
-                    None,
-                )
-
-            result = run_step5(
-                step1_path=step1,
-                step4_path=step4.output_path,
-                output_dir=output,
-                policy=ProgramGenerationPolicy(
-                    difficulty_eval_runs=2,
-                    minimum_passing_runs=1,
-                    infrastructure_retries=1,
-                ),
-                model="test",
-                rubric_agent=RubricAgent(),
-                solve_fn=solve,
-            )
-            evaluated = read_records(result.difficulty_path)[0]
-            self.assertEqual(calls, 3)
-            self.assertEqual(evaluated["valid_rollouts"], 2)
-            self.assertEqual(evaluated["pass_count"], 2)
-            self.assertEqual(len(evaluated["infrastructure_failures"]), 1)
-            self.assertEqual(result.published, 1)
-            final = read_json(result.final_path)
-            self.assertEqual(len(final), 1)
-            self.assertIsInstance(final[0]["environment_summary"], str)
-            self.assertIn("record_sets", final[0]["environment_contract"])
+            self.assertEqual(len(tasks), 1)
             self.assertEqual(
-                final[0]["ground_truth_state"],
-                task["ground_truth"]["final_state"],
+                tasks[0]["task_resources"],
+                generated["task_resources"],
             )
-
-    def test_step5_sends_zero_success_task_to_rework(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            step1, _, _, step4, output = self.prepare_through_step4(Path(temporary))
-            task = read_records(step4.output_path)[0]
-
-            def solve(**_kwargs):
-                return SolverResult(
-                    {"selected_item_id": "a", "selected_score": 4, "status": "open"},
-                    [],
-                    task["ground_truth"]["init_state"],
-                    "",
-                    None,
-                )
-
-            result = run_step5(
-                step1_path=step1,
-                step4_path=step4.output_path,
-                output_dir=output,
-                policy=ProgramGenerationPolicy(difficulty_eval_runs=2),
-                model="test",
-                rubric_agent=RubricAgent(),
-                solve_fn=solve,
+            self.assertEqual(tasks[0]["reference"]["tool_calls"][0]["tool"], "list_candidates")
+            self.assertNotIn("result", tasks[0]["reference"]["tool_calls"][0])
+            self.assertTrue((output / tasks[0]["initial_state"]).is_dir())
+            self.assertTrue(
+                (output / tasks[0]["reference"]["final_state"]).is_dir()
             )
-            rework = read_records(result.rework_path)[0]
-            self.assertEqual(rework["difficulty_bucket"], "unsolved_rework")
-            self.assertIn("zero_successful_rollouts", rework["publish_reason"])
-            self.assertEqual(read_json(result.final_path), [])
-
-    def test_solver_mcp_exposes_public_tools_and_writes_final_state(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            output = root / "tasks"
-            step1 = run_step1(environment_package=self.make_package(root), output_dir=output)
-            config = root / "mcp.json"
-            trace = root / "trace.jsonl"
-            state = root / "state.json"
-            write_json(config, {
-                "step1_path": str(step1),
-                "trace_path": str(trace),
-                "state_path": str(state),
-                "max_tool_calls": 5,
-            })
-            requests = "\n".join([
-                json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
-                json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
-                json.dumps({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "select_candidate", "arguments": {"item_id": "c"}}}),
-            ]) + "\n"
-            stdout = StringIO()
-            serve(config, StringIO(requests), stdout)
-            responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
-            tools = responses[1]["result"]["tools"]
-            self.assertNotIn("internal", tools[0])
-            self.assertTrue(responses[2]["result"]["structuredContent"]["success"])
-            self.assertTrue(state.is_file())
-            self.assertTrue(trace.is_file())
+            self.assertEqual(
+                bundle["tasks"][0]["execution"]["final_state"],
+                tasks[0]["reference"]["final_state"],
+            )
 
 
 if __name__ == "__main__":

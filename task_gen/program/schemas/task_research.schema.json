@@ -27,28 +27,11 @@
         "properties": {
           "archetype_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
           "name": {"type": "string", "minLength": 4},
-          "role": {"type": "string", "minLength": 4},
-          "trigger": {"type": "string", "minLength": 12},
-          "business_goal": {"type": "string", "minLength": 20},
-          "workflow": {
+          "description": {"type": "string", "minLength": 120},
+          "requirements": {
             "type": "array",
             "minItems": 2,
-            "items": {"type": "string", "minLength": 8}
-          },
-          "required_evidence": {
-            "type": "array",
-            "minItems": 1,
-            "items": {"type": "string", "minLength": 8}
-          },
-          "hard_constraints": {
-            "type": "array",
-            "items": {"type": "string", "minLength": 8}
-          },
-          "expected_deliverable": {"type": "string", "minLength": 12},
-          "common_failure_modes": {
-            "type": "array",
-            "minItems": 1,
-            "items": {"type": "string", "minLength": 8}
+            "items": {"type": "string", "minLength": 12}
           },
           "source_urls": {
             "type": "array",
@@ -81,14 +64,8 @@
         "required": [
           "archetype_id",
           "name",
-          "role",
-          "trigger",
-          "business_goal",
-          "workflow",
-          "required_evidence",
-          "hard_constraints",
-          "expected_deliverable",
-          "common_failure_modes",
+          "description",
+          "requirements",
           "source_urls",
           "environment_support"
         ],

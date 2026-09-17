@@ -10,15 +10,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import math
 from pathlib import Path
 import re
+import time
 from typing import Any, Callable
 from urllib.parse import urlparse
 
 from jsonschema import Draft202012Validator, FormatChecker
+from utils.search_agent.codex import is_retryable_error
 
 from env_gen.data_gen.analysis.seed import (
     is_python_package_seed,
+    reference_task_text,
     reference_tool_label,
 )
 
@@ -56,12 +60,10 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def seed_task_label(item: dict[str, Any]) -> str | None:
-    for field in ("name", "description"):
-        value = item.get(field)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
+def seed_task_label(item: Any) -> str | None:
+    """Compatibility wrapper for callers that still import this helper."""
+
+    return reference_task_text(item)
 
 
 def _pointer(error: Any) -> str:
@@ -167,8 +169,7 @@ def _subject_universe(seed: dict[str, Any], scenario: dict[str, Any]) -> list[di
             if isinstance(item, dict):
                 add("tool", reference_tool_label(seed, item), "seed")
         for item in seed.get("init_ref_tasks", []):
-            if isinstance(item, dict):
-                add("task", seed_task_label(item), "seed")
+            add("task", seed_task_label(item), "seed")
     for subject_type, collection in (("entity", "entities"), ("tool", "tools"), ("task", "tasks")):
         for item in scenario.get(collection, []):
             if isinstance(item, dict):
@@ -184,16 +185,18 @@ def _subject_universe(seed: dict[str, Any], scenario: dict[str, Any]) -> list[di
 def _build_collection_prompt(run_dir: Path) -> str:
     config = read_json(control_path(run_dir.resolve(), CONTROL_RUN_CONFIG), "运行配置")
     seed = read_json(control_path(run_dir.resolve(), CONTROL_SELECTED_SEED), "选中 Seed")
-    seed_floor_scope = "初始 Seed 中的参考工具与任务"
     seed_input_description = (
         "来源入口、环境说明、参考工具与任务，以及可能的数据方向。参考工具和任务用于理解目标工作；"
         "Seed 自身的简短内容用于定位，不视为已经核实的事实；调研报告会补充现实使用中的实体、工具、"
         "任务和数据方向"
     )
-    collection_scope = "围绕 Seed 和调研报告中的实体、工具、任务，并结合 `data_directions` 理解它们之间的数据需求"
+    collection_scope = (
+        "围绕调研确认的现实工作空间，并结合 `data_directions` 理解实体、工具、任务之间的数据需求"
+    )
     policy = config["collection_policy"]
-    seed_min = int(policy.get("min_seed_coverage_percent", 90))
-    scenario_min = int(policy.get("min_scenario_coverage_percent", 75))
+    work_min = int(policy.get("min_work_coverage_percent", 60))
+    entity_min = int(policy.get("min_entity_coverage_percent", 60))
+    min_work_goals = int(policy.get("min_supported_work_goals", 2))
     max_single_mib = int(policy.get("max_single_file_bytes", 256 * 1024 * 1024)) // (1024 * 1024)
     max_raw_mib = int(policy.get("max_raw_bytes", 512 * 1024 * 1024)) // (1024 * 1024)
     max_workspace_mib = int(policy.get("max_workspace_bytes", 768 * 1024 * 1024)) // (1024 * 1024)
@@ -202,9 +205,14 @@ def _build_collection_prompt(run_dir: Path) -> str:
 
 # 背景与任务
 
-我们要构建一个可以离线运行的真实业务环境。你的首要目标是取得环境的真实核心数据。这些数据必须能够实际支撑业务操作：
-包含后续查询、创建或修改业务对象所需的对象、状态、关系、标识和字段，或者任务需要直接读取
-和编辑的原始文件内容。只与主题相关、却不能用于完成这些操作的材料，不是我们要找的数据。
+我们要构建一个可以离线反复使用的真实业务环境。你的首要目标不是尽可能覆盖清单中的名称，也不是为
+某个参考任务定制一份样例，而是取得能够共同组成现实工作空间的核心数据。这些数据应包含后续查询、关联、
+计算、比较、创建、修改或校验业务对象所需的内容，或者任务需要直接读取和编辑的原始文件。
+
+采集结果应使后续能够从同一环境自然产生多种目标、处理路径和结果判断方式不同的复杂任务。优先取得能够
+增加新工作目标、新对象关系、新内容差异或新验证依据的数据。若新增文件只让更多工具读取同一种内容，却
+没有增加环境能够完成的现实工作，就不视为丰富度提升。只与主题相关、却不能用于完成实际操作的材料，
+不是我们要找的数据。
 
 优先寻找现实业务中实际产生、维护和使用的数据，同一业务流程的数据尽可能同源或能够相互关联，使最终
 环境保持连贯。模板、演示样例、测试夹具和说明材料可以补充特殊情况，但不能代替真实核心数据，也不能仅凭
@@ -214,15 +222,16 @@ def _build_collection_prompt(run_dir: Path) -> str:
 
 - `.datagen/selected_seed.json`：{seed_input_description}。
 - `provenance/scenario_research.json`：基于外部来源核实并扩展后的现实业务报告，包含工作背景、业务实体、
-  工具、典型任务、建议寻找的数据、来源证据和待确认问题。实体、工具和任务构成第二组覆盖清单；
+  工具、典型任务、建议寻找的数据、来源证据和待确认问题。实体、工具和任务用于说明环境范围；
   `data_directions` 用于理解任务需要什么数据以及如何组织采集，`open_questions` 用于避免把尚未确认的内容
   当成事实。
 
 {collection_scope}，将可用原件下载到
 `workspace/raw/<source>/`。所有下载命令的目标路径必须明确包含
 `workspace/raw/`，不要在运行目录顶层另建 `raw/`。文件卡中的 `path` 才省略 `workspace/` 前缀，写成
-`raw/<source>/<file>`。尽可能让同一批数据共同支持多项相关操作，并优先选择来自同一系统、可以通过稳定 ID
-相互关联的数据。
+`raw/<source>/<file>`。尽可能让同一批数据共同支持多项相关操作，并优先选择来自同一系统、项目或工作上下文、
+可以通过稳定 ID、路径、版本、时间或明确业务事实相互关联的数据。不要仅因格式相同或能被同一工具读取，
+就把无关来源拼成一个环境。
 
 # 根据场景选择数据形态
 
@@ -248,24 +257,30 @@ def _build_collection_prompt(run_dir: Path) -> str:
    `summary` 记录的当前覆盖缺口和相关文件卡决定下一批目标。不要重新遍历全部 Raw、逐张复查所有文件卡，
    也不要每轮从两个输入重新计算一遍完整覆盖。只有缺口记录不清时才查看相关文件卡；文件卡信息不足、矛盾
    或缺少关键字段依据时，才回看对应的少量原文件。
-2. 把当前缺口按共同需要的数据组织起来。优先选择能够用同一批数据连接多个实体、支撑多个工具或完成一条
-   典型任务流程的目标，并结合 `data_directions` 说明这批数据在任务中的用途；不要按单个工具逐一找接口。
+2. 把当前缺口按共同现实上下文中的数据组组织起来。优先选择能够连接多个对象、增加一种新的工作目标、
+   内容差异或验证方式的数据，并结合 `data_directions` 说明用途；不要按单个工具逐一找接口，也不要为
+   预先写好的某个任务拼凑孤立文件。
 3. 调查真正发布现成业务记录或原始工作文件的渠道。优先考虑官方公开数据集、正式导出、数据仓库和返回现有
    记录的 API，再考虑可信数据平台或镜像。产品主页、MCP 调用入口、管理控制台和空账户 API 不是默认数据源；
    只有明确提供现成记录或可下载导出时才采用。不要先选定一个平台，再枚举它的全部接口。
+   当现有来源不能达到最低覆盖线，或缺少关键验证依据时，可以通过 Web Search 比较补充来源。已有数据
+   内部完整、关系清楚且达到覆盖线后，不因来源数量或探索广度本身继续下载。
 4. 下载前比较候选来源的真实性、能够支撑的任务环节和清单项、对象之间的关联键、内容完整性以及数据规模。
    选择最适合当前目标的来源，必要时使用少量能够明确关联的互补来源。`source_id` 应表示具体数据集、项目、
    组织或业务上下文，不能只写 `github_api`、`kaggle` 这类平台名来掩盖彼此无关的数据。
 5. 为当前缺口依次尝试最多 3 个真正可能提供所需数据的不同来源。某个来源超时、认证后仍无权限、返回错误
    内容或下载失败时，记录 URL、原本预计取得的内容和失败原因，然后换下一个来源；任一来源成功后不必凑满
    3 次。同一平台的不同接口、产品页、文档和服务调用入口不能算作多个数据来源。
-6. 每批下载 1 至 5 个相互关联的文件到 `workspace/raw/<source>/`。打开实际内容，确认它不是登录页、错误响应、
-   空文件或只有说明文字，并检查是否包含当前任务所需的对象、状态、ID、关系和业务字段。无用、损坏或与已有
-   内容重复的文件直接删除。同一个 API 地址可能因查询参数或请求体不同返回不同业务记录；只要内容不同且分别
-   保留了可追溯的请求说明，就可以各自登记，不能仅因 URL 相同而删除。
-7. 检查完一批数据后立即更新文件卡和 `summary`。写清这批数据支撑哪些任务或 `data_directions`、涉及哪些
-   实体和工具、文件或记录之间如何通过 ID、路径或业务事实关联，并把仍未解决的覆盖缺口更新到 `summary`，
-   供下一批直接使用。即使仍在调查同一批数据，距离上次更新达到 8 分钟时，也先保存当前进展。
+6. 每批围绕一个自然形成的数据组下载文件到 `workspace/raw/<source>/`，文件数量由该数据组的实际组成决定，
+   不人为只挑几个容易处理的文件，同时遵守总体体量限制。打开实际内容，确认它不是登录页、错误响应、空文件
+   或只有说明文字，并检查是否包含当前工作所需的对象、关系、内容差异和判断依据。无用、损坏或与已有内容
+   重复的文件直接删除。同一个 API 地址可能因查询参数或请求体不同返回不同业务记录；只要内容不同且分别保留
+   了可追溯的请求说明，就可以各自登记，不能仅因 URL 相同而删除。
+7. 检查完一批数据后立即更新文件卡、`work_coverage` 和 `summary`。文件卡说明单个原件贡献什么；
+   `work_coverage` 说明哪些文件合在一起能够完成一种现实工作、它们如何关联、存在哪些自然差异以及如何判断
+   结果。某项工作即使已经是 `supported`，新一批数据若增强了真实性、关联、差异或验证依据，也要把新文件和
+   新事实累计到该项中；不能只增加文件卡而保留旧的工作证据。把仍未解决的缺口更新到 `summary`，供下一批
+   直接使用。即使仍在调查同一批数据，距离上次更新达到 8 分钟时，也先保存当前进展。
 8. 更新后直接根据这份增量文件画像决定下一批下载什么。不要因为某一个来源能下载很多文件，就持续在该来源
    扩张与当前任务无关的数据。
 
@@ -297,6 +312,18 @@ workspace 合计 {max_workspace_mib} MiB、Raw 文件最多 {max_raw_files} 个�
   "result": "collecting",
   "summary": "当前已取得的数据和仍缺少的内容",
   "data_independent_tools": [],
+  "work_coverage": [
+    {{
+      "task_name": "调研报告中的任务名称",
+      "status": "supported",
+      "evidence_paths": ["raw/example/items.json", "raw/example/rules.json"],
+      "supported_operations": ["查询并关联对象", "根据规则修改对象并复核结果"],
+      "connections": ["两个文件通过 item_id 关联"],
+      "variations": ["包含不同分类、状态和规则结果"],
+      "verification": "修改后重新应用规则，结果必须满足规则且未改变非目标对象。",
+      "limitations": []
+    }}
+  ],
   "file_cards": [
     {{
       "path": "raw/example/items.json",
@@ -329,6 +356,21 @@ workspace 合计 {max_workspace_mib} MiB、Raw 文件最多 {max_raw_files} 个�
 - 写操作不要求在真实网站上执行。只要数据提供可修改对象的初始状态、稳定 ID 和必要字段，离线环境就能支持写操作。
 - 同一文件可以登记多个项目，但每项都必须说明具体由哪些数据支持。
 
+`work_coverage` 用来判断环境是否真正能够产生多种复杂任务。每项的 `task_name` 原样复制调研报告中的任务名称：
+
+- `evidence_paths` 可以引用多张文件卡；工作覆盖由这组数据共同判断，不要求单个文件独立支持完整任务。
+  每个值必须逐字复制某个 `file_cards[].path`，因此只能是 `raw/...` 路径；不得把
+  `file_cards[].prepared_paths` 中的 `prepared/...` 路径直接写入 `evidence_paths`。
+- `supported` 表示这些文件合在一起已经包含完成该工作所需的数据，并且存在明确的结果判断方式；只覆盖一部分
+  环节时使用 `partial`。没有有效文件依据的任务不要登记，Python 会把它视为 `missing`。
+- `supported_operations` 说明现有数据允许执行的不同操作；`connections` 说明数据如何通过 ID、路径、版本、
+  时间或业务事实形成同一上下文；`variations` 只记录数据中实际存在的条件、状态、案例或内容差异。
+- `verification` 说明如何根据原始数据、规则、计算结果或前后差异判断工作是否完成。不得用“工具能够运行”
+  代替结果验证。
+- `work_coverage` 是持续维护的累计画像，不是一次性的状态清单。任务达到 `supported` 后，新取得的真实核心
+  数据仍应更新它的 `evidence_paths`、`connections`、`variations`、`verification` 和 `limitations`。
+- 不要为了提高数量把同一工作拆成多项，也不要根据希望得到的任务反向编造数据关系、差异或验证方式。
+
 若某个工具本身不依赖任何初始业务数据，把它写入根对象的 `data_independent_tools`，每项只写输入文件中的
 `tool_name` 和具体 `reason`。仅限以下情况：结果完全来自固定能力声明；来源明确规定它始终返回空集合；或者
 调用方提供创建首个对象所需的全部内容，且不依赖已有父对象或参考记录。它不算已覆盖，只从数据覆盖分母排除。
@@ -342,18 +384,19 @@ Raw 必须保留从 `url` 实际取得的原件。只需要归档中的少量成
 
 # 完成条件
 
-Python 会按名称去重，只把 `supported` 计入覆盖率，并把经过说明的 `data_independent_tools` 单独列出、从
-数据覆盖分母排除。{seed_floor_scope}至少覆盖 {seed_min}%；调研文件中的实体、工具和任务至少覆盖 {scenario_min}%。
-判断数字的同时也要结合 `data_directions` 自查：覆盖若干孤立名称，不等于已经取得完成典型
-任务所需且能够相互关联的数据。
-这两个数字是最低线，不是达到后立即停止的目标。
+Python 仍会报告实体、工具和任务名称覆盖，便于定位具体缺口，但工具覆盖只作为诊断信息，不参与 `ready`
+判断。主要完成条件是：至少有 {min_work_goals} 个不同工作目标达到 `supported`，完整工作覆盖率至少
+{work_min}%，核心实体覆盖率至少 {entity_min}%。这些数字是最低线，不是达到后立即停止的目标；还要检查
+数据是否具有真实关联、自然差异和有效验证依据。覆盖若干孤立名称，或让许多工具读取同一个文件，都不表示
+环境丰富。
 
 - 低于任一最低线：继续采集。只有剩余数据组都已成功取得数据，或已分别记录 3 个失败来源，才以 `partial` 结束。
-- 达到两条最低线：再检查一遍未覆盖项目；仍有明确可取得且能增加新业务内容的来源就继续，否则以 `ready` 结束。
+- 达到最低线：再检查未覆盖工作及当前数据的关系、差异和验证依据；仍有明确可取得且能增加新工作内容的来源
+  就继续，否则以 `ready` 结束。
 - 没有取得任何可用文件：以 `insufficient_data` 结束。
 
 结束前根据最新文件卡和两组覆盖清单再自行检查一次，然后设置最终 `result`，并在 `summary` 中写清最终数据
-范围、覆盖数字、相关任务与数据之间的关系、剩余缺口及停止原因。
+范围、工作覆盖、实体覆盖、工具诊断覆盖、数据之间的关系、自然差异、验证依据、剩余缺口及停止原因。
 """
 
 
@@ -387,6 +430,9 @@ def _build_result_repair_prompt(run_dir: Path, error: Exception) -> str:
 重新打包后填写上游完整归档 URL；必要时可以重新下载已经登记的原 URL，或改用成员自身的直接 URL。保留原来的
 语义判断和最终 `result`，除非错误明确说明它与最低覆盖线冲突。
 
+`work_coverage[].evidence_paths` 的每个值必须逐字复制某个 `file_cards[].path`，只能引用 `raw/...`；
+不得引用 `file_cards[].prepared_paths` 中的 `prepared/...`。Prepared 文件只能通过所属 Raw 文件卡间接作为工作证据。
+
 修复后重写完整、有效的 `.datagen/collection_result.json` 并立即结束。
 """
 
@@ -407,7 +453,13 @@ def _workspace_path(run_dir: Path, logical: str, *, root_name: str) -> Path:
 def _validate_agent_result(
     run_dir: Path,
     report: dict[str, Any],
-) -> tuple[str, str, list[dict[str, Any]], dict[tuple[str, str], str]]:
+) -> tuple[
+    str,
+    str,
+    list[dict[str, Any]],
+    dict[tuple[str, str], str],
+    list[dict[str, Any]],
+]:
     if report.get("schema_version") != "1.0" or not isinstance(report.get("file_cards"), list):
         raise RuntimeError("collection_result 必须使用 schema_version=1.0 和 file_cards 数组")
     decision = str(report.get("result") or "")
@@ -557,7 +609,100 @@ def _validate_agent_result(
     )
     if overlap:
         raise RuntimeError("工具不能同时登记文件支持和无需初始数据：" + "、".join(overlap))
-    return decision, report_summary, sorted(cards, key=lambda item: item["path"]), independent
+
+    work_raw = report.get("work_coverage", [])
+    if not isinstance(work_raw, list):
+        raise RuntimeError("collection_result.work_coverage 必须是数组")
+    allowed_tasks = {
+        str(item.get("name") or "").strip()
+        for item in scenario.get("tasks", [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    }
+    work_coverage: list[dict[str, Any]] = []
+    work_names: set[str] = set()
+    work_fields = {
+        "task_name",
+        "status",
+        "evidence_paths",
+        "supported_operations",
+        "connections",
+        "variations",
+        "verification",
+        "limitations",
+    }
+    for index, item in enumerate(work_raw):
+        if not isinstance(item, dict) or set(item) != work_fields:
+            raise RuntimeError(
+                f"work_coverage[{index}] 必须且只能包含 "
+                + "、".join(sorted(work_fields))
+            )
+        task_name = str(item.get("task_name") or "").strip()
+        if task_name not in allowed_tasks:
+            raise RuntimeError(f"work_coverage[{index}] 引用未知任务：{task_name}")
+        if task_name in work_names:
+            raise RuntimeError(f"work_coverage 包含重复任务：{task_name}")
+        status = str(item.get("status") or "")
+        if status not in {"supported", "partial"}:
+            raise RuntimeError(f"work_coverage[{index}].status 必须是 supported 或 partial")
+
+        normalized_lists: dict[str, list[str]] = {}
+        for field in (
+            "evidence_paths",
+            "supported_operations",
+            "connections",
+            "variations",
+            "limitations",
+        ):
+            values = item.get(field)
+            if not isinstance(values, list) or not all(
+                isinstance(value, str) and value.strip() for value in values
+            ):
+                raise RuntimeError(f"work_coverage[{index}].{field} 必须是字符串数组")
+            normalized_lists[field] = list(dict.fromkeys(value.strip() for value in values))
+
+        evidence_paths = [
+            value.removeprefix("workspace/").lstrip("/")
+            for value in normalized_lists["evidence_paths"]
+        ]
+        unknown_paths = sorted(set(evidence_paths) - paths)
+        if unknown_paths:
+            raise RuntimeError(
+                f"work_coverage[{index}].evidence_paths 引用未知文件卡："
+                + "、".join(unknown_paths)
+            )
+        verification = str(item.get("verification") or "").strip()
+        if not evidence_paths or len(verification) < 5:
+            raise RuntimeError(
+                f"work_coverage[{index}] 必须引用文件卡并说明结果验证方式"
+            )
+        if status == "supported" and any(
+            not normalized_lists[field]
+            for field in ("supported_operations", "connections", "variations")
+        ):
+            raise RuntimeError(
+                f"work_coverage[{index}] 标为 supported 时必须说明操作、关联和自然差异"
+            )
+        work_coverage.append({
+            "task_name": task_name,
+            "status": status,
+            "evidence_paths": evidence_paths,
+            "supported_operations": normalized_lists["supported_operations"],
+            "connections": normalized_lists["connections"],
+            "variations": normalized_lists["variations"],
+            "verification": verification,
+            "limitations": normalized_lists["limitations"],
+        })
+        work_names.add(task_name)
+
+    if decision == "ready" and not work_coverage:
+        raise RuntimeError("ready 必须提供 work_coverage，证明数据能够共同支持现实工作")
+    return (
+        decision,
+        report_summary,
+        sorted(cards, key=lambda item: item["path"]),
+        independent,
+        work_coverage,
+    )
 
 
 def _write_download_evidence(run_dir: Path, cards: list[dict[str, Any]]) -> None:
@@ -676,6 +821,7 @@ def _build_profile(
     decision: str,
     agent_summary: str,
     independent: dict[tuple[str, str], str],
+    work_coverage: list[dict[str, Any]],
 ) -> dict[str, Any]:
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
     universe = _subject_universe(
@@ -683,6 +829,14 @@ def _build_profile(
         read_saved_scenario_research(run_dir),
     )
     coverage = _coverage(cards, universe, independent)
+    scenario_tasks = [
+        str(item.get("name") or "").strip()
+        for item in read_saved_scenario_research(run_dir).get("tasks", [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    ]
+    supported_work = sum(item["status"] == "supported" for item in work_coverage)
+    partial_work = sum(item["status"] == "partial" for item in work_coverage)
+    total_work = len(scenario_tasks)
     metrics = {
         "seed": {
             "overall": _measure_origin(coverage, origin="seed"),
@@ -692,14 +846,43 @@ def _build_profile(
             "overall": _measure_origin(coverage, origin="scenario"),
             **{subject_type: _measure(coverage, origin="scenario", subject_type=subject_type) for subject_type in _SUBJECT_TYPES},
         },
+        "work": {
+            "supported": supported_work,
+            "partial": partial_work,
+            "missing": max(0, total_work - supported_work - partial_work),
+            "total": total_work,
+            "percent": round(100 * supported_work / total_work, 1) if total_work else 0.0,
+        },
     }
     missing = [item for item in coverage if item["status"] in {"missing", "partial"}]
+    covered_work_names = {item["task_name"] for item in work_coverage}
+    work_gaps = [
+        {
+            "subject_type": "work",
+            "subject_name": task_name,
+            "status": "missing",
+            "reason": "尚无能够共同完成并验证该工作的关联数据组。",
+        }
+        for task_name in scenario_tasks
+        if task_name not in covered_work_names
+    ]
+    work_gaps.extend(
+        {
+            "subject_type": "work",
+            "subject_name": item["task_name"],
+            "status": "partial",
+            "reason": item["verification"],
+        }
+        for item in work_coverage
+        if item["status"] == "partial"
+    )
     return {
         "schema_version": "2.0",
         "seed_global_id": config["seed_global_id"],
         "seed_sha256": config["seed_sha256"],
         "summary": agent_summary,
         "file_cards": cards,
+        "work_coverage": work_coverage,
         "coverage": coverage,
         "metrics": metrics,
         "gaps": [{
@@ -707,7 +890,7 @@ def _build_profile(
             "subject_name": item["subject_name"],
             "status": item["status"],
             "reason": item["reason"],
-        } for item in missing],
+        } for item in missing] + work_gaps,
         "decision": decision,
     }
 
@@ -717,10 +900,26 @@ def _validate_ready_floor(run_dir: Path, profile: dict[str, Any]) -> None:
         return
     policy = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")["collection_policy"]
     requirements = (
-        ("Seed", profile["metrics"]["seed"]["overall"]["percent"], int(policy.get("min_seed_coverage_percent", 90))),
-        ("Step 1", profile["metrics"]["scenario"]["overall"]["percent"], int(policy.get("min_scenario_coverage_percent", 75))),
+        (
+            "现实工作",
+            profile["metrics"]["work"]["percent"],
+            int(policy.get("min_work_coverage_percent", 60)),
+        ),
+        (
+            "核心实体",
+            profile["metrics"]["scenario"]["entity"]["percent"],
+            int(policy.get("min_entity_coverage_percent", 60)),
+        ),
     )
     below = [f"{name} {actual}% < {minimum}%" for name, actual, minimum in requirements if actual < minimum]
+    supported_work = int(profile["metrics"]["work"]["supported"])
+    configured_work_goals = int(policy.get("min_supported_work_goals", 2))
+    min_work_goals = min(
+        configured_work_goals,
+        int(profile["metrics"]["work"]["total"]),
+    )
+    if supported_work < min_work_goals:
+        below.append(f"完整工作目标 {supported_work} < {min_work_goals}")
     if below:
         raise RuntimeError("Agent 将结果标为 ready，但实际 supported 覆盖低于最低验收线：" + "；".join(below))
 
@@ -766,6 +965,27 @@ def _compat_source_research(run_dir: Path, profile: dict[str, Any]) -> dict[str,
         for subject_type in _SUBJECT_TYPES
     }
     covered_names = [item["subject_name"] for item in coverage if item["status"] == "supported"]
+    work_coverage = profile.get("work_coverage", [])
+    connections = list(dict.fromkeys(
+        value
+        for item in work_coverage
+        for value in item.get("connections", [])
+    ))
+    variations = list(dict.fromkeys(
+        value
+        for item in work_coverage
+        for value in item.get("variations", [])
+    ))
+    evidence_paths = list(dict.fromkeys(
+        value
+        for item in work_coverage
+        for value in item.get("evidence_paths", [])
+    ))
+    supported_operations = list(dict.fromkeys(
+        value
+        for item in work_coverage
+        for value in item.get("supported_operations", [])
+    ))
     target_status = "covered" if profile["decision"] == "ready" else ("partial" if cards else "unavailable")
     target = {
         "target_id": "environment_data",
@@ -775,19 +995,22 @@ def _compat_source_research(run_dir: Path, profile: dict[str, Any]) -> dict[str,
         "related_tools": related["tool"],
         "related_tasks": related["task"],
         "expected_content_roles": sorted({role_names[item["role"]] for item in cards}) or ["structured_data"],
-        "expected_data": ["能够支撑 Seed 和 Step 1 代表性操作的真实数据文件。"],
-        "variation_dimensions": ["文件卡按来源实际记录地域、时期、类型或文件集合的代表性变化。"],
-        "connection_keys": [],
-        "file_context": [],
+        "expected_data": supported_operations or ["尚未取得足以完成现实工作的关联数据。"],
+        "variation_dimensions": variations or ["尚未取得可验证的内容差异。"],
+        "connection_keys": connections,
+        "file_context": evidence_paths,
         "status": target_status,
         "source_ids": sorted(by_source),
         "gap": None if target_status == "covered" else "仍未完整覆盖：" + "、".join(item["subject_name"] for item in coverage if item["status"] in {"missing", "partial"})[:800],
     }
     result = profile["decision"] if profile["decision"] != "continue" else "in_progress"
+    supported_work = sum(item.get("status") == "supported" for item in work_coverage)
+    partial_work = sum(item.get("status") == "partial" for item in work_coverage)
     summary = (
         f"Step 2 已按 URL 和内容哈希去重，保留 {len(cards)} 个有效文件、{len(sources)} 个来源。"
         f"文件卡确认 {len(covered_names)} 个实体、工具或任务具有直接 supported 数据；"
-        "这里只记录文件规模、用途和覆盖主体，字段规范化、关系建模及跨源合并留给 Step 3。"
+        f"关联数据组完整支持 {supported_work} 项现实工作、部分支持 {partial_work} 项。"
+        "字段规范化、关系建模及有依据的跨源合并留给 Step 3。"
     )
     return {
         "schema_version": "3.0",
@@ -796,7 +1019,11 @@ def _compat_source_research(run_dir: Path, profile: dict[str, Any]) -> dict[str,
         "summary": summary,
         "investigation_targets": [target],
         "sources": sources,
-        "expansion_findings": [],
+        "expansion_findings": [
+            f"{item['task_name']}：{'；'.join(item['supported_operations'])}"
+            for item in work_coverage
+            if item.get("status") == "supported"
+        ],
         "task_file_formats": sorted({item["format"] for item in cards if item["role"] == "task_domain_files"}),
         "result": result,
     }
@@ -835,13 +1062,16 @@ def _finalize_agent_result(run_dir: Path) -> tuple[str, dict[str, Any]]:
 
     run_dir = run_dir.resolve()
     report = read_json(control_path(run_dir, CONTROL_COLLECTION_RESULT), "Agent 采集结果")
-    decision, summary, cards, independent = _validate_agent_result(run_dir, report)
+    decision, summary, cards, independent, work_coverage = _validate_agent_result(
+        run_dir, report
+    )
     profile = _build_profile(
         run_dir,
         cards,
         decision=decision,
         agent_summary=summary,
         independent=independent,
+        work_coverage=work_coverage,
     )
     _validate_ready_floor(run_dir, profile)
     _write_download_evidence(run_dir, cards)
@@ -875,21 +1105,52 @@ def run_data_collection(*, run_dir: Path, agent_runner: AgentRunner) -> tuple[st
     control_path(run_dir, CONTROL_RAW_INTEGRITY_SNAPSHOT).unlink(missing_ok=True)
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
     timeout = int(config["collection_policy"].get("source_collection_total_seconds", 2400))
+    deadline = time.monotonic() + timeout
     calls = 0
     try:
-        calls += 1
-        agent_runner(_build_collection_prompt(run_dir), timeout, ())
-        if not control_path(run_dir, CONTROL_COLLECTION_RESULT).is_file():
-            raise RuntimeError("Agent 结束时没有写入 .datagen/collection_result.json")
+        collection_error: Exception | None = None
+        result_path = control_path(run_dir, CONTROL_COLLECTION_RESULT)
+        for attempt in range(1, 3):
+            remaining = max(0, math.ceil(deadline - time.monotonic()))
+            if remaining <= 0:
+                collection_error = TimeoutError(
+                    f"Step 2 超过采集预算 {timeout} 秒"
+                )
+                break
+            prompt = _build_collection_prompt(run_dir)
+            if attempt > 1:
+                prompt += """
+
+上一次会话临时中断或没有交付采集结果。不要从头开始，也不要重复下载；先读取当前
+`.datagen/collection_result.json` 的增量画像（若存在）以及 `workspace/raw/`、
+`workspace/prepared/` 中已经取得的内容，在其基础上补齐剩余覆盖并写出最终结果。
+"""
+            calls += 1
+            try:
+                agent_runner(prompt, remaining, ())
+                collection_error = None
+            except Exception as error:
+                collection_error = error
+            if result_path.is_file():
+                break
+            if collection_error is not None and not is_retryable_error(collection_error):
+                raise collection_error
+        if not result_path.is_file():
+            if collection_error is not None:
+                raise collection_error
+            raise RuntimeError("Agent 两次会话结束后仍未写入 .datagen/collection_result.json")
         try:
             decision, inventory = _finalize_agent_result(run_dir)
         except Exception as validation_error:
+            remaining = max(0, math.ceil(deadline - time.monotonic()))
+            if remaining <= 0:
+                raise TimeoutError(f"Step 2 超过采集预算 {timeout} 秒") from validation_error
             calls += 1
             repair_error: Exception | None = None
             try:
                 agent_runner(
                     _build_result_repair_prompt(run_dir, validation_error),
-                    min(timeout, _RESULT_REPAIR_SECONDS),
+                    min(remaining, _RESULT_REPAIR_SECONDS),
                     (),
                 )
             except Exception as error:

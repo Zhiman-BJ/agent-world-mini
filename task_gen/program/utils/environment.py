@@ -17,7 +17,13 @@ from typing import Any
 from .schema import Draft202012Validator
 
 
-PUBLIC_TOOL_FIELDS = ("name", "description", "inputSchema", "outputSchema")
+PUBLIC_TOOL_FIELDS = (
+    "name",
+    "description",
+    "usageConditions",
+    "inputSchema",
+    "outputSchema",
+)
 TOOL_FIELDS = (*PUBLIC_TOOL_FIELDS, "internal")
 V2_ENVIRONMENT_FIELDS = (
     "schema_version",
@@ -76,6 +82,10 @@ class CompleteEnvironmentPackage:
     tools: tuple[dict[str, Any], ...]
     tools_path: Path | None
     package_format: str
+    delivery: dict[str, Any] | None = None
+    software_profile_path: Path | None = None
+    profile_python: Path | None = None
+    software_root: Path | None = None
 
     @classmethod
     def load(cls, value: Path, *, tools_path: Path | None = None) -> "CompleteEnvironmentPackage":
@@ -116,6 +126,25 @@ class CompleteEnvironmentPackage:
             embedded_tools=embedded_tools,
         )
         tools = cls._validate_tools(raw_tools)
+        delivery = cls._load_delivery_metadata(package_root)
+        software_profile_path: Path | None = None
+        profile_python: Path | None = None
+        software_root: Path | None = None
+        if delivery is not None:
+            raw_profile = delivery.get("software_profile_path")
+            raw_python = delivery.get("profile_python")
+            raw_software_root = delivery.get("software_root")
+            if isinstance(raw_profile, str) and raw_profile:
+                software_profile_path = Path(raw_profile).expanduser().resolve()
+            if isinstance(raw_python, str) and raw_python:
+                # Do not resolve the venv launcher symlink: invoking the resolved
+                # system interpreter would lose the Profile's site-packages.
+                profile_python = Path(raw_python).expanduser()
+            if isinstance(raw_software_root, str) and raw_software_root:
+                software_root = Path(raw_software_root).expanduser().resolve()
+        if software_root is None:
+            legacy_software = package_root / "tool_generation" / "software"
+            software_root = legacy_software if legacy_software.exists() else None
         return cls(
             package_root=package_root,
             environment_path=environment_path,
@@ -124,7 +153,21 @@ class CompleteEnvironmentPackage:
             tools=tuple(tools),
             tools_path=resolved_tools_path,
             package_format=package_format,
+            delivery=delivery,
+            software_profile_path=software_profile_path,
+            profile_python=profile_python,
+            software_root=software_root,
         )
+
+    @staticmethod
+    def _load_delivery_metadata(package_root: Path) -> dict[str, Any] | None:
+        path = package_root / "delivery.json"
+        if not path.is_file():
+            return None
+        value = _read_json(path, label="delivery.json")
+        if not isinstance(value, dict) or value.get("schema_version") != "1.0":
+            raise ValueError("delivery.json 必须是 schema_version=1.0 的 object")
+        return deepcopy(value)
 
     @staticmethod
     def _validate_upstream_receipt(package_root: Path) -> None:
@@ -246,7 +289,11 @@ class CompleteEnvironmentPackage:
         return {
             "environment": public_declaration,
             "tools": [
-                {field: deepcopy(tool[field]) for field in PUBLIC_TOOL_FIELDS}
+                {
+                    field: deepcopy(tool[field])
+                    for field in PUBLIC_TOOL_FIELDS
+                    if field in tool
+                }
                 for tool in self.tools
             ],
         }
@@ -256,11 +303,11 @@ class CompleteEnvironmentPackage:
         return tuple(str(tool["name"]) for tool in self.tools)
 
 
-def load_frozen_package(step1_path: Path) -> CompleteEnvironmentPackage:
-    """从 Step 1 回执解析并加载冻结环境包。"""
-    receipt = _read_json(step1_path.resolve(), label="step1_environment.json")
+def load_frozen_package(step0_path: Path) -> CompleteEnvironmentPackage:
+    """从 Step 0 回执解析并加载冻结环境包。"""
+    receipt = _read_json(step0_path.resolve(), label="step0_environment.json")
     if not isinstance(receipt, dict) or receipt.get("status") != "passed":
-        raise ValueError("Step 1 环境回执无效")
+        raise ValueError("Step 0 环境回执无效")
     relative = Path(str(receipt.get("environment_package") or ""))
-    package_root = relative if relative.is_absolute() else step1_path.resolve().parent / relative
+    package_root = relative if relative.is_absolute() else step0_path.resolve().parent / relative
     return CompleteEnvironmentPackage.load(package_root)

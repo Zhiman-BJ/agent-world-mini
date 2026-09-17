@@ -14,16 +14,16 @@ from task_gen.program_form.utils.contracts import ProgramGenerationPolicy
 
 
 class ProgramFormRunnerTests(unittest.TestCase):
-    def test_parse_step_range_supports_only_five_steps(self):
-        self.assertEqual(parse_step_range("all"), [1, 2, 3, 4, 5])
-        self.assertEqual(parse_step_range("2-4"), [2, 3, 4])
-        self.assertEqual(parse_step_range("1,3,5"), [1, 3, 5])
+    def test_parse_step_range_supports_only_three_steps(self):
+        self.assertEqual(parse_step_range("all"), [0, 1, 2])
+        self.assertEqual(parse_step_range("0-2"), [0, 1, 2])
+        self.assertEqual(parse_step_range("0,2"), [0, 2])
         with self.assertRaisesRegex(ValueError, "未知步骤"):
-            parse_step_range("6")
+            parse_step_range("3")
         with self.assertRaisesRegex(ValueError, "起点大于终点"):
-            parse_step_range("4-2")
+            parse_step_range("2-0")
 
-    def test_validate_arguments_checks_minimum_passing_runs(self):
+    def test_validate_arguments_checks_clean_replay_minimum(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             arguments = build_parser().parse_args([
@@ -31,39 +31,37 @@ class ProgramFormRunnerTests(unittest.TestCase):
                 str(root),
                 "--output-dir",
                 str(root / "out"),
-                "--difficulty-runs",
-                "2",
-                "--minimum-passing-runs",
-                "3",
+                "--clean-replays",
+                "1",
             ])
-            with self.assertRaisesRegex(ValueError, "minimum_passing_runs"):
+            with self.assertRaisesRegex(ValueError, "clean_replays"):
                 validate_arguments(arguments)
 
-    def test_runner_reuses_complete_step1_without_creating_an_agent(self):
+    def test_runner_reuses_complete_step0_without_loading_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             output = root / "out"
             output.mkdir()
-            (output / "step1_environment.json").write_text("{}", encoding="utf-8")
+            (output / "step0_environment.json").write_text("{}", encoding="utf-8")
             (output / "baseline_environment").mkdir()
             result = run_selected_steps(
-                steps=[1],
+                steps=[0],
                 environment_package=root / "not-needed-when-skipped",
                 output_dir=output,
                 policy=ProgramGenerationPolicy(),
                 model="test",
             )
-            self.assertEqual(result[1], output / "step1_environment.json")
+            self.assertEqual(result[0], output / "step0_environment.json")
 
-    def test_runner_rejects_partial_step5_artifacts(self):
+    def test_runner_rejects_partial_step2_artifacts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             output = root / "out"
             output.mkdir()
-            (output / "step5_difficulty.jsonl").write_text("", encoding="utf-8")
+            (output / "step2_task_solution.jsonl").write_text("", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "部分产物"):
                 run_selected_steps(
-                    steps=[5],
+                    steps=[2],
                     environment_package=root,
                     output_dir=output,
                     policy=ProgramGenerationPolicy(),

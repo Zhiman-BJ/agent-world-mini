@@ -156,6 +156,7 @@ def _create_staging(
             path for path in (
                 output_root / "rich" / safe_global_id,
                 output_root / "not_rich" / safe_global_id,
+                output_root / "partial" / safe_global_id,
             ) if path.exists()
         ]
         parent = output_root / ".building"

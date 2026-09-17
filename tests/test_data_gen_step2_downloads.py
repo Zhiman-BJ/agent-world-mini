@@ -151,6 +151,23 @@ def full_card(
     }
 
 
+def full_work_coverage(
+    path: str = "raw/items.json",
+    *,
+    status: str = "supported",
+) -> dict:
+    return {
+        "task_name": "Browse items by category",
+        "status": status,
+        "evidence_paths": [path],
+        "supported_operations": ["List items", "Filter and compare categories"],
+        "connections": ["item_id identifies records and category groups them"],
+        "variations": ["The data contains multiple items and categories"],
+        "verification": "Every returned item must match the requested category.",
+        "limitations": [],
+    }
+
+
 class DownloadLedgerTests(unittest.TestCase):
     def test_download_returns_only_coarse_file_facts(self) -> None:
         with server() as base, tempfile.TemporaryDirectory() as directory:
@@ -294,6 +311,7 @@ class CoarseInspectionTests(unittest.TestCase):
                 "schema_version": "1.0",
                 "result": "ready",
                 "summary": "The Agent accepted complete real catalog records.",
+                "work_coverage": [full_work_coverage()],
                 "file_cards": [full_card(url=f"{base}/items.json")],
             })
             _finalize_agent_result(run_dir)
@@ -323,6 +341,7 @@ class CoarseInspectionTests(unittest.TestCase):
                 "schema_version": "1.0",
                 "result": "ready",
                 "summary": "Two source files share one limitation without duplicating source issues.",
+                "work_coverage": [full_work_coverage()],
                 "file_cards": [
                     full_card(url=f"{base}/items.json", limitations=[limitation]),
                     full_card(
@@ -383,9 +402,11 @@ class AgentCollectionResultTests(unittest.TestCase):
             self.assertNotIn("Python 工具包种子的采集边界", prompt)
             self.assertNotIn("`demo-package` `v1.2.3` 的工具包环境", prompt)
             self.assertNotIn("只能由辅助包处理", prompt)
-            self.assertIn("围绕 Seed 和调研报告中的实体、工具、任务", prompt)
-            self.assertIn("初始 Seed 中的参考工具与任务", prompt)
-            self.assertIn("优先选择能够用同一批数据连接多个实体", prompt)
+            self.assertIn("围绕调研确认的现实工作空间", prompt)
+            self.assertIn("工具覆盖只作为诊断信息", prompt)
+            self.assertIn("每批围绕一个自然形成的数据组", prompt)
+            self.assertIn("可以通过 Web Search 比较补充来源", prompt)
+            self.assertIn("不因来源数量或探索广度本身继续下载", prompt)
 
     def _finalize(self, run_dir: Path, base: str, *, status: str, result: str, role: str = "business_records") -> tuple[str, dict]:
         write_json(run_dir / "workspace/raw/items.json", json.loads(_Handler.item_payload))
@@ -393,6 +414,7 @@ class AgentCollectionResultTests(unittest.TestCase):
             "schema_version": "1.0",
             "result": result,
             "summary": "The Agent completed its own download and coverage loop.",
+            "work_coverage": [full_work_coverage(status=status)],
             "file_cards": [full_card(url=f"{base}/items.json", status=status, role=role)],
         })
         return _finalize_agent_result(run_dir)
@@ -424,6 +446,61 @@ class AgentCollectionResultTests(unittest.TestCase):
             prepare_collection_run(run_dir)
             with self.assertRaisesRegex(RuntimeError, "低于最低验收线"):
                 self._finalize(run_dir, base, status="partial", result="ready")
+
+    def test_tool_and_subject_coverage_cannot_replace_work_coverage(self) -> None:
+        with server() as base, tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_collection_run(run_dir)
+            write_json(
+                run_dir / "workspace/raw/items.json",
+                json.loads(_Handler.item_payload),
+            )
+            write_json(run_dir / ".datagen/collection_result.json", {
+                "schema_version": "1.0",
+                "result": "ready",
+                "summary": (
+                    "Every listed subject is covered, but no complete work goal is proven."
+                ),
+                "work_coverage": [],
+                "file_cards": [full_card(url=f"{base}/items.json")],
+            })
+
+            with self.assertRaisesRegex(RuntimeError, "ready 必须提供 work_coverage"):
+                _finalize_agent_result(run_dir)
+
+    def test_work_coverage_preserves_connections_variations_and_file_context(self) -> None:
+        with server() as base, tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_collection_run(run_dir)
+            write_json(
+                run_dir / "workspace/raw/items.json",
+                json.loads(_Handler.item_payload),
+            )
+            write_json(run_dir / ".datagen/collection_result.json", {
+                "schema_version": "1.0",
+                "result": "ready",
+                "summary": "The linked records support one complete and verifiable catalog job.",
+                "work_coverage": [full_work_coverage()],
+                "file_cards": [full_card(url=f"{base}/items.json")],
+            })
+
+            _finalize_agent_result(run_dir)
+            profile = json.loads(
+                (run_dir / ".datagen/collection_profile.json").read_text()
+            )
+            research = read_saved_source_research(run_dir)
+            target = research["investigation_targets"][0]
+
+            self.assertEqual(profile["metrics"]["work"]["supported"], 1)
+            self.assertEqual(
+                target["connection_keys"],
+                ["item_id identifies records and category groups them"],
+            )
+            self.assertEqual(
+                target["variation_dimensions"],
+                ["The data contains multiple items and categories"],
+            )
+            self.assertEqual(target["file_context"], ["raw/items.json"])
 
     def test_all_unknown_file_card_subjects_are_reported_together(self) -> None:
         with server() as base, tempfile.TemporaryDirectory() as directory:
@@ -488,6 +565,7 @@ class AgentCollectionResultTests(unittest.TestCase):
                 "schema_version": "1.0",
                 "result": "ready",
                 "summary": "Two distinct GraphQL responses came from separate queries to one endpoint.",
+                "work_coverage": [full_work_coverage()],
                 "file_cards": [
                     full_card(path="raw/items.json", url=endpoint),
                     full_card(path="raw/other.json", url=endpoint),
@@ -549,7 +627,8 @@ class AgentCollectionResultTests(unittest.TestCase):
                 "listed_total": 1,
                 "percent": 100.0,
             })
-            self.assertEqual(profile["gaps"], [])
+            self.assertEqual(profile["gaps"][0]["subject_type"], "work")
+            self.assertEqual(profile["gaps"][0]["status"], "missing")
 
     def test_data_independent_tool_cannot_also_have_file_support(self) -> None:
         with server() as base, tempfile.TemporaryDirectory() as directory:
@@ -616,7 +695,7 @@ class AgentCollectionResultTests(unittest.TestCase):
             run_dir = Path(directory)
             prepare_collection_run(run_dir)
             prompt = _build_collection_prompt(run_dir)
-            self.assertIn("构建一个可以离线运行的真实业务环境", prompt)
+            self.assertIn("构建一个可以离线反复使用的真实业务环境", prompt)
             self.assertIn("来源入口、环境说明、参考工具与任务", prompt)
             self.assertIn("不视为已经核实的事实", prompt)
             self.assertIn("基于外部来源核实并扩展后的现实业务报告", prompt)
@@ -628,9 +707,9 @@ class AgentCollectionResultTests(unittest.TestCase):
             self.assertIn("两种平级的数据形态", prompt)
             self.assertIn("`business_records`：后续会把内容拆成一条条记录", prompt)
             self.assertIn("`task_domain_files`：后续会保留文件名、目录和原始内容", prompt)
-            self.assertIn("环境的真实核心数据", prompt)
-            self.assertIn("能够实际支撑业务操作", prompt)
-            self.assertIn("对象、状态、关系、标识和字段", prompt)
+            self.assertIn("共同组成现实工作空间的核心数据", prompt)
+            self.assertIn("自然产生多种目标", prompt)
+            self.assertIn("新对象关系、新内容差异或新验证依据", prompt)
             self.assertIn("现实业务中实际产生、维护和使用", prompt)
             self.assertIn("尽可能同源或能够相互关联", prompt)
             self.assertIn("不能代替真实核心数据", prompt)
@@ -648,17 +727,21 @@ class AgentCollectionResultTests(unittest.TestCase):
             self.assertIn("也不要每轮从两个输入重新计算一遍完整覆盖", prompt)
             self.assertIn("才回看对应的少量原文件", prompt)
             self.assertIn("不能仅因 URL 相同而删除", prompt)
-            self.assertIn("供下一批直接使用", prompt)
-            self.assertIn("用同一批数据连接多个实体、支撑多个工具", prompt)
+            self.assertIn("供下一批", prompt)
+            self.assertIn("直接使用", prompt)
+            self.assertIn("共同现实上下文中的数据组", prompt)
             self.assertIn("不要先选定一个平台，再枚举它的全部接口", prompt)
             self.assertIn("依次尝试最多 3 个真正可能提供所需数据的不同来源", prompt)
             self.assertIn("同一平台的不同接口", prompt)
             self.assertIn("预计提供的数据及失败原因", prompt)
             self.assertIn("任一来源成功", prompt)
             self.assertIn("不必凑满", prompt)
-            self.assertIn("检查完一批数据后立即更新文件卡和 `summary`", prompt)
-            self.assertIn("距离上次更新达到 8 分钟", prompt)
-            self.assertIn("文件或记录之间如何通过 ID、路径或业务事实关联", prompt)
+            self.assertIn("更新文件卡、`work_coverage` 和 `summary`", prompt)
+            self.assertIn("不能只增加文件卡而保留旧的工作证据", prompt)
+            self.assertIn("`work_coverage` 是持续维护的累计画像", prompt)
+            self.assertIn("距离上次更新达到", prompt)
+            self.assertIn("8 分钟", prompt)
+            self.assertIn("说明哪些文件合在一起能够完成一种现实工作", prompt)
             self.assertIn("必须匹配 `[a-z][a-z0-9_]{1,63}`", prompt)
             self.assertIn("空格、斜杠、连字符和大写字母都不能使用", prompt)
             self.assertIn("目标网站有对应凭据时，从第一次请求就使用认证", prompt)
@@ -677,10 +760,11 @@ class AgentCollectionResultTests(unittest.TestCase):
             self.assertIn("静态规则、分类、字典等可查询参考记录仍然属于初始数据", prompt)
             self.assertIn("禁止", prompt)
             self.assertIn("把提取出的少量文件重新打包后冒充上游完整归档", prompt)
-            self.assertIn("至少覆盖 90%", prompt)
-            self.assertIn("至少覆盖 75%", prompt)
+            self.assertIn("完整工作覆盖率至少", prompt)
+            self.assertIn("核心实体覆盖率至少", prompt)
+            self.assertIn("工具覆盖只作为诊断信息", prompt)
             self.assertIn("低于任一最低线：继续采集", prompt)
-            self.assertIn("达到两条最低线", prompt)
+            self.assertIn("达到最低线", prompt)
             self.assertNotIn("collectctl", prompt)
             self.assertNotIn("Step 1", prompt)
             self.assertNotIn("Step 2", prompt)
@@ -703,6 +787,7 @@ class CollectionLoopTests(unittest.TestCase):
                     "schema_version": "1.0",
                     "result": "ready",
                     "summary": "The Agent reached its coverage target and ended the loop.",
+                    "work_coverage": [full_work_coverage()],
                     "file_cards": [full_card(url=f"{base}/items.json")],
                 })
                 return "done"
@@ -731,6 +816,7 @@ class CollectionLoopTests(unittest.TestCase):
                         "schema_version": "1.0",
                         "result": "ready",
                         "summary": "The Agent completed collection but recorded one wrong path.",
+                        "work_coverage": [full_work_coverage(path="raw/missing.json")],
                         "file_cards": [invalid],
                     })
                 else:
@@ -744,6 +830,7 @@ class CollectionLoopTests(unittest.TestCase):
                         "schema_version": "1.0",
                         "result": "ready",
                         "summary": "The Agent repaired the existing file card path.",
+                        "work_coverage": [full_work_coverage()],
                         "file_cards": [full_card(url=f"{base}/items.json")],
                     })
                     raise TimeoutError("The repair summary exceeded its deadline.")
@@ -757,7 +844,7 @@ class CollectionLoopTests(unittest.TestCase):
             self.assertEqual(agent_calls, 2)
             self.assertEqual(inventory["summary"]["file_count"], 1)
 
-    def test_missing_agent_result_fails_after_one_call(self) -> None:
+    def test_missing_agent_result_gets_one_continuation_then_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory)
             policy = CollectionPolicy(source_collection_total_seconds=30)
@@ -772,7 +859,41 @@ class CollectionLoopTests(unittest.TestCase):
 
             with self.assertRaises(DataCollectionError):
                 run_data_collection(run_dir=run_dir, agent_runner=runner)
-            self.assertEqual(calls, 1)
+            self.assertEqual(calls, 2)
+
+    def test_transient_collection_failure_continues_from_existing_workspace(self) -> None:
+        with server() as base, tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            seed, digest = prepare_step0(run_dir)
+            save_scenario_research(run_dir, scenario_payload(seed, digest))
+            calls = 0
+
+            def runner(prompt: str, _timeout: int, _markers: tuple[Path, ...]) -> str:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    write_json(
+                        run_dir / "workspace/raw/items.json",
+                        json.loads(_Handler.item_payload),
+                    )
+                    raise TimeoutError("temporary upstream timeout")
+                self.assertIn("不要从头开始", prompt)
+                self.assertIn("不要重复下载", prompt)
+                write_json(run_dir / ".datagen/collection_result.json", {
+                    "schema_version": "1.0",
+                    "result": "ready",
+                    "summary": "The continuation reused the downloaded records.",
+                    "work_coverage": [full_work_coverage()],
+                    "file_cards": [full_card(url=f"{base}/items.json")],
+                })
+                return "done"
+
+            decision, _inventory, agent_calls = run_data_collection(
+                run_dir=run_dir,
+                agent_runner=runner,
+            )
+            self.assertEqual(decision, "ready")
+            self.assertEqual(agent_calls, 2)
 
 
 class RepositoryStabilityTests(unittest.TestCase):

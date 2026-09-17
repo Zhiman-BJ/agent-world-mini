@@ -91,16 +91,36 @@ def _coverage_issues(run_dir: Path) -> tuple[list[dict[str, str]], dict[str, Any
         ))
     policy = config.get("collection_policy", {})
     metrics = profile.get("metrics", {})
-    for label, key, minimum in (
-        ("Seed", "seed", int(policy.get("min_seed_coverage_percent", 90))),
-        ("Step 1", "scenario", int(policy.get("min_scenario_coverage_percent", 75))),
+    for label, value, minimum in (
+        (
+            "现实工作",
+            metrics.get("work", {}).get("percent", 0),
+            int(policy.get("min_work_coverage_percent", 60)),
+        ),
+        (
+            "核心实体",
+            metrics.get("scenario", {}).get("entity", {}).get("percent", 0),
+            int(policy.get("min_entity_coverage_percent", 60)),
+        ),
     ):
-        value = metrics.get(key, {}).get("overall", {}).get("percent", 0)
         if not isinstance(value, (int, float)) or value < minimum:
             issues.append(_issue(
                 "collection_coverage_below_floor", COLLECTION_PROFILE_PATH,
                 f"{label} 业务数据覆盖率 {value}% 低于最低线 {minimum}%",
             ))
+    supported_work = metrics.get("work", {}).get("supported", 0)
+    configured_work_goals = int(policy.get("min_supported_work_goals", 2))
+    total_work = metrics.get("work", {}).get("total", 0)
+    min_work_goals = min(
+        configured_work_goals,
+        total_work if isinstance(total_work, int) else configured_work_goals,
+    )
+    if not isinstance(supported_work, int) or supported_work < min_work_goals:
+        issues.append(_issue(
+            "collection_work_below_floor",
+            COLLECTION_PROFILE_PATH,
+            f"完整支持的现实工作目标 {supported_work} 少于最低数量 {min_work_goals}",
+        ))
     return issues, metrics
 
 

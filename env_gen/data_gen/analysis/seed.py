@@ -28,15 +28,28 @@ def canonical_json_sha256(value: object) -> str:
 
 
 def is_python_package_seed(seed: dict[str, Any]) -> bool:
-    """Return whether a Seed is an extracted Python-package capability catalog."""
+    """Return whether a Seed is backed by extracted Python-package APIs."""
 
     basic = seed.get("environment", {}).get("basic_info", {})
-    extraction = seed.get("others", {}).get("python_source_extraction")
+    others = seed.get("others", {})
+    extraction = others.get("python_source_extraction") if isinstance(others, dict) else None
+    package_metadata = others.get("package_metadata", []) if isinstance(others, dict) else []
+    composite_extraction = (
+        isinstance(package_metadata, list)
+        and bool(package_metadata)
+        and all(
+            isinstance(item, dict)
+            and isinstance(item.get("python_source_extraction"), dict)
+            for item in package_metadata
+        )
+    )
     return (
         seed.get("schema_version") == "1.1"
         and isinstance(basic, dict)
-        and basic.get("source") == "pypi"
-        and isinstance(extraction, dict)
+        and (
+            (basic.get("source") == "pypi" and isinstance(extraction, dict))
+            or composite_extraction
+        )
     )
 
 
@@ -59,6 +72,19 @@ def reference_tool_labels(seed: dict[str, Any]) -> set[str]:
         if isinstance(item, dict)
         and (label := reference_tool_label(seed, item))
     }
+
+
+def reference_task_text(item: Any) -> str | None:
+    """Return the useful text from either the concise or legacy task form."""
+
+    if isinstance(item, str):
+        return item.strip() or None
+    if isinstance(item, dict):
+        for field in ("name", "description"):
+            value = item.get(field)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
 
 
 def _expected_global_id(seed: dict[str, Any]) -> str | None:

@@ -35,17 +35,24 @@ def load_config(config_path: Path | None = None, overrides: Mapping[str, Any] | 
         if not isinstance(raw, dict):
             raise ValueError("配置顶层必须是 object")
         values.update(raw.get("paths") or {})
-        values.update({key: raw[key] for key in ("model", "agent_timeout_seconds", "max_solver_tool_calls", "environment_package", "output_root", "tools_path", "scenario_research_path", "research_fixture_path", "candidates_path", "scoring_fixture_path") if key in raw})
+        values.update({key: raw[key] for key in ("model", "agent_timeout_seconds", "environment_package", "output_root", "tools_path", "delivery_root", "binding_path", "package_id", "scenario_research_path", "research_fixture_path", "candidates_path") if key in raw})
         if isinstance(raw.get("llm"), dict) and raw["llm"].get("model"):
             values.setdefault("model", raw["llm"]["model"])
         if "policy" in raw:
             from .utils.contracts import ProgramGenerationPolicy
 
-            values["policy"] = ProgramGenerationPolicy(**raw["policy"])
+            policy_values = raw["policy"] or {}
+            if not isinstance(policy_values, dict):
+                raise ValueError("配置 policy 必须是 object")
+            values["policy"] = ProgramGenerationPolicy(**{
+                name: policy_values[name]
+                for name in ProgramGenerationPolicy.__dataclass_fields__
+                if name in policy_values
+            })
     for key, value in (overrides or {}).items():
         if value is not None:
             values[key] = value
-    for key in ("environment_package", "output_root", "tools_path", "scenario_research_path", "research_fixture_path", "candidates_path", "scoring_fixture_path"):
+    for key in ("environment_package", "output_root", "tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path"):
         if values.get(key) is not None:
             values[key] = Path(values[key]).expanduser().resolve()
     return Config(**{field.name: values[field.name] for field in fields(Config) if field.name in values})
@@ -74,7 +81,16 @@ def merge_output(bundle: AppendOnlyBundle, output: Mapping[str, Any], step: Prog
 
 def create_run_dir(config: Config) -> Path:
     safe = lambda value: re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("_.-") or "unknown"
-    name = "_".join((datetime.now().strftime("%Y%m%d_%H%M%S_%f"), safe(config.environment_package.name), safe(config.model)))
+    source_name = (
+        config.package_id
+        or (config.binding_path.name if config.binding_path is not None else None)
+        or (
+            config.environment_package.name
+            if config.environment_package is not None
+            else "unknown"
+        )
+    )
+    name = "_".join((datetime.now().strftime("%Y%m%d_%H%M%S_%f"), safe(source_name), safe(config.model)))
     run_dir = config.output_root.expanduser().resolve() / name
     (run_dir / "intermediate").mkdir(parents=True)
     (run_dir / "tasks").mkdir()
@@ -98,7 +114,11 @@ def save_bundle(run_dir: Path, bundle: AppendOnlyBundle) -> None:
 
 
 def load_latest_bundle(run_dir: Path) -> tuple[int, AppendOnlyBundle] | None:
-    files = sorted((run_dir / "intermediate").glob("step_*.json"))
+    files = []
+    for path in sorted((run_dir / "intermediate").glob("step_*.json")):
+        value = _read(path)
+        if value.get("_step") in {item.value for item in ProgramPipelineStep}:
+            files.append(path)
     if not files:
         return None
     path = files[-1]
@@ -119,7 +139,7 @@ def append_llm_call(run_dir: Path, record: Mapping[str, Any]) -> None:
 
 
 def finish_run(run_dir: Path, bundle: AppendOnlyBundle) -> RunResult:
-    final = list(bundle.get("final_tasks", []))
+    final = list(bundle.get("tasks", []))
     rejected = list(bundle.get("rejected", []))
     _write(run_dir / "tasks.json", final)
     _write(run_dir / "rejected.json", rejected)

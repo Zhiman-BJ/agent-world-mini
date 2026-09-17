@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 from copy import deepcopy
 from dataclasses import dataclass
@@ -324,6 +327,9 @@ class ToolContext:
     state_root: Path
     records_path: Path
     filesystem_scopes_root: Path
+    environment: dict[str, Any]
+    records: Any
+    software_root: Path
 
     def scope_root(self, scope_id: str) -> Path:
         if not isinstance(scope_id, str) or not scope_id or "/" in scope_id or "\\" in scope_id:
@@ -352,6 +358,72 @@ class ToolCallRecord:
         }
 
 
+def execute_profile_tool(
+    *,
+    profile_python: Path,
+    software_root: Path,
+    source: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+    state_root: Path,
+    environment_contract: dict[str, Any],
+    timeout_seconds: int = 300,
+) -> Any:
+    """Run one tool in the bound Profile Python against the supplied state copy."""
+    if not profile_python.is_file() or not os.access(profile_python, os.X_OK):
+        raise RuntimeError(f"ToolGen Profile Python 不可执行：{profile_python}")
+    with tempfile.TemporaryDirectory(prefix="agent-world-profile-call-") as temporary:
+        root = Path(temporary)
+        request = root / "request.json"
+        response = root / "response.json"
+        request.write_text(json.dumps({
+            "source": source,
+            "tool_name": tool_name,
+            "arguments": arguments,
+            "state_root": str(state_root),
+            "environment": environment_contract,
+            "software_root": str(software_root),
+        }, ensure_ascii=False), encoding="utf-8")
+        environment = os.environ.copy()
+        project_root = str(Path(__file__).resolve().parents[3])
+        current_pythonpath = environment.get("PYTHONPATH")
+        environment["PYTHONPATH"] = (
+            project_root
+            if not current_pythonpath
+            else project_root + os.pathsep + current_pythonpath
+        )
+        node_modules = software_root / "node" / "node_modules"
+        if node_modules.is_dir():
+            environment["NODE_PATH"] = str(node_modules)
+        completed = subprocess.run(
+            [
+                str(profile_python),
+                "-m",
+                "task_gen.program.utils.profile_tool_worker",
+                str(request),
+                str(response),
+            ],
+            cwd=state_root,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        if completed.returncode != 0 or not response.is_file():
+            detail = (completed.stderr or completed.stdout or "no worker output")[-4000:]
+            raise RuntimeError(
+                f"工具 {tool_name} 的 Profile 工作进程失败({completed.returncode})：{detail}"
+            )
+        payload = json.loads(response.read_text(encoding="utf-8"))
+        if payload.get("ok") is not True:
+            raise RuntimeError(
+                f"工具 {tool_name} 在 Profile 中执行失败：{payload.get('error')}"
+            )
+        return payload.get("result")
+
+
 class CompleteEnvironmentRuntime:
     """在一份独立状态副本上执行完整环境的工具。"""
 
@@ -365,6 +437,7 @@ class CompleteEnvironmentRuntime:
         self.workspace_root = self.state_root
         self.records_path = self.state_root / "records.sqlite"
         self.filesystem_scopes_root = self.state_root / "filesystem_scopes"
+        self.software_root = package.software_root or package.package_root
         self._tools = {str(tool["name"]): deepcopy(tool) for tool in package.tools}
         self._handlers = {
             name: self._compile_handler(name, str(tool["internal"]["code"]))
@@ -394,11 +467,35 @@ class CompleteEnvironmentRuntime:
         shutil.copytree(backup, self.state_root)
 
     def _context(self) -> ToolContext:
+        from env_gen.tool_gen.runtime import RecordStore
+
         return ToolContext(
             workspace_root=self.workspace_root,
             state_root=self.state_root,
             records_path=self.records_path,
             filesystem_scopes_root=self.filesystem_scopes_root,
+            environment=deepcopy(self.package.environment),
+            records=RecordStore(self.records_path, self.package.environment),
+            software_root=self.software_root,
+        )
+
+    def _run_in_profile(
+        self,
+        name: str,
+        source: str,
+        arguments: dict[str, Any],
+    ) -> Any:
+        python = self.package.profile_python
+        if python is None:
+            return self._handlers[name](deepcopy(arguments), self._context())
+        return execute_profile_tool(
+            profile_python=python,
+            software_root=self.software_root,
+            source=source,
+            tool_name=name,
+            arguments=arguments,
+            state_root=self.state_root,
+            environment_contract=self.package.environment,
         )
 
     def _read_only_changes(self, change: dict[str, Any]) -> list[str]:
@@ -449,7 +546,11 @@ class CompleteEnvironmentRuntime:
             backup = Path(temporary) / "state"
             shutil.copytree(self.state_root, backup)
             try:
-                result = self._handlers[name](deepcopy(arguments), self._context())
+                result = self._run_in_profile(
+                    name,
+                    str(tool["internal"]["code"]),
+                    arguments,
+                )
                 result = _json_native(result, label=f"工具 {name} 的返回值")
                 output_errors = self._schema_errors(tool["outputSchema"], result)
                 if output_errors:

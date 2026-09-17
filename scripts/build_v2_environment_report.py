@@ -103,6 +103,46 @@ def relationship_snapshots(
 
 def direct_coverage_needs(receipt: dict[str, Any]) -> list[dict[str, Any]]:
     coverage = receipt.get("coverage", {})
+    work = coverage.get("work", {})
+    scenario = coverage.get("scenario", {})
+    if isinstance(work, dict) and work.get("total"):
+        work_percent = float(work.get("percent") or 0)
+        entity = scenario.get("entity", {})
+        entity_percent = float(entity.get("percent") or 0)
+        tool = scenario.get("tool", {})
+        tool_percent = float(tool.get("percent") or 0)
+        return [
+            {
+                "need_id": "work_coverage",
+                "description": (
+                    f"现实工作覆盖：{work.get('supported', 0)}/{work.get('total', 0)}，"
+                    f"当前 {work_percent:g}%，完整环境最低线 60%。"
+                ),
+                "record_set_ids": [],
+                "scope_ids": [],
+                "status": "realized" if work_percent >= 60 else "partial",
+            },
+            {
+                "need_id": "entity_coverage",
+                "description": (
+                    f"核心实体覆盖：{entity.get('supported', 0)}/{entity.get('total', 0)}，"
+                    f"当前 {entity_percent:g}%，完整环境最低线 60%。"
+                ),
+                "record_set_ids": [],
+                "scope_ids": [],
+                "status": "realized" if entity_percent >= 60 else "partial",
+            },
+            {
+                "need_id": "tool_coverage_diagnostic",
+                "description": (
+                    f"工具诊断覆盖：{tool.get('supported', 0)}/{tool.get('total', 0)}，"
+                    f"当前 {tool_percent:g}%；仅用于定位缺口，不参与 ready 判断。"
+                ),
+                "record_set_ids": [],
+                "scope_ids": [],
+                "status": "realized" if tool_percent == 100 else "partial",
+            },
+        ]
     rows = []
     for key, label, minimum in (
         ("seed", "Seed 业务能力覆盖", 90),
@@ -329,6 +369,7 @@ def build_environment(
     source_decisions = plan.get("source_decisions", [])
     direct_coverage = direct_receipt.get("coverage", {})
     scenario_coverage = direct_coverage.get("scenario", {}).get("overall", {}).get("percent", 0)
+    work_coverage = direct_coverage.get("work", {}).get("percent")
     source_count = len({
         str(item.get("source_id"))
         for item in direct_receipt.get("raw_files", [])
@@ -382,7 +423,10 @@ def build_environment(
             "relationships": len(relationships),
             "files": sum(len(item["files"]) for item in scopes),
             "fileBytes": sum(item["bytes"] for item in scopes),
-            "needCoverage": quality.get("need_profile", {}).get("weighted_coverage_percent", scenario_coverage),
+            "needCoverage": quality.get("need_profile", {}).get(
+                "weighted_coverage_percent",
+                work_coverage if work_coverage is not None else scenario_coverage,
+            ),
             "sources": integration.get("source_integration_profile", {}).get("selected_source_count", source_count),
         },
     }

@@ -20,8 +20,8 @@ class CollectionPolicy:
     """Codex 采集会话的时间、空间和完成证据边界。"""
 
     max_total_seconds: int = 4200
-    scenario_research_seconds: int = 480
-    scenario_research_total_seconds: int = 720
+    scenario_research_seconds: int = 900
+    scenario_research_total_seconds: int = 1200
     max_scenario_research_attempts: int = 2
     source_collection_total_seconds: int = 2400
     download_timeout_seconds: int = 900
@@ -36,6 +36,9 @@ class CollectionPolicy:
     min_seed_coverage_percent: int = 90
     # Step 2 的最低验收线，不是达到后立即停止的采集目标。
     min_scenario_coverage_percent: int = 75
+    min_work_coverage_percent: int = 60
+    min_entity_coverage_percent: int = 60
+    min_supported_work_goals: int = 2
     max_no_progress_rounds: int = 2
 
     def __post_init__(self) -> None:
@@ -64,9 +67,16 @@ class CollectionPolicy:
             raise ValueError("CollectionPolicy.max_integration_rounds 必须大于 0")
         if self.max_no_progress_rounds == 0:
             raise ValueError("CollectionPolicy.max_no_progress_rounds 必须大于 0")
-        for name in ("min_seed_coverage_percent", "min_scenario_coverage_percent"):
+        for name in (
+            "min_seed_coverage_percent",
+            "min_scenario_coverage_percent",
+            "min_work_coverage_percent",
+            "min_entity_coverage_percent",
+        ):
             if not 1 <= getattr(self, name) <= 100:
                 raise ValueError(f"CollectionPolicy.{name} 必须位于 1 到 100")
+        if self.min_supported_work_goals == 0:
+            raise ValueError("CollectionPolicy.min_supported_work_goals 必须大于 0")
 
 
 @dataclass(frozen=True)

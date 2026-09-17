@@ -190,6 +190,10 @@ class ScenarioResearchTests(unittest.TestCase):
         self.assertNotIn("Python 工具包 Seed 的附加要求", package_guide)
         self.assertIn("先理解完整工作流", package_guide)
         self.assertIn("不必逐项阅读或把整个索引复刻进场景", package_guide)
+        self.assertIn("不要等到全部调研结束才写结果", RESEARCH_GUIDE)
+        self.assertIn("不能为了继续搜索而把首次交付推迟到会话末尾", RESEARCH_GUIDE)
+        self.assertIn("Seed 自带 URL 是调研入口，不是来源边界", RESEARCH_GUIDE)
+        self.assertIn("不必为了增加数量继续搜索", RESEARCH_GUIDE)
         self.assertIn("20-160 个字符", RESEARCH_GUIDE)
         self.assertIn("80-800 个字符", RESEARCH_GUIDE)
 

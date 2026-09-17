@@ -52,11 +52,33 @@ def _process_failure_is_retryable(detail: str) -> bool:
             "timed out",
             "timeout",
             "overloaded",
+            "500",
             "502",
             "503",
             "504",
         )
     )
+
+
+def is_retryable_error(error: BaseException) -> bool:
+    """Return whether an exception chain contains a transient Agent failure."""
+
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if getattr(current, "retryable", False) is True:
+            return True
+        if isinstance(current, (TimeoutError, ConnectionError)):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
 
 
 def _toml_string(value: str) -> str:
@@ -163,9 +185,6 @@ class CodexAgentClient:
             prompt,
             working_directory=working_directory,
             stop_when=required_paths,
-            stable_json_paths=tuple(
-                path for path in required_paths if path.suffix.lower() == ".json"
-            ),
         )
 
     def run_until_json_file(
@@ -181,7 +200,7 @@ class CodexAgentClient:
             prompt,
             working_directory=working_directory,
             stop_when=(required_path,),
-            stable_json_paths=(required_path,),
+            stable_json_path=required_path,
         )
 
     def _run_process(
@@ -190,7 +209,7 @@ class CodexAgentClient:
         *,
         working_directory: Path,
         stop_when: tuple[Path, ...] = (),
-        stable_json_paths: tuple[Path, ...] = (),
+        stable_json_path: Path | None = None,
     ) -> str:
         """启动 Codex；可选地在指定文件全部出现后终止子进程。"""
 
@@ -298,7 +317,7 @@ class CodexAgentClient:
                     deadline = time.monotonic() + self.timeout_seconds
                     while process.poll() is None:
                         if stop_when and all(path.resolve().is_file() for path in stop_when):
-                            if not stable_json_paths:
+                            if stable_json_path is None:
                                 stopped_at_checkpoint = True
                                 self._terminate_process_group(
                                     process,
@@ -306,10 +325,7 @@ class CodexAgentClient:
                                 )
                                 break
                             try:
-                                for stable_json_path in stable_json_paths:
-                                    json.loads(
-                                        stable_json_path.read_text(encoding="utf-8")
-                                    )
+                                json.loads(stable_json_path.read_text(encoding="utf-8"))
                             except (OSError, json.JSONDecodeError):
                                 stable_since = None
                             else:
@@ -422,4 +438,5 @@ __all__ = [
     "CodexLaunchError",
     "CodexProcessError",
     "CodexTimeoutError",
+    "is_retryable_error",
 ]

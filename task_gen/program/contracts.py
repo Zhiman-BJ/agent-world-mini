@@ -17,23 +17,22 @@ class ProgramPipelineStep(str, Enum):
     ENVIRONMENT_LOAD = "step_0_environment_load"
     TASK_RESEARCH = "step_1_task_research"
     SOLUTION_GENERATE = "step_2_solution_generate"
-    SCORING_GENERATE = "step_3_scoring_generate"
-    DIFFICULTY_PUBLISH = "step_4_difficulty_publish"
 
 
 @dataclass
 class Config:
-    environment_package: Path = PROJECT_ROOT / "artifacts/toolgen-reality-openalex-run"
+    environment_package: Path | None = None
     output_root: Path = PROJECT_ROOT / "runs/program"
-    model: str = "gpt-5.6-terra"
+    model: str = "gpt-5.6-sol"
     policy: ProgramGenerationPolicy = field(default_factory=ProgramGenerationPolicy)
     tools_path: Path | None = None
+    delivery_root: Path | None = None
+    binding_path: Path | None = None
+    package_id: str | None = None
     scenario_research_path: Path | None = None
     research_fixture_path: Path | None = None
     candidates_path: Path | None = None
-    scoring_fixture_path: Path | None = None
     agent_timeout_seconds: int = 1800
-    max_solver_tool_calls: int = 100
 
 
 @dataclass(frozen=True)
@@ -48,21 +47,18 @@ class StageInput(TypedDict, total=False):
     config: Config
     run_dir: Path
     environment: dict[str, Any]
+    step0_path: Path
     step1_path: Path
-    step2_path: Path
-    step3_path: Path
-    step4_path: Path
     tasks: list[dict[str, Any]]
 
 
 class StageOutput(TypedDict, total=False):
     environment: dict[str, Any]
-    step1_path: str
+    step0_path: str
     task_research: dict[str, Any]
-    step2_path: str
+    step1_path: str
     tasks: list[dict[str, Any]]
-    step3_path: str
-    scoring: list[dict[str, Any]]
-    step4_path: str
-    final_tasks: list[dict[str, Any]]
+    generated_tasks: list[dict[str, Any]]
+    step2_path: str
+    external_bundle_path: str
     rejected: list[dict[str, Any]]

@@ -4,13 +4,14 @@
   "title": "Step 2 file cards and subject coverage",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "seed_global_id", "seed_sha256", "summary", "file_cards", "coverage", "metrics", "gaps", "decision"],
+  "required": ["schema_version", "seed_global_id", "seed_sha256", "summary", "file_cards", "work_coverage", "coverage", "metrics", "gaps", "decision"],
   "properties": {
     "schema_version": {"const": "2.0"},
     "seed_global_id": {"type": "string", "minLength": 1},
     "seed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "summary": {"type": "string", "minLength": 10},
     "file_cards": {"type": "array", "items": {"$ref": "#/$defs/card"}},
+    "work_coverage": {"type": "array", "items": {"$ref": "#/$defs/workCoverage"}},
     "coverage": {"type": "array", "items": {"$ref": "#/$defs/coverage"}},
     "metrics": {"type": "object"},
     "gaps": {"type": "array", "items": {"type": "object"}},
@@ -48,6 +49,21 @@
         "summary": {"type": "string", "minLength": 10},
         "subjects": {"type": "array", "items": {"$ref": "#/$defs/cardSubject"}},
         "prepared_paths": {"$ref": "#/$defs/stringArray"},
+        "limitations": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "workCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_name", "status", "evidence_paths", "supported_operations", "connections", "variations", "verification", "limitations"],
+      "properties": {
+        "task_name": {"type": "string", "minLength": 1},
+        "status": {"enum": ["supported", "partial"]},
+        "evidence_paths": {"$ref": "#/$defs/stringArray", "minItems": 1},
+        "supported_operations": {"$ref": "#/$defs/stringArray"},
+        "connections": {"$ref": "#/$defs/stringArray"},
+        "variations": {"$ref": "#/$defs/stringArray"},
+        "verification": {"type": "string", "minLength": 5},
         "limitations": {"$ref": "#/$defs/stringArray"}
       }
     },
