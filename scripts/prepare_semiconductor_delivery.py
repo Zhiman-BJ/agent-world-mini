@@ -62,7 +62,15 @@ def _tree_size(root: Path) -> int:
 def _plan(source: Path) -> list[dict[str, Any]]:
     plans = []
     generation_environments = source.parent / "environments"
-    for mapping_path in sorted(source.glob("environments/*/software/profile.json")):
+    mapping_paths = sorted(source.glob("environments/*/software/profile.json"))
+    found = {path.parents[1].name for path in mapping_paths}
+    missing = sorted(set(IMPORTS) - found)
+    unexpected = sorted(found - set(IMPORTS))
+    if missing or unexpected:
+        raise ValueError(
+            f"delivery environment set mismatch: missing={missing}, unexpected={unexpected}"
+        )
+    for mapping_path in mapping_paths:
         package = mapping_path.parents[1].name
         mapping = _read_json(mapping_path)
         profile_path = _relative(mapping.get("profile_path"), f"{package} profile_path")
@@ -97,8 +105,6 @@ def _plan(source: Path) -> list[dict[str, Any]]:
                 "generation_config": generation_config,
             }
         )
-    if not plans:
-        raise ValueError(f"no software profile mappings found under {source}")
     return plans
 
 
@@ -136,17 +142,20 @@ def _rewrite_venv_config(destination: Path, plan: dict[str, Any]) -> dict[str, A
 
 def _check_imports(launcher: Path, modules: list[str]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="semiconductor-import-") as temporary:
+        (Path(temporary) / "home").mkdir()
         environment = os.environ.copy()
         environment.update(
             {
+                "HOME": str(Path(temporary) / "home"),
                 "TMPDIR": temporary,
+                "XDG_CACHE_HOME": str(Path(temporary) / "cache"),
                 "XDG_CONFIG_HOME": str(Path(temporary) / "xdg"),
                 "MPLCONFIGDIR": str(Path(temporary) / "matplotlib"),
                 "TIDY3D_BASE_DIR": str(Path(temporary) / "tidy3d"),
             }
         )
         result = subprocess.run(
-            [str(launcher), "-I", "-c", PROBE, json.dumps(modules)],
+            [str(launcher), "-B", "-I", "-c", PROBE, json.dumps(modules)],
             check=False,
             capture_output=True,
             text=True,
@@ -163,13 +172,14 @@ def _check_imports(launcher: Path, modules: list[str]) -> dict[str, Any]:
     return json.loads(line.removeprefix(marker))
 
 
-def prepare_delivery(source: Path, destination: Path, *, check_imports: bool = True) -> dict[str, Any]:
+def prepare_delivery(source: Path, destination: Path) -> dict[str, Any]:
     source = source.expanduser().resolve()
-    destination = destination.expanduser().absolute()
+    destination = destination.expanduser()
     if not source.is_dir():
         raise NotADirectoryError(f"source delivery does not exist: {source}")
     if destination.exists() or destination.is_symlink():
         raise FileExistsError(f"destination already exists: {destination}")
+    destination = destination.resolve()
     if destination.is_relative_to(source):
         raise ValueError("destination cannot be inside source delivery")
     plans = _plan(source)
@@ -190,7 +200,7 @@ def prepare_delivery(source: Path, destination: Path, *, check_imports: bool = T
                 mapping_path.write_text(json.dumps(mapping, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             venv_config = _rewrite_venv_config(destination, plan)
             launcher = destination / plan["after_python_path"]
-            import_check = _check_imports(launcher, IMPORTS.get(plan["environment_id"], [])) if check_imports else None
+            import_check = _check_imports(launcher, IMPORTS[plan["environment_id"]])
             corrections.append(
                 {
                     "environment_id": plan["environment_id"],
