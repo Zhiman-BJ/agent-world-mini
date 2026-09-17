@@ -5,8 +5,6 @@ AppendOnlyBundle 是一次流水线运行中持续扩充的信息与产物集合
 除 `_step` 和逐阶段增加内容的 `tasks` 外，Output 字段不得覆盖已有字段。
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
