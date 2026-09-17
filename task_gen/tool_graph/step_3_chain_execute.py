@@ -495,12 +495,11 @@ try:
         run = namespace.get("run")
         if not callable(run):
             raise ValueError("internal.code 没有定义 run(arguments, context)")
-        result = run(
-            deepcopy(payload["arguments"]),
-            runtime["Context"](Path("/workspace"), payload['environment'])
-            if payload.get('environment', {}).get('schema_version') == '2.0'
-            else SimpleNamespace(workspace_root=Path('/workspace')),
-        )
+        context = (runtime["Context"](Path("/workspace"), payload['environment'])
+                   if payload.get('environment', {}).get('schema_version') == '2.0'
+                   else SimpleNamespace(workspace_root=Path('/workspace')))
+        context.software_root = Path('/software')
+        result = run(deepcopy(payload["arguments"]), context)
     json.dumps(result, ensure_ascii=False)
     response = {"result": result, "error": None}
 except BaseException as error:
@@ -542,9 +541,10 @@ def _call_tool(
     memory_limit: int,
     write_limit: int,
     environment: dict[str, Any] | None = None,
+    software_root: Path | None = None,
 ) -> dict[str, Any]:
     if not environment or environment.get('schema_version') != '2.0':
-        return _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment)
+        return _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment, software_root)
     from .state_runtime import snapshot_state, state_diff
     workspace = workspace.resolve()
     try:
@@ -555,7 +555,7 @@ def _call_tool(
         with tempfile.TemporaryDirectory(prefix='.tool-state-', dir=workspace.parent) as temporary:
             candidate = Path(temporary) / 'state'
             shutil.copytree(workspace, candidate, symlinks=True)
-            outcome = _run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment)
+            outcome = _run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment, software_root)
             result = outcome.get('result')
             if outcome.get('error') or not isinstance(result, dict) or result.get('success') is not True:
                 return outcome
@@ -577,7 +577,7 @@ def _call_tool(
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
 
 
-def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None):
+def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None):
     import jsonschema
     workspace = workspace.resolve()
     if not workspace.is_dir():
@@ -619,6 +619,13 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--setenv", "OPENBLAS_NUM_THREADS", "1",
         "--setenv", "OMP_NUM_THREADS", "1",
     ]
+    if software_root is not None:
+        software_root = Path(software_root).expanduser().resolve()
+        if not software_root.is_dir():
+            return {"kind": "exception", "result": None, "error": "配置的软件目录不存在"}
+        command.extend(["--ro-bind", str(software_root), "/software"])
+        # 本机软件的动态库可能按 /usr/lib 的 RPATH 加载依赖。
+        command.extend(["--ro-bind-try", "/usr/lib", "/usr/lib"])
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
             command.extend(["--setenv", name, os.environ[name]])

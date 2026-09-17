@@ -86,6 +86,7 @@ def execute_candidates(stage_input):
             'timeout': config.execution.get('tool_timeout_seconds', 300),
             'memory_limit': config.execution.get('tool_max_memory_bytes', 2 * 1024**3),
             'write_limit': config.execution.get('tool_max_write_bytes', 256 * 1024**2),
+            'software_root': config.execution.get('tool_software_root'),
             'review_choice_seed': config.llm.get('review_choice_seed', secrets.randbits(64)) + ids.index(candidate['task_id']),
         }
         server_path = root / 'server.json'

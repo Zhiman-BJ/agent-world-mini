@@ -66,6 +66,27 @@ def run(arguments, context):
 
 
 class ExecuteChainsTest(unittest.TestCase):
+    def test_declared_software_is_readable_but_not_writable_in_tool_sandbox(self):
+        software = self.root / 'software'
+        software.mkdir()
+        (software / 'version.txt').write_text('prepared runtime')
+        code = '''
+def run(arguments, context):
+    path = context.software_root / 'version.txt'
+    value = path.read_text()
+    try:
+        path.write_text('changed')
+    except OSError:
+        return {'success': True, 'data': {'version': value, 'read_only': True}}
+    return {'success': False}
+'''
+        result = _call_tool(code, {}, self.environment_dir / 'workspace', 5, 2 * 1024**3,
+                            1024**2, software_root=software)
+        self.assertIsNone(result['error'])
+        self.assertEqual(result['result'], {'success': True, 'data': {
+            'version': 'prepared runtime', 'read_only': True}})
+        self.assertEqual((software / 'version.txt').read_text(), 'prepared runtime')
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
