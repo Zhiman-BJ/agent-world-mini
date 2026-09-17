@@ -13,6 +13,7 @@ dependencies = ["jsonschema>=4.18", "openai>=1.0", "PyYAML>=6.0"]
 [project.scripts]
 agent-world-data-gen = "env_gen.data_gen.__main__:main"
 agent-world-tool-gen = "env_gen.tool_gen.__main__:main"
+agent-world-tool-gen-batch = "env_gen.tool_gen.batch:main"
 agent-world-program-form = "task_gen.program_form_backup.__main__:main"
 agent-world-program = "task_gen.program.__main__:main"
 

@@ -78,6 +78,15 @@ python3 -m env_gen.tool_gen <环境包目录> \
 python3 -m env_gen.tool_gen <环境包目录> --tool-hints hints.json
 ```
 
+批量处理多个环境时使用：
+
+```bash
+agent-world-tool-gen-batch <上游环境目录> <本批次工作目录> --workers 8
+```
+
+批量入口会保存每个环境的日志和心跳状态，隔离单环境失败，并在再次启动时跳过已完成交付、继续未完成环境。服务器部署、查看进度、停止续跑和镜像源配置见
+[`ToolGen 批量运行说明`](BATCH_RUN_ZH.md)。
+
 默认 Agent 是 `gpt-5.6-sol`，使用运行服务器的 Codex 登录配置。盘点、规划、编写和修复
 均允许通过联网命令查阅官方资料、下载软件并探测真实接口；工具操作使用 DataGen 的真实数据。
 
