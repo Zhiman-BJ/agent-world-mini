@@ -241,6 +241,35 @@ class ToolGraphViewerExportTest(unittest.TestCase):
             self.assertEqual(task["execution"]["failed_tool"], "inspect_item")
             self.assertEqual(task["execution"]["failure_kind"], "input_schema")
 
+    def test_exports_rejected_candidate_with_empty_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_dir = write_run(root, "rejected-empty-chain")
+            bundle = run_dir / "intermediate/step_5_bundle.json"
+            source = json.loads(bundle.read_text(encoding="utf-8"))
+            candidate = source["tasks"][0]
+            candidate["chain"] = []
+            candidate["execution"] = {"success": False, "error": "Agent did not complete the objective"}
+            candidate["validation"] = {"passed": False, "errors": ["execution failed"]}
+            bundle.write_text(json.dumps(source), encoding="utf-8")
+            output = root / "viewer.html"
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), str(run_dir), "--output", str(output)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = output.read_text(encoding="utf-8").split(
+                '<script id="run-data" type="application/json">', 1
+            )[1].split("</script>", 1)[0]
+            exported = json.loads(payload)[0]
+            self.assertEqual(exported["counts"]["rejected"], 1)
+            self.assertEqual(exported["tasks"][0]["chain"], [])
+
     def test_rejects_a_direct_failed_run(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             run_dir = write_run(Path(temporary), "failed-run", status="failed")
