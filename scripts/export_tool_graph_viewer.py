@@ -142,8 +142,8 @@ def _task(candidate: Any, public_tools: list[dict[str, Any]], source: Path, inde
     task_id, chain = candidate.get("task_id"), candidate.get("chain")
     if not isinstance(task_id, str) or not task_id:
         raise ValueError(f"tasks[{index}].task_id 非法：{source}")
-    if not isinstance(chain, list) or not chain or any(not isinstance(item, str) for item in chain):
-        raise ValueError(f"tasks[{index}].chain 必须是非空字符串数组：{source}")
+    if not isinstance(chain, list) or any(not isinstance(item, str) for item in chain):
+        raise ValueError(f"tasks[{index}].chain 必须是字符串数组：{source}")
     validation = candidate.get("validation")
     if validation is None:
         passed, errors = None, []
@@ -153,6 +153,8 @@ def _task(candidate: Any, public_tools: list[dict[str, Any]], source: Path, inde
         passed, errors = validation["passed"], validation.get("errors")
         if not isinstance(errors, list) or any(not isinstance(item, str) for item in errors):
             raise ValueError(f"tasks[{index}].validation.errors 非法：{source}")
+    if not chain and passed is not False:
+        raise ValueError(f"tasks[{index}].chain 仅在任务被拒绝时允许为空：{source}")
     execution = candidate.get("execution") if isinstance(candidate.get("execution"), dict) else {}
     review = candidate.get("llm_review") if isinstance(candidate.get("llm_review"), dict) else {}
     formal = deepcopy(candidate.get("task")) if isinstance(candidate.get("task"), dict) else None
