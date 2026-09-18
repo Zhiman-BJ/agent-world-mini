@@ -39,6 +39,7 @@ def call_environment_tool(
     write_limit: int,
     call_tool_fn: CallToolFn = _call_tool,
     environment: dict[str, Any] | None = None,
+    software_root: Path | None = None,
 ) -> dict[str, Any]:
     tool = tools.get(name)
     if tool is None:
@@ -54,6 +55,7 @@ def call_environment_tool(
         outcome = call_tool_fn(
             tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
             environment,
+            **({"software_root": software_root} if software_root is not None else {}),
         )
         result = outcome.get("result")
         error = outcome.get("error")
@@ -148,6 +150,7 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
                     memory_limit=int(config["memory_limit"]),
                     write_limit=int(config["write_limit"]),
                     environment=environment,
+                    software_root=config.get("software_root"),
                 )
                 trace.parent.mkdir(parents=True, exist_ok=True)
                 with trace.open("a", encoding="utf-8") as stream:

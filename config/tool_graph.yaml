@@ -39,6 +39,7 @@ planning:
     "3": 0.5
   diversity_lambda: 10
 execution:
+  enable_web_search: false  # Step3 可选的公开业务资料参考
   max_concurrency: 4
   agent_max_tool_calls: 100
   retry_count: 3

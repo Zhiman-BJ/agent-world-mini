@@ -66,6 +66,27 @@ def run(arguments, context):
 
 
 class ExecuteChainsTest(unittest.TestCase):
+    def test_declared_software_is_readable_but_not_writable_in_tool_sandbox(self):
+        software = self.root / 'software'
+        software.mkdir()
+        (software / 'version.txt').write_text('prepared runtime')
+        code = '''
+def run(arguments, context):
+    path = context.software_root / 'version.txt'
+    value = path.read_text()
+    try:
+        path.write_text('changed')
+    except OSError:
+        return {'success': True, 'data': {'version': value, 'read_only': True}}
+    return {'success': False}
+'''
+        result = _call_tool(code, {}, self.environment_dir / 'workspace', 5, 2 * 1024**3,
+                            1024**2, software_root=software)
+        self.assertIsNone(result['error'])
+        self.assertEqual(result['result'], {'success': True, 'data': {
+            'version': 'prepared runtime', 'read_only': True}})
+        self.assertEqual((software / 'version.txt').read_text(), 'prepared runtime')
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
@@ -301,7 +322,7 @@ def run(arguments, context):
     def test_truncates_large_result_before_next_argument_prompt(self) -> None:
         producer = tool("producer", """
 def run(arguments, context):
-    return {"success": True, "data": {"payload": "x" * 100, "item_id": "item-123"}}
+    return {"success": True, "data": {"payload": "x" * 1000, "item_id": "item-123"}}
 """)
         consumer = tool("consumer", """
 def run(arguments, context):
@@ -315,7 +336,7 @@ def run(arguments, context):
 
         with patch("task_gen.tool_graph.step_3_chain_execute.infer", side_effect=fake_infer):
             execute_chains({
-                "config": self.config(retry_count=0, tool_result_max_bytes=32),
+                "config": self.config(retry_count=0, tool_result_max_bytes=256),
                 "run_dir": self.run_dir,
                 "environment": {
                     "environment_id": "example", "resources": [], "rules": [],
@@ -325,8 +346,8 @@ def run(arguments, context):
             })
 
         self.assertEqual(len(captured), 2)
-        self.assertIn("已裁剪", captured[1])
-        self.assertNotIn("x" * 100, captured[1])
+        self.assertIn("_truncated", captured[1])
+        self.assertNotIn("x" * 1000, captured[1])
         self.assertIn("item-123", captured[1])
 
     def test_retries_business_failure_from_clean_workspace_then_removes_task(self) -> None:
@@ -413,6 +434,31 @@ def run(arguments, context):
                 "tasks": [task_candidate("task1", ["sleep"])],
             })["tasks"][0]
         self.assertEqual(candidate["execution"]["attempts"][0]["failure_kind"], "timeout")
+
+    def test_numeric_tool_runs_with_two_gib_memory_limit(self) -> None:
+        import importlib.util
+        if importlib.util.find_spec('numpy') is None:
+            self.skipTest('numpy is not installed')
+        outcome = _call_tool(
+            "import numpy as np\ndef run(arguments, context):\n return {'success': True, 'sum': int(np.eye(8).sum())}",
+            {}, self.environment_dir / "workspace", timeout=30,
+            memory_limit=2 * 1024**3, write_limit=1024 * 1024,
+        )
+        self.assertIsNone(outcome['error'], outcome)
+        self.assertEqual(outcome['result'], {'success': True, 'sum': 8})
+
+    def test_plotting_library_cache_does_not_pollute_workspace(self) -> None:
+        import importlib.util
+        if importlib.util.find_spec('matplotlib') is None:
+            self.skipTest('matplotlib is not installed')
+        workspace = self.environment_dir / "workspace"
+        before = set(workspace.rglob('*'))
+        outcome = _call_tool(
+            "def run(arguments, context):\n import matplotlib.font_manager\n return {'success': True}",
+            {}, workspace, timeout=60, memory_limit=2 * 1024**3, write_limit=1024 * 1024,
+        )
+        self.assertIsNone(outcome['error'], outcome)
+        self.assertEqual(set(workspace.rglob('*')), before)
 
     def test_tool_cannot_write_outside_its_workspace(self) -> None:
         outside = self.root / "outside.txt"

@@ -238,11 +238,9 @@ class CodexAgentClient:
                 environment.pop(name, None)
             environment.setdefault("NO_COLOR", "1")
 
-            command = [executable]
-            if self.enable_web_search:
-                # --search 是 Codex 顶层参数，必须写在 exec 子命令之前。
-                command.append("--search")
-            command.append("exec")
+            # CLI 默认可能允许 cached 搜索；关闭开关时也必须显式覆盖。
+            search_mode = "live" if self.enable_web_search else "disabled"
+            command = [executable, "exec", "--config", f'web_search="{search_mode}"']
             for server_name in self.disabled_mcp_servers:
                 # Codex 当前没有通用的 --no-mcp 参数；将指定用户 MCP 标记为
                 # disabled，避免失效的远程服务阻塞本次 Agent 调用。

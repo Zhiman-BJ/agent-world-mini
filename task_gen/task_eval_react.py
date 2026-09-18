@@ -114,6 +114,7 @@ def run_react_agent(
                     name, arguments, tools, workspace,
                     timeout=int(config.get("timeout", 300)),
                     memory_limit=int(config.get("memory_limit", 2 * 1024**3)),
+                    software_root=config.get("software_root"),
                     write_limit=int(config.get("write_limit", 256 * 1024**2)),
                     environment=config.get("environment", {}),
                 )
