@@ -52,6 +52,7 @@ def call_environment_tool(
     call_tool_fn: CallToolFn = _call_tool,
     environment: dict[str, Any] | None = None,
     software: dict[str, str] | None = None,
+    software_root: Path | None = None,
 ) -> dict[str, Any]:
     tool = tools.get(name)
     if tool is None:
@@ -68,6 +69,7 @@ def call_environment_tool(
             tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
             environment,
             **({'software': software} if software else {}),
+            **({'software_root': software_root} if software_root is not None else {}),
         )
         result = outcome.get("result")
         error = outcome.get("error")
@@ -155,6 +157,7 @@ class TaskEvalMcpServer:
                 timeout=int(self.config["timeout"]), memory_limit=int(self.config["memory_limit"]),
                 write_limit=int(self.config["write_limit"]), environment=self.config.get("environment", {}),
                 **({'software': self.config['software']} if self.config.get('software') else {}),
+                **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )
         self.trace.parent.mkdir(parents=True, exist_ok=True)
         with self.trace.open("a", encoding="utf-8") as stream:

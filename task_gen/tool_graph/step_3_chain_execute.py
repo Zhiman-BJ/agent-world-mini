@@ -398,13 +398,22 @@ def _public_environment(environment: dict[str, Any]) -> dict[str, Any]:
 
 
 def _bounded_calls(calls: list[dict[str, Any]], limit: int = 65536) -> list[dict[str, Any]]:
+    if type(limit) is not int or limit < 32:
+        raise ValueError("tool_result_max_bytes 必须是至少32的整数")
     bounded: list[dict[str, Any]] = []
     for call in calls:
         item = deepcopy(call)
         encoded = json.dumps(item.get("result"), ensure_ascii=False, separators=(",", ":"))
         if len(encoded.encode("utf-8")) > limit:
-            compact = _truncate_value(item["result"], max(16, limit // 8))
-            item["result"] = {"_truncated": True, "data": compact}
+            allowance = limit // 2
+            while allowance:
+                compact = {"_truncated": True, "data": _truncate_value(item["result"], allowance)}
+                if len(json.dumps(compact, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) <= limit:
+                    break
+                allowance //= 2
+            else:
+                compact = {"_truncated": True}
+            item["result"] = compact
         bounded.append(item)
     return bounded
 
@@ -412,7 +421,11 @@ def _bounded_calls(calls: list[dict[str, Any]], limit: int = 65536) -> list[dict
 def _truncate_value(value: Any, string_limit: int) -> Any:
     """保留小字段和标识值，裁掉大文本/大数组，避免参数 prompt 爆炸。"""
     if isinstance(value, str):
-        return value if len(value.encode("utf-8")) <= string_limit else "[已裁剪]"
+        raw = value.encode("utf-8")
+        return value if len(raw) <= string_limit else {
+            "_truncated": True, "original_bytes": len(raw),
+            "preview": raw[:string_limit].decode("utf-8", errors="ignore"),
+        }
     if isinstance(value, list):
         result: list[Any] = []
         size = 2
@@ -423,6 +436,8 @@ def _truncate_value(value: Any, string_limit: int) -> Any:
                 break
             result.append(compact)
             size += item_size
+        if len(result) < len(value):
+            return {"_truncated": True, "items": result, "omitted_items": len(value) - len(result)}
         return result
     if isinstance(value, dict):
         return {str(key): _truncate_value(item, string_limit) for key, item in value.items()}
@@ -506,7 +521,7 @@ def quiet_native_stdout():
                 raise ValueError('工具沙箱输出超过 16 MiB')
 
 payload = json.load(sys.stdin)
-if not payload.get('software_root'):
+if not payload.get('software_prefix'):
     sys.path.insert(0, '/dependencies')
 else:
     sys.prefix = sys.exec_prefix = payload['software_prefix']
@@ -572,10 +587,13 @@ def _call_tool(
     memory_limit: int,
     write_limit: int,
     environment: dict[str, Any] | None = None,
+    software_root: Path | None = None,
     *, software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     from functools import partial
     run_tool = partial(_run_tool, software=software) if software else _run_tool
+    if software_root is not None:
+        run_tool = partial(run_tool, software_root=software_root)
     if not environment or environment.get('schema_version') != '2.0':
         return run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment)
     from .state_runtime import snapshot_state, state_diff
@@ -610,7 +628,7 @@ def _call_tool(
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
 
 
-def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, *, software=None):
+def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None, *, software=None):
     import jsonschema
     workspace = workspace.resolve()
     if not workspace.is_dir():
@@ -673,9 +691,20 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--setenv", "HOME", "/tmp",
         "--setenv", "USER", "tool",
         "--setenv", "TMPDIR", "/tmp",
+        # 库的缓存与自动生成配置不属于环境状态。
         "--setenv", "XDG_CACHE_HOME", "/tmp/cache",
         "--setenv", "XDG_CONFIG_HOME", "/tmp/config",
+        # 多核主机上数值库的默认线程池会耗尽沙箱的地址空间预算。
+        "--setenv", "OPENBLAS_NUM_THREADS", "1",
+        "--setenv", "OMP_NUM_THREADS", "1",
     ]
+    if software_root is not None and not software:
+        software_root = Path(software_root).expanduser().resolve()
+        if not software_root.is_dir():
+            return {"kind": "exception", "result": None, "error": "配置的软件目录不存在"}
+        command.extend(["--ro-bind", str(software_root), "/software"])
+        # 本机软件的动态库可能按 /usr/lib 的 RPATH 加载依赖。
+        command.extend(["--ro-bind-try", "/usr/lib", "/usr/lib"])
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
             command.extend(["--setenv", name, os.environ[name]])
@@ -704,7 +733,7 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
         "memory_limit": memory_limit,
         "write_limit": write_limit,
-        "software_root": '/software' if software else None,
+        "software_root": '/software' if software or software_root is not None else None,
         "software_prefix": software_prefix,
         "software_import_paths": software_imports,
     }, ensure_ascii=False)
