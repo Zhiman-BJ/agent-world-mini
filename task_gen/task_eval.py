@@ -114,7 +114,7 @@ def evaluate_case(
     workspace: Path,
     llm_config: dict[str, Any],
     *,
-    max_tool_calls: int = 50,
+    max_tool_calls: int | None = None,
     agent_attempts: int = 3,
     tool_timeout_seconds: int = 300,
     tool_max_memory_bytes: int = 2 * 1024 * 1024 * 1024,
@@ -124,6 +124,8 @@ def evaluate_case(
     verifier_output: Path | None = None,
 ) -> dict[str, Any]:
     """Let the configured agent solve a task with environment tools, then judge it."""
+    if max_tool_calls is None:
+        max_tool_calls = 100 if llm_config.get('agent_backend') == 'kimi' else 50
     if max_tool_calls < 1:
         raise ValueError("max_tool_calls 必须大于 0")
     if agent_attempts < 1:
@@ -294,7 +296,7 @@ def run_evaluation(
     *,
     limit: int | None = None,
     environment_id: str | None = None,
-    max_tool_calls: int = 50,
+    max_tool_calls: int | None = None,
     max_concurrency: int = 1,
 ) -> Path:
     cases = load_cases(input_root)
@@ -397,13 +399,14 @@ def main() -> None:
         parser.error("--llm-timeout-seconds 必须大于 0")
     config = load_config(arguments.config, {"model": arguments.model, "backend": arguments.backend})
     llm_config = dict(config.llm)
-    max_tool_calls = arguments.max_tool_calls if arguments.max_tool_calls is not None else config.execution.get('evaluation_max_tool_calls', 50)
+    if arguments.agent_backend is not None:
+        llm_config['agent_backend'] = arguments.agent_backend
+    max_tool_calls = arguments.max_tool_calls if arguments.max_tool_calls is not None else config.execution.get(
+        'evaluation_max_tool_calls', 100 if llm_config.get('agent_backend') == 'kimi' else 50)
     max_concurrency = arguments.max_concurrency if arguments.max_concurrency is not None else config.execution.get('evaluation_max_concurrency', 1)
     for name, value in (('evaluation_max_tool_calls', max_tool_calls), ('evaluation_max_concurrency', max_concurrency)):
         if type(value) is not int or value < 1:
             parser.error(f'{name} 必须是正整数')
-    if arguments.agent_backend is not None:
-        llm_config["agent_backend"] = arguments.agent_backend
     if arguments.llm_timeout_seconds is not None:
         llm_config["timeout_seconds"] = arguments.llm_timeout_seconds
         if llm_config.get('agent_backend') == 'kimi':

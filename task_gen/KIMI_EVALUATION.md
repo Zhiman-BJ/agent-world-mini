@@ -1,5 +1,7 @@
 # Kimi 独立评测接入与试跑说明
 
+2026-09-18 更新：默认 system prompt 使用官方 `${base_prompt}` 继承机制，移除适配器附加的正文、预算及分页提醒；工具范围仍单独限制。详情和全文见 `KIMI_IMPORTANT_NOTES.md`。此次 Kimi 专项回归 22 项通过，包含官方 prompt 渲染和内置 Read 拒绝测试；尚未做此 prompt 版本的真实模型任务质量对比。
+
 ## 2026-09-18 新交付输入
 
 生成管线的 `paths.environment_dir` 现在可直接指向含 `binding.json` 的交付包目录。
@@ -63,15 +65,14 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 | 配置 | 含义 |
 |---|---|
 | `llm.model / base_url / api_key_file` | 复用已有管线模型配置 |
-| `llm.temperature / max_tokens` | 采样温度、单次模型输出上限 |
+| `llm.temperature / llm.kimi.max_output_size` | 采样温度、可选的单次输出上限；默认不额外限制输出 |
 | `llm.kimi.system_prompt` | 可直接在 YAML 修改 system prompt 正文 |
-| `llm.kimi.parallel_tool_calls` | 请求模型是否允许同一回答返回多个调用；不是工具执行并发 |
 | `llm.kimi.tool_result_page_chars` | 长返回值预览与单页字符上限，默认 6000，允许 1–12000；由我们的适配层实现 |
 | `llm.kimi.max_context_size` | 显式声明后端上下文预算；不能改变服务端实际限制 |
 | `llm.kimi.max_steps_per_turn` | 模型循环上限；默认工具预算 × 2 + 10 |
 | `llm.kimi.max_attempts_per_step` | 每步 API 尝试次数，默认 3 |
 | `llm.kimi.timeout_seconds` | 整个 agent 执行时限；默认沿用 `llm.timeout_seconds` |
-| `llm.kimi.reserved_context_size / compaction_trigger_ratio / compaction_max_attempts` | 压缩预留 token、触发比例和尝试次数；代码默认 50000 / 0.85 / 3 |
+| `llm.kimi.reserved_context_size / compaction_trigger_ratio / compaction_max_attempts` | 默认不传，沿用官方 50000 / 0.85 / 5；显式设置时覆盖 |
 | `execution.evaluation_max_tool_calls / evaluation_max_concurrency` | 工具调用预算和任务并发；CLI > YAML > 默认 50 / 1 |
 
 原 ReAct 的 `response_format`、`format_retry_count` 不用于 Kimi。当前模型协议只支持 OpenAI-compatible Chat Completions。
@@ -116,7 +117,7 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 `extraAgentDirs` 覆盖临时 home 中的默认 profile，并设置全局工具白名单。
 MCP 必须在创建 session 前注册，否则不会进入该 session 的初始工具集合。
 每次发送模型请求前检查实际工具表，出现额外工具或非空工具表数量不符就拒绝请求；没有工具的辅助模型请求可以通过。
-当前 SDK 的 modelOverrides 温度没有进入实际请求，适配层直接写入标准 API 的 temperature 和 parallel_tool_calls；测试检查最终 HTTP 请求，避免配置看似生效但实际被忽略。
+当前 SDK 的 modelOverrides 温度没有进入实际请求，适配层直接写入标准 API 的 temperature；多工具调用沿用 SDK，不额外传 parallel_tool_calls。测试检查最终 HTTP 请求。
 
 ## 验证
 

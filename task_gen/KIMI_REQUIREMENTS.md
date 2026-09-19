@@ -11,7 +11,7 @@
 | R2 | 只用环境工具及受限结果读取，不能直接读初态或 internal code | SDK profile + 全局白名单 + 请求检查；辅助读取仅接受当前会话已有结果编号 | 内置 Read、任意路径及跨会话编号均不可用 |
 | R3 | 输入格式对齐 | 原任务文本和公开环境信息；公开 usageConditions、输入输出契约 | 请求包含公开契约、不包含 internal.code |
 | R4 | 输出格式提取与适配 | 原生 tool calls；提取最终 assistant 文本，返回原字符串接口 | 非空完成、工具 trace 原格式 |
-| R5 | 同一轮多工具调用可配置 | OpenAI `parallel_tool_calls` 请求参数；环境工具仍串行执行 | true/false 请求生效，两个不同调用均回传 |
+| R5 | 支持同一轮多工具调用 | 沿用 SDK，不额外传 parallel_tool_calls；环境工具仍串行执行 | 两个不同调用均回传 |
 | R6 | system prompt 可抓取、可修改 | YAML `llm.kimi.system_prompt`；保存 profile、实际 system 消息 | 自定义文本实际到达模型 |
 | R7 | 工具返回消息队列正确 | SDK 维护 assistant tool_calls → 对应 tool_call_id 的 tool 消息 → 下一轮 | 多调用结果对应、不丢失、不串任务 |
 | R8 | loop 配置可控、含义清晰 | 最大模型步数、每步 API 尝试数、工具调用预算分开 | 达步数上限不认作完成；API 重试不重放已执行工具 |
@@ -32,12 +32,11 @@
 |---|---|---|
 | `llm.agent_backend` | `react` / `kimi` 入口 | 我们的适配层 |
 | `llm.model / base_url / api_key_file` | models / providers；key 仅送到临时配置 | SDK 已有接口 |
-| `llm.temperature / max_tokens` | 请求 temperature / models.maxOutputSize | 温度由适配层传入；输出上限用 SDK 接口 |
-| `llm.timeout_seconds` | 整次执行秒数，可被 kimi.timeout_seconds 覆盖 | 适配层进程管理 |
+| `llm.temperature / llm.kimi.max_output_size` | 请求 temperature / models.maxOutputSize | 输出上限仅显式设置时传入，不继承 llm.max_tokens |
+| `llm.kimi.timeout_seconds` | 显式设置才限制整次执行；默认无时限，不继承 llm.timeout_seconds | 适配层进程管理 |
 | `llm.kimi.sdk_path / node` | 官方 SDK 构建入口、Node 命令 | 适配层；sdk_path 也可用 KIMI_CODE_SDK |
 | `llm.kimi.binding_path` | 可选正式 ToolGen 交付入口；核对工具与环境，执行仍用任务初态副本 | 同事交付加载器 + 我们的任务执行器 |
-| `llm.kimi.system_prompt` | 默认 agent 的完整正文，不继承编程助手 prompt | 适配层加载；SDK extraAgentDirs |
-| `llm.kimi.parallel_tool_calls` | 发往 Chat Completions 的同轮多调用开关 | 适配层传给标准 API 字段；不是工具执行并发 |
+| `llm.kimi.system_prompt` | 默认 `${base_prompt}`，继承官方默认正文；显式设置可覆盖 | 适配层加载；SDK extraAgentDirs |
 | `llm.kimi.tool_result_page_chars` | 原始 JSON 文本预览及读取单页上限，默认 6000，范围 1–12000 字符 | 我们的 MCP 适配层，不是 SDK 原生配置 |
 | `llm.kimi.max_context_size` | models.evaluation.maxContextSize | SDK 已有接口 |
 | `llm.kimi.max_steps_per_turn` | loopControl.maxStepsPerTurn | SDK 已有接口 |

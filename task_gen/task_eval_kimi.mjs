@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { responseEvents } from './responses_events.mjs';
 
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const serialize = (value) => {
@@ -44,23 +45,33 @@ try {
     if (url.startsWith(input.base_url.replace(/\/$/, '') + '/') && typeof options?.body === 'string') {
       const request = JSON.parse(options.body);
       // Fail closed if an SDK upgrade silently changes profile/tool loading.
-      const names = (request.tools ?? []).map((tool) => tool.function?.name);
+      const names = (request.tools ?? []).map((tool) => tool.type === 'function'
+        ? (input.provider_type === 'openai_responses' ? tool.name : tool.function?.name) : undefined);
       // Compaction requests may intentionally omit tools. Any offered tool must
       // still be from our MCP server; a nonempty task tool table must be complete.
       if ((names.length > 0 && names.length !== input.tool_count) || names.some((name) => !name?.startsWith('mcp__agent_world_eval__'))) {
         throw new Error('Kimi tool allowlist mismatch; refusing model request');
       }
-      if (names.length) request.parallel_tool_calls = input.parallel_tool_calls;
       request.temperature = input.temperature;
+      const nonstream = input.provider_type === 'openai_responses' && input.responses_stream === false;
+      if (nonstream) request.stream = false;
       options = { ...options, body: JSON.stringify(request) };
       const request_id = ++requestNumber;
       const started = Date.now();
       append('llm_requests.jsonl', { request_id, time: new Date().toISOString(), step: 'task_eval.agent', request });
-      append('system_prompts.jsonl', { request_id, messages: request.messages?.filter((m) => m.role === 'system' || m.role === 'developer') });
+      const messages = request.messages ?? (Array.isArray(request.input) ? request.input : []);
+      append('system_prompts.jsonl', { request_id, instructions: request.instructions,
+        messages: messages.filter((m) => m.role === 'system' || m.role === 'developer') });
       try {
         const response = await originalFetch(resource, options);
         // Clone preserves streaming to the SDK; retain the raw SSE/JSON answer too.
         responseLogs.push(recordResponse(response.clone(), request_id, started));
+        if (nonstream && response.ok) {
+          const events = responseEvents(await response.json());
+          append('adapted_response_events.jsonl', { request_id, source: 'local_nonstream_adapter', events });
+          const body = events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join('');
+          return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+        }
         return response;
       } catch (error) {
         append('llm_responses.jsonl', { request_id, duration_ms: Date.now() - started, error: String(error) });
@@ -84,7 +95,7 @@ try {
     tools: { enabled: ['mcp__agent_world_eval__*'], disabled: ['select_tools'] },
   });
   save('effective_config.json', { ...await harness.getConfig(),
-    adapter: { temperature: input.temperature, parallel_tool_calls: input.parallel_tool_calls, tool_count: input.tool_count } });
+    adapter: { temperature: input.temperature, tool_count: input.tool_count } });
   // Register before session creation: the engine snapshots its MCP baseline.
   // The harness home is private and temporary, never the user's Kimi home.
   await harness.addMcpServer(input.mcp);

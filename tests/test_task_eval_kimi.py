@@ -107,8 +107,9 @@ def test_kimi_rejects_builtin_preserves_public_contract_and_observation(tmp_path
     workspace, server, trace, options = setup_case(tmp_path, url)
     monkeypatch.setenv('KIMI_TEST_KEY', 'test-secret-not-for-logs')
     options['temperature'] = 0.2
-    options['kimi'].update(system_prompt='CUSTOM_EVALUATION_INSTRUCTIONS', parallel_tool_calls=False,
-                           reserved_context_size=8192, compaction_trigger_ratio=0.8, compaction_max_attempts=2)
+    options['kimi'].update(system_prompt='CUSTOM_EVALUATION_INSTRUCTIONS',
+                           reserved_context_size=8192, compaction_trigger_ratio=0.8, compaction_max_attempts=2,
+                           max_output_size=1024)
     replies.extend([
         tool_call('Read', {'path': str(workspace / 'hidden.txt')}, 'forbidden'),
         tool_call('mcp__agent_world_eval__inspect', {}, 'allowed'),
@@ -122,7 +123,7 @@ def test_kimi_rejects_builtin_preserves_public_contract_and_observation(tmp_path
     for request in requests:
         assert [t['function']['name'] for t in request['tools']] == [
             'mcp__agent_world_eval__inspect', 'mcp__agent_world_eval__read_tool_result']
-        assert request['parallel_tool_calls'] is False
+        assert 'parallel_tool_calls' not in request
         assert request['temperature'] == 0.2
         assert request.get('max_tokens', request.get('max_completion_tokens')) == 1024
         assert request['messages'][0]['content'].startswith('CUSTOM_EVALUATION_INSTRUCTIONS')
@@ -141,6 +142,50 @@ def test_kimi_rejects_builtin_preserves_public_contract_and_observation(tmp_path
     assert sorted(r['request_id'] for r in responses) == [1, 2, 3]
     assert all(r['status'] == 200 and 'data:' in r['body'] for r in responses)
     assert 'test-secret-not-for-logs' not in ''.join(p.read_text() for p in logs.rglob('*.json*'))
+
+
+def test_default_prompt_uses_official_template_with_restricted_tools(tmp_path, model_server, monkeypatch):
+    from task_gen.task_eval import _run_agent
+    url, requests, replies = model_server
+    workspace, server, trace, options = setup_case(tmp_path, url)
+    monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
+    replies.extend([
+        tool_call('Read', {'path': str(workspace / 'hidden.txt')}, 'forbidden'),
+        tool_call('mcp__agent_world_eval__inspect', {}, 'allowed'),
+        {'content': 'observed-731'},
+    ])
+    assert _run_agent('Inspect.', workspace, server, trace, options) == 'observed-731'
+    prompt = requests[0]['messages'][0]['content']
+    assert 'Your primary goal is to help users with software engineering tasks.' in prompt
+    assert '# Context management' in prompt
+    assert '${base_prompt}' not in prompt
+    assert 'Long results are returned as pages' not in prompt
+    assert 'At most 1 environment tool calls' not in prompt
+    assert 'HIDDEN_INITIAL_STATE' not in json.dumps(requests)
+    assert [json.loads(line)['tool'] for line in trace.read_text().splitlines()] == ['inspect']
+    assert {t['function']['name'] for t in requests[0]['tools']} == {
+        'mcp__agent_world_eval__inspect', 'mcp__agent_world_eval__read_tool_result'}
+
+
+def test_default_loop_uses_sdk_policy_without_inherited_timeout(tmp_path, model_server, monkeypatch):
+    from task_gen.task_eval import _run_agent
+    url, requests, replies = model_server
+    workspace, server, trace, options = setup_case(tmp_path, url)
+    monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
+    for key in ('max_steps_per_turn', 'max_attempts_per_step', 'timeout_seconds'):
+        options['kimi'].pop(key)
+    options['timeout_seconds'] = 0.001
+    options['kimi']['max_context_size'] = 1000000
+    replies.append({'content': 'Done.'})
+    assert _run_agent('Inspect.', workspace, server, trace, options) == 'Done.'
+    effective = json.loads((tmp_path / 'state.agent/effective_config.json').read_text())
+    assert 'maxStepsPerTurn' not in effective['loopControl']
+    assert 'maxAttemptsPerStep' not in effective['loopControl']
+    assert effective['loopControl'] == {}
+    assert effective['models']['evaluation']['maxContextSize'] == 1000000
+    assert 'maxOutputSize' not in effective['models']['evaluation']
+    # Official OpenAI-compatible provider caps its default output at 128K.
+    assert requests[0].get('max_tokens', requests[0].get('max_completion_tokens')) == 131072
 
 
 def test_kimi_step_limit_does_not_accept_intermediate_text(tmp_path, model_server, monkeypatch):
@@ -199,7 +244,7 @@ def test_multiple_calls_return_both_results_before_next_model_step(tmp_path, mod
     assert '"tag": 1' in messages[0]['content']
     assert '"tag": 2' in messages[1]['content']
     assert len(trace.read_text().splitlines()) == 2
-    assert requests[0]['parallel_tool_calls'] is True
+    assert 'parallel_tool_calls' not in requests[0]
 
 
 def test_api_retry_does_not_reexecute_tool(tmp_path, model_server, monkeypatch):
