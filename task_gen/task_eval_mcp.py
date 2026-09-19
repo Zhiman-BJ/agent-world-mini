@@ -91,6 +91,13 @@ def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.std
         if TOOL['name'] in tools:
             raise ValueError('review 工具名称冲突')
         choices = ReviewChoices(config['review_choice_seed'])
+    if config.get('resume_trace') and trace.exists():
+        for line in trace.read_text(encoding='utf-8').splitlines():
+            record = json.loads(line)
+            calls += 1
+            if choices is not None and record['tool'] == TOOL['name'] and record.get('error') is None:
+                if choices.choose(record['arguments']) != record['result']:
+                    raise ValueError('方案选择历史无法一致恢复')
     for line in stdin:
         request: dict[str, Any] = {}
         try:

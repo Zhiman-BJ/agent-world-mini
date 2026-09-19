@@ -39,7 +39,10 @@ planning:
     "3": 0.5
   diversity_lambda: 10
 execution:
-  enable_web_search: false  # Step3 可选的公开业务资料参考
+  max_rounds: 3  # 目标改变后，从原始初态重新执行的轮次上限
+  target_tool_calls: 20
+  min_tool_calls: 10  # 完整交付且无法自然深化时的接收下限
+  enable_web_search: true  # Step3 公开业务资料参考，默认开启
   max_concurrency: 4
   agent_max_tool_calls: 100
   retry_count: 3

@@ -23,7 +23,7 @@ include = ["env_gen*", "seed_gen*", "task_gen*", "utils*"]
 seed_gen = ["*.md", "data/*.json"]
 env_gen = ["data_gen/*.md", "data_gen/internal_schemas/*.json"]
 task_gen = ["program/*.json", "program/*.md", "program/schemas/*.json", "program_form/*.json", "program_form/*.md", "program_form/schemas/*.json"]
-"task_gen.tool_graph" = ["skills/*/SKILL.md"]
+"task_gen.tool_graph" = ["skills/*/SKILL.md", "prompts/*.txt"]
 
 [tool.setuptools.data-files]
 "schemas" = ["schemas/*.json", "schemas/*.md"]

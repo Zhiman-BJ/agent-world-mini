@@ -92,6 +92,7 @@ class CodexAgentClient:
         disabled_mcp_servers: tuple[str, ...] = (),
         log_directory: Path | None = None,
         command_prefix: tuple[str, ...] = (),
+        persistent_session: bool = False,
     ):
         if sandbox not in {"read-only", "workspace-write", "danger-full-access"}:
             raise ValueError(f"不支持的 Codex sandbox 模式：{sandbox}")
@@ -110,6 +111,9 @@ class CodexAgentClient:
         self.log_directory = log_directory
         self.command_prefix = tuple(command_prefix)
         self._run_counter = 0
+        self.persistent_session = persistent_session
+        self.session_id: str | None = None
+        self.last_log_directory: Path | None = None
 
     def _llm_arguments(self, environment: dict[str, str]) -> list[str]:
         """生成本次 Codex 调用的模型参数，并把密钥只放入子进程环境。"""
@@ -150,9 +154,31 @@ class CodexAgentClient:
         return arguments
 
     def run(self, prompt: str, *, working_directory: Path) -> str:
-        """执行一次不保留会话的 Codex 调用，并返回最终响应。"""
+        """执行调用；persistent_session 模式保存并续接精确的会话ID。"""
 
-        return self._run_process(prompt, working_directory=working_directory)
+        if self.persistent_session and self.log_directory is None:
+            raise ValueError("持久会话需要 log_directory 留存续接信息")
+
+        try:
+            return self._run_process(prompt, working_directory=working_directory)
+        finally:
+            # 超时或空回答也可能已创建会话，保留ID才能安全续接。
+            if self.persistent_session and self.last_log_directory is not None:
+                event_file = self.last_log_directory / "stdout.log"
+                for line in event_file.read_text(errors="replace").splitlines() if event_file.exists() else ():
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(event, dict) and event.get("type") == "thread.started":
+                        from uuid import UUID
+                        ident = str(UUID(event["thread_id"]))
+                        if self.session_id is not None and self.session_id != ident:
+                            raise CodexProcessError("续接返回了不同的会话ID", retryable=False)
+                        self.session_id = ident
+                if self.session_id:
+                    (self.last_log_directory.parent / "session.json").write_text(
+                        json.dumps({"session_id": self.session_id}), encoding="utf-8")
 
     def run_until_files(
         self,
@@ -224,6 +250,7 @@ class CodexAgentClient:
             directory_context = nullcontext(str(run_log_dir))
 
         with directory_context as run_log_directory:
+            self.last_log_directory = Path(run_log_directory)
             final_message = Path(run_log_directory) / "last_message.txt"
             stdout_log = Path(run_log_directory) / "stdout.log"
             stderr_log = Path(run_log_directory) / "stderr.log"
@@ -262,14 +289,19 @@ class CodexAgentClient:
                 command.extend(
                     ["--config", "sandbox_workspace_write.network_access=true"]
                 )
-            command.extend(["--ephemeral", "--skip-git-repo-check"])
+            if not self.persistent_session:
+                command.append("--ephemeral")
+            elif "--json" not in command:
+                command.append("--json")
             if self.bypass_approvals_and_sandbox:
                 command.append("--dangerously-bypass-approvals-and-sandbox")
             else:
                 command.extend(["--sandbox", self.sandbox])
+            command.extend(["--cd", str(working_directory)])
+            if self.persistent_session and self.session_id:
+                command.extend(["resume", self.session_id, "--json"])
             command.extend([
-                "--cd",
-                str(working_directory),
+                "--skip-git-repo-check",
                 "--output-last-message",
                 str(final_message),
                 "-",  # 从 stdin 读取提示词，避免把提示词拼接成 shell 命令。

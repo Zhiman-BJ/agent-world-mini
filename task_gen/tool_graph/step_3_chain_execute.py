@@ -1,4 +1,9 @@
-"""Step 3 delegates combined review/execution to execution_agent.
+"""Step 3 delegates planning/review and isolated execution to execution_agent.
+
+The parent explores initial state, searches references and grounds the objective.
+Each changed objective starts a fresh executor on original state; same-objective
+repairs resume the existing executor. Only the accepted round feeds later steps.
+Defaults: max_rounds=3, target_tool_calls=20, min_tool_calls=10.
 
 The sandbox helpers below are shared by MCP tools. execute_frozen_chains retains
 the historical fixed-chain implementation for experiment replay only.

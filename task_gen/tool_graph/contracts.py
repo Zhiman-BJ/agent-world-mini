@@ -184,9 +184,13 @@ class ExecuteChainsOutput(TypedDict):
 
     execution contains success, tool_calls, raw_tool_calls, answer, error and
     initial_state/final_state (paths relative to run_dir). attempts is retained as
-    an empty compatibility field: execution now continues in one session rather
-    than restarting the complete chain. All candidates keep their initial/final
-    states, logs and agent_result.json, including failures and unselected successes.
+    a per-round summary with objective, session ID, directory and outcome. The
+    parent explores a read-only copy, then reviews isolated execution rounds.
+    Same-goal repairs resume that round; changed goals start from original state.
+    chain, tool_calls, raw_tool_calls, answer and final_state belong only to the
+    last accepted round (or last attempted round on failure), never preparation
+    or discarded rounds. All candidates retain every round's state and logs.
+    Default target length is 20; completed tasks below 10 calls are rejected.
     Step 4 receives execution evidence, final answer and review reason.
     """
 
