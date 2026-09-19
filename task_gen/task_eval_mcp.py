@@ -16,16 +16,28 @@ from task_gen.tool_graph.step_3_chain_execute import (  # noqa: E402
     _call_tool,
     _schema_error,
 )
+from env_gen.tool_gen.mcp_protocol import (  # noqa: E402
+    PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
+)
 
 
 CallToolFn = Callable[..., dict[str, Any]]
-_PROTOCOL_VERSION = "2025-06-18"
 
 
-class RpcError(Exception):
-    def __init__(self, code: int, message: str):
-        super().__init__(message)
-        self.code = code
+def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
+    """Resolve a delivery while retaining the caller's task-specific state path."""
+    if not config.get('binding_path'):
+        return config
+    from env_gen.tool_gen.kimi_mcp import load_delivery
+    delivery = load_delivery(Path(config['binding_path']))
+    if 'tools' in config and config['tools'] != list(delivery.package.tools):
+        raise ValueError('任务工具与 binding 交付工具不一致')
+    if 'environment' in config and any(config['environment'].get(k) != v
+                                      for k, v in delivery.package.environment.items()):
+        raise ValueError('任务环境与 binding 交付环境不一致')
+    return {**config, 'tools': list(delivery.package.tools), 'environment': delivery.package.environment,
+            'software': {'root': str(delivery.software_root), 'python': str(delivery.python_path)}
+                        if delivery.software_root else None}
 
 
 def call_environment_tool(
@@ -39,6 +51,7 @@ def call_environment_tool(
     write_limit: int,
     call_tool_fn: CallToolFn = _call_tool,
     environment: dict[str, Any] | None = None,
+    software: dict[str, str] | None = None,
     software_root: Path | None = None,
 ) -> dict[str, Any]:
     tool = tools.get(name)
@@ -55,7 +68,8 @@ def call_environment_tool(
         outcome = call_tool_fn(
             tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
             environment,
-            **({"software_root": software_root} if software_root is not None else {}),
+            **({'software': software} if software else {}),
+            **({'software_root': software_root} if software_root is not None else {}),
         )
         result = outcome.get("result")
         error = outcome.get("error")
@@ -78,120 +92,99 @@ def call_environment_tool(
     return {"tool": name, "arguments": arguments, "result": result, "error": error}
 
 
+class TaskEvalMcpServer:
+    """Task-scoped executor using ToolGen's shared public MCP contract."""
+
+    def __init__(self, config: dict[str, Any]):
+        config = bind_delivery(config)
+        self.config = config
+        self.tools = {tool["name"]: tool for tool in config["tools"]}
+        if len(self.tools) != len(config["tools"]):
+            raise ValueError("重复工具名")
+        self.workspace = Path(config["workspace"]).resolve()
+        self.trace = Path(config["trace"]).resolve()
+        self.calls = 0
+        self.choices = None
+        self.choice_tool = None
+        if 'review_choice_seed' in config:
+            from task_gen.tool_graph.review_choices import ReviewChoices, TOOL
+            if TOOL['name'] in self.tools:
+                raise ValueError('review 工具名称冲突')
+            self.choices = ReviewChoices(config['review_choice_seed'])
+            self.choice_tool = TOOL
+        if config.get('resume_trace') and self.trace.exists():
+            for line in self.trace.read_text(encoding='utf-8').splitlines():
+                record = json.loads(line)
+                self.calls += 1
+                if self.choices is not None and record['tool'] == self.choice_tool['name'] and record.get('error') is None:
+                    if self.choices.choose(record['arguments']) != record['result']:
+                        raise ValueError('方案选择历史无法一致恢复')
+
+    def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
+        method = request.get("method")
+        if method == "initialize":
+            return {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {"listChanged": False}},
+                    "serverInfo": {"name": "agent-world-task-eval", "version": SERVER_VERSION}}
+        if method == "tools/list":
+            tools = public_tools(self.tools.values())
+            if self.choice_tool:
+                tools.append(self.choice_tool)
+            return {"tools": tools}
+        if method == "tools/call":
+            return self._call(request.get("params"))
+        if method == "ping":
+            return {}
+        if "id" not in request:
+            return None
+        raise RpcError(-32601, f"不支持的 MCP 方法：{method}")
+
+    def _call(self, params: Any) -> dict[str, Any]:
+        if not isinstance(params, dict):
+            raise RpcError(-32602, "tools/call 缺少 params")
+        name, arguments = params.get("name"), params.get("arguments", {})
+        is_choice = self.choice_tool is not None and name == self.choice_tool['name']
+        if not isinstance(name, str) or (name not in self.tools and not is_choice):
+            raise RpcError(-32602, f"未知工具：{name}")
+        if not isinstance(arguments, dict):
+            raise RpcError(-32602, "工具 arguments 必须是 object")
+        if self.calls >= int(self.config["max_tool_calls"]):
+            raise RpcError(-32000, "工具调用次数已达到上限")
+        self.calls += 1
+        if is_choice:
+            try:
+                error = _schema_error(self.choice_tool['inputSchema'], arguments)
+                if error:
+                    raise ValueError(error)
+                record = {'tool': name, 'arguments': arguments, 'result': self.choices.choose(arguments), 'error': None}
+            except ValueError as error:
+                record = {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
+        else:
+            record = call_environment_tool(
+                name, arguments, self.tools, self.workspace,
+                timeout=int(self.config["timeout"]), memory_limit=int(self.config["memory_limit"]),
+                write_limit=int(self.config["write_limit"]), environment=self.config.get("environment", {}),
+                **({'software': self.config['software']} if self.config.get('software') else {}),
+                **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
+            )
+        self.trace.parent.mkdir(parents=True, exist_ok=True)
+        with self.trace.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+        payload = record["result"]
+        # Business failures retain their schema-defined shape; the trace keeps
+        # the existing error semantics used by evaluators and ReAct.
+        business_failure = (
+            not is_choice and isinstance(payload, dict) and payload.get("success") is False
+            and _schema_error(self.tools[name]["outputSchema"], payload) is None
+        )
+        if record["error"] is not None and not business_failure:
+            payload = {"success": False, "error": {"code": "runtime_error", "path": "$",
+                       "message": str(record["error"]), "retryable": False}, "tool_result": payload}
+        return tool_call_result(payload, is_error=record["error"] is not None or business_failure)
+
+
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    tools = {tool["name"]: tool for tool in config["tools"]}
-    environment = config.get("environment", {})
-    workspace = Path(config["workspace"]).resolve()
-    trace = Path(config["trace"]).resolve()
-    calls = 0
-    choices = None
-    if 'review_choice_seed' in config:
-        from task_gen.tool_graph.review_choices import ReviewChoices, TOOL
-        if TOOL['name'] in tools:
-            raise ValueError('review 工具名称冲突')
-        choices = ReviewChoices(config['review_choice_seed'])
-    if config.get('resume_trace') and trace.exists():
-        for line in trace.read_text(encoding='utf-8').splitlines():
-            record = json.loads(line)
-            calls += 1
-            if choices is not None and record['tool'] == TOOL['name'] and record.get('error') is None:
-                if choices.choose(record['arguments']) != record['result']:
-                    raise ValueError('方案选择历史无法一致恢复')
-    for line in stdin:
-        request: dict[str, Any] = {}
-        try:
-            request = json.loads(line)
-            method = request.get("method")
-            request_id = request.get("id")
-            if method == "initialize":
-                result = {
-                    "protocolVersion": _PROTOCOL_VERSION,
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "agent-world-task-eval", "version": "1.0"},
-                }
-            elif method == "tools/list":
-                result = {"tools": [{
-                    "name": tool["name"],
-                    "description": tool.get("description", ""),
-                    "inputSchema": tool["inputSchema"],
-                    "outputSchema": tool["outputSchema"],
-                    "annotations": {
-                        "readOnlyHint": not bool(tool.get("usageConditions", {}).get("sideEffects", ["unknown"])),
-                        "openWorldHint": False,
-                    },
-                    **({"usageConditions": tool["usageConditions"]} if "usageConditions" in tool else {}),
-                } for tool in tools.values()]}
-                if choices is not None:
-                    result['tools'].append(TOOL)
-            elif method == "tools/call":
-                if calls >= int(config["max_tool_calls"]):
-                    raise RpcError(-32000, "工具调用次数已达到上限")
-                params = request.get("params")
-                if not isinstance(params, dict):
-                    raise RpcError(-32602, "tools/call 缺少 params")
-                name = params.get("name")
-                arguments = params.get("arguments", {})
-                is_choice = choices is not None and name == TOOL['name']
-                if not isinstance(name, str) or (name not in tools and not is_choice):
-                    raise RpcError(-32602, f"未知工具：{name}")
-                if not isinstance(arguments, dict):
-                    raise RpcError(-32602, "工具 arguments 必须是 object")
-                calls += 1
-                if is_choice:
-                    try:
-                        schema_error = _schema_error(TOOL['inputSchema'], arguments)
-                        if schema_error:
-                            raise ValueError(schema_error)
-                        payload = choices.choose(arguments)
-                        record = {'tool': name, 'arguments': arguments, 'result': payload, 'error': None}
-                    except ValueError as error:
-                        record = {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
-                else:
-                    record = call_environment_tool(
-                    name,
-                    arguments,
-                    tools,
-                    workspace,
-                    timeout=int(config["timeout"]),
-                    memory_limit=int(config["memory_limit"]),
-                    write_limit=int(config["write_limit"]),
-                    environment=environment,
-                    software_root=config.get("software_root"),
-                )
-                trace.parent.mkdir(parents=True, exist_ok=True)
-                with trace.open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-                payload = record["result"] if record["error"] is None else {
-                    "error": record["error"],
-                    "tool_result": record["result"],
-                }
-                result = {
-                    "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}],
-                    "structuredContent": payload,
-                    "isError": record["error"] is not None,
-                }
-            elif method == "ping":
-                result = {}
-            elif request_id is None:
-                continue
-            else:
-                raise ValueError(f"不支持的 MCP 方法：{method}")
-            if request_id is not None:
-                stdout.write(json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result}) + "\n")
-                stdout.flush()
-        except Exception as error:
-            request_id = request.get("id") if isinstance(request, dict) else None
-            if request_id is not None:
-                stdout.write(json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "error": {
-                        "code": error.code if isinstance(error, RpcError) else -32603,
-                        "message": str(error) if isinstance(error, RpcError) else f"{type(error).__name__}: {error}",
-                    },
-                }) + "\n")
-                stdout.flush()
+    server = TaskEvalMcpServer(json.loads(config_path.read_text(encoding="utf-8")))
+    serve_jsonrpc(server.handle, stdin=stdin, stdout=stdout)
 
 
 def main() -> None:

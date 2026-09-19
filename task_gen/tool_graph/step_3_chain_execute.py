@@ -47,6 +47,7 @@ import os
 from pathlib import Path
 import shutil
 import stat
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -69,7 +70,9 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
     """并发执行候选链，以干净初态重试，并记录成功轨迹或失败历史。"""
     config = stage_input["config"]
     run_dir = stage_input["run_dir"].resolve()
-    source = (config.environment_dir / ("state" if stage_input['environment'].get('schema_version') == '2.0' else 'workspace')).resolve()
+    runtime = stage_input.get('runtime', {})
+    source = Path(runtime.get('initial_state', config.environment_dir / (
+        "state" if stage_input['environment'].get('schema_version') == '2.0' else 'workspace'))).resolve()
     if not source.is_dir():
         raise ValueError(f"源 workspace 不存在：{source}")
     tools = _tools(stage_input["environment"])
@@ -118,6 +121,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
                 result_limit,
                 memory_limit,
                 write_limit,
+                runtime.get('software'),
             ) for candidate in tasks
         ]
         output = [future.result() for future in futures]
@@ -163,6 +167,7 @@ def _execute_candidate(
     result_limit: int,
     memory_limit: int,
     write_limit: int,
+    software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     result = deepcopy(candidate)
     task_id = candidate["task_id"]
@@ -209,7 +214,8 @@ def _execute_candidate(
                     failure = parameter_failure
                     break
 
-                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment)
+                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
+                                     **({'software': software} if software else {}))
                 if outcome["kind"] is not None:
                     failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
                     break
@@ -490,17 +496,41 @@ def _workspace_signature(root: Path) -> tuple[tuple[str, int, str], ...]:
 
 _TOOL_WORKER = r"""
 import contextlib
+import ctypes
 from copy import deepcopy
 import io
 import json
+import os
 import sqlite3
 from pathlib import Path
 import resource
 import sys
+import tempfile
 from types import SimpleNamespace
 
+@contextlib.contextmanager
+def quiet_native_stdout():
+    # C/Fortran libraries bypass Python's redirect_stdout; stdout is our JSON wire.
+    original = os.dup(1)
+    with tempfile.TemporaryFile() as sink:
+        try:
+            os.dup2(sink.fileno(), 1)
+            yield
+        finally:
+            try:
+                ctypes.CDLL(None).fflush(None)
+            finally:
+                os.dup2(original, 1)
+                os.close(original)
+            if sink.tell() > 16 * 1024 * 1024:
+                raise ValueError('工具沙箱输出超过 16 MiB')
+
 payload = json.load(sys.stdin)
-sys.path.insert(0, '/dependencies')
+if not payload.get('software_prefix'):
+    sys.path.insert(0, '/dependencies')
+else:
+    sys.prefix = sys.exec_prefix = payload['software_prefix']
+    sys.path.extend(payload['software_import_paths'])
 try:
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
@@ -510,15 +540,16 @@ try:
     runtime = {}
     exec(payload["context_source"], runtime)
     namespace = {"json": json, "sqlite3": sqlite3}
-    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    with quiet_native_stdout(), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         exec(payload["code"], namespace)
         run = namespace.get("run")
         if not callable(run):
             raise ValueError("internal.code 没有定义 run(arguments, context)")
         context = (runtime["Context"](Path("/workspace"), payload['environment'])
-                   if payload.get('environment', {}).get('schema_version') == '2.0'
-                   else SimpleNamespace(workspace_root=Path('/workspace')))
-        context.software_root = Path('/software')
+            if payload.get('environment', {}).get('schema_version') == '2.0'
+            else SimpleNamespace(workspace_root=Path('/workspace')))
+        if payload.get('software_root'):
+            context.software_root = Path(payload['software_root'])
         result = run(deepcopy(payload["arguments"]), context)
     json.dumps(result, ensure_ascii=False)
     response = {"result": result, "error": None}
@@ -562,9 +593,14 @@ def _call_tool(
     write_limit: int,
     environment: dict[str, Any] | None = None,
     software_root: Path | None = None,
+    *, software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    from functools import partial
+    run_tool = partial(_run_tool, software=software) if software else _run_tool
+    if software_root is not None:
+        run_tool = partial(run_tool, software_root=software_root)
     if not environment or environment.get('schema_version') != '2.0':
-        return _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment, software_root)
+        return run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment)
     from .state_runtime import snapshot_state, state_diff
     workspace = workspace.resolve()
     try:
@@ -575,7 +611,7 @@ def _call_tool(
         with tempfile.TemporaryDirectory(prefix='.tool-state-', dir=workspace.parent) as temporary:
             candidate = Path(temporary) / 'state'
             shutil.copytree(workspace, candidate, symlinks=True)
-            outcome = _run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment, software_root)
+            outcome = run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment)
             result = outcome.get('result')
             if outcome.get('error') or not isinstance(result, dict) or result.get('success') is not True:
                 return outcome
@@ -597,7 +633,7 @@ def _call_tool(
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
 
 
-def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None):
+def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None, *, software=None):
     import jsonschema
     workspace = workspace.resolve()
     if not workspace.is_dir():
@@ -610,17 +646,44 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         return {"kind": "exception", "result": None, "error": "未安装 bubblewrap，拒绝执行未隔离工具"}
     runtime_root = Path(sys.base_prefix).resolve()
     executable = Path(sys.executable).resolve()
-    try:
-        runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
-    except ValueError:
-        return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
+    runtime_mounts = []
+    software_prefix, software_imports = None, []
+    if software:
+        try:
+            # The interpreter is trusted delivery infrastructure, not tool code.
+            # -S avoids executing profile .pth/sitecustomize outside the sandbox.
+            launcher = Path(software['python']).absolute()
+            venv = launcher.parent.parent
+            probe = subprocess.run([str(launcher), '-I', '-S', '-B', '-c',
+                'import json,sys,sysconfig; prefix=sys.argv[1] or sys.prefix; '
+                'paths=sysconfig.get_paths(scheme="posix_prefix", vars={"base":prefix,"platbase":prefix}); '
+                'print(json.dumps({"base":sys.base_prefix,"prefix":prefix,"imports":[paths["purelib"],paths["platlib"]]}))',
+                str(venv) if (venv / 'pyvenv.cfg').is_file() else ''],
+                capture_output=True, text=True, check=True, timeout=min(timeout, 30))
+            info = json.loads(probe.stdout)
+            # Preserve the launcher's venv and the absolute paths in pyvenv.cfg.
+            # Only declared software/runtime directories are visible, not their parents.
+            runtime_executable = launcher
+            runtime_mounts = sorted({Path(p).resolve() for p in
+                [info['base'], info['prefix'], software['root']]}, key=lambda p: len(p.parts))
+            software_prefix = str(Path(info['prefix']).resolve())
+            for value in dict.fromkeys(info['imports']):
+                path = Path(value)
+                if not path.resolve().is_relative_to(Path(software_prefix)):
+                    raise ValueError('软件 Profile 引用了其环境之外的第三方依赖')
+                software_imports.append(str(path))
+        except Exception as error:
+            return {'kind': 'exception', 'result': None, 'error': f'软件 Profile 启动失败：{error}'}
+    else:
+        try:
+            runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
+        except ValueError:
+            return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
     command = [
         sandbox,
         "--unshare-all",
         "--die-with-parent",
         "--new-session",
-        "--ro-bind", str(runtime_root), "/runtime",
-        "--ro-bind", str(Path(jsonschema.__file__).resolve().parent.parent), "/dependencies",
         "--ro-bind-try", "/lib", "/lib",
         "--ro-bind-try", "/lib64", "/lib64",
         "--proc", "/proc",
@@ -630,7 +693,8 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--bind", str(workspace), "/workspace",
         "--chdir", "/workspace",
         "--clearenv",
-        "--setenv", "HOME", "/workspace",
+        "--setenv", "HOME", "/tmp",
+        "--setenv", "USER", "tool",
         "--setenv", "TMPDIR", "/tmp",
         # 库的缓存与自动生成配置不属于环境状态。
         "--setenv", "XDG_CACHE_HOME", "/tmp/cache",
@@ -639,7 +703,7 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--setenv", "OPENBLAS_NUM_THREADS", "1",
         "--setenv", "OMP_NUM_THREADS", "1",
     ]
-    if software_root is not None:
+    if software_root is not None and not software:
         software_root = Path(software_root).expanduser().resolve()
         if not software_root.is_dir():
             return {"kind": "exception", "result": None, "error": "配置的软件目录不存在"}
@@ -649,7 +713,24 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
     for name in ("LANG", "LC_ALL", "TZ"):
         if name in os.environ:
             command.extend(["--setenv", name, os.environ[name]])
-    command.extend([str(runtime_executable), "-I", "-c", _TOOL_WORKER])
+    # Some scientific libraries construct TLS clients on import, even offline.
+    # Only public trust roots are exposed; network isolation remains unchanged.
+    ca_bundle = Path(ssl.get_default_verify_paths().cafile or '/etc/ssl/certs/ca-certificates.crt')
+    if ca_bundle.is_file():
+        command.extend(['--ro-bind', str(ca_bundle.resolve()), '/ca-certificates.crt',
+                        '--setenv', 'SSL_CERT_FILE', '/ca-certificates.crt'])
+    if software:
+        for path in runtime_mounts:
+            command.extend(['--ro-bind', str(path), str(path)])
+        command.extend(['--ro-bind', str(Path(software['root']).resolve()), '/software'])
+        # CPU libraries otherwise size thread pools from the host CPU count,
+        # which can exhaust this tool's memory/process limits on import alone.
+        for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'OMP_THREAD_LIMIT', 'MKL_NUM_THREADS'):
+            command.extend(['--setenv', name, '1'])
+    else:
+        command.extend(['--ro-bind', str(runtime_root), '/runtime',
+                        '--ro-bind', str(Path(jsonschema.__file__).resolve().parent.parent), '/dependencies'])
+    command.extend([str(runtime_executable), "-I", *(['-S', '-B'] if software else []), "-c", _TOOL_WORKER])
     payload = json.dumps({
         "code": code,
         "arguments": arguments,
@@ -657,6 +738,9 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
         "memory_limit": memory_limit,
         "write_limit": write_limit,
+        "software_root": '/software' if software or software_root is not None else None,
+        "software_prefix": software_prefix,
+        "software_import_paths": software_imports,
     }, ensure_ascii=False)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:

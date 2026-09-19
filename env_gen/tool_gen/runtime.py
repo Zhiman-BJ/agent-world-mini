@@ -298,7 +298,12 @@ def state_diff(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
 
 
 class ToolRuntime:
-    def __init__(self, package: ToolPackage) -> None:
+    def __init__(
+        self,
+        package: ToolPackage,
+        *,
+        software_root: Path | None = None,
+    ) -> None:
         self.package = package
         self._temporary = tempfile.TemporaryDirectory(prefix="agent-world-tool-runtime-")
         self.root = Path(self._temporary.name)
@@ -310,11 +315,34 @@ class ToolRuntime:
             for name, tool in self._tools.items()
         }
         self.context = SimpleNamespace(
-            software_root=package.package_root / "tool_generation/software",
             environment=deepcopy(package.environment),
             records=RecordStore(self.root / "state/records.sqlite", package.environment),
             scope_root=lambda scope_id: self._scope_root(str(scope_id)),
+            software_root=self._software_root(software_root),
         )
+
+    def _software_root(self, override: Path | None) -> Path:
+        """Return the installed dependency root when this package has one.
+
+        The path is metadata supplied by ToolGen's software resolver.  Runtime
+        still keeps the environment state in its isolated temporary copy; only
+        imports and command-line assets come from the selected software profile.
+        """
+        if override is not None:
+            root = override.expanduser().resolve()
+            if not root.is_dir():
+                raise ValueError(f"软件 Profile 目录不存在：{root}")
+            return root
+        info_path = self.package.package_root / "tool_generation/software_environment.json"
+        if info_path.is_file():
+            try:
+                info = json.loads(info_path.read_text(encoding="utf-8"))
+                root = Path(str(info.get("root", ""))).resolve()
+                if root.is_dir():
+                    return root
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                pass
+        return self.package.package_root / "tool_generation/software"
 
     @staticmethod
     def _compile_handler(name: str, source: str) -> Callable[[dict[str, Any], Any], Any]:

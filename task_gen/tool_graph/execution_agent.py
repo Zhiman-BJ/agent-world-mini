@@ -73,7 +73,7 @@ def _parse_output(text, phase):
 class _Session:
     """One persistent Codex thread and state copy; retries never silently start a new thread."""
 
-    def __init__(self, root, source, environment, tools, config, phase, index):
+    def __init__(self, root, source, environment, tools, config, phase, index, runtime=None):
         self.root, self.config, self.phase, self.index = root, config, phase, index
         root.mkdir(parents=True)
         shutil.copytree(source, root / 'final')
@@ -88,7 +88,8 @@ class _Session:
                   'timeout': config.execution.get('tool_timeout_seconds', 300),
                   'memory_limit': config.execution.get('tool_max_memory_bytes', 2 * 1024**3),
                   'write_limit': config.execution.get('tool_max_write_bytes', 256 * 1024**2),
-                  'software_root': config.execution.get('tool_software_root')}
+                  'software_root': config.execution.get('tool_software_root'),
+                  'software': (runtime or {}).get('software')}
         if phase == 'preparation':
             server['review_choice_seed'] = config.llm.get('review_choice_seed', secrets.randbits(64)) + index
         _write(root / 'server.json', server)
@@ -151,7 +152,8 @@ class _Session:
 def execute_candidates(stage_input):
     config, environment = stage_input['config'], stage_input['environment']
     tools = _tools(environment)
-    source = (config.environment_dir / 'state').resolve()
+    runtime = stage_input.get('runtime', {})
+    source = Path(runtime.get('initial_state', config.environment_dir / 'state')).resolve()
     signature = _workspace_signature(source)
     tasks_root = stage_input['run_dir'].resolve() / 'tasks'
     candidates = stage_input['tasks']
@@ -185,7 +187,7 @@ def execute_candidates(stage_input):
         objective, accepted, failure, invalid = candidate['objective'], False, None, 0
         decision = {'reason': '', 'score': 0}
         try:
-            parent = _Session(root / 'preparation', root / 'initial', environment, tools, config, 'preparation', ids.index(candidate['task_id']))
+            parent = _Session(root / 'preparation', root / 'initial', environment, tools, config, 'preparation', ids.index(candidate['task_id']), runtime)
             prompt = main_prompt + '\n' + json.dumps(_context(candidate, environment), ensure_ascii=False, separators=(',', ':'))
             while True:
                 decision = parent.ask(prompt)
@@ -217,7 +219,7 @@ def execute_candidates(stage_input):
                     break
                 if action == 'execute':
                     objective = decision['objective']
-                    worker = _Session(root / 'rounds' / f'{len(attempts) + 1:02d}', root / 'initial', environment, tools, config, 'execution', ids.index(candidate['task_id']))
+                    worker = _Session(root / 'rounds' / f'{len(attempts) + 1:02d}', root / 'initial', environment, tools, config, 'execution', ids.index(candidate['task_id']), runtime)
                     attempts.append({'round': len(attempts) + 1, 'objective': objective, 'directory': str(worker.root.relative_to(stage_input['run_dir'].resolve()))})
                     worker_prompt = execution_prompt({**candidate, 'objective': objective}, environment)
                 else:

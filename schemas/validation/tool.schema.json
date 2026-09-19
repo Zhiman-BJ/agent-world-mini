@@ -88,6 +88,7 @@
       "type": "object",
       "description": "工具返回值的完整 JSON Schema。第一个 oneOf 分支是 success=true + data，第二个分支是 success=false + error。",
       "properties": {
+        "type": {"const": "object"},
         "oneOf": {
           "type": "array",
           "minItems": 2,

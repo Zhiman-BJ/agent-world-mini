@@ -1,0 +1,40 @@
+# 本地 main 同步后全规模候选；Step3 开启公开网络参考。
+paths:
+  environment_dir: ../artifacts/semiconductor_delivery_20260918/environments/semiconductor_calibration_deembedding_1
+  schema_dir: ../schemas
+  output_root: ../runs/semiconductor_20260918/taskgen
+llm:
+  backend: api
+  model: gpt-5.6-sol
+  reasoning_effort: low
+  codex_home: ~/.codex-task-eval
+  base_url: http://47.237.200.112:8080/v1
+  api_key_file: ~/.codex-task-eval/auth.json
+  temperature: 0
+  max_tokens: 131072
+  max_concurrency: 16
+  timeout_seconds: 1800
+graph:
+  retry_count: 3
+planning:
+  sample_count: 100000
+  keep_top_count: 10
+  min_chain_length: 20
+  max_chain_length: 30
+  termination_tau: 0.3
+  length_reward_alpha: 1.0
+  max_tool_visits: 2
+  random_seed: 42
+  review_count: 30
+  edge_sampling_probabilities: {"1": 0.1, "2": 0.2, "3": 0.7}
+  diversity_lambda: 10
+execution:
+  enable_web_search: true
+  max_concurrency: 16
+  agent_max_tool_calls: 100
+  retry_count: 3
+  tool_result_max_bytes: 65536
+  tool_timeout_seconds: 300
+  tool_max_write_bytes: 268435456
+  tool_max_memory_bytes: 2147483648
+cost: {}

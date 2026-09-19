@@ -31,7 +31,7 @@ class _ReviewClient(CodexAgentClient):
         return arguments
 
 
-def review_with_initial_state(prompts, *, llm_config, initial_workspace, environment=None):
+def review_with_initial_state(prompts, *, llm_config, initial_workspace, environment=None, software=None):
     if not prompts:
         return []
     source = Path(initial_workspace).resolve()
@@ -67,6 +67,7 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace, environ
                     'filesystem_scopes': [{**d, 'access': 'read_only'} for d in declaration.get('filesystem_scopes', [])]}
                 server_config.write_text(json.dumps({
                     'environment': readonly_environment,
+                    'software': software,
                     'tools': [t for t in declaration.get('tools', []) if not t.get('usageConditions', {}).get('sideEffects')],
                     'workspace': str(workspace), 'trace': str(root / 'tool_calls.jsonl'),
                     'max_tool_calls': 100, 'timeout': 300, 'memory_limit': 2 * 1024**3,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import json
 from pathlib import Path
@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import time
 from typing import Any, Callable
+from env_gen.tool_gen.mcp_protocol import public_tools
 
 from .task_eval_react import run_react_agent
 from .tool_graph.llm import capture_calls
@@ -36,6 +37,7 @@ class EvalCase:
     initial_state: Path
     reference_state: Path | None
     reference_calls: list[dict[str, Any]]
+    runtime: dict[str, Any] = field(default_factory=dict)
 
 
 def load_cases(input_root: Path) -> list[EvalCase]:
@@ -102,6 +104,7 @@ def load_cases(input_root: Path) -> list[EvalCase]:
             )
             cases.append(EvalCase(
                 source_run, task, environment, initial_state, reference_state, reference_calls,
+                bundle.get('runtime', {}),
             ))
     return cases
 
@@ -111,7 +114,7 @@ def evaluate_case(
     workspace: Path,
     llm_config: dict[str, Any],
     *,
-    max_tool_calls: int = 50,
+    max_tool_calls: int | None = None,
     agent_attempts: int = 3,
     tool_timeout_seconds: int = 300,
     tool_max_memory_bytes: int = 2 * 1024 * 1024 * 1024,
@@ -120,7 +123,9 @@ def evaluate_case(
     verifier_run_fn: Callable[..., dict[str, Any]] = verify_execution,
     verifier_output: Path | None = None,
 ) -> dict[str, Any]:
-    """Let one API ReAct agent solve a task with environment tools, then judge it."""
+    """Let the configured agent solve a task with environment tools, then judge it."""
+    if max_tool_calls is None:
+        max_tool_calls = 100 if llm_config.get('agent_backend') == 'kimi' else 50
     if max_tool_calls < 1:
         raise ValueError("max_tool_calls 必须大于 0")
     if agent_attempts < 1:
@@ -131,11 +136,12 @@ def evaluate_case(
     source_signature = _workspace_signature(case.initial_state)
     shutil.copytree(case.initial_state, workspace)
     tools = _tools(case.environment)
-    expected_tools = [
+    expected_tools = public_tools(tools.values())
+    legacy_tools = [
         {key: tool[key] for key in ("name", "description", "inputSchema", "outputSchema", "usageConditions") if key in tool}
         for tool in tools.values()
     ]
-    if case.task.get("available_tools") != expected_tools:
+    if case.task.get("available_tools") not in (expected_tools, legacy_tools):
         raise ValueError("task.available_tools 与环境公开工具契约不一致")
     verifier_config = dict(llm_config.get("verifier", {}))
     # Verifier defaults come from .codex, independent of the solver API model.
@@ -156,6 +162,8 @@ def evaluate_case(
                 "write_limit": tool_max_write_bytes,
                 "tools": list(tools.values()),
                 "environment": case.environment,
+                **({"binding_path": case.runtime['binding_path']} if case.runtime.get('binding_path') else {}),
+                **({"software": case.runtime['software']} if case.runtime.get('software') else {}),
             }, ensure_ascii=False), encoding="utf-8")
             try:
                 answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
@@ -245,6 +253,12 @@ def _run_agent(
     trace: Path,
     llm_config: dict[str, Any],
 ) -> str:
+    agent_backend = llm_config.get("agent_backend", "react")
+    if agent_backend == "kimi":
+        from .task_eval_kimi import run_kimi_agent
+        return run_kimi_agent(prompt, workspace, server_config, trace, llm_config)
+    if agent_backend != "react":
+        raise ValueError(f"未知 agent_backend：{agent_backend}")
     return run_react_agent(prompt, workspace, server_config, trace, llm_config)
 
 
@@ -282,7 +296,7 @@ def run_evaluation(
     *,
     limit: int | None = None,
     environment_id: str | None = None,
-    max_tool_calls: int = 50,
+    max_tool_calls: int | None = None,
     max_concurrency: int = 1,
 ) -> Path:
     cases = load_cases(input_root)
@@ -341,7 +355,7 @@ def run_evaluation(
     payload = {
         "input_root": str(input_root.expanduser().resolve()),
         "model": llm_config.get("model"),
-        "agent_backend": "react-api",
+        "agent_backend": "kimi" if llm_config.get("agent_backend") == "kimi" else "react-api",
         "task_count": len(results),
         **counts,
         "results": results,
@@ -368,24 +382,35 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=Path("config/tool_graph.yaml"))
     parser.add_argument("--model")
     parser.add_argument("--backend")
+    parser.add_argument("--agent-backend", choices=["react", "kimi"])
     parser.add_argument("--environment-id")
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--max-tool-calls", type=int, default=50)
-    parser.add_argument("--max-concurrency", type=int, default=1)
+    parser.add_argument("--max-tool-calls", type=int)
+    parser.add_argument("--max-concurrency", type=int)
     parser.add_argument("--llm-timeout-seconds", type=int)
     arguments = parser.parse_args()
     if arguments.limit is not None and arguments.limit < 1:
         parser.error("--limit 必须大于 0")
-    if arguments.max_tool_calls < 1:
+    if arguments.max_tool_calls is not None and arguments.max_tool_calls < 1:
         parser.error("--max-tool-calls 必须大于 0")
-    if arguments.max_concurrency < 1:
+    if arguments.max_concurrency is not None and arguments.max_concurrency < 1:
         parser.error("--max-concurrency 必须大于 0")
     if arguments.llm_timeout_seconds is not None and arguments.llm_timeout_seconds < 1:
         parser.error("--llm-timeout-seconds 必须大于 0")
     config = load_config(arguments.config, {"model": arguments.model, "backend": arguments.backend})
     llm_config = dict(config.llm)
+    if arguments.agent_backend is not None:
+        llm_config['agent_backend'] = arguments.agent_backend
+    max_tool_calls = arguments.max_tool_calls if arguments.max_tool_calls is not None else config.execution.get(
+        'evaluation_max_tool_calls', 100 if llm_config.get('agent_backend') == 'kimi' else 50)
+    max_concurrency = arguments.max_concurrency if arguments.max_concurrency is not None else config.execution.get('evaluation_max_concurrency', 1)
+    for name, value in (('evaluation_max_tool_calls', max_tool_calls), ('evaluation_max_concurrency', max_concurrency)):
+        if type(value) is not int or value < 1:
+            parser.error(f'{name} 必须是正整数')
     if arguments.llm_timeout_seconds is not None:
         llm_config["timeout_seconds"] = arguments.llm_timeout_seconds
+        if llm_config.get('agent_backend') == 'kimi':
+            llm_config['kimi'] = {**llm_config.get('kimi', {}), 'timeout_seconds': arguments.llm_timeout_seconds}
     run_dir = run_evaluation(
         arguments.input_root,
         arguments.output_root,
@@ -393,8 +418,8 @@ def main() -> None:
         config.execution,
         limit=arguments.limit,
         environment_id=arguments.environment_id,
-        max_tool_calls=arguments.max_tool_calls,
-        max_concurrency=arguments.max_concurrency,
+        max_tool_calls=max_tool_calls,
+        max_concurrency=max_concurrency,
     )
     print(run_dir)
 

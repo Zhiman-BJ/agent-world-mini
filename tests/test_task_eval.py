@@ -20,9 +20,23 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("7", prompt["role"])
             self.assertIn("tool calls", prompt["role"])
 
-    def test_task_evaluation_defaults_to_fifty_calls(self) -> None:
-        self.assertEqual(evaluate_case.__kwdefaults__["max_tool_calls"], 50)
-        self.assertEqual(run_evaluation.__kwdefaults__["max_tool_calls"], 50)
+    def test_task_evaluation_uses_backend_budget_and_explicit_override(self) -> None:
+        for backend, override, expected in [('react', None, 50), ('kimi', None, 100), ('kimi', 7, 7)]:
+            with self.subTest(backend=backend, override=override), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                case = load_cases(self._write_case_at(root / 'source'))[0]
+                observed = []
+
+                def agent(prompt, workspace, config, trace):
+                    observed.append(json.loads(config.read_text())['max_tool_calls'])
+                    self.assertIn(f'at most {expected} environment tool calls', json.loads(prompt)['role'])
+                    return 'Done.'
+
+                result = evaluate_case(case, root / 'evaluation', {'agent_backend': backend},
+                                       max_tool_calls=override, agent_run_fn=agent,
+                                       verifier_run_fn=lambda **kwargs: {'outcome': 'pass'})
+                self.assertIsNone(result['agent_error'])
+                self.assertEqual(observed, [expected])
 
     def test_cli_rejects_nonpositive_max_tool_calls(self) -> None:
         with patch("sys.argv", ["task-eval", "--max-tool-calls", "0"]):
@@ -289,7 +303,7 @@ def run(arguments, context):
             response = json.loads(stdout.getvalue())
             self.assertTrue(response["result"]["isError"])
             self.assertEqual(
-                response["result"]["structuredContent"]["tool_result"]["error"]["code"],
+                response["result"]["structuredContent"]["error"]["code"],
                 "not_found",
             )
 
