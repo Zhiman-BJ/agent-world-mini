@@ -1,0 +1,57 @@
+[
+  {
+    "name": "kwant",
+    "index": 151,
+    "directory": "kwant",
+    "source_root": ".",
+    "modules": [
+      "kwant"
+    ],
+    "adapter": "kwant",
+    "include_call_protocol": true,
+    "repository": "https://gitlab.kwant-project.org/kwant/kwant",
+    "documentation": "https://kwant-project.org/doc/1/",
+    "pypi": "https://pypi.org/project/kwant/",
+    "pypi_version": "1.5.0",
+    "tag": "v1.5.0",
+    "commit": "de315f171270d62ee2412c4084260c912cc4d58f",
+    "release_published_at": "2024-06-19T17:04:40+02:00",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "notes": [
+      "Cython Python-visible def/cpdef/property与公开类已全量适配；__call__作为求解/算子实际协议保留。"
+    ],
+    "description": "Kwant提供量子紧束缚散射系统的构建、周期导线与开放边界，计算散射矩阵、透射、态密度与局域电流，可用于纳米器件静态量子输运。",
+    "release_api": "https://gitlab.kwant-project.org/kwant/kwant/-/tags/v1.5.0",
+    "release_url": "https://gitlab.kwant-project.org/kwant/kwant/-/tags/v1.5.0",
+    "selection_rule": "Latest stable official GitLab tag reviewed against remote tags and release docs. Timestamp is tagged commit date, not an invented GitHub release date."
+  },
+  {
+    "name": "tkwant",
+    "index": 152,
+    "directory": "tkwant",
+    "source_root": ".",
+    "modules": [
+      "tkwant"
+    ],
+    "adapter": "tkwant",
+    "include_call_protocol": true,
+    "repository": "https://gitlab.kwant-project.org/kwant/tkwant",
+    "documentation": "https://tkwant.kwant-project.org/doc/stable/",
+    "pypi": "https://pypi.org/project/tkwant/",
+    "pypi_version": "1.1.0",
+    "tag": "v1.1.1",
+    "commit": "b2040b88d56b90288f1b6617e7f2070ec1db7ef5",
+    "release_published_at": "2023-07-26T15:54:31+02:00",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "notes": [
+      "Cython Python-visible def/cpdef/property与公开类已全量适配；__call__作为求解/算子实际协议保留。",
+      "最新正式标签v1.1.1内TKWANT_VERSION仍1.1.0，PyPI亦1.1.0；运行需固定该tag的完整commit，不用conda1.1.0rc2代替。"
+    ],
+    "description": "tkwant基于Kwant系统传播含时单粒子和多体散射态，支持脉冲势、开放导线边界与时间相关密度/电流，用于瞬态量子输运。",
+    "release_api": "https://gitlab.kwant-project.org/kwant/tkwant/-/tags/v1.1.1",
+    "release_url": "https://gitlab.kwant-project.org/kwant/tkwant/-/tags/v1.1.1",
+    "selection_rule": "Latest stable official GitLab tag reviewed against remote tags and release docs. Timestamp is tagged commit date, not an invented GitHub release date."
+  }
+]

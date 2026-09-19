@@ -655,7 +655,7 @@ software_plan.json 示例：
 
 读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set，通过 context.scope_root(scope_id) 访问文件；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
 
-保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数取自真实状态，至少包含一次正常调用；写操作测试应使 expect_changed=true。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
+保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
 
     @staticmethod
     def _build_inventory_repair_prompt(
@@ -1002,19 +1002,22 @@ software_plan.json 示例：
         package_root: Path,
         environment: dict[str, Any],
         drafts: list[dict[str, Any]],
+        *,
+        target_tools: set[str] | None = None,
+        apply_dependency_status: bool = True,
     ) -> list[dict[str, Any]]:
         reports = []
         tools_by_name = {item["tool"]["name"]: item["tool"] for item in drafts}
-        dependencies = {}
         for draft in drafts:
             tool_name = str(draft["tool"]["name"])
+            if target_tools is not None and tool_name not in target_tools:
+                continue
             required = {tool_name} | {
                 str(call.get("tool"))
                 for test in draft["tests"]
                 for call in test.get("calls", [])
                 if isinstance(call, dict)
             }
-            dependencies[tool_name] = required - {tool_name}
             try:
                 # Load only the tools this draft's tests actually call.
                 missing = required - tools_by_name.keys()
@@ -1028,6 +1031,24 @@ software_plan.json 示例：
                 failures = [f"tool_load_error:{type(error).__name__}: {error}"]
             reports.append({"tool": tool_name, "status": "passed" if not failures else "rejected",
                             "failures": failures, "tests": draft["tests"]})
+        if not apply_dependency_status:
+            return reports
+        return self._apply_dependency_status(drafts, reports)
+
+    @staticmethod
+    def _apply_dependency_status(
+        drafts: list[dict[str, Any]], reports: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        dependencies = {
+            str(draft["tool"]["name"]): {
+                str(call.get("tool"))
+                for test in draft["tests"]
+                for call in test.get("calls", [])
+                if isinstance(call, dict)
+                and str(call.get("tool")) != str(draft["tool"]["name"])
+            }
+            for draft in drafts
+        }
         # A published tool's executable tests must not depend on a rejected tool.
         while True:
             accepted = {report["tool"] for report in reports if report["status"] == "passed"}

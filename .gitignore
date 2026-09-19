@@ -27,6 +27,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-scenario-*/
 venv/
 build/
 dist/
@@ -44,10 +45,52 @@ dist/
 .DS_Store
 Thumbs.db
 
+test.py
+test_api.py
 seed_data_raw/
 seed_pypi_raw/
-seed_gen/pypi_outputs/ori_all/
-seed_gen/pypi_outputs/selection_reports
+seed_gen/pypi_outputs/ori_all_funcs/
+seed_gen/pypi_outputs/package_select_func/
+seed_gen/pypi_outputs/scenario_seeds/
+seed_gen/pypi_outputs/selection_reports/
+seed_gen/pypi_outputs/scenario_selection_reports/
 seed_gen/pypi_selection_profiles
 seed_gen/agent_scoring
-test_api.py
+
+# Generated scenario collection intermediates (keep final seed JSONs)
+/seed_gen/scenario_collection/inventory.json
+/seed_gen/scenario_collection/classification.normalized.md
+/seed_gen/scenario_collection/profiles/
+/seed_gen/scenario_collection/runtime/
+/seed_gen/scenario_collection/**/probe_*.py
+# These two probes are required by the retained candidate-evidence reproducer.
+!/seed_gen/scenario_collection/lithography/probe_differentiable.py
+!/seed_gen/scenario_collection/lithography/probe_snapshots.py
+/seed_gen/scenario_collection/research/
+/seed_gen/scenario_pilot/profiles/
+/seed_gen/scenario_pilot/runtime/
+
+# Parallel L1 collection uses isolated work directories with the same policy.
+/seed_gen/scenario_collection/l1_*/profiles/
+/seed_gen/scenario_collection/l1_*/runtime/
+/seed_gen/scenario_collection/l1_*/research/
+
+# Independent first-principles collection lane and instrument-generated cache.
+/seed_gen/scenario_collection/materials_solver/profiles/
+/seed_gen/scenario_collection/materials_solver/runtime/
+/seed_gen/scenario_collection/materials_solver/research/
+/laboneq_output/
+/seed_gen/scenario_collection/lithography/profiles/
+/seed_gen/scenario_collection/lithography/runtime/
+/seed_gen/scenario_collection/lithography/research/
+/seed_gen/scenario_collection/analog_bridge/profiles/
+/seed_gen/scenario_collection/analog_bridge/runtime/
+/seed_gen/scenario_collection/analog_bridge/research/
+
+# Final deliverables live in final_results/; worker/pilot output is disposable.
+/seed_gen/pypi_outputs/scenario_collection/
+/seed_gen/pypi_outputs/scenario_pilot/
+/seed_gen/scenario_pilot/work/*
+!/seed_gen/scenario_pilot/work/*_research.json
+
+seed_gen/pypi_outputs/final_results/l3

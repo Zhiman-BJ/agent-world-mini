@@ -1,0 +1,158 @@
+[
+  {
+    "name": "siliconcompiler",
+    "index": 361,
+    "directory": "l1_design_lab/siliconcompiler",
+    "source_root": ".",
+    "modules": [
+      "siliconcompiler"
+    ],
+    "repository": "https://github.com/siliconcompiler/siliconcompiler",
+    "tag": "v0.38.8",
+    "commit": "6ea9308b4953227e23bd3606148bd738abe11171",
+    "documentation": "https://github.com/siliconcompiler/siliconcompiler/tree/v0.38.8",
+    "description": "SiliconCompiler以Design、Project及Flowgraph管理源文件、工艺、任务依赖、执行状态和质量指标，连接RTL到GDS的外部EDA工具链。",
+    "pypi": "https://pypi.org/project/siliconcompiler/",
+    "pypi_version": "0.38.8",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/siliconcompiler/siliconcompiler/releases/latest",
+    "release_url": "https://github.com/siliconcompiler/siliconcompiler/releases/tag/v0.38.8",
+    "release_published_at": "2026-09-14T12:10:44Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "最新官方稳定Release0.38.8；完整RTL到GDS需外部综合/布局布线/工艺库，配置和局部步骤不可冒充整条流。",
+      "全量候选只由固定源声明提取；运行时/商业后端验证限制单独保留，不推断所有候选都已执行。"
+    ]
+  },
+  {
+    "name": "librelane",
+    "index": 362,
+    "directory": "l1_design_lab/librelane",
+    "source_root": ".",
+    "modules": [
+      "librelane"
+    ],
+    "repository": "https://github.com/librelane/librelane",
+    "tag": "3.0.14",
+    "commit": "f24e0ea5db2260719e9a0c7d51d07db74a87fa23",
+    "documentation": "https://github.com/librelane/librelane/tree/3.0.14",
+    "description": "LibreLane提供可配置ASIC RTL到GDS实现流程、步骤和工艺环境，编排Yosys/OpenROAD等外部工具；当前作为SiliconCompiler重叠候选。",
+    "pypi": "https://pypi.org/project/librelane/",
+    "pypi_version": "3.0.14",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/librelane/librelane/releases/latest",
+    "release_url": "https://github.com/librelane/librelane/releases/tag/3.0.14",
+    "release_published_at": "2026-09-06T17:10:01Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "最新官方稳定Release3.0.14；不将选择单一主流程理解为全后端已装。",
+      "全量候选只由固定源声明提取；运行时/商业后端验证限制单独保留，不推断所有候选都已执行。"
+    ]
+  },
+  {
+    "name": "fusesoc",
+    "index": 363,
+    "directory": "l1_design_lab/fusesoc",
+    "source_root": ".",
+    "modules": [
+      "fusesoc"
+    ],
+    "repository": "https://github.com/olofk/fusesoc",
+    "tag": "2.4.7",
+    "commit": "72e9e6b6d416608c89c120341f7ee2ae36e8fd79",
+    "documentation": "https://github.com/olofk/fusesoc/tree/2.4.7",
+    "description": "FuseSoC管理CAPI2 IP core、文件集、目标与版本依赖，将可复用IP组合为EDAM供后端构建执行。",
+    "pypi": "https://pypi.org/project/fusesoc/",
+    "pypi_version": "2.4.7",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/olofk/fusesoc/releases/latest",
+    "release_url": "https://github.com/olofk/fusesoc/releases/tag/2.4.7",
+    "release_published_at": "2026-09-08T13:19:03Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "最新官方稳定Release2.4.7。",
+      "全量候选只由固定源声明提取；运行时/商业后端验证限制单独保留，不推断所有候选都已执行。"
+    ]
+  },
+  {
+    "name": "edalize",
+    "index": 364,
+    "directory": "l1_design_lab/edalize",
+    "source_root": ".",
+    "modules": [
+      "edalize"
+    ],
+    "repository": "https://github.com/olofk/edalize",
+    "tag": "v0.6.7",
+    "commit": "082e51f6fa3327086e0afdb1061fbef34e9c9325",
+    "documentation": "https://github.com/olofk/edalize/tree/v0.6.7",
+    "description": "Edalize接收EDAM源文件/参数/目标配置，通过统一flow及tool接口生成并执行仿真、综合和实现工具命令。",
+    "pypi": "https://pypi.org/project/edalize/",
+    "pypi_version": "0.6.8",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/olofk/edalize/releases/latest",
+    "release_url": "https://github.com/olofk/edalize/releases/tag/v0.6.7",
+    "release_published_at": "2026-04-20T21:04:46Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "最新官方Release0.6.7，PyPI0.6.8差异保留；采用已发布Git源码0.6.7，新Sim flow API优先，旧tool API已弃用。",
+      "全量候选只由固定源声明提取；运行时/商业后端验证限制单独保留，不推断所有候选都已执行。"
+    ]
+  },
+  {
+    "name": "laygo2",
+    "index": 365,
+    "directory": "l1_design_lab/laygo2",
+    "source_root": ".",
+    "modules": [
+      "laygo2"
+    ],
+    "repository": "https://github.com/niftylab/laygo2",
+    "tag": "stable-230804",
+    "commit": "9a736b929590d47fe8b7a9c91510fb39d3ff8dba",
+    "documentation": "https://github.com/niftylab/laygo2/tree/stable-230804",
+    "description": "laygo2基于模板、抽象栅格、实例/引脚及布线构建参数化定制IC版图，可导出多种EDA数据格式。",
+    "pypi": "https://pypi.org/project/laygo2/",
+    "pypi_version": "0.6.9",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/niftylab/laygo2/releases/latest",
+    "release_url": "https://github.com/niftylab/laygo2/releases/tag/stable-230804",
+    "release_published_at": "2023-08-04T14:08:24Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "最新官方GitHubRelease stable-230804，其setup.py实际版本0.5.5；PyPI0.6.9差异记录，运行依照发布源码版本0.5.5。",
+      "全量候选只由固定源声明提取；运行时/商业后端验证限制单独保留，不推断所有候选都已执行。"
+    ]
+  },
+  {
+    "name": "ALIGN-analoglayout",
+    "index": 366,
+    "directory": "l1_design_lab/ALIGN-release",
+    "source_root": ".",
+    "modules": [
+      "align"
+    ],
+    "repository": "https://github.com/ALIGN-analoglayout/ALIGN-public",
+    "tag": "v1.0",
+    "commit": "da06edc00d1fd5119f6fd4e0142caf5a130306f4",
+    "documentation": "https://github.com/ALIGN-analoglayout/ALIGN-public/tree/v1.0",
+    "description": "ALIGN由晶体管级SPICE网表识别电路结构、产生布局约束和器件原语，并调用布局布线后台生成模拟版图。",
+    "pypi": "",
+    "pypi_version": "",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/ALIGN-analoglayout/ALIGN-public/releases/latest",
+    "release_url": "https://github.com/ALIGN-analoglayout/ALIGN-public/releases/tag/v1.0",
+    "release_published_at": "2020-08-24T21:16:46Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "最新官方GitHubRelease v1.0，源码__version__0.9.8；同名PyPI align是无关语言学包，链接留空。Windows测试gold文件含<>非法路径，使用WSL Git生成仅align/docs/examples/pdks/bin的稀疏工作树，全部align运行库保留且git tracked clean；未修改源文件。",
+      "全量候选只由固定源声明提取；运行时/商业后端验证限制单独保留，不推断所有候选都已执行。"
+    ]
+  }
+]

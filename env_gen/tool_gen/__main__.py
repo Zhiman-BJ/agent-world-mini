@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from utils.search_agent.codex import CodexAgentClient
 
 from .compiler import ToolGenerator
+from .delivery import publish
 
 
 DEFAULT_TOOL_MODEL = "gpt-5.6-sol"
+DEFAULT_OUTPUT_ROOT = Path(
+    os.environ.get("TOOLGEN_RESULTS_ROOT", "/data/agentworld-toolgen-results")
+)
 
 
 def _load_json(path: Path) -> Any:
@@ -87,6 +92,12 @@ def main() -> None:
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--max-repairs", type=int, default=1)
     parser.add_argument("--software-repair-attempts", type=int, default=3)
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="工具、环境、软件 Profile 和绑定文件的正式交付目录",
+    )
     arguments = parser.parse_args()
 
     tools = _reference_tools(
@@ -104,7 +115,7 @@ def main() -> None:
         model=arguments.model,
         timeout_seconds=arguments.timeout_seconds,
         sandbox="workspace-write",
-        enable_web_search=False,
+        enable_web_search=True,
         network_access=True,
         reasoning_effort=arguments.reasoning_effort,
         log_directory=log_directory,
@@ -113,7 +124,7 @@ def main() -> None:
         model=arguments.model,
         timeout_seconds=arguments.timeout_seconds,
         sandbox="workspace-write",
-        enable_web_search=False,
+        enable_web_search=True,
         network_access=True,
         reasoning_effort=arguments.draft_reasoning_effort,
         log_directory=log_directory,
@@ -128,6 +139,7 @@ def main() -> None:
         arguments.environment,
         tool_hints=tools,
     )
+    delivery = publish(result, arguments.output_root)
     print(
         json.dumps(
             {
@@ -137,6 +149,14 @@ def main() -> None:
                 "action_plan": str(result.action_plan_path),
                 "validation": str(result.validation_path),
                 "grounding": str(result.grounding_path),
+                "delivery": {
+                    "package": str(delivery.package_root),
+                    "tools": str(delivery.tools_root),
+                    "environment": str(delivery.environment_root),
+                    "software_mapping": str(delivery.software_mapping_root),
+                    "binding": str(delivery.binding_path),
+                    "software_profile": delivery.software_profile,
+                },
             },
             ensure_ascii=False,
             indent=2,

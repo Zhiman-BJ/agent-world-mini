@@ -1,0 +1,9 @@
+# Python 3.12.4; tested in .venv-scenario-mesh
+markdown-it-py==4.2.0
+mdurl==0.1.2
+meshio==5.3.5
+numpy==2.5.3
+pygments==2.21.0
+rich==15.0.0
+scikit-fem==12.0.2
+scipy==1.18.1

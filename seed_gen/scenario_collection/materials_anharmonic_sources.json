@@ -1,0 +1,27 @@
+[
+  {
+    "name": "hiphive",
+    "index": 24,
+    "tag": "1.5",
+    "commit": "1c4dbc710081e9128e657ffa2d64f67abe71d078",
+    "directory": "hiphive",
+    "modules": [
+      "hiphive"
+    ],
+    "repository": "https://gitlab.com/materials-modeling/hiphive",
+    "documentation": "https://hiphive.materialsmodeling.org/",
+    "pypi": "https://pypi.org/project/hiphive/",
+    "pypi_version": "1.5",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_api": "https://gitlab.com/api/v4/projects/materials-modeling%2Fhiphive/releases",
+    "release_url": "https://gitlab.com/materials-modeling/hiphive/-/releases/1.5",
+    "release_published_at": "2025-07-28T22:00:51.000Z",
+    "selection_rule": "Latest official GitLab release1.5 agrees with current PyPI stable version; annotated tag peeled and remote verified.",
+    "description": "hiPhive 使用晶体对称性和高阶簇展开从原子位移与力数据拟合力常数，提供训练结构容器、力常数势、ASE计算器及phonopy/phono3py格式转换，可用于晶格动力学和非谐模型构建。",
+    "notes": [
+      "本场景候选角色为力常数拟合；若已有发布示例力数据，优先phono3py直接生成，避免额外模型拟合链。",
+      "ShakeNBreak内部rattle使用hiphive，但这不等于本场景已验证力常数拟合。"
+    ]
+  }
+]

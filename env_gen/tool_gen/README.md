@@ -27,15 +27,18 @@ provenance/*_profile.json           字段、关系、质量和来源画像
 2. Sol Agent 先盘点环境支持的完整工作面：按键读取、查询筛选、统计分析、实体关系、业务状态
    变化、文件处理和跨资产工作流。每项正式能力同时记录现实操作来源和当前环境的执行后端，
    写入 `capability_inventory.json`。
-3. Sol Agent 再把能力整理成 `action_plan.json`。一个工具对应一个完整用户目的；相同目的的
+3. 专业环境的软件计划会解析为共享软件 Profile。Python 版本与依赖规格相同的环境复用同一
+   Profile；依赖组合不同的环境保持隔离，同时共享 uv 和 npm 下载缓存。
+4. Sol Agent 再把能力整理成 `action_plan.json`。一个工具对应一个完整用户目的；相同目的的
    筛选或排序做成参数，目的或副作用不同的动作分别保留。每个动作同时说明操作对象、调用前
    状态和成功后的状态变化。
-4. Python 每次把 5 个相关动作交给 Agent 编写，分别保存到 `drafts/<tool>.json`。这样一个正常
+5. Python 每次把 5 个相关动作交给 Agent 编写，分别保存到 `drafts/<tool>.json`。这样一个正常
    环境即使规划出几十个工具，也只需少量 Agent 会话，并且可以从已有草稿继续。
-5. 某一批缺少草稿时记录进度并继续，最后集中重试一次。
-6. Runtime 在隔离副本中执行草稿里的真实调用，核对返回值、实际状态变化和工具声明的目标
+6. 某一批缺少草稿时记录进度并继续，最后集中重试一次。
+7. Runtime 在隔离副本中执行草稿里的真实调用，核对返回值、实际状态变化和工具声明的目标
    资源。通过验证的工具写入独立的 `tools.json`，现实来源索引写入
    `tool_generation/tool_grounding.json`。
+8. 正式交付将工具、环境状态和软件 Profile 分别发布，并用绑定文件记录三者的对应关系。
 
 例如，工单数据中存在工单、处理人、状态和解决说明，参考系统也支持分配和解决工单，而且
 当前 Record Set 可写，ToolGen 才会生成对应工具。对于 CAD 等专业软件，建模动作需要对应
@@ -57,54 +60,73 @@ provenance/*_profile.json           字段、关系、质量和来源画像
 
 直接处理一个 DataGen 包：
 
-```powershell
-python -m env_gen.tool_gen <环境包目录>
+```bash
+python3 -m env_gen.tool_gen <环境包目录>
 ```
 
 同时使用当前种子中的 MCP 工具说明：
 
-```powershell
-python -m env_gen.tool_gen <环境包目录> `
-  --seed-path seed_gen/data/smithery_140_v1_0824.json `
+```bash
+python3 -m env_gen.tool_gen <环境包目录> \
+  --seed-path seed_gen/data/smithery_140_v1_0824.json \
   --seed-id <global_id>
 ```
 
 也可以直接传一个工具线索数组：
 
-```powershell
-python -m env_gen.tool_gen <环境包目录> --tool-hints hints.json
+```bash
+python3 -m env_gen.tool_gen <环境包目录> --tool-hints hints.json
 ```
+
+批量处理多个环境时使用：
+
+```bash
+agent-world-tool-gen-batch <上游环境目录> <本批次工作目录> --workers 8
+```
+
+批量入口会保存每个环境的日志和心跳状态，隔离单环境失败，并在再次启动时跳过已完成交付、继续未完成环境。服务器部署、查看进度、停止续跑和镜像源配置见
+[`ToolGen 批量运行说明`](BATCH_RUN_ZH.md)。
 
 默认 Agent 是 `gpt-5.6-sol`，使用运行服务器的 Codex 登录配置。盘点、规划、编写和修复
 均允许通过联网命令查阅官方资料、下载软件并探测真实接口；工具操作使用 DataGen 的真实数据。
 
-## 中间产物
+专业环境的软件计划会解析为共享软件 Profile。Python 版本与依赖规格相同的环境复用同一
+Profile；依赖组合不同的环境保持隔离，同时共享 uv 和 npm 下载缓存。Agent 会把软件计划写入
+`tool_generation/software_plan.json`，程序在对应 Profile 中安装依赖。安装失败时，错误日志和
+研究资料会返回给同一个 Agent，由它修正包名、版本或 Python 要求后继续安装；默认最多修复三次，
+可通过 `--software-repair-attempts` 调整。每次进度和最终原因写入 `software_status.json`。
 
-### 软件安装与自动修复
+更换 Python 版本时使用对应版本的独立 Profile。工具验证启动绑定 Profile 中的 Python，业务状态
+仍在任务副本内操作；专业算法必须调用真实接口或处理真实项目文件。软件安装成功只说明运行条件
+满足，工具仍需通过实际调用验证。
 
-Agent 根据上游种子、真实文件和官方接口选择当前环境的软件，写入
-`tool_generation/software_plan.json`。`common_software.json` 提供数值计算、
-表格、PDF、图像和 HDF5 等通用模块；领域核心包由环境自行选择。
+软件环境也可以单独准备或恢复：
 
-主程序在环境包的 `tool_generation/software/` 中安装依赖。安装失败会把
-错误日志、软件计划和上游研究资料交回同一个 Sol Agent。Agent 可以联网查
-包名、版本和 Python 要求、在软件目录安装或探测接口，然后修正计划继续安装。
-默认提供三次安装修复机会，可用 `--software-repair-attempts` 调整。
-每次进度与最终原因写入 `software_status.json`；依赖修复与工具代码修复分别计数。
-
-更换 Python 版本时使用对应版本的独立目录。工具验证启动该目录中的 Python，
-由它加载工具并执行原来的 Runtime 检查。业务状态仍在任务副本里操作；
-`context.software_root` 用于定位 Node 模块和辅助程序。
-
-交付包含 `tool_runtime.json` 和 `tool_runtime/` 中的依赖记录。下游恢复和执行：
-
-```sh
-python -m env_gen.tool_gen.software prepare <环境包>
-python -m env_gen.tool_gen.software exec <环境包> -- <下游脚本.py> <参数>
+```bash
+python3 -m env_gen.tool_gen.software prepare <环境包>
+python3 -m env_gen.tool_gen.software exec <环境包> -- <下游脚本.py> <参数>
 ```
 
-专业算法继续调用其真实接口。安装成功说明软件可用，工具质量还需要根据真实
-调用的返回结果和产物判断。
+服务器默认将正式结果发布到：
+
+```text
+/data/agentworld-toolgen-results/
+├── environments/<package_id>/
+│   ├── binding.json
+│   ├── environment/
+│   ├── tools/
+│   └── software/profile.json
+├── software_profiles/profiles/<profile_id>/
+└── contracts/
+```
+
+每个 `environments/<package_id>/` 都是一个独立交付单元。`binding.json` 保存这个环境内部的
+工具、环境状态和软件映射；共享软件本体仍放在 `software_profiles/profiles/`，多个环境可以复用。
+下游从环境目录里的 `binding.json` 开始加载，不需要自己拼接几个顶层目录。
+下游加载、任务级状态隔离和工具调用方式见
+[`ToolGen 下游交付契约 v1.0`](../../schemas/ToolGen下游交付契约-v1.0.md)。
+
+## 中间产物
 
 ```text
 tool_generation/context.json              Agent 的入口索引

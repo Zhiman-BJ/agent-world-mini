@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -328,6 +329,8 @@ class ToolRuntime:
         still keeps the environment state in its isolated temporary copy; only
         imports and command-line assets come from the selected software profile.
         """
+        if override is None and os.environ.get("TOOLGEN_SOFTWARE_ROOT"):
+            override = Path(os.environ["TOOLGEN_SOFTWARE_ROOT"])
         if override is not None:
             root = override.expanduser().resolve()
             if not root.is_dir():

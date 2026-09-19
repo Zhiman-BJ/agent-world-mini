@@ -1,0 +1,239 @@
+{
+  "schema_version": "1.0",
+  "source": "Codex goal objective supplied by the user on 2026-09-15",
+  "checked_on": "2026-09-15",
+  "general_selection_target": {
+    "min_all_func": 50,
+    "max_all_func": 100,
+    "policy": "每包通常保留 50–100 个函数或类方法；公开 API 不足或继续扩充只会引入重复、内部或长尾接口时允许有据例外。"
+  },
+  "relationship_codes": {
+    "A": "可替代方案",
+    "C": "互补组合",
+    "D": "直接数据传递",
+    "H": "上层封装下层",
+    "I": "通过集成接口连接"
+  },
+  "scenarios": [
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.01 Poisson / Drift-Diffusion",
+      "application": "PN/MOS/diode 基础器件",
+      "scenario_description": "针对 PN 结、二极管或 MOS 结构建立材料区域、掺杂、接触与偏压条件，联立求解泊松方程和载流子漂移-扩散方程，分析器件内部电势、载流子分布及端口电流响应。",
+      "package_combination": "DEVSIM / Sesame",
+      "python_backends": ["devsim", "sesame"],
+      "relationship": "可替代（A）：分别提供漂移-扩散器件求解能力",
+      "task_design": "给定 PN 或 MOS 几何、掺杂和接触条件，建立方程并完成偏压延续扫描；定位并修复不收敛设置，输出 I-V 与内部场分布，并断言残差收敛、电流连续和关键工作点在容差内。"
+    },
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.02 Heterostructure / Quantum Device",
+      "application": "QW/QCL/RTD/HEMT",
+      "scenario_description": "描述量子阱、量子级联激光器、共振隧穿二极管或 HEMT 的多层异质结构，计算能带弯曲、束缚态、波函数与跃迁能量，并比较层厚、组分和偏压变化的影响。",
+      "package_combination": "nextnanopy → nextnano",
+      "python_backends": ["nextnanopy", "nextnano"],
+      "relationship": "上层控制与外部求解（H/I）：nextnanopy 生成输入、调度并解析 nextnano",
+      "task_design": "修改异质层厚度或组分，使指定束缚态跃迁能接近目标值；生成参数扫描输入并解析固定的已完成结果，输出最佳结构，断言跃迁误差、束缚态数量和参数范围满足约束。"
+    },
+    {
+      "l2": "02.01 TCAD",
+      "l3": "02.01.03 Solar / Optoelectronic Device",
+      "application": "solar cell / QW solar cell",
+      "scenario_description": "对单结、多结或含量子阱的太阳能电池进行层结构、材料光学性质与载流子输运的耦合建模，评估吸收、量子效率、I-V 特性及能量转换效率。",
+      "package_combination": "Solcore",
+      "python_backends": ["solcore"],
+      "relationship": "独立综合环境",
+      "task_design": "在给定光谱和材料候选下调整各层材料与厚度，计算吸收、量子效率和 I-V，选择效率最高且满足厚度约束的结构；与基线比较并断言效率提升、功率点和输出单位一致。"
+    },
+    {
+      "l2": "02.02 Carrier",
+      "l3": "02.02.01 Mobility / Scattering",
+      "application": "HEMT/2DEG mobility",
+      "scenario_description": "在 HEMT 或二维电子气材料参数、温度和载流子浓度给定时，分别评估离化杂质、合金无序、界面粗糙及声子等散射机制对总迁移率的限制。",
+      "package_combination": "mobilitypy（可接 openbandparams → TCAD）",
+      "python_backends": ["mobilitypy"],
+      "relationship": "互补（C/D）：材料参数可由上游提供，结果可传给器件模型",
+      "task_design": "扫描温度和二维载流子浓度，分别计算各散射机制与总迁移率，找出不同区间的主导机制；断言 Matthiessen 组合关系成立、迁移率为正且机制切换点可由结果复算。"
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.01 Geometry Construction",
+      "application": "TCAD/FEM 几何",
+      "scenario_description": "把器件截面转化为可计算的几何模型，明确半导体、介质、电极、界面和接触区域，并按结区、薄层及界面等关键尺度设置局部网格约束。",
+      "package_combination": "pygmsh → Gmsh",
+      "python_backends": ["gmsh", "pygmsh"],
+      "relationship": "封装与集成（H/I）：pygmsh 构造几何，Gmsh 生成网格",
+      "task_design": "根据尺寸表建立 MOS 截面，标记半导体、氧化层、栅和接触边界，并在界面局部细化网格；断言区域尺寸、物理组、单元质量和关键位置网格尺度符合要求。"
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.02 Mesh Interchange",
+      "application": "solver 间 mesh 传递",
+      "scenario_description": "在网格生成器与 TCAD、有限元求解器之间转换网格文件，同时保持节点、单元、边界标签和物理分组的对应关系，使同一器件几何可被下游求解器正确识别。",
+      "package_combination": "Gmsh → meshio → 下游求解器",
+      "python_backends": ["meshio"],
+      "relationship": "直接数据传递（D）：转换 Gmsh 网格并保留求解器所需标签",
+      "task_design": "把带物理分组的 Gmsh 网格转换为目标格式，再读回核对节点、单元类型、单元数量和区域标签；断言关键 physical group 未丢失且转换前后拓扑统计一致。"
+    },
+    {
+      "l2": "02.03 Mesh/PDE",
+      "l3": "02.03.03 Generic FEM/PDE",
+      "application": "自定义 electrothermal/PDE",
+      "scenario_description": "为标准器件模型之外的静电、导热或电热耦合问题定义弱形式、材料系数、源项与边界条件，在导入网格上组装并求解有限元方程。",
+      "package_combination": "meshio → scikit-fem",
+      "python_backends": ["scikit-fem"],
+      "relationship": "导入与求解（I/D）：meshio 传递网格，scikit-fem 组装 PDE",
+      "task_design": "在固定网格上实现静电或稳态热传导弱形式，修正错误边界标记或系数后求解；输出场分布与通量，断言解析基准误差、守恒残差及网格加密收敛率。"
+    },
+    {
+      "l2": "02.04 SPICE",
+      "l3": "02.04.01 Netlist Execution",
+      "application": "DC/AC/transient",
+      "scenario_description": "围绕器件模型、元件连接和激励构建或读取 SPICE 网表，调用底层电路求解器执行直流工作点、交流小信号或瞬态分析，并解析波形与诊断信息。",
+      "package_combination": "spicelib / PySpice / ngspyce → ngspice/Xyce",
+      "python_backends": ["spicelib", "PySpice", "ngspyce"],
+      "relationship": "前端可替代（A），共同依赖外部 SPICE 求解器（I）",
+      "task_design": "读取含参数或连接错误的网表，依据诊断修复后执行 DC、AC 或瞬态分析并解析波形；断言仿真无错误退出、工作点和频响关键值符合预期。"
+    },
+    {
+      "l2": "02.04 SPICE",
+      "l3": "02.04.02 Parameter Sweep / Monte Carlo",
+      "application": "process/device variation",
+      "scenario_description": "把电阻、电容、器件尺寸或模型参数视为设计变量或随机变量，批量运行参数扫描与蒙特卡洛仿真，评估工艺波动下的性能分布、角落表现和规格良率。",
+      "package_combination": "spicelib → ngspice/Xyce",
+      "python_backends": ["spicelib", "ngspice/Xyce"],
+      "relationship": "调度与外部求解（I）：Python 组织扫描，SPICE 执行仿真",
+      "task_design": "扫描或随机采样 R、C、W、L 等参数，使延迟、增益或功耗满足规格；输出可行参数、最差角和良率统计，断言固定随机种子可复现且所有入选方案通过约束。"
+    },
+    {
+      "l2": "02.05 Circuit",
+      "l3": "02.05.01 Symbolic Analysis",
+      "application": "transfer function、impedance",
+      "scenario_description": "从电路拓扑和符号元件值推导传递函数、输入输出阻抗、极点与零点，保留参数依赖关系，并与数值 SPICE 结果相互校验。",
+      "package_combination": "Lcapy + SPICE",
+      "python_backends": ["lcapy"],
+      "relationship": "互补（C）：符号推导与数值仿真交叉验证",
+      "task_design": "从指定 RLC 电路推导传递函数、阻抗、极点和零点，将元件数值代入后与 SPICE 频响 fixture 对照；断言低高频极限、极点位置和采样频点误差在容差内。"
+    },
+    {
+      "l2": "02.05 Circuit",
+      "l3": "02.05.02 Design Optimization",
+      "application": "corner/performance optimization",
+      "scenario_description": "在多个工艺角、温度和供电条件下统一评估电路性能，将元件或器件参数作为变量，以最差角指标和约束为依据搜索稳健设计。",
+      "package_combination": "PyOPUS + SPICE",
+      "python_backends": ["PyOPUS"],
+      "relationship": "互补（C）：PyOPUS 优化和管理，SPICE 提供性能评估",
+      "task_design": "在多工艺角、温度和电源条件下优化一组电路参数，以最小化最差角偏差或代价；输出最优参数及逐角指标，断言每个硬约束均通过且结果优于基线。"
+    },
+    {
+      "l2": "02.06 RF",
+      "l3": "02.06.01 S-parameter Network Analysis",
+      "application": "RF device/VNA",
+      "scenario_description": "处理 RF 器件或 VNA 测得的多端口 S 参数网络，完成网络级联、参数域转换、增益与稳定性计算，并分析端口匹配随频率的变化。",
+      "package_combination": "scikit-rf",
+      "python_backends": ["scikit-rf"],
+      "relationship": "独立网络分析环境",
+      "task_design": "读取固定 Touchstone 网络，完成级联、S/Z 参数转换、增益和匹配计算，找出满足回波损耗规格的频段；断言端口与频率轴一致、往返转换误差和无源性检查通过。"
+    },
+    {
+      "l2": "02.06 RF",
+      "l3": "02.06.02 Calibration / De-embedding",
+      "application": "wafer probe/VNA",
+      "scenario_description": "利用开路、短路、负载、直通等校准标准估计探针台和测量链路误差盒，从晶圆级原始测量中移除夹具、走线及系统误差，恢复器件本征网络。",
+      "package_combination": "测量标准/原始网络 → scikit-rf",
+      "python_backends": ["scikit-rf"],
+      "relationship": "数据互补（C/D）：测量后端提供标准件和 DUT 原始网络",
+      "task_design": "用固定的开路、短路、负载和直通测量建立校准，再对 DUT 执行去嵌；输出校准后网络，断言标准件残差下降、参考面正确且已知验证网络在容差内恢复。"
+    },
+    {
+      "l2": "02.07 Photonic",
+      "l3": "02.07.01 Circuit-level S Matrix",
+      "application": "PIC network",
+      "scenario_description": "用波导、耦合器、MMI、相移器等组件的散射矩阵搭建光子集成电路网络，按端口连接传播光信号并计算整个电路的波长响应。",
+      "package_combination": "SAX / Simphony",
+      "python_backends": ["sax", "simphony"],
+      "relationship": "可替代（A）：均可进行光子电路级网络建模",
+      "task_design": "连接 MZI、MMI、波导与相移器形成 PIC 网络，调整耦合比或相位使目标波长处达到指定透射和消光比；断言端口连通、谱线目标和功率守恒。"
+    },
+    {
+      "l2": "02.08 FDTD",
+      "l3": "02.08.01 Open-source FDTD",
+      "application": "waveguide/cavity",
+      "scenario_description": "将波导、谐振腔或耦合结构的几何和材料映射到开源时域网格，设置光源、边界与监视器，通过时域电磁传播提取频谱、透射和场分布。",
+      "package_combination": "gdsfactory → Meep",
+      "python_backends": ["meep"],
+      "relationship": "集成（I）：版图/组件几何转换为开源 FDTD 模型",
+      "task_design": "把固定波导或谐振腔组件转换为 FDTD 几何，设置源、边界和监视器并提取透射谱；断言几何映射、能量平衡以及分辨率或仿真时长收敛。"
+    },
+    {
+      "l2": "02.08 FDTD",
+      "l3": "02.08.02 Cloud FDTD",
+      "application": "大规模/优化",
+      "scenario_description": "把较大规模的光子结构、宽带扫描或优化问题提交到云端 FDTD 服务，管理仿真任务、资源与结果，并在成本和精度约束下比较设计候选。",
+      "package_combination": "gdsfactory → Tidy3D",
+      "python_backends": ["tidy3d"],
+      "relationship": "集成（I）：组件几何转换为云端 FDTD 任务",
+      "task_design": "生成满足资源预算的云端 FDTD 配置，并从固定的已完成结果 fixture 比较候选结构的宽带透射；断言任务配置合法、成本估计不超限且入选设计达到光谱目标，不要求在线提交付费任务。"
+    },
+    {
+      "l2": "02.09 FEM",
+      "l3": "02.09.01 Eigenmode",
+      "application": "waveguide mode",
+      "scenario_description": "在波导横截面的折射率与边界条件上求解电磁本征模，得到有效折射率、损耗和模场分布，用于判断导模条件及结构参数敏感性。",
+      "package_combination": "gdsfactory → Femwell",
+      "python_backends": ["femwell"],
+      "relationship": "集成（I）：版图截面转换为有限元本征模模型",
+      "task_design": "扫描波导宽度并求解前若干本征模，选择有效折射率最接近目标且保持单模约束的宽度；断言模式排序稳定、场归一化正确并通过网格收敛检查。"
+    },
+    {
+      "l2": "02.09 FEM",
+      "l3": "02.09.02 EME / propagation",
+      "application": "sectional waveguide propagation",
+      "scenario_description": "把渐变或分段波导沿传播方向切分，在各截面求解局部模式并通过界面模态匹配组合传播，估计长器件或缓变结构的透射与反射。",
+      "package_combination": "EMEPy",
+      "python_backends": ["emepy"],
+      "relationship": "独立 EME 传播环境",
+      "task_design": "把锥形或分段波导切成多个截面，计算局部模式并组合得到总透射与反射；调整分段数直至结果收敛，断言功率守恒和相邻两级离散结果差异低于阈值。"
+    },
+    {
+      "l2": "02.10 Inverse",
+      "l3": "02.10.01 Geometry Inverse Design",
+      "application": "grating/coupler inverse design",
+      "scenario_description": "将光栅、耦合器或其他光子器件表示为可调介电像素或参数化几何，依据电磁响应和梯度迭代更新设计，同时满足制造与尺寸约束。",
+      "package_combination": "ceviche / angler / legume-gme",
+      "python_backends": ["ceviche", "angler", "legume-gme"],
+      "relationship": "可替代或分模型互补（A/C）：提供不同频域、伴随和模态优化路径",
+      "task_design": "从基线光栅或耦合器出发优化介电像素或几何参数，提高目标端口耦合并满足最小特征尺寸；断言目标函数改善、设计变量有界、制造约束和独立复算结果通过。"
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.01 Plasma / Etch Physics",
+      "application": "plasma properties、etch chamber physics",
+      "scenario_description": "根据刻蚀腔体中的气体组成、压力、功率和温度估算等离子体频率、德拜长度、碰撞性等状态量，判断适用的放电与输运物理区间。",
+      "package_combination": "PlasmaPy + Cantera / FiPy",
+      "python_backends": ["plasmapy"],
+      "relationship": "互补（C）：等离子体性质、气相化学和输运 PDE 可串联",
+      "task_design": "根据压力、温度、组分和电子参数计算德拜长度、等离子体频率、碰撞率及无量纲判据，判定放电或输运区间；断言单位换算、阈值分类和物理适用条件一致。"
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.02 Reaction / Gas Chemistry",
+      "application": "CVD/etch gas-phase chemistry",
+      "scenario_description": "使用 CVD 或刻蚀气相反应机理描述组分、热力学和反应动力学，计算不同配比、温度与压力下的平衡或反应历程及关键物种浓度。",
+      "package_combination": "Cantera（可与 PlasmaPy / FiPy 组合）",
+      "python_backends": ["cantera"],
+      "relationship": "独立化学求解；可与等离子体和输运模型互补（C）",
+      "task_design": "调节进气比例和温度，使关键前驱体或副产物浓度达到目标区间，输出平衡或反应历程；断言组分非负、元素守恒、归一化正确且目标物种满足规格。"
+    },
+    {
+      "l2": "02.11 Process Physics",
+      "l3": "02.11.03 Diffusion / Reaction PDE",
+      "application": "diffusion、surface reaction、electrodeposition",
+      "scenario_description": "建立工艺物种在空间中的扩散、迁移与体相或表面反应方程，结合初始条件和边界通量模拟浓度剖面、界面消耗或电沉积随时间的演化。",
+      "package_combination": "几何/网格 → FiPy（可接 Cantera）",
+      "python_backends": ["fipy"],
+      "relationship": "互补与数据传递（C/D）：网格和反应参数进入输运 PDE",
+      "task_design": "调整扩散系数、边界通量或表面反应速率以复现给定浓度剖面或沉积厚度；输出时空场，断言质量守恒、边界条件成立且相对参考曲线误差低于阈值。"
+    }
+  ]
+}

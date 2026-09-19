@@ -1,0 +1,40 @@
+spec: "1.1"
+devices:
+  virtual source monitor:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "SeedLab,VirtualSMU,FIXTURE01,1.0"
+    error:
+      status_register:
+        - q: "*ESR?"
+          command_error: 32
+          query_error: 4
+    properties:
+      voltage:
+        default: 0.0
+        getter:
+          q: "VOLT?"
+          r: "{:.6f}"
+        setter:
+          q: "VOLT {:.6f}"
+        specs:
+          min: 0.0
+          max: 1.5
+          type: float
+      output:
+        default: 0
+        getter:
+          q: "OUTP?"
+          r: "{:d}"
+        setter:
+          q: "OUTP {:d}"
+        specs:
+          valid: [0, 1]
+          type: int
+resources:
+  TCPIP::127.0.0.1::INSTR:
+    device: virtual source monitor

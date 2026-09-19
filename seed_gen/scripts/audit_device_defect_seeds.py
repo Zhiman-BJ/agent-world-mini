@@ -84,14 +84,15 @@ def main():
                         "source_and_subset_checks": "passed", "schema": schema_results,
                         "size_exception": profile.get("target_exception_reason", ""), "runtime_verified": False})
         print(spec["name"], selected[0]["environment"]["nums"], "empty descriptions:", schema_results["selected"]["empty_description_violations"])
-    # Collection-level identity audit includes existing selected packages.
+    # Composite workflow bundles intentionally reuse package environments. Audit
+    # identity uniqueness only across the package-level outputs named by profiles.
     ids, indexes = [], []
-    for path in Path("seed_gen/pypi_outputs").glob("*.json"):
+    for profile_path in Path("seed_gen/pypi_selection_profiles").glob("*.json"):
+        path = Path("seed_gen/pypi_outputs") / profile_path.name
         payload = read(path)
-        if isinstance(payload, list):
-            for seed in payload:
-                ids.append(seed["global_id"])
-                indexes.append(seed["environment"]["basic_info"]["index"])
+        for seed in payload:
+            ids.append(seed["global_id"])
+            indexes.append(seed["environment"]["basic_info"]["index"])
     assert all(n == 1 for n in Counter(ids).values())
     assert all(n == 1 for n in Counter(indexes).values())
     artifact = {"checked_on": "2026-09-10", "manifest": "seed_gen/pypi_device_defect_sources.json",

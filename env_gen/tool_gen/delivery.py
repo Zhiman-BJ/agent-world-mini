@@ -53,6 +53,30 @@ def _environment_validation_path(package_root: Path) -> Path:
     return path
 
 
+def _publish_software_profile(
+    source: Path,
+    destination: Path,
+    requirements: Path,
+) -> None:
+    """Publish one immutable profile without racing another environment."""
+
+    if destination.exists():
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix=f".{destination.name}-", dir=destination.parent
+    ) as temporary:
+        staged = Path(temporary) / destination.name
+        shutil.copytree(source, staged, symlinks=True)
+        if requirements.is_file():
+            shutil.copy2(requirements, staged / "requirements.txt")
+        try:
+            staged.rename(destination)
+        except OSError:
+            if not destination.is_dir():
+                raise
+
+
 def _software_profile_id(software: dict[str, object]) -> str:
     profile = software.get("profile_id")
     if profile:
@@ -139,12 +163,12 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
         _replace_directory(staged_environment, environment_root)
         _replace_directory(staged_software, software_mapping_root)
 
-    if software_source and software_profile_root and not software_profile_root.exists():
-        software_profile_root.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(software_source, software_profile_root, symlinks=True)
-        requirements = source_package_root / "tool_runtime/requirements.txt"
-        if requirements.is_file():
-            shutil.copy2(requirements, software_profile_root / "requirements.txt")
+    if software_source and software_profile_root:
+        _publish_software_profile(
+            software_source,
+            software_profile_root,
+            source_package_root / "tool_runtime/requirements.txt",
+        )
 
     binding_path = package_root / "binding.json"
     binding = {

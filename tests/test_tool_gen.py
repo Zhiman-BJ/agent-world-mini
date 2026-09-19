@@ -551,6 +551,29 @@ class ToolGenV2Tests(unittest.TestCase):
             reports = ToolGenerator(FakeAgent())._validate(package, environment, drafts)
             self.assertEqual([item["status"] for item in reports], ["rejected", "rejected"])
 
+    def test_targeted_validation_runs_only_the_requested_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent(), max_repairs=0).generate(package)
+            drafts = [json.loads(path.read_text(encoding="utf-8")) for path in
+                      sorted((package / "tool_generation/drafts").glob("*.json"))]
+            environment = json.loads((package / "environment.json").read_text(encoding="utf-8"))
+            reports = ToolGenerator(FakeAgent())._validate_local(
+                package,
+                environment,
+                drafts,
+                target_tools={"resolve_ticket"},
+                apply_dependency_status=False,
+            )
+            self.assertEqual([item["tool"] for item in reports], ["resolve_ticket"])
+            self.assertEqual(reports[0]["status"], "passed")
+
+    def test_action_tests_cover_real_processing_branches(self) -> None:
+        prompt = ToolGenerator._build_action_batch_prompt(Path("environment"), [])
+        self.assertIn("不同主要处理逻辑的代表情况", prompt)
+        self.assertIn("相同处理逻辑只保留一个代表样例", prompt)
+        self.assertIn("缺失文件等业务失败", prompt)
+
     def test_batch_retries_draft_when_usage_conditions_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             draft_path = Path(temporary) / "get_ticket.json"

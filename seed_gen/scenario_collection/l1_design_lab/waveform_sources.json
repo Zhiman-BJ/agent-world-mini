@@ -1,0 +1,52 @@
+[
+  {
+    "name": "vcdvcd",
+    "index": 301,
+    "directory": "l1_design_lab/vcdvcd",
+    "source_root": ".",
+    "modules": [
+      "vcdvcd"
+    ],
+    "repository": "https://github.com/cirosantilli/vcdvcd",
+    "tag": "v2.6.0",
+    "documentation": "https://github.com/cirosantilli/vcdvcd",
+    "description": "vcdvcd读取Verilog值变化转储VCD，提供信号名、位宽、时间戳和值变更索引及流式回调，用于波形调试、信号筛选和首次分歧定位；它不运行RTL仿真。",
+    "pypi": "https://pypi.org/project/vcdvcd/",
+    "pypi_version": "2.6.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/cirosantilli/vcdvcd/releases/latest",
+    "release_url": "https://github.com/cirosantilli/vcdvcd/tree/v2.6.0",
+    "release_published_at": "2025-10-19T19:53:24.703331Z",
+    "github_prerelease": false,
+    "notes": [
+      "官方无GitHub Release；git ls-remote核对v2.6.0标签指向515273543d74da21588785a2b192159c8ac7a66a，与PyPI2.6.0匹配。发布日期记录PyPI上传日期。"
+    ],
+    "selection_rule": "Latest stable official GitHub Release; if absent, latest PyPI distribution with matching official tag.",
+    "commit": "515273543d74da21588785a2b192159c8ac7a66a"
+  },
+  {
+    "name": "pyvcd",
+    "index": 302,
+    "directory": "l1_design_lab/pyvcd",
+    "source_root": "src",
+    "modules": [
+      "vcd"
+    ],
+    "repository": "https://github.com/SanDisk-Open-Source/pyvcd",
+    "tag": "0.5.0",
+    "documentation": "https://pyvcd.readthedocs.io/en/latest/",
+    "description": "pyvcd提供VCD写入、流式标记读取和GTKWave查看配置生成，处理信号声明、时间单位和按时间排序的值变更；可用于保存实验或仿真的数字波形。",
+    "pypi": "https://pypi.org/project/pyvcd/",
+    "pypi_version": "0.5.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/SanDisk-Open-Source/pyvcd/releases/latest",
+    "release_url": "https://github.com/SanDisk-Open-Source/pyvcd/releases/tag/0.5.0",
+    "release_published_at": "2026-08-11T18:41:29Z",
+    "github_prerelease": false,
+    "notes": [
+      "在线latest文档为0.5.1.dev0，签名与参考工具固定官方0.5.0 Release。"
+    ],
+    "selection_rule": "Latest stable official GitHub Release; if absent, latest PyPI distribution with matching official tag.",
+    "commit": "2bb6080c036b5b7d77f55bd2ae61579ef0dc43c7"
+  }
+]
