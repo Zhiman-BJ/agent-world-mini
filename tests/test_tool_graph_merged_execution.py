@@ -11,6 +11,32 @@ from task_gen.tool_graph.step_2_chain_sample import sample_chains
 
 
 class MergedExecutionTest(unittest.TestCase):
+    def test_repairs_stop_after_three_and_reset_for_new_round(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'env/state').mkdir(parents=True)
+            actions = iter(['execute', *(['repair'] * 4), 'execute', *(['repair'] * 4), 'reject'])
+            calls, blocked = {}, []
+            def run(client, prompt, working_directory):
+                client.session_id = str(working_directory)
+                if working_directory.parent.name == 'preparation':
+                    if 'repair 次数已用完' in prompt:
+                        blocked.append(prompt)
+                    action = next(actions)
+                    return json.dumps({'action': action, 'objective': 'Goal', 'reason': 'Review',
+                        'feedback': 'Fix' if action == 'repair' else '', 'score': 0})
+                key = working_directory.parent.name
+                calls[key] = calls.get(key, 0) + 1
+                return json.dumps({'reason': 'No progress', 'completed': False, 'answer': 'Incomplete'})
+            config = Config(environment_dir=root / 'env')
+            tool = {'name': 'lookup', 'inputSchema': {'type': 'object'},
+                    'outputSchema': {'type': 'object'}, 'internal': {'code': 'def run(a, c): return {}'}}
+            with patch('task_gen.tool_graph.execution_agent._ReviewClient.run', new=run):
+                execute_candidates({'config': config, 'run_dir': root / 'run', 'environment': {'tools': [tool]},
+                    'tasks': [{'task_id': 'task1', 'chain': [], 'objective': 'Goal'}]})
+            self.assertEqual(calls, {'01': 4, '02': 4})
+            self.assertEqual(len(blocked), 2)
+
     def test_objectives_enter_step3_without_review_or_final_selection(self):
         candidates = [{'chain': ['lookup'], 'objective': str(i), 'score': 1} for i in range(3)]
         with patch('task_gen.tool_graph.step_2_chain_sample._sample_candidates', return_value=([], {})), \

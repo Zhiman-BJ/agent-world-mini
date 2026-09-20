@@ -504,6 +504,7 @@ import os
 import sqlite3
 from pathlib import Path
 import resource
+import shutil
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -531,12 +532,23 @@ if not payload.get('software_prefix'):
 else:
     sys.prefix = sys.exec_prefix = payload['software_prefix']
     sys.path.extend(payload['software_import_paths'])
+scratch = None
 try:
+    # Native tools may resolve their UID even in an isolated filesystem.
+    Path('/etc').mkdir(exist_ok=True)
+    Path('/etc/passwd').write_text(f'tool:x:{os.getuid()}:{os.getgid()}:tool:/tmp:/bin/sh\n')
+    if payload.get('software_prefix'):
+        # XLA sizes its own pools from CPU affinity and ignores BLAS thread limits.
+        os.sched_setaffinity(0, {payload['cpu_id']})
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
     resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write_limit, write_limit))
     resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+    # Atomic publication must stay on the state mount; /tmp is a separate tmpfs.
+    scratch = tempfile.mkdtemp(prefix='.tool-scratch-', dir='/workspace')
+    tempfile.tempdir = scratch
+    os.environ['TMPDIR'] = scratch
     runtime = {}
     exec(payload["context_source"], runtime)
     namespace = {"json": json, "sqlite3": sqlite3}
@@ -555,6 +567,9 @@ try:
     response = {"result": result, "error": None}
 except BaseException as error:
     response = {"result": None, "error": f"{type(error).__name__}: {error}"}
+finally:
+    if scratch is not None:
+        shutil.rmtree(scratch)
 json.dump(response, sys.stdout, ensure_ascii=False)
 """
 _MAX_SANDBOX_OUTPUT_BYTES = 16 * 1024 * 1024
@@ -703,6 +718,8 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--setenv", "OPENBLAS_NUM_THREADS", "1",
         "--setenv", "OMP_NUM_THREADS", "1",
     ]
+    # Native simulation launchers use /bin/sh internally; this is not an agent tool.
+    command.extend(['--ro-bind', str(Path('/bin/sh').resolve()), '/bin/sh'])
     if software_root is not None and not software:
         software_root = Path(software_root).expanduser().resolve()
         if not software_root.is_dir():
@@ -741,6 +758,7 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "software_root": '/software' if software or software_root is not None else None,
         "software_prefix": software_prefix,
         "software_import_paths": software_imports,
+        "cpu_id": sorted(os.sched_getaffinity(0))[os.getpid() % len(os.sched_getaffinity(0))],
     }, ensure_ascii=False)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:

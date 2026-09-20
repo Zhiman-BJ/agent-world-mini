@@ -95,6 +95,7 @@ class _Session:
         _write(root / 'server.json', server)
         self.budget = int(config.llm.get('timeout_seconds', 1800))
         self.elapsed, self.turn = 0.0, 0
+        self.last_usage = {}
         self.client = _ReviewClient(server_config=root / 'server.json', model=config.llm.get('model'),
             codex_home=config.llm.get('codex_home'), reasoning_effort=config.llm.get('reasoning_effort'),
             timeout_seconds=self.budget, enable_web_search=phase == 'preparation' and config.execution.get('enable_web_search', True),
@@ -133,7 +134,12 @@ class _Session:
                             events.append(event)
                     except json.JSONDecodeError:
                         pass
-                usage = next((e.get('usage', {}) for e in reversed(events) if e.get('type') == 'turn.completed'), {})
+                cumulative_usage = next((e.get('usage', {}) for e in reversed(events) if e.get('type') == 'turn.completed'), {})
+                # Persistent Codex threads emit lifetime totals, not this turn's delta.
+                usage = {k: v - self.last_usage.get(k, 0) if v >= self.last_usage.get(k, 0) else v
+                         for k, v in cumulative_usage.items() if isinstance(v, (int, float))}
+                if cumulative_usage:
+                    self.last_usage = cumulative_usage
                 if result is not None:
                     result = InferenceResult(text, usage, result.model)
                 _write(self.root / f'turn_{self.turn:02d}_result.json',
@@ -141,7 +147,9 @@ class _Session:
                 _record_call(_TRACE_CONTEXT.get(), index=self.index, prompt=prompt, system_prompt=None, history=(),
                     backend='codex-execution', model=self.config.llm.get('model'), started_at=started_at, started=started,
                     result=result, error=failure, agent_log={**logs, 'events': events, 'phase': self.phase,
-                    'session_id': self.client.session_id, 'directory': str(self.root), 'tool_calls': _records(self.root / 'tool_calls.jsonl')})
+                    'session_id': self.client.session_id, 'directory': str(self.root),
+                    'cumulative_usage': cumulative_usage, 'usage_scope': 'turn_delta',
+                    'tool_calls': _records(self.root / 'tool_calls.jsonl')})
             if failure is None:
                 return payload
             if attempt == self.config.execution.get('retry_count', 3) or not self.client.session_id:
@@ -160,8 +168,8 @@ def execute_candidates(stage_input):
     if not candidates:
         return {'tasks': []}
     settings = {k: config.execution.get(k, v) for k, v in
-                (('max_rounds', 3), ('target_tool_calls', 20), ('min_tool_calls', 10), ('max_concurrency', 4), ('retry_count', 3))}
-    if any(type(v) is not int or v < (0 if k == 'retry_count' else 1) for k, v in settings.items()):
+                (('max_rounds', 3), ('max_repairs_per_round', 3), ('target_tool_calls', 20), ('min_tool_calls', 10), ('max_concurrency', 4), ('retry_count', 3))}
+    if any(type(v) is not int or v < (0 if k in ('retry_count', 'max_repairs_per_round') else 1) for k, v in settings.items()):
         raise ValueError('轮次、长度、并发必须为正整数，重试次数必须为非负整数')
     if settings['target_tool_calls'] < settings['min_tool_calls']:
         raise ValueError('目标长度不能小于接收下限')
@@ -202,8 +210,12 @@ def execute_candidates(stage_input):
                         error = '接收或修复需要已有执行轮且目标保持不变；改变目标必须 execute'
                     elif action == 'accept' and (payload.get('completed') is not True or payload.get('error') or len(calls) < settings['min_tool_calls']):
                         error = '本轮未完整交付、运行异常或有效调用不足接收下限'
+                    elif action == 'repair' and attempts[-1]['repairs'] >= settings['max_repairs_per_round']:
+                        error = '本轮 repair 次数已用完；只能接收、拒绝，或在剩余完整执行轮次内调整目标重新执行，不能降低验收要求'
                     elif action == 'repair' and (not worker.client.session_id or worker.elapsed >= worker.budget):
                         error = '本轮会话无法继续，不能 repair'
+                    elif action == 'repair' and len(_records(worker.root / 'tool_calls.jsonl')) >= config.execution.get('agent_max_tool_calls', 100):
+                        error = '本轮工具预算已耗尽，续接不会恢复额度，不能 repair；只能按原定目标调整边界决定新轮或拒绝'
                 if error:
                     invalid += 1
                     if invalid > settings['retry_count']:
@@ -220,9 +232,10 @@ def execute_candidates(stage_input):
                 if action == 'execute':
                     objective = decision['objective']
                     worker = _Session(root / 'rounds' / f'{len(attempts) + 1:02d}', root / 'initial', environment, tools, config, 'execution', ids.index(candidate['task_id']), runtime)
-                    attempts.append({'round': len(attempts) + 1, 'objective': objective, 'directory': str(worker.root.relative_to(stage_input['run_dir'].resolve()))})
+                    attempts.append({'round': len(attempts) + 1, 'repairs': 0, 'objective': objective, 'directory': str(worker.root.relative_to(stage_input['run_dir'].resolve()))})
                     worker_prompt = execution_prompt({**candidate, 'objective': objective}, environment)
                 else:
+                    attempts[-1]['repairs'] += 1
                     worker_prompt = '请在本轮原目标下处理以下复核反馈，补查所需事实，修复并核验后返回原定JSON：\n' + decision['feedback']
                 try:
                     payload = worker.ask(worker_prompt)
@@ -234,6 +247,9 @@ def execute_candidates(stage_input):
                 _write(worker.root / 'result.json', payload)
                 prompt = '以下是本轮实际执行结果，请按第四至第六步复核并决定下一步。被裁剪内容不是完整证据，有缺口应要求本轮执行者补充核验。\n' + json.dumps(
                     {'objective': objective, 'round': len(attempts), 'remaining_rounds': settings['max_rounds'] - len(attempts),
+                     'remaining_repairs': settings['max_repairs_per_round'] - attempts[-1]['repairs'],
+                     'remaining_tool_calls': max(0, config.execution.get('agent_max_tool_calls', 100) - len(records)),
+                     'tool_budget_resets_on_resume': False,
                      'valid_call_count': attempts[-1]['calls'], 'result': payload,
                      'tool_calls': _bounded_calls(records, config.execution.get('tool_result_max_bytes', 65536))},
                     ensure_ascii=False, separators=(',', ':'))

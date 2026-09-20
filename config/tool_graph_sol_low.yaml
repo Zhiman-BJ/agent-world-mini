@@ -29,6 +29,7 @@ planning:
   diversity_lambda: 10
 execution:
   max_rounds: 3
+  max_repairs_per_round: 3
   target_tool_calls: 20
   min_tool_calls: 10
   enable_web_search: true  # Step3 公开业务资料参考，默认开启
