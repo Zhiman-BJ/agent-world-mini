@@ -35,6 +35,7 @@ def measure(run):
     tasks = json.loads((run / 'tasks.json').read_text()) if (run / 'tasks.json').exists() else []
     results = [json.loads(p.read_text()) for p in (run / 'tasks').glob('*/agent_result.json')]
     return {'run': str(run), 'status': meta['status'], 'error': meta.get('error'),
+        'created_at': meta.get('created_at'), 'completed_at': meta.get('completed_at'),
         'tasks': len(tasks), 'step3_attempted': len(results),
         'step3_accepted': sum(t['execution']['success'] for t in results),
         'stages': dict(stages), 'stage_seconds': meta.get('stage_timings_seconds', {}),
@@ -60,6 +61,27 @@ def main():
         o, n = r['old'], r['new']
         if n:
             lines.append(f"| {r['environment']} | {n['status']} | {o['tasks']}/{n['tasks']} | {o['step3_attempted']}/{n['step3_attempted']} | {o['total']['input']:,}/{n['total']['input']:,} | {n['total']['missing_usage']} |")
+    lines += ['', '## 阶段与缓存明细', '',
+              '时间为 run.json 的阶段墙钟时间；LLM 调用时长相加会重叠，不当作运行耗时。未知缓存量计为 0 是统计缺口，不代表实际没有命中。', '',
+              '| 环境 | 版本 | 阶段 | 输入 | 已知缓存输入 | 输出 | 阶段秒数 | 缺失usage调用 |',
+              '|---|---|---|---:|---:|---:|---:|---:|']
+    for r in rows:
+        for label in ('old', 'new'):
+            run = r[label]
+            if not run:
+                continue
+            for stage, s in run['stages'].items():
+                seconds = run['stage_seconds'].get(stage)
+                lines.append(f"| {r['environment']} | {label} | {stage} | {s['input']:,} | {s['cached']:,} | {s['output']:,} | {seconds if seconds is not None else '进行中'} | {s['missing_usage']} |")
+    complete = [r for r in rows if r['new'] and r['new']['status'] == 'completed']
+    lines += ['', '## 已完成环境的汇总', '']
+    for label in ('old', 'new'):
+        runs = [r[label] for r in complete]
+        totals = {k: sum(r['total'][k] for r in runs) for k in ('input', 'cached', 'output', 'missing_usage', 'cache_unknown')}
+        count = sum(r['tasks'] for r in runs)
+        lines += [f"- {label}：{len(runs)} 个环境，{count} 条最终任务；输入 {totals['input']:,}，已知缓存输入 {totals['cached']:,}，输出 {totals['output']:,}；缺失usage {totals['missing_usage']} 次，缓存字段缺失 {totals['cache_unknown']} 次。",
+                  f"  以每百万 token 的未缓存输入价 P、缓存输入价 C、输出价 O 计，已记录费用为 {(totals['input']-totals['cached'])/1e6:.6f}P + {totals['cached']/1e6:.6f}C + {totals['output']/1e6:.6f}O。"]
+    lines += ['', '代理服务未提供可核实的 gpt-5.6-sol 计费映射，本报告不将别的型号官网价格当作实际扣费。缺失usage及未知缓存会影响上述估算；旧新版产量不同，应同时比较每条最终任务成本。']
     (OUT / 'cost_comparison.md').write_text('\n'.join(lines)+'\n')
     texts = ['# 新版任务文本', '']
     for r in rows:
