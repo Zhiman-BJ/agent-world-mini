@@ -12,6 +12,40 @@ from task_gen.tool_graph.contracts import Config
 from task_gen.tool_graph.llm import capture_calls
 
 
+def summarize(directory):
+    rows = []
+    for result in sorted(directory.glob('tasks/*/agent_result.json')):
+        value = json.loads(result.read_text())
+        sessions, searches = {}, set()
+        for log in sorted(result.parent.glob('rounds/*/logs/run_*/stdout.log')):
+            session = None
+            for line in log.read_text().splitlines():
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if event.get('type') == 'thread.started':
+                    session = event['thread_id']
+                    sessions.setdefault(session, {})
+                if event.get('type') == 'turn.completed' and session:
+                    sessions[session] = event['usage']
+                item = event.get('item', {})
+                if event.get('type') == 'item.completed' and item.get('type') == 'web_search':
+                    searches.add((session, item.get('id')))
+        usage = {k: sum(u.get(k, 0) for u in sessions.values()) for k in
+                 ('input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens')}
+        usage['uncached_input_tokens'] = usage['input_tokens'] - usage['cached_input_tokens']
+        rows.append({'task_id': value['task_id'], 'accepted': value['execution']['success'],
+            'calls': len(value['execution']['tool_calls']), 'attempts': len(value['execution']['attempts']),
+            'sessions': len(sessions), 'unmetered_sessions': sum(not u for u in sessions.values()),
+            'searches': len(searches), **usage})
+    agent._write(directory / 'metrics.json', {'tasks': rows,
+        'total': {k: sum(row[k] for row in rows) for k in
+                  ('input_tokens', 'cached_input_tokens', 'uncached_input_tokens', 'output_tokens')},
+        'progress': json.loads((directory / 'step3_progress.json').read_text())})
+    return rows
+
+
 def main():
     source = sorted((ROOT.parent.parent / 'runs/semiconductor_160_20260919_step3_514331a/semiconductor_scenario_01_06_01').glob('*/run.json'))[-1].parent
     bundle = json.loads((source / 'intermediate/step_2_bundle.json').read_text())
@@ -40,6 +74,7 @@ def main():
         result = agent.execute_candidates(run_io.to_execute_chains_input(bundle, config, directory))
     agent._write(directory / 'output.json', result)
     agent._write(directory / 'status.json', {'status': 'completed', 'seconds': time.monotonic()-started})
+    summarize(directory)
     print(json.dumps(json.loads((directory / 'step3_progress.json').read_text()), ensure_ascii=False))
 
 
