@@ -78,15 +78,19 @@ def selected_calls(payload, records, tools):
     if indices != sorted(set(indices)):
         raise ValueError('call_indices 必须按实际调用顺序排列且不能重复')
     calls = [records[i - 1] for i in indices]
-    if len(meaningful_calls(calls, tools)) != len(calls):
-        raise ValueError('call_indices 包含非法调用或服务失败，不能计入业务链')
+    invalid = [f"{i}:{records[i - 1]['tool']}" for i in indices
+               if not meaningful_calls([records[i - 1]], tools)]
+    if invalid:
+        raise ValueError('以下编号不是合法环境业务调用（辅助工具、参数错误或服务失败），不能计入call_indices：'
+                         + ', '.join(invalid) + '。其余有效负结果不因此被排除。')
     return calls
 
 
-def review_prompt(records):
+def review_prompt(records, tools):
     prompt = (Path(__file__).parent / 'prompts/step3_review.txt').read_text()
     return prompt + '\n本会话真实调用编号（完整结果见会话中的工具回复）：\n' + json.dumps(
-        [{'index': i, 'tool': r['tool'], 'arguments': r['arguments'], 'error': r.get('error')}
+        [{'index': i, 'tool': r['tool'], 'arguments': r['arguments'], 'error': r.get('error'),
+          'eligible_business_call': bool(meaningful_calls([r], tools))}
          for i, r in enumerate(records, 1)], ensure_ascii=False, separators=(',', ':'))
 
 
@@ -178,7 +182,7 @@ class _Session:
                 raise failure
             prompt = f'上次调用或输出发生错误：{failure}。根据保留的会话与实际状态继续处理并按原定结构返回。'
             if self.phase == 'review':
-                prompt += '\n' + review_prompt(_records(self.root / 'tool_calls.jsonl'))
+                prompt += '\n' + review_prompt(_records(self.root / 'tool_calls.jsonl'), self.tools)
 
 
 def execute_candidates(stage_input):
@@ -237,7 +241,7 @@ def execute_candidates(stage_input):
                 payload = worker.ask(prompt)
                 _write(worker.root / f'attempt_{round_index + 1:02d}_draft.json', payload)
                 worker.phase = 'review'
-                payload = worker.ask(review_prompt(_records(worker.root / 'tool_calls.jsonl')))
+                payload = worker.ask(review_prompt(_records(worker.root / 'tool_calls.jsonl'), tools))
                 remaining = worker.remaining_seconds
                 records = _records(worker.root / 'tool_calls.jsonl')
                 calls = selected_calls(payload, records, tools)

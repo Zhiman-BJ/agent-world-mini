@@ -2,9 +2,10 @@
 import json
 from pathlib import Path
 from unittest.mock import patch
+import pytest
 
 from task_gen.tool_graph.contracts import Config
-from task_gen.tool_graph.execution_agent import execute_candidates, meaningful_calls, execution_prompt
+from task_gen.tool_graph.execution_agent import execute_candidates, meaningful_calls, execution_prompt, selected_calls
 
 
 def input_for(tmp_path, ids, keep):
@@ -152,3 +153,13 @@ def test_deepening_can_continue_same_state_and_review_appended_calls(tmp_path):
     assert len(result['execution']['attempts'])==2
     assert result['execution']['attempts'][1]['restart'] is False
     assert not (inp['run_dir']/'tasks/a/rounds/02').exists()
+
+
+def test_invalid_selection_feedback_identifies_auxiliary_call_without_blaming_negative_observation(tmp_path):
+    inp=input_for(tmp_path,['a'],1)
+    tool=inp['environment']['tools'][0]
+    records=[{'tool':'review_select_plan','arguments':{},'result':{},'error':None},
+        {'tool':'lookup','arguments':{},'result':{'success':False},'error':'not found'}]
+    with pytest.raises(ValueError,match='1:review_select_plan'):
+        selected_calls({'call_indices':[1,2]},records,{'lookup':tool})
+    assert selected_calls({'call_indices':[2]},records,{'lookup':tool})==[records[1]]
