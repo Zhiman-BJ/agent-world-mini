@@ -52,17 +52,8 @@ def main(directory=None):
     # Same historically expensive task6, plus two real spare candidates.
     by_id = {t['task_id']: t for t in bundle['tasks']}
     bundle['tasks'] = [by_id[i] for i in ('task6', 'task1', 'task2')]
-    values = json.loads((source / 'run.json').read_text())['config']
-    for key in ('environment_dir', 'schema_dir', 'output_root'):
-        values[key] = Path(values[key])
-    values['llm'].update(model='gpt-5.6-sol', reasoning_effort='low', timeout_seconds=600, review_choice_seed=42)
-    values['planning']['keep_top_count'] = 2
-    values['execution'].update(min_tool_calls=11, target_tool_calls=20, max_concurrency=2,
-        retry_count=1, enable_web_search=True, agent_max_tool_calls=60,
-        tool_timeout_seconds=120, tool_max_memory_bytes=4*1024**3)
-    values['execution'].pop('max_rounds', None)
-    values['execution'].pop('max_repairs_per_round', None)
-    config = Config(**values)
+    config = run_io.load_config(ROOT / 'config/semiconductor_160.yaml', {
+        'environment_dir': json.loads((source / 'run.json').read_text())['config']['environment_dir']})
     directory = Path(directory).resolve() if directory else ROOT / 'runs/single_session_trial'
     directory.mkdir(parents=True, exist_ok=False)
     agent._write(directory / 'config.json', json.loads(json.dumps(asdict(config), default=str)))
