@@ -1,0 +1,16 @@
+{
+  "output_root": "/data1/home/tianfang/agent-world-mini-zhiman/.worktrees/step3-single-session-cost/runs/approved_prompt_ten_20260922",
+  "environments": [
+    "semiconductor_scenario_04_03_01",
+    "semiconductor_scenario_05_01_01",
+    "semiconductor_scenario_05_03_01",
+    "semiconductor_scenario_06_01_01",
+    "semiconductor_scenario_06_03_01",
+    "semiconductor_scenario_06_05_01",
+    "semiconductor_scenario_07_01_01",
+    "semiconductor_scenario_07_04_01",
+    "semiconductor_scenario_08_01_01",
+    "semiconductor_scenario_08_02_01"
+  ],
+  "selection_basis": "2026-09-22: examined run.json environment_dir under main/runs and all worktrees/*/runs; 75 of 160 environments previously used, 85 unused. These ten are selected from unused packages across scenario groups 04-08."
+}

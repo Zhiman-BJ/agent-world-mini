@@ -22,16 +22,20 @@ def input_for(tmp_path, ids, keep):
 
 def fake_calls(counts):
     def run(client,prompt,working_directory):
+        resumed = bool(client.session_id)
         client.session_id=str(working_directory)
         server=json.loads(client.server_config.read_text())
         task=working_directory.parents[2].name
         round_no=int(working_directory.parent.name)
         count,completed=counts[task][round_no-1]
-        assert (Path(server['workspace'])/'data').read_text()=='original'
+        assert (Path(server['workspace'])/'data').read_text()==('changed' if resumed else 'original')
         (Path(server['workspace'])/'data').write_text('changed')
         rows=[{'tool':'lookup','arguments':{'i':i},'result':{'success':True},'error':None} for i in range(count)]
         Path(server['trace']).write_text('\n'.join(map(json.dumps,rows))+'\n')
-        return json.dumps(dict(objective='Goal',reason='Evidence',completed=completed,answer='Result',score=4))
+        payload=dict(objective='Goal',reason='Evidence',completed=completed,answer='Result',score=4)
+        if resumed:
+            payload.update(call_indices=list(range(1,count+1)),chain_changes='Keep task calls',restart=True)
+        return json.dumps(payload)
     return run
 
 
@@ -91,3 +95,60 @@ def test_failed_retry_never_reuses_first_round_answer(tmp_path):
     assert not result['execution']['success']
     assert result['execution']['answer']==''
     assert result['execution']['error']=='second round failed'
+
+
+def test_review_repairs_failed_draft_and_excludes_unrelated_exploration(tmp_path):
+    inp=input_for(tmp_path,['a'],1)
+    initial=fake_calls({'a':[(23,False)]})
+    def run(client,prompt,working_directory):
+        if not client.session_id:
+            return initial(client,prompt,working_directory)
+        return json.dumps(dict(objective='Goal',reason='Verified repaired evidence',completed=True,
+            answer='Repaired result',score=4,call_indices=list(range(4,24)),
+            chain_changes='Calls 1-3 explored unrelated objects; retain 4-23 for the task',restart=False))
+    with patch('task_gen.tool_graph.execution_agent._ReviewClient.run',new=run):
+        result=execute_candidates(inp)['tasks'][0]
+    assert result['execution']['success']
+    assert result['execution']['answer']=='Repaired result'
+    assert len(result['execution']['raw_tool_calls'])==23
+    assert len(result['chain'])==20
+    assert result['execution']['tool_calls'][0]['arguments']=={'i':3}
+
+
+def test_invalid_review_indices_are_rejected(tmp_path):
+    inp=input_for(tmp_path,['a'],1)
+    initial=fake_calls({'a':[(20,True)]})
+    def run(client,prompt,working_directory):
+        if not client.session_id:
+            return initial(client,prompt,working_directory)
+        return json.dumps(dict(objective='Goal',reason='Evidence',completed=True,answer='Result',score=4,
+            call_indices=[1,1,999],chain_changes='Keep',restart=False))
+    with patch('task_gen.tool_graph.execution_agent._ReviewClient.run',new=run):
+        result=execute_candidates(inp)['tasks'][0]
+    assert not result['execution']['success']
+
+
+def test_deepening_can_continue_same_state_and_review_appended_calls(tmp_path):
+    inp=input_for(tmp_path,['a'],1)
+    initial=fake_calls({'a':[(12,True)]})
+    def run(client,prompt,working_directory):
+        if not client.session_id:
+            client.test_turn=1
+            return initial(client,prompt,working_directory)
+        client.test_turn+=1
+        payload=dict(objective='Goal',reason='Evidence',completed=True,answer='Result',score=4)
+        if client.test_turn==3:
+            server=json.loads(client.server_config.read_text())
+            with Path(server['trace']).open('a') as stream:
+                for i in range(12,20):
+                    stream.write(json.dumps(dict(tool='lookup',arguments={'i':i},result={'success':True},error=None))+'\n')
+        else:
+            payload.update(call_indices=list(range(1,13 if client.test_turn==2 else 21)),
+                chain_changes='Retain useful calls and deepen in current state',restart=False)
+        return json.dumps(payload)
+    with patch('task_gen.tool_graph.execution_agent._ReviewClient.run',new=run):
+        result=execute_candidates(inp)['tasks'][0]
+    assert result['execution']['success'] and len(result['chain'])==20
+    assert len(result['execution']['attempts'])==2
+    assert result['execution']['attempts'][1]['restart'] is False
+    assert not (inp['run_dir']/'tasks/a/rounds/02').exists()

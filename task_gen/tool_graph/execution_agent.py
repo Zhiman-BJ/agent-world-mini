@@ -53,6 +53,8 @@ def meaningful_calls(records, tools):
 def _parse_output(text, phase):
     value = parse_json_object(text)
     expected = {'objective', 'reason', 'completed', 'answer', 'score'}
+    if phase == 'review':
+        expected |= {'call_indices', 'chain_changes', 'restart'}
     if set(value) != expected:
         raise ValueError(f'输出字段必须为 {sorted(expected)}')
     if any(not isinstance(value[k], str) or not value[k].strip() for k in ('objective', 'reason', 'answer')):
@@ -61,7 +63,31 @@ def _parse_output(text, phase):
         raise ValueError('completed 必须为布尔值')
     if type(value['score']) is not int or value['score'] not in range(6):
         raise ValueError('score 必须为0–5整数')
+    if phase == 'review':
+        if not isinstance(value['chain_changes'], str) or not value['chain_changes'].strip():
+            raise ValueError('chain_changes 必须说明修改方案及依据，或不修改的依据')
+        if type(value['restart']) is not bool:
+            raise ValueError('restart 必须为布尔值')
     return value
+
+
+def selected_calls(payload, records, tools):
+    indices = payload.get('call_indices')
+    if not isinstance(indices, list) or any(type(i) is not int or not 1 <= i <= len(records) for i in indices):
+        raise ValueError(f'call_indices 必须引用真实调用编号1到{len(records)}')
+    if indices != sorted(set(indices)):
+        raise ValueError('call_indices 必须按实际调用顺序排列且不能重复')
+    calls = [records[i - 1] for i in indices]
+    if len(meaningful_calls(calls, tools)) != len(calls):
+        raise ValueError('call_indices 包含非法调用或服务失败，不能计入业务链')
+    return calls
+
+
+def review_prompt(records):
+    prompt = (Path(__file__).parent / 'prompts/step3_review.txt').read_text()
+    return prompt + '\n本会话真实调用编号（完整结果见会话中的工具回复）：\n' + json.dumps(
+        [{'index': i, 'tool': r['tool'], 'arguments': r['arguments'], 'error': r.get('error')}
+         for i, r in enumerate(records, 1)], ensure_ascii=False, separators=(',', ':'))
 
 
 class _Session:
@@ -69,6 +95,7 @@ class _Session:
 
     def __init__(self, root, source, environment, tools, config, phase, index, runtime=None):
         self.root, self.config, self.phase, self.index = root, config, phase, index
+        self.tools = tools
         root.mkdir(parents=True)
         shutil.copytree(source, root / 'final')
         (root / 'agent').mkdir()
@@ -112,6 +139,8 @@ class _Session:
                 if not self.client.session_id:
                     raise ValueError('没有取得可续接的会话ID')
                 payload = _parse_output(text, self.phase)
+                if self.phase == 'review':
+                    selected_calls(payload, _records(self.root / 'tool_calls.jsonl'), self.tools)
             except Exception as error:
                 failure = error
             finally:
@@ -147,7 +176,9 @@ class _Session:
                 return payload
             if attempt == self.config.execution.get('retry_count', 3) or not self.client.session_id:
                 raise failure
-            prompt = f'上次调用或输出发生错误：{failure}。根据保留的会话与实际状态继续处理并按原定结构返回；不要重放已经完成的写操作。'
+            prompt = f'上次调用或输出发生错误：{failure}。根据保留的会话与实际状态继续处理并按原定结构返回。'
+            if self.phase == 'review':
+                prompt += '\n' + review_prompt(_records(self.root / 'tool_calls.jsonl'))
 
 
 def execute_candidates(stage_input):
@@ -179,33 +210,43 @@ def execute_candidates(stage_input):
         root = tasks_root / candidate['task_id']
         root.mkdir()
         shutil.copytree(source, root / 'initial')
-        worker, payload, attempts = None, {}, []
+        worker, payload, attempts, calls = None, {}, [], []
         accepted, failure = False, None
         remaining = int(config.llm.get('timeout_seconds', 1800))
         try:
             for round_index in range(2):
                 if remaining <= 0:
                     raise TimeoutError('任务累计运行时间已耗尽，不能重新执行')
-                worker = _Session(root / 'rounds' / f'{round_index + 1:02d}', root / 'initial',
-                                  environment, tools, config, 'execution', ids.index(candidate['task_id']), runtime)
-                worker.budget = remaining
+                restart = worker is None or payload.get('restart', False)
+                if restart:
+                    calls = []
+                    worker = _Session(root / 'rounds' / f'{round_index + 1:02d}', root / 'initial',
+                                      environment, tools, config, 'execution', ids.index(candidate['task_id']), runtime)
+                    worker.budget = remaining
+                worker.phase = 'execution'
                 prompt = execution_prompt(candidate, environment,
-                    enable_web_search=config.execution.get('enable_web_search', True))
+                    enable_web_search=config.execution.get('enable_web_search', True)) if restart else ''
                 for key in ('target_tool_calls', 'min_tool_calls'):
                     prompt = prompt.replace('{' + key + '}', str(settings[key]))
                 if round_index:
-                    prompt += '\n本次是唯一一次深化重试，从原始初态重新执行。上一轮完整目标为：' + payload['objective']
-                    prompt += f"\n上一轮有效业务调用数为{attempts[-1]['calls']}。结合原链寻找尚未落实且有实质贡献的深度，形成更深入但自然的目标并实际完成；不能机械追加子任务或凑数。若无合理深化空间，仍须从本轮初态完整完成原目标。旧轮观察不可当作本轮已取得的信息。此次不再重试，至少{settings['min_tool_calls']}次且完整完成才可接收。"
-                attempts.append({'round': round_index + 1, 'directory': str(worker.root.relative_to(run_dir))})
+                    prompt += '\n本次是唯一一次深化重试。' + ('按你的判断从原始初态重新开始。' if restart else '按你的判断续接当前会话和状态。')
+                    prompt += '\n上一轮完整目标：' + payload['objective'] + '\n修改方案和判断依据：' + payload['chain_changes'] + '\n' + payload['reason']
+                    prompt += f"\n上一轮确认的有效业务调用数为{attempts[-1]['calls']}。对照原链和design_basis，寻找尚未充分融合且能服务于同一目标的有效工作。不能预设短链必然漏做，原链可能冗余，环境也可能限制深度。此次不再深化重试，至少{settings['min_tool_calls']}次且完整完成才可接收。返回objective、reason、completed、answer、score五个字段。"
+                attempts.append({'round': round_index + 1, 'restart': restart, 'directory': str(worker.root.relative_to(run_dir))})
                 payload = {}
                 payload = worker.ask(prompt)
+                _write(worker.root / f'attempt_{round_index + 1:02d}_draft.json', payload)
+                worker.phase = 'review'
+                payload = worker.ask(review_prompt(_records(worker.root / 'tool_calls.jsonl')))
                 remaining = worker.remaining_seconds
                 records = _records(worker.root / 'tool_calls.jsonl')
-                calls = meaningful_calls(records, tools)
+                calls = selected_calls(payload, records, tools)
                 attempts[-1].update(completed=payload['completed'], calls=len(calls),
                     objective=payload['objective'], session_id=worker.client.session_id,
-                    remaining_seconds=remaining)
+                    remaining_seconds=remaining, call_indices=payload['call_indices'],
+                    chain_changes=payload['chain_changes'])
                 _write(worker.root / 'result.json', payload)
+                _write(worker.root / f'attempt_{round_index + 1:02d}_review.json', payload)
                 if not payload['completed']:
                     failure = '执行者未完整完成目标：' + payload['reason']
                     break
@@ -220,7 +261,6 @@ def execute_candidates(stage_input):
         if _workspace_signature(source) != signature:
             accepted, failure = False, '源初态被修改'
         records = _records(worker.root / 'tool_calls.jsonl') if worker else []
-        calls = meaningful_calls(records, tools)
         reason = '\n\n'.join(s for s in (payload.get('reason', ''), failure) if s)
         final = worker.root / 'final' if worker else root / 'initial'
         output = {**candidate, 'chain': [c['tool'] for c in calls],
@@ -229,6 +269,7 @@ def execute_candidates(stage_input):
                   'llm_review': {'original_chain': candidate['chain'], 'original_objective': candidate['objective'],
                                 'reason': reason, 'error': failure},
                   'execution': {'success': accepted, 'tool_calls': calls, 'raw_tool_calls': records,
+                    'call_indices': payload.get('call_indices', []), 'chain_changes': payload.get('chain_changes', ''),
                     'initial_state': str((root / 'initial').relative_to(run_dir)),
                     'final_state': str(final.relative_to(run_dir)), 'answer': payload.get('answer', ''),
                     'error': failure, 'attempts': attempts}}

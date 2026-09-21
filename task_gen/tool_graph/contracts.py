@@ -185,9 +185,11 @@ class ExecuteChainsOutput(TypedDict):
     execution contains success, tool_calls, raw_tool_calls, answer, error and
     initial_state/final_state (paths relative to run_dir). attempts is retained as
     a per-round summary with objective, session ID, directory and outcome. The
-    agent explores, executes and self-reviews in one session per attempt.
-    Local repairs resume that attempt; one short-chain deepening retry starts
-    from original state, sharing the same task time budget.
+    agent explores and executes in one session, followed by a mandatory resumed
+    check/repair turn. It explicitly selects call_indices from the real trace
+    and explains chain_changes; exploratory calls are not automatically counted.
+    One short-chain deepening retry resumes the session or starts from original
+    state according to the agent's restart decision, sharing the task time budget.
     chain, tool_calls, raw_tool_calls, answer and final_state belong only to the
     last accepted round (or last attempted round on failure), never discarded
     rounds. All tried candidates retain every round's state and logs.

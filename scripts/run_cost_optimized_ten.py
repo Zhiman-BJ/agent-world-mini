@@ -1,5 +1,6 @@
 """Ten environments, five concurrent processes, one shared generation config."""
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import argparse
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -21,6 +22,7 @@ NAMES = ['semiconductor_calibration_deembedding_1',
     'semiconductor_scenario_03_02_02', 'semiconductor_geometry_construction_1',
     'semiconductor_scenario_04_01_01']
 OUT = run_io.load_config(CONFIG).output_root
+BATCH_FILE = None
 
 
 def record(directory, event, **values):
@@ -53,16 +55,28 @@ def launch(name):
     directory = OUT / name
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / 'pipeline.log').open('a') as log:
-        result = subprocess.run([sys.executable, '-u', str(Path(__file__).resolve()), '--worker', name],
+        command = [sys.executable, '-u', str(Path(__file__).resolve()), '--worker', name]
+        if BATCH_FILE:
+            command += ['--batch-file', str(BATCH_FILE)]
+        result = subprocess.run(command,
             cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
     record(directory, 'process_exit', code=result.returncode)
     return name, result.returncode
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        assert sys.argv[1] == '--worker' and sys.argv[2] in NAMES
-        worker(sys.argv[2])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--worker')
+    parser.add_argument('--batch-file', type=Path)
+    args = parser.parse_args()
+    if args.batch_file:
+        BATCH_FILE = args.batch_file.resolve()
+        batch = json.loads(BATCH_FILE.read_text())
+        NAMES = batch['environments']
+        OUT = Path(batch['output_root']).resolve()
+    if args.worker:
+        assert args.worker in NAMES
+        worker(args.worker)
     else:
         assert len(NAMES) == len(set(NAMES)) == 10
         assert all((SOURCE / name / 'binding.json').is_file() for name in NAMES)
