@@ -46,7 +46,7 @@ def summarize(directory):
     return rows
 
 
-def main():
+def main(directory=None):
     source = sorted((ROOT.parent.parent / 'runs/semiconductor_160_20260919_step3_514331a/semiconductor_scenario_01_06_01').glob('*/run.json'))[-1].parent
     bundle = json.loads((source / 'intermediate/step_2_bundle.json').read_text())
     # Same historically expensive task6, plus two real spare candidates.
@@ -63,7 +63,7 @@ def main():
     values['execution'].pop('max_rounds', None)
     values['execution'].pop('max_repairs_per_round', None)
     config = Config(**values)
-    directory = ROOT / 'runs/single_session_trial'
+    directory = Path(directory).resolve() if directory else ROOT / 'runs/single_session_trial'
     directory.mkdir(parents=True, exist_ok=False)
     agent._write(directory / 'config.json', json.loads(json.dumps(asdict(config), default=str)))
     agent._write(directory / 'candidates.json', bundle['tasks'])
