@@ -1,4 +1,4 @@
-"""Step 3: parent plans/reviews; isolated executor sessions produce the final chain."""
+"""Step 3: single session per attempt; execute only the deficit of candidates."""
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from datetime import datetime
@@ -10,8 +10,7 @@ import time
 
 from .llm import InferenceResult, _TRACE_CONTEXT, _record_call, parse_json_object
 from .review_agent import _ReviewClient
-from .step_3_chain_execute import _tools, _workspace_signature, _schema_error, _bounded_calls
-from .step_2_chain_sample import _select_final_chains
+from .step_3_chain_execute import _tools, _workspace_signature, _schema_error
 
 
 def _write(path, value):
@@ -31,12 +30,15 @@ def _context(candidate, environment):
 
 
 def execution_prompt(candidate, environment, *, enable_web_search=False):
-    return (Path(__file__).parent / 'prompts/step3_executor.txt').read_text() + '\n' + json.dumps(
-        _context(candidate, environment), ensure_ascii=False, separators=(',', ':'))
+    prompt = (Path(__file__).parent / 'prompts/step3_single.txt').read_text()
+    if not enable_web_search:
+        start, end = prompt.index('第二步：'), prompt.index('第三步：')
+        prompt = prompt[:start] + '第二步：本次关闭网络参考，禁止外部访问。\n\n' + prompt[end:]
+    return prompt + '\n' + json.dumps(_context(candidate, environment), ensure_ascii=False, separators=(',', ':'))
 
 
 def meaningful_calls(records, tools):
-    """Structural filter only; the parent judges actual business contribution."""
+    """Structural filter only; the agent must judge actual business contribution."""
     calls = []
     for record in records:
         if record['tool'] not in tools or _schema_error(tools[record['tool']]['inputSchema'], record['arguments']):
@@ -50,23 +52,15 @@ def meaningful_calls(records, tools):
 
 def _parse_output(text, phase):
     value = parse_json_object(text)
-    expected = {'action', 'objective', 'reason', 'feedback', 'score'} if phase == 'preparation' else {'reason', 'completed', 'answer'}
+    expected = {'objective', 'reason', 'completed', 'answer', 'score'}
     if set(value) != expected:
         raise ValueError(f'输出字段必须为 {sorted(expected)}')
-    for key in ('reason', 'objective') if phase == 'preparation' else ('reason', 'answer'):
-        if not isinstance(value[key], str) or not value[key].strip():
-            raise ValueError(f'{key} 必须是非空文本')
-    if phase == 'preparation':
-        if value['action'] not in ('execute', 'repair', 'accept', 'reject'):
-            raise ValueError('非法 action')
-        if type(value['score']) is not int or value['score'] not in range(6):
-            raise ValueError('score 必须为0–5整数')
-        if value['action'] != 'accept' and value['score'] != 0:
-            raise ValueError('只有 accept 可以给出非零评分')
-        if not isinstance(value['feedback'], str) or bool(value['feedback'].strip()) != (value['action'] == 'repair'):
-            raise ValueError('仅 repair 必须填写非空 feedback')
-    elif type(value['completed']) is not bool:
+    if any(not isinstance(value[k], str) or not value[k].strip() for k in ('objective', 'reason', 'answer')):
+        raise ValueError('objective/reason/answer 必须为非空文本')
+    if type(value['completed']) is not bool:
         raise ValueError('completed 必须为布尔值')
+    if type(value['score']) is not int or value['score'] not in range(6):
+        raise ValueError('score 必须为0–5整数')
     return value
 
 
@@ -78,11 +72,7 @@ class _Session:
         root.mkdir(parents=True)
         shutil.copytree(source, root / 'final')
         (root / 'agent').mkdir()
-        declaration = environment
-        if phase == 'preparation':
-            declaration = {**environment, **{key: [{**item, 'access': 'read_only'} for item in environment.get(key, [])]
-                                           for key in ('record_sets', 'filesystem_scopes')}}
-        server = {'environment': declaration, 'tools': list(tools.values()),
+        server = {'environment': environment, 'tools': list(tools.values()),
                   'workspace': str(root / 'final'), 'trace': str(root / 'tool_calls.jsonl'), 'resume_trace': True,
                   'max_tool_calls': config.execution.get('agent_max_tool_calls', 100),
                   'timeout': config.execution.get('tool_timeout_seconds', 300),
@@ -90,22 +80,25 @@ class _Session:
                   'write_limit': config.execution.get('tool_max_write_bytes', 256 * 1024**2),
                   'software_root': config.execution.get('tool_software_root'),
                   'software': (runtime or {}).get('software')}
-        if phase == 'preparation':
-            server['review_choice_seed'] = config.llm.get('review_choice_seed', secrets.randbits(64)) + index
+        server['review_choice_seed'] = config.llm.get('review_choice_seed', secrets.randbits(64)) + index
         _write(root / 'server.json', server)
         self.budget = int(config.llm.get('timeout_seconds', 1800))
         self.elapsed, self.turn = 0.0, 0
         self.last_usage = {}
         self.client = _ReviewClient(server_config=root / 'server.json', model=config.llm.get('model'),
             codex_home=config.llm.get('codex_home'), reasoning_effort=config.llm.get('reasoning_effort'),
-            timeout_seconds=self.budget, enable_web_search=phase == 'preparation' and config.execution.get('enable_web_search', True),
+            timeout_seconds=self.budget, enable_web_search=config.execution.get('enable_web_search', True),
             sandbox='read-only', log_directory=root / 'logs', persistent_session=True)
+
+    @property
+    def remaining_seconds(self):
+        return max(0, int(self.budget - self.elapsed))
 
     def ask(self, prompt):
         for attempt in range(self.config.execution.get('retry_count', 3) + 1):
             if self.turn and not self.client.session_id:
                 raise ValueError('会话ID缺失，不能在已有状态上另起会话')
-            remaining = int(self.budget - self.elapsed)
+            remaining = self.remaining_seconds
             if remaining <= 0:
                 raise TimeoutError('本会话累计运行时间超限')
             self.turn += 1
@@ -163,119 +156,102 @@ def execute_candidates(stage_input):
     runtime = stage_input.get('runtime', {})
     source = Path(runtime.get('initial_state', config.environment_dir / 'state')).resolve()
     signature = _workspace_signature(source)
-    tasks_root = stage_input['run_dir'].resolve() / 'tasks'
+    run_dir = stage_input['run_dir'].resolve()
+    tasks_root = run_dir / 'tasks'
+    tasks_root.mkdir(parents=True, exist_ok=True)
     candidates = stage_input['tasks']
-    if not candidates:
-        return {'tasks': []}
     settings = {k: config.execution.get(k, v) for k, v in
-                (('max_rounds', 3), ('max_repairs_per_round', 3), ('target_tool_calls', 20), ('min_tool_calls', 10), ('max_concurrency', 4), ('retry_count', 3))}
-    if any(type(v) is not int or v < (0 if k in ('retry_count', 'max_repairs_per_round') else 1) for k, v in settings.items()):
-        raise ValueError('轮次、长度、并发必须为正整数，重试次数必须为非负整数')
-    if settings['target_tool_calls'] < settings['min_tool_calls']:
-        raise ValueError('目标长度不能小于接收下限')
+                (('target_tool_calls', 20), ('min_tool_calls', 11), ('max_concurrency', 4), ('retry_count', 3))}
+    keep = config.planning.get('keep_top_count', 10)
+    if type(keep) is not int or keep < 1:
+        raise ValueError('keep_top_count 必须为正整数')
+    if any(type(v) is not int or v < (0 if k == 'retry_count' else 1) for k, v in settings.items()):
+        raise ValueError('长度、并发必须为正整数，重试次数必须为非负整数')
+    if settings['min_tool_calls'] < 11 or settings['target_tool_calls'] < settings['min_tool_calls']:
+        raise ValueError('接收下限至少11次，目标长度不能小于接收下限')
     ids = [c['task_id'] for c in candidates]
     if any(not isinstance(i, str) or not i or Path(i).name != i or i in ('.', '..') for i in ids) or len(ids) != len(set(ids)):
         raise ValueError('非法或重复 task_id')
     if any((tasks_root / i).exists() for i in ids):
-        raise ValueError('任务目录已存在')
-    main_prompt = (Path(__file__).parent / 'prompts/step3_main.txt').read_text()
-    for key, value in settings.items():
-        main_prompt = main_prompt.replace('{' + key + '}', str(value))
-    if not config.execution.get('enable_web_search', True):
-        start, end = main_prompt.index('第二步：'), main_prompt.index('第三步：')
-        main_prompt = main_prompt[:start] + '第二步：本次关闭网络参考，禁止外部访问。\n\n' + main_prompt[end:]
-        main_prompt = main_prompt.replace('外部访问仅限内置网络搜索。', '禁止外部访问。')
+        raise ValueError('任务目录已存在；请使用新的运行目录，已有结果保持不动')
 
     def run(candidate):
         root = tasks_root / candidate['task_id']
-        root.mkdir(parents=True)
+        root.mkdir()
         shutil.copytree(source, root / 'initial')
-        parent, worker, payload = None, None, {}
-        attempts, decisions = [], []
-        objective, accepted, failure, invalid = candidate['objective'], False, None, 0
-        decision = {'reason': '', 'score': 0}
+        worker, payload, attempts = None, {}, []
+        accepted, failure = False, None
+        remaining = int(config.llm.get('timeout_seconds', 1800))
         try:
-            parent = _Session(root / 'preparation', root / 'initial', environment, tools, config, 'preparation', ids.index(candidate['task_id']), runtime)
-            prompt = main_prompt + '\n' + json.dumps(_context(candidate, environment), ensure_ascii=False, separators=(',', ':'))
-            while True:
-                decision = parent.ask(prompt)
-                decisions.append(decision)
-                _write(root / 'decisions.json', decisions)
-                action, error = decision['action'], None
-                calls = meaningful_calls(_records(worker.root / 'tool_calls.jsonl'), tools) if worker else []
-                if action == 'execute' and len(attempts) >= settings['max_rounds']:
-                    error = '完整执行轮次已用完，只能修复本轮、接收或拒绝'
-                elif action in ('accept', 'repair'):
-                    if worker is None or decision['objective'] != objective:
-                        error = '接收或修复需要已有执行轮且目标保持不变；改变目标必须 execute'
-                    elif action == 'accept' and (payload.get('completed') is not True or payload.get('error') or len(calls) < settings['min_tool_calls']):
-                        error = '本轮未完整交付、运行异常或有效调用不足接收下限'
-                    elif action == 'repair' and attempts[-1]['repairs'] >= settings['max_repairs_per_round']:
-                        error = '本轮 repair 次数已用完；只能接收、拒绝，或在剩余完整执行轮次内调整目标重新执行，不能降低验收要求'
-                    elif action == 'repair' and (not worker.client.session_id or worker.elapsed >= worker.budget):
-                        error = '本轮会话无法继续，不能 repair'
-                    elif action == 'repair' and len(_records(worker.root / 'tool_calls.jsonl')) >= config.execution.get('agent_max_tool_calls', 100):
-                        error = '本轮工具预算已耗尽，续接不会恢复额度，不能 repair；只能按原定目标调整边界决定新轮或拒绝'
-                if error:
-                    invalid += 1
-                    if invalid > settings['retry_count']:
-                        raise ValueError(error)
-                    prompt = '决策无法执行：' + error + '。请根据现有结果重新判断。'
-                    continue
-                invalid = 0
-                if action == 'reject':
-                    failure = decision['reason']
-                    break
-                if action == 'accept':
-                    accepted = True
-                    break
-                if action == 'execute':
-                    objective = decision['objective']
-                    worker = _Session(root / 'rounds' / f'{len(attempts) + 1:02d}', root / 'initial', environment, tools, config, 'execution', ids.index(candidate['task_id']), runtime)
-                    attempts.append({'round': len(attempts) + 1, 'repairs': 0, 'objective': objective, 'directory': str(worker.root.relative_to(stage_input['run_dir'].resolve()))})
-                    worker_prompt = execution_prompt({**candidate, 'objective': objective}, environment)
-                else:
-                    attempts[-1]['repairs'] += 1
-                    worker_prompt = '请在本轮原目标下处理以下复核反馈，补查所需事实，修复并核验后返回原定JSON：\n' + decision['feedback']
-                try:
-                    payload = worker.ask(worker_prompt)
-                except Exception as error:
-                    payload = {'completed': False, 'reason': '', 'answer': '', 'error': str(error)}
+            for round_index in range(2):
+                if remaining <= 0:
+                    raise TimeoutError('任务累计运行时间已耗尽，不能重新执行')
+                worker = _Session(root / 'rounds' / f'{round_index + 1:02d}', root / 'initial',
+                                  environment, tools, config, 'execution', ids.index(candidate['task_id']), runtime)
+                worker.budget = remaining
+                prompt = execution_prompt(candidate, environment,
+                    enable_web_search=config.execution.get('enable_web_search', True))
+                for key in ('target_tool_calls', 'min_tool_calls'):
+                    prompt = prompt.replace('{' + key + '}', str(settings[key]))
+                if round_index:
+                    prompt += '\n本次是唯一一次深化重试，从原始初态重新执行。上一轮完整目标为：' + payload['objective']
+                    prompt += f"\n上一轮有效业务调用数为{attempts[-1]['calls']}。结合原链寻找尚未落实且有实质贡献的深度，形成更深入但自然的目标并实际完成；不能机械追加子任务或凑数。若无合理深化空间，仍须从本轮初态完整完成原目标。旧轮观察不可当作本轮已取得的信息。此次不再重试，至少{settings['min_tool_calls']}次且完整完成才可接收。"
+                attempts.append({'round': round_index + 1, 'directory': str(worker.root.relative_to(run_dir))})
+                payload = {}
+                payload = worker.ask(prompt)
+                remaining = worker.remaining_seconds
                 records = _records(worker.root / 'tool_calls.jsonl')
-                attempts[-1].update(completed=payload['completed'], error=payload.get('error'),
-                                    calls=len(meaningful_calls(records, tools)), session_id=worker.client.session_id)
+                calls = meaningful_calls(records, tools)
+                attempts[-1].update(completed=payload['completed'], calls=len(calls),
+                    objective=payload['objective'], session_id=worker.client.session_id,
+                    remaining_seconds=remaining)
                 _write(worker.root / 'result.json', payload)
-                prompt = '以下是本轮实际执行结果，请按第四至第六步复核并决定下一步。被裁剪内容不是完整证据，有缺口应要求本轮执行者补充核验。\n' + json.dumps(
-                    {'objective': objective, 'round': len(attempts), 'remaining_rounds': settings['max_rounds'] - len(attempts),
-                     'remaining_repairs': settings['max_repairs_per_round'] - attempts[-1]['repairs'],
-                     'remaining_tool_calls': max(0, config.execution.get('agent_max_tool_calls', 100) - len(records)),
-                     'tool_budget_resets_on_resume': False,
-                     'valid_call_count': attempts[-1]['calls'], 'result': payload,
-                     'tool_calls': _bounded_calls(records, config.execution.get('tool_result_max_bytes', 65536))},
-                    ensure_ascii=False, separators=(',', ':'))
+                if not payload['completed']:
+                    failure = '执行者未完整完成目标：' + payload['reason']
+                    break
+                if round_index == 0 and len(calls) < settings['target_tool_calls']:
+                    continue
+                accepted = len(calls) >= settings['min_tool_calls']
+                if not accepted:
+                    failure = f"有效调用数{len(calls)}低于接收下限{settings['min_tool_calls']}"
+                break
         except Exception as error:
             failure = str(error)
-        if _workspace_signature(source) != signature or (parent and _workspace_signature(parent.root / 'final') != signature):
-            accepted, failure = False, '源初态或前置探索状态被修改'
+        if _workspace_signature(source) != signature:
+            accepted, failure = False, '源初态被修改'
         records = _records(worker.root / 'tool_calls.jsonl') if worker else []
         calls = meaningful_calls(records, tools)
-        reason = '\n\n'.join(s for s in (decision.get('reason', ''), payload.get('reason', ''), failure) if s)
+        reason = '\n\n'.join(s for s in (payload.get('reason', ''), failure) if s)
         final = worker.root / 'final' if worker else root / 'initial'
-        output = {**candidate, 'chain': [c['tool'] for c in calls], 'objective': objective,
-                  'logic_score': decision.get('score', 0) if accepted else 0, 'logic_reason': reason,
-                  'llm_review': {'original_chain': candidate['chain'], 'original_objective': candidate['objective'], 'reason': reason, 'error': failure},
+        output = {**candidate, 'chain': [c['tool'] for c in calls],
+                  'objective': payload.get('objective', candidate['objective']),
+                  'logic_score': payload.get('score', 0) if accepted else 0, 'logic_reason': reason,
+                  'llm_review': {'original_chain': candidate['chain'], 'original_objective': candidate['objective'],
+                                'reason': reason, 'error': failure},
                   'execution': {'success': accepted, 'tool_calls': calls, 'raw_tool_calls': records,
-                    'initial_state': str((root / 'initial').relative_to(stage_input['run_dir'].resolve())),
-                    'final_state': str(final.relative_to(stage_input['run_dir'].resolve())),
-                    'answer': payload.get('answer', ''), 'error': failure, 'attempts': attempts}}
+                    'initial_state': str((root / 'initial').relative_to(run_dir)),
+                    'final_state': str(final.relative_to(run_dir)), 'answer': payload.get('answer', ''),
+                    'error': failure, 'attempts': attempts}}
         _write(root / 'agent_result.json', output)
         print(candidate['task_id'], 'completed=', accepted, 'calls=', len(calls), flush=True)
         return output
 
-    with ThreadPoolExecutor(max_workers=min(settings['max_concurrency'], len(candidates))) as pool:
-        futures = [pool.submit(copy_context().run, run, candidate) for candidate in candidates]
-        output = [f.result() for f in futures]
-    selected = _select_final_chains([t for t in output if t['execution']['success']],
-        config.planning.get('keep_top_count', 10), config.planning.get('diversity_lambda', 10.0))
-    selected_ids = {t['task_id'] for t in selected}
-    return {'tasks': [t for t in output if t['task_id'] in selected_ids or not t['execution']['success']]}
+    output, batches, cursor, accepted_count = [], [], 0, 0
+    progress_path = run_dir / 'step3_progress.json'
+    def progress(status):
+        _write(progress_path, {'status': status, 'target': keep, 'accepted': accepted_count,
+            'remaining_needed': max(0, keep - accepted_count), 'batches': batches,
+            'processed': [t['task_id'] for t in output], 'pending': ids[cursor:]})
+    with ThreadPoolExecutor(max_workers=settings['max_concurrency']) as pool:
+        while accepted_count < keep and cursor < len(candidates):
+            batch = candidates[cursor:cursor + keep - accepted_count]
+            cursor += len(batch)
+            batches.append({'task_ids': [c['task_id'] for c in batch]})
+            progress('running')
+            futures = [pool.submit(copy_context().run, run, candidate) for candidate in batch]
+            results = [f.result() for f in futures]
+            output.extend(results)
+            accepted_count += sum(t['execution']['success'] for t in results)
+            progress('running')
+    progress('complete' if accepted_count >= keep else 'pool_exhausted')
+    return {'tasks': output}
