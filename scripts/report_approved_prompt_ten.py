@@ -57,6 +57,11 @@ def summarize(batch_file):
                 'draft_completed': [d['completed'] for d in drafts],
                 'review_completed': [r['completed'] for r in reviews]})
         row['step3_details'] = details
+        rejected = run / 'rejected.json'
+        row['step5_rejections'] = [
+            {'task': t['task_id'], 'errors': t.get('validation', {}).get('errors', [])}
+            for t in json.loads(rejected.read_text()) if t.get('execution', {}).get('success')
+        ] if rejected.exists() else []
         row['review_recovered'] = sum(any(not d for d in t['draft_completed']) and t['success'] for t in details)
         row['review_rejected'] = sum(any(t['draft_completed']) and not t['success'] for t in details)
         rows.append(row)
@@ -88,6 +93,8 @@ def summarize(batch_file):
                 lines += [f"- {t['task']}：{t['error']}"]
         for e in r.get('llm_errors', []):
             lines += [f"- 模型调用 {e['step']} / {e['call_id']}：{e['error']}"]
+        for t in r.get('step5_rejections', []):
+            lines += [f"- Step5 {t['task']}：" + '；'.join(t['errors'])]
         lines.append('')
     (root / 'summary.md').write_text('\n'.join(lines) + '\n')
     print(json.dumps({'states': dict(Counter(r['status'] for r in rows)),

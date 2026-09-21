@@ -1,5 +1,6 @@
 """Small real Step3 trial; reuses frozen Step2 candidates, never production state."""
 import json
+import argparse
 from dataclasses import asdict
 from pathlib import Path
 import sys
@@ -46,12 +47,12 @@ def summarize(directory):
     return rows
 
 
-def main(directory=None):
-    source = sorted((ROOT.parent.parent / 'runs/semiconductor_160_20260919_step3_514331a/semiconductor_scenario_01_06_01').glob('*/run.json'))[-1].parent
+def main(directory=None, source=None, task_ids=None):
+    source = Path(source).resolve() if source else sorted((ROOT.parent.parent / 'runs/semiconductor_160_20260919_step3_514331a/semiconductor_scenario_01_06_01').glob('*/run.json'))[-1].parent
     bundle = json.loads((source / 'intermediate/step_2_bundle.json').read_text())
     # Same historically expensive task6, plus two real spare candidates.
     by_id = {t['task_id']: t for t in bundle['tasks']}
-    bundle['tasks'] = [by_id[i] for i in ('task6', 'task1', 'task2')]
+    bundle['tasks'] = [by_id[i] for i in (task_ids or ('task6', 'task1', 'task2'))]
     config = run_io.load_config(ROOT / 'config/semiconductor_160.yaml', {
         'environment_dir': json.loads((source / 'run.json').read_text())['config']['environment_dir']})
     directory = Path(directory).resolve() if directory else ROOT / 'runs/single_session_trial'
@@ -70,4 +71,9 @@ def main(directory=None):
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--source-run', type=Path)
+    parser.add_argument('--task-id', action='append')
+    parser.add_argument('--output', type=Path)
+    args = parser.parse_args()
+    main(args.output, args.source_run, args.task_id)
