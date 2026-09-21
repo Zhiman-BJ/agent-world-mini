@@ -5,12 +5,13 @@ from pathlib import Path
 from run_cost_optimized_ten import ROOT, OUT, NAMES
 
 OLD = ROOT.parent.parent / 'runs/semiconductor_160_20260919_step3_514331a'
+RECOVERED = json.loads((ROOT / 'reports/cost_optimized_ten_usage_recovery.json').read_text())
 
 
 def measure(run):
     meta = json.loads((run / 'run.json').read_text())
     stages = defaultdict(lambda: dict(input=0, cached=0, output=0, calls=0, missing_usage=0,
-                                     cache_unknown=0, failed_calls=0, seconds=0))
+                                     cache_unknown=0, failed_calls=0, recovered_usage=0, seconds=0))
     log = run / 'llm_calls.jsonl'
     if log.exists():
         with log.open() as stream:
@@ -21,6 +22,9 @@ def measure(run):
                     continue
                 stage = stages[row.get('step', 'unknown')]
                 u = row.get('usage') or {}
+                if not u and row.get('call_id') in RECOVERED:
+                    u = RECOVERED[row['call_id']]['usage']
+                    stage['recovered_usage'] += 1
                 inp = u.get('input_tokens', u.get('prompt_tokens'))
                 out = u.get('output_tokens', u.get('completion_tokens'))
                 cache = u.get('cached_input_tokens', (u.get('prompt_tokens_details') or {}).get('cached_tokens'))
@@ -40,12 +44,17 @@ def measure(run):
         'step3_accepted': sum(t['execution']['success'] for t in results),
         'stages': dict(stages), 'stage_seconds': meta.get('stage_timings_seconds', {}),
         'total': {k: sum(s[k] for s in stages.values()) for k in
-                  ('input', 'cached', 'output', 'missing_usage', 'cache_unknown')},
+                  ('input', 'cached', 'output', 'missing_usage', 'cache_unknown', 'recovered_usage')},
         'task_texts': [{'id': t['task_id'], 'text': t['task_text'],
                         'calls': len(t['reference']['tool_calls'])} for t in tasks]}
 
 
 def main():
+    for recovery in RECOVERED.values():
+        with (ROOT / recovery['source']).open() as stream:
+            events = [json.loads(line) for line in stream if line.strip()]
+        usage = next(e['usage'] for e in events if e.get('type') == recovery['event'])
+        assert all(usage[k] == v for k, v in recovery['usage'].items()), '恢复用量与原始事件不一致'
     rows = []
     for name in NAMES:
         row = {'environment': name}
@@ -81,7 +90,7 @@ def main():
         count = sum(r['tasks'] for r in runs)
         lines += [f"- {label}：{len(runs)} 个环境，{count} 条最终任务；输入 {totals['input']:,}，已知缓存输入 {totals['cached']:,}，输出 {totals['output']:,}；缺失usage {totals['missing_usage']} 次，缓存字段缺失 {totals['cache_unknown']} 次。",
                   f"  以每百万 token 的未缓存输入价 P、缓存输入价 C、输出价 O 计，已记录费用为 {(totals['input']-totals['cached'])/1e6:.6f}P + {totals['cached']/1e6:.6f}C + {totals['output']/1e6:.6f}O。"]
-    lines += ['', '代理服务未提供可核实的 gpt-5.6-sol 计费映射，本报告不将别的型号官网价格当作实际扣费。缺失usage及未知缓存会影响上述估算；旧新版产量不同，应同时比较每条最终任务成本。']
+    lines += ['', 'DRC task20 首次空正文的用量已由原始 turn.completed 恢复（3008836 输入、2896000 缓存输入、6709 输出）；后续重试只计增量，未重复累计。恢复依据见 reports/cost_optimized_ten_usage_recovery.json。', '', '代理服务未提供可核实的 gpt-5.6-sol 计费映射，本报告不将别的型号官网价格当作实际扣费。缺失usage及未知缓存会影响上述估算；旧新版产量不同，应同时比较每条最终任务成本。']
     (OUT / 'cost_comparison.md').write_text('\n'.join(lines)+'\n')
     texts = ['# 新版任务文本', '']
     for r in rows:
