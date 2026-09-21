@@ -35,7 +35,7 @@ def fake_calls(counts):
         Path(server['trace']).write_text('\n'.join(map(json.dumps,rows))+'\n')
         payload=dict(objective='Goal',reason='Evidence',completed=completed,answer='Result',score=4)
         if resumed:
-            payload.update(call_indices=list(range(1,count+1)),chain_changes='Keep task calls',restart=True)
+            payload.update(call_indices=list(range(1,count+1)),chain_changes='Keep task calls',restart=completed)
         return json.dumps(payload)
     return run
 
@@ -163,3 +163,18 @@ def test_invalid_selection_feedback_identifies_auxiliary_call_without_blaming_ne
     with pytest.raises(ValueError,match='1:review_select_plan'):
         selected_calls({'call_indices':[1,2]},records,{'lookup':tool})
     assert selected_calls({'call_indices':[2]},records,{'lookup':tool})==[records[1]]
+
+
+def test_failed_review_can_request_its_one_fresh_restart(tmp_path):
+    inp=input_for(tmp_path,['a'],1)
+    base=fake_calls({'a':[(22,False),(22,True)]})
+    def run(client,prompt,working_directory):
+        payload=json.loads(base(client,prompt,working_directory))
+        if 'restart' in payload:
+            payload['restart']=True
+        return json.dumps(payload)
+    with patch('task_gen.tool_graph.execution_agent._ReviewClient.run',new=run):
+        result=execute_candidates(inp)['tasks'][0]
+    assert result['execution']['success']
+    assert len(result['execution']['attempts'])==2
+    assert result['execution']['final_state'].endswith('rounds/02/final')

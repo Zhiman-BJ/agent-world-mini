@@ -233,9 +233,14 @@ def execute_candidates(stage_input):
                 for key in ('target_tool_calls', 'min_tool_calls'):
                     prompt = prompt.replace('{' + key + '}', str(settings[key]))
                 if round_index:
-                    prompt += '\n本次是唯一一次深化重试。' + ('按你的判断从原始初态重新开始。' if restart else '按你的判断续接当前会话和状态。')
+                    prompt += '\n本次是唯一一次重试。' + ('按你的判断从原始初态重新开始。' if restart else '按你的判断续接当前会话和状态。')
                     prompt += '\n上一轮完整目标：' + payload['objective'] + '\n修改方案和判断依据：' + payload['chain_changes'] + '\n' + payload['reason']
-                    prompt += f"\n上一轮确认的有效业务调用数为{attempts[-1]['calls']}。对照原链和design_basis，寻找尚未充分融合且能服务于同一目标的有效工作。不能预设短链必然漏做，原链可能冗余，环境也可能限制深度。此次不再深化重试，至少{settings['min_tool_calls']}次且完整完成才可接收。返回objective、reason、completed、answer、score五个字段。"
+                    prompt += f"\n上一轮确认的有效业务调用数为{attempts[-1]['calls']}。"
+                    if payload['completed']:
+                        prompt += '对照原链和design_basis，寻找尚未充分融合且能服务于同一目标的有效工作。不能预设短链必然漏做，原链可能冗余，环境也可能限制深度。'
+                    else:
+                        prompt += '按上一轮复核明确的修改方案处理阻断，不能降低交付要求宣告成功。'
+                    prompt += f"此次不再重试，至少{settings['min_tool_calls']}次且完整完成才可接收。返回objective、reason、completed、answer、score五个字段。"
                 attempts.append({'round': round_index + 1, 'restart': restart, 'directory': str(worker.root.relative_to(run_dir))})
                 payload = {}
                 payload = worker.ask(prompt)
@@ -252,6 +257,8 @@ def execute_candidates(stage_input):
                 _write(worker.root / 'result.json', payload)
                 _write(worker.root / f'attempt_{round_index + 1:02d}_review.json', payload)
                 if not payload['completed']:
+                    if round_index == 0 and payload['restart']:
+                        continue
                     failure = '执行者未完整完成目标：' + payload['reason']
                     break
                 if round_index == 0 and len(calls) < settings['target_tool_calls']:

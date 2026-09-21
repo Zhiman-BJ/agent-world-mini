@@ -21,4 +21,4 @@ reason 保留影响下游理解和判断的关键内容：原链遵循与调整�
 answer 向用户完整交付实际结果，说明必要证据边界和未完成项，不编造成功。不必复述全部调用，但不能丢失影响结论的信息。
 只返回 JSON，字段为 objective、reason、completed、answer、score、call_indices、chain_changes、restart。
 objective 是完整业务目标；reason、answer、chain_changes 为非空文本。completed 只表示目标是否完整完成，不表示达到复杂度门槛。score 为0–5整数，评价实际完成度、任务价值和调用贡献，评分不能替代完成证据。
-restart 为布尔值，说明如需下一轮是否必须从原始初态重新开始；需要时在 reason 中说明依据。程序至多安排一次深化重试，是否达到长度要求按确认后的调用链计算。
+restart 为布尔值，说明如需下一轮是否必须从原始初态重新开始；需要时在 reason 中说明依据。首次未完成且 restart 为 true 时，程序也会使用唯一一次重试机会；修复重启与深化合计最多一次，是否达到长度要求按确认后的调用链计算。
