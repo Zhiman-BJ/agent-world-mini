@@ -257,8 +257,8 @@ def build_profile(profile, *, root=ROOT):
     design['task_recipes'] = copy.deepcopy(profile['tasks'])
     design['status'] = 'seed_design; reference APIs are not an implemented agent tool server'
     seed = {'global_id': 'semiconductor_scenario_' + profile['scenario_id'].replace('.', '_'),
-            'schema_version': 'scenario-1.0',
-            'environment': {'basic_info': {'source': 'deep research', 'url': urls, 'name': row['application'],
+            'schema_version': 'scenario-1.1',
+            'environment': {'basic_info': {'source': 'deep_research', 'url': urls, 'name': row['application'],
                                            'version': profile['checked_on'], 'index': profile['index']},
                             'description': profile['description'], 'domain': row['domain'], 'nums': nums},
             'init_ref_tools': tools, 'init_ref_tasks': [t['description'] for t in profile['tasks']],

@@ -30,7 +30,17 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
         return config
     from env_gen.tool_gen.kimi_mcp import load_delivery
     delivery = load_delivery(Path(config['binding_path']))
-    if 'tools' in config and config['tools'] != list(delivery.package.tools):
+    # Internal code is deliberately allowed to differ from the frozen delivery
+    # artifact: the public MCP contract is the name, description, usage rules,
+    # and input/output schemas.  Comparing ``internal.code`` rejects compatible
+    # bug fixes (for example, creating an output directory before writing it)
+    # before the tool can even be executed.
+    public_fields = ('name', 'description', 'usageConditions', 'inputSchema', 'outputSchema')
+    public_tools = lambda tools: [
+        {field: tool.get(field) for field in public_fields}
+        for tool in tools
+    ]
+    if 'tools' in config and public_tools(config['tools']) != public_tools(delivery.package.tools):
         raise ValueError('任务工具与 binding 交付工具不一致')
     if 'environment' in config and any(config['environment'].get(k) != v
                                       for k, v in delivery.package.environment.items()):
@@ -49,6 +59,7 @@ def call_environment_tool(
     timeout: int,
     memory_limit: int,
     write_limit: int,
+    process_limit: int = 1024,
     call_tool_fn: CallToolFn = _call_tool,
     environment: dict[str, Any] | None = None,
     software: dict[str, str] | None = None,
@@ -65,11 +76,15 @@ def call_environment_tool(
         temporary_path = Path(temporary)
         candidate = temporary_path / "workspace"
         shutil.copytree(workspace, candidate, symlinks=True)
-        outcome = call_tool_fn(
-            tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
-            environment,
+        runtime_options: dict[str, Any] = {
             **({'software': software} if software else {}),
             **({'software_root': software_root} if software_root is not None else {}),
+        }
+        if call_tool_fn is _call_tool:
+            runtime_options['process_limit'] = process_limit
+        outcome = call_tool_fn(
+            tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
+            environment, **runtime_options,
         )
         result = outcome.get("result")
         error = outcome.get("error")
@@ -89,7 +104,10 @@ def call_environment_tool(
             except Exception:
                 previous.rename(workspace)
                 raise
-    return {"tool": name, "arguments": arguments, "result": result, "error": error}
+    record = {"tool": name, "arguments": arguments, "result": result, "error": error}
+    if outcome.get("kind") is not None:
+        record["failure_kind"] = outcome["kind"]
+    return record
 
 
 class TaskEvalMcpServer:
@@ -162,7 +180,9 @@ class TaskEvalMcpServer:
             record = call_environment_tool(
                 name, arguments, self.tools, self.workspace,
                 timeout=int(self.config["timeout"]), memory_limit=int(self.config["memory_limit"]),
-                write_limit=int(self.config["write_limit"]), environment=self.config.get("environment", {}),
+                write_limit=int(self.config["write_limit"]),
+                process_limit=int(self.config.get("process_limit", 1024)),
+                environment=self.config.get("environment", {}),
                 **({'software': self.config['software']} if self.config.get('software') else {}),
                 **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )
@@ -177,8 +197,13 @@ class TaskEvalMcpServer:
             and _schema_error(self.tools[name]["outputSchema"], payload) is None
         )
         if record["error"] is not None and not business_failure:
-            payload = {"success": False, "error": {"code": "runtime_error", "path": "$",
-                       "message": str(record["error"]), "retryable": False}, "tool_result": payload}
+            timeout = record.get("failure_kind") == "timeout"
+            payload = {"success": False, "error": {
+                "code": "timeout" if timeout else "runtime_error",
+                "path": "$",
+                "message": str(record["error"]),
+                "retryable": timeout,
+            }, "tool_result": payload}
         return tool_call_result(payload, is_error=record["error"] is not None or business_failure)
 
 

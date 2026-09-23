@@ -16,7 +16,7 @@ DEFAULT_OUTPUT = Path('seed_gen/pypi_outputs/final_results')
 
 
 def collect_partitions(directory):
-    seeds, seen, global_ids = [], set(), set()
+    seeds, seen, global_ids, indices = [], set(), set(), set()
     paths = sorted(directory.glob('semiconductor_scenario_[0-9][0-9].json'))
     require(paths, 'No L1 partitions found')
     for path in paths:
@@ -29,10 +29,15 @@ def collect_partitions(directory):
             require(sid.startswith(l1 + '.'), f'Scene in wrong L1 partition: {sid}')
             require(sid not in seen, f'Duplicate L3 ID: {sid}')
             require(seed['global_id'] not in global_ids, f'Duplicate global ID: {seed["global_id"]}')
+            require(seed['schema_version'] == 'scenario-1.1', f'Wrong scenario schema version: {sid}')
+            require(seed['environment']['basic_info']['source'] == 'deep_research', f'Wrong scenario source: {sid}')
+            index = seed['environment']['basic_info']['index']
+            require(index not in indices, f'Duplicate scenario index: {index}')
             require(counts(seed['init_ref_tools']) == seed['environment']['nums'], f'Count mismatch: {sid}')
             require(all(isinstance(t, str) for t in seed['init_ref_tasks']), f'Non-string task: {sid}')
             seen.add(sid)
             global_ids.add(seed['global_id'])
+            indices.add(index)
             seeds.append(seed)
     return sorted(seeds, key=lambda s: s['environment']['domain']['level3'].split()[0])
 

@@ -28,6 +28,7 @@ from env_gen.data_gen.steps.common.download import (
     download_raw_file,
     download_receipt_issues,
     load_download_ledger,
+    simple_file_stats,
 )
 from env_gen.data_gen.steps.step1_research_scenario import save_scenario_research
 from env_gen.data_gen.steps.step2_collect_data import (
@@ -169,6 +170,17 @@ def full_work_coverage(
 
 
 class DownloadLedgerTests(unittest.TestCase):
+    def test_bracket_prefixed_domain_files_are_not_misclassified_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            toml = root / "pyproject.toml"
+            toml.write_text("[project]\nname = 'example'\n", encoding="utf-8")
+            gtkw = root / "wave.gtkw"
+            gtkw.write_text("[*] GTKWave Analyzer save file\n", encoding="utf-8")
+
+            self.assertEqual(simple_file_stats(toml)["format"], "toml")
+            self.assertEqual(simple_file_stats(gtkw)["format"], "gtkw")
+
     def test_download_returns_only_coarse_file_facts(self) -> None:
         with server() as base, tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory)
@@ -825,7 +837,7 @@ class CollectionLoopTests(unittest.TestCase):
                     self.assertIn("只能从下面的清单逐字复制", prompt)
                     self.assertIn("`entity`：`Item`", prompt)
                     self.assertIn("`tool`：`list_items`", prompt)
-                    self.assertEqual(timeout, 600)
+                    self.assertEqual(timeout, 1200)
                     write_json(run_dir / ".datagen/collection_result.json", {
                         "schema_version": "1.0",
                         "result": "ready",

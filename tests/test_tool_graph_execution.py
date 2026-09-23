@@ -447,6 +447,28 @@ def run(arguments, context):
         self.assertIsNone(outcome['error'], outcome)
         self.assertEqual(outcome['result'], {'success': True, 'sum': 8})
 
+    def test_scientific_runtime_limits_are_applied_inside_sandbox(self) -> None:
+        outcome = _call_tool(
+            """def run(arguments, context):
+ import os, resource
+ names = ['OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'OMP_THREAD_LIMIT',
+          'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'JAX_NUM_THREADS',
+          'TF_NUM_INTRAOP_THREADS', 'TF_NUM_INTEROP_THREADS', 'XLA_FLAGS']
+ return {'success': True, 'environment': {name: os.environ[name] for name in names},
+         'process_limit': resource.getrlimit(resource.RLIMIT_NPROC)[0]}
+""",
+            {}, self.environment_dir / "workspace", timeout=30,
+            memory_limit=2 * 1024**3, write_limit=1024 * 1024, process_limit=321,
+        )
+        self.assertIsNone(outcome['error'], outcome)
+        self.assertEqual(outcome['result']['process_limit'], 321)
+        environment = outcome['result']['environment']
+        self.assertEqual({environment[name] for name in environment if name != 'XLA_FLAGS'}, {'1'})
+        self.assertEqual(
+            environment['XLA_FLAGS'],
+            '--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1',
+        )
+
     def test_plotting_library_cache_does_not_pollute_workspace(self) -> None:
         import importlib.util
         if importlib.util.find_spec('matplotlib') is None:

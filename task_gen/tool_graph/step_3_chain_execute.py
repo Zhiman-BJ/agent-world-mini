@@ -25,7 +25,8 @@ workspace; successful candidates retain initial/final relative paths.
 
 Execution config defaults: max_concurrency=4, retry_count=3,
 tool_timeout_seconds=300, tool_result_max_bytes=65536,
-tool_max_memory_bytes=2147483648, tool_max_write_bytes=268435456.
+tool_max_memory_bytes=2147483648, tool_max_write_bytes=268435456,
+tool_max_processes=1024.
 IDs and directory conflicts are checked before any concurrent work.
 Each worker receives its own copy of the caller's tracing context.
 
@@ -107,6 +108,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
     result_limit = _integer(config.execution, "tool_result_max_bytes", 65536, minimum=1)
     memory_limit = _integer(config.execution, "tool_max_memory_bytes", 2 * 1024 * 1024 * 1024, minimum=1)
     write_limit = _integer(config.execution, "tool_max_write_bytes", 256 * 1024 * 1024, minimum=1)
+    process_limit = _integer(config.execution, "tool_max_processes", 1024, minimum=1)
     with ThreadPoolExecutor(max_workers=min(concurrency, len(tasks)) or 1) as executor:
         futures = [
             executor.submit(copy_context().run, _execute_candidate,
@@ -122,6 +124,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
                 memory_limit,
                 write_limit,
                 runtime.get('software'),
+                process_limit,
             ) for candidate in tasks
         ]
         output = [future.result() for future in futures]
@@ -168,6 +171,7 @@ def _execute_candidate(
     memory_limit: int,
     write_limit: int,
     software: dict[str, str] | None = None,
+    process_limit: int = 1024,
 ) -> dict[str, Any]:
     result = deepcopy(candidate)
     task_id = candidate["task_id"]
@@ -214,8 +218,10 @@ def _execute_candidate(
                     failure = parameter_failure
                     break
 
-                outcome = _call_tool(tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
-                                     **({'software': software} if software else {}))
+                outcome = _call_tool(
+                    tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
+                    process_limit=process_limit, **({'software': software} if software else {}),
+                )
                 if outcome["kind"] is not None:
                     failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
                     break
@@ -358,9 +364,11 @@ def _generate_arguments(
     review_guidance: str | None = None,
 ) -> dict[str, Any]:
     prompt = json.dumps({
-        "task": (
-            "为当前调用生成能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
-            "arguments 必须完全符合 current_tool.inputSchema 的字段、必填项、类型、枚举及其他约束；"
+            "task": (
+                "为当前调用生成能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
+                "Filesystem Scope 的文件参数必须使用 scope_id 对应根目录内的相对路径；"
+                "后续工具直接使用上一步返回的路径，不添加 /workspace 或 filesystem_scopes/<scope_id> 前缀。\n"
+                "arguments 必须完全符合 current_tool.inputSchema 的字段、必填项、类型、枚举及其他约束；"
             "任务目标和后续调用不能覆盖当前工具的参数契约。重试时依据 previous_failure 修正违反契约的参数。\n"
             + TASK_STATE_CHAIN + "\n" + REVIEW_GUIDANCE + "\n"
             "review_guidance 中明确的业务设定、对象选择和处理规则是本次执行约束，按它们和前序真实结果填参；环境事实仍须以真实调用核实。任务文本在执行之后生成，不等待额外用户输入，也不自行补作影响任务范围和交付的业务决定。"
@@ -498,15 +506,53 @@ _TOOL_WORKER = r"""
 import contextlib
 import ctypes
 from copy import deepcopy
+import errno
 import io
 import json
 import os
-import sqlite3
 from pathlib import Path
+import shutil
+import sqlite3
 import resource
 import sys
 import tempfile
 from types import SimpleNamespace
+
+# Keep the parent pipe reserved for the single JSON response. Some scientific
+# libraries write directly to fd 1 and bypass Python's redirect_stdout.
+_WIRE_FD = os.dup(1)
+_ORIGINAL_REPLACE = os.replace
+
+def _same_filesystem_replace(source, destination, *args, **kwargs):
+    try:
+        return _ORIGINAL_REPLACE(source, destination, *args, **kwargs)
+    except OSError as error:
+        if error.errno != errno.EXDEV:
+            raise
+        if args or kwargs:
+            raise
+        source_path = Path(source)
+        destination_path = Path(destination)
+        if source_path.is_dir():
+            raise
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        handle, staged = tempfile.mkstemp(prefix='.replace-', dir=str(destination_path.parent))
+        os.close(handle)
+        try:
+            shutil.copy2(source_path, staged)
+            with open(staged, 'rb') as stream:
+                os.fsync(stream.fileno())
+            _ORIGINAL_REPLACE(staged, destination_path)
+            os.unlink(source_path)
+        except Exception:
+            try:
+                os.unlink(staged)
+            except OSError:
+                pass
+            raise
+
+os.replace = _same_filesystem_replace
+os.rename = _same_filesystem_replace
 
 @contextlib.contextmanager
 def quiet_native_stdout():
@@ -536,7 +582,8 @@ try:
     write_limit = int(payload["write_limit"])
     resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write_limit, write_limit))
-    resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+    process_limit = int(payload["process_limit"])
+    resource.setrlimit(resource.RLIMIT_NPROC, (process_limit, process_limit))
     runtime = {}
     exec(payload["context_source"], runtime)
     namespace = {"json": json, "sqlite3": sqlite3}
@@ -555,7 +602,9 @@ try:
     response = {"result": result, "error": None}
 except BaseException as error:
     response = {"result": None, "error": f"{type(error).__name__}: {error}"}
-json.dump(response, sys.stdout, ensure_ascii=False)
+wire = json.dumps(response, ensure_ascii=False, allow_nan=False).encode('utf-8') + b'\n'
+os.write(_WIRE_FD, wire)
+os.close(_WIRE_FD)
 """
 _MAX_SANDBOX_OUTPUT_BYTES = 16 * 1024 * 1024
 
@@ -593,14 +642,17 @@ def _call_tool(
     write_limit: int,
     environment: dict[str, Any] | None = None,
     software_root: Path | None = None,
-    *, software: dict[str, str] | None = None,
+    *, process_limit: int = 1024, software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     from functools import partial
     run_tool = partial(_run_tool, software=software) if software else _run_tool
     if software_root is not None:
         run_tool = partial(run_tool, software_root=software_root)
     if not environment or environment.get('schema_version') != '2.0':
-        return run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment)
+        return run_tool(
+            code, arguments, workspace, timeout, memory_limit, write_limit, environment,
+            process_limit=process_limit,
+        )
     from .state_runtime import snapshot_state, state_diff
     workspace = workspace.resolve()
     try:
@@ -611,7 +663,10 @@ def _call_tool(
         with tempfile.TemporaryDirectory(prefix='.tool-state-', dir=workspace.parent) as temporary:
             candidate = Path(temporary) / 'state'
             shutil.copytree(workspace, candidate, symlinks=True)
-            outcome = run_tool(code, arguments, candidate, timeout, memory_limit, write_limit, environment)
+            outcome = run_tool(
+                code, arguments, candidate, timeout, memory_limit, write_limit, environment,
+                process_limit=process_limit,
+            )
             result = outcome.get('result')
             if outcome.get('error') or not isinstance(result, dict) or result.get('success') is not True:
                 return outcome
@@ -633,7 +688,10 @@ def _call_tool(
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
 
 
-def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None, *, software=None):
+def _run_tool(
+    code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None,
+    *, process_limit=1024, software=None,
+):
     import jsonschema
     workspace = workspace.resolve()
     if not workspace.is_dir():
@@ -688,7 +746,7 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "--ro-bind-try", "/lib64", "/lib64",
         "--proc", "/proc",
         "--dev", "/dev",
-        "--tmpfs", "/tmp",
+        "--dir", "/tmp",
         "--dir", "/workspace",
         "--bind", str(workspace), "/workspace",
         "--chdir", "/workspace",
@@ -702,7 +760,19 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         # 多核主机上数值库的默认线程池会耗尽沙箱的地址空间预算。
         "--setenv", "OPENBLAS_NUM_THREADS", "1",
         "--setenv", "OMP_NUM_THREADS", "1",
+        "--setenv", "OMP_THREAD_LIMIT", "1",
+        "--setenv", "MKL_NUM_THREADS", "1",
+        "--setenv", "NUMEXPR_NUM_THREADS", "1",
+        "--setenv", "JAX_NUM_THREADS", "1",
+        "--setenv", "TF_NUM_INTRAOP_THREADS", "1",
+        "--setenv", "TF_NUM_INTEROP_THREADS", "1",
+        "--setenv", "XLA_FLAGS", "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
     ]
+    # Bind a disposable directory from the workspace filesystem as /tmp.
+    # This keeps standard-library tempfile + os.replace operations on one
+    # device while still isolating caches from the business workspace.
+    tmp_mount = tempfile.mkdtemp(prefix=".tool-tmp-", dir=workspace.parent)
+    command.extend(["--bind", tmp_mount, "/tmp"])
     if software_root is not None and not software:
         software_root = Path(software_root).expanduser().resolve()
         if not software_root.is_dir():
@@ -738,26 +808,30 @@ def _run_tool(code, arguments, workspace, timeout, memory_limit, write_limit, en
         "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
         "memory_limit": memory_limit,
         "write_limit": write_limit,
+        "process_limit": process_limit,
         "software_root": '/software' if software or software_root is not None else None,
         "software_prefix": software_prefix,
         "software_import_paths": software_imports,
     }, ensure_ascii=False)
-    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
-        try:
-            completed = subprocess.run(
-                command,
-                input=payload.encode("utf-8"),
-                stdout=stdout,
-                stderr=stderr,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            return {"kind": "timeout", "result": None, "error": f"工具调用超过 {timeout} 秒"}
-        except OSError as error:
-            return {"kind": "exception", "result": None, "error": f"启动工具沙箱失败：{error}"}
-        stdout_value = _read_limited(stdout)
-        stderr_value = _read_limited(stderr, 2000)
+    try:
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            try:
+                completed = subprocess.run(
+                    command,
+                    input=payload.encode("utf-8"),
+                    stdout=stdout,
+                    stderr=stderr,
+                    timeout=timeout,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return {"kind": "timeout", "result": None, "error": f"工具调用超过 {timeout} 秒"}
+            except OSError as error:
+                return {"kind": "exception", "result": None, "error": f"启动工具沙箱失败：{error}"}
+            stdout_value = _read_limited(stdout)
+            stderr_value = _read_limited(stderr, 2000)
+    finally:
+        shutil.rmtree(tmp_mount, ignore_errors=True)
     if completed.returncode != 0:
         detail = (stderr_value or stdout_value).decode("utf-8", errors="replace").strip()[-2000:]
         return {"kind": "exception", "result": None, "error": f"工具沙箱异常退出：{detail}"}

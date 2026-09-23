@@ -1,10 +1,10 @@
 [
   {
     "global_id": "semiconductor_scenario_04_01_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://microsoft.github.io/Qcodes/examples/basic_examples/15_minutes_to_QCoDeS.html",
           "https://microsoft.github.io/Qcodes/examples/Parameters/Parameters.html",
@@ -2624,10 +2624,10 @@
   },
   {
     "global_id": "semiconductor_scenario_04_01_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://microsoft.github.io/Qcodes/examples/basic_examples/15_minutes_to_QCoDeS.html",
           "https://microsoft.github.io/Qcodes/examples/Parameters/Parameters.html",
@@ -5247,10 +5247,10 @@
   },
   {
     "global_id": "semiconductor_scenario_04_01_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://microsoft.github.io/Qcodes/examples/basic_examples/15_minutes_to_QCoDeS.html",
           "https://microsoft.github.io/Qcodes/examples/Parameters/Parameters.html",
@@ -7848,10 +7848,10 @@
   },
   {
     "global_id": "semiconductor_scenario_04_02_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://docs.zhinst.com/labone_q_user_manual/core/functionality_and_concepts/00_device_setup/tutorials/00_device_setup.html",
           "https://docs.zhinst.com/labone_q_user_manual/core/functionality_and_concepts/03_sections_pulses/tutorials/01_pulse_library.html",
@@ -10954,10 +10954,10 @@
   },
   {
     "global_id": "semiconductor_scenario_04_03_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/QCoDeS/Qcodes_contrib_drivers/blob/v0.25.0/tests/Keysight/test_E5080B.py",
           "https://github.com/QCoDeS/Qcodes_contrib_drivers/blob/v0.25.0/src/qcodes_contrib_drivers/sims/Keysight_E5080B.yaml",
@@ -14471,10 +14471,10 @@
   },
   {
     "global_id": "semiconductor_scenario_04_04_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pyvisa.readthedocs.io/en/latest/introduction/communication.html",
           "https://pyvisa.readthedocs.io/en/latest/introduction/resources.html",
@@ -15828,10 +15828,10 @@
   },
   {
     "global_id": "semiconductor_scenario_04_04_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pyvisa.readthedocs.io/en/latest/introduction/communication.html",
           "https://pyvisa-sim.readthedocs.io/en/latest/definitions.html",

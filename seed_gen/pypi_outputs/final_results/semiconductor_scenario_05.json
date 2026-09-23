@@ -1,10 +1,10 @@
 [
   {
     "global_id": "semiconductor_scenario_05_01_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/README.md",
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/tests/test_PRR.py",
@@ -6114,10 +6114,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_01_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/README.md",
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/tests/test_PRR.py",
@@ -12236,10 +12236,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_01_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/tests/test_PRR.py",
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/tests/test_PTR.py",
@@ -18358,10 +18358,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_02_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/xlhaw/wfmap/blob/1.0.3/README.md",
           "https://github.com/xlhaw/wfmap/blob/1.0.3/wfmap/__init__.py",
@@ -24296,10 +24296,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_02_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://scikit-learn.org/stable/auto_examples/cluster/plot_dbscan.html",
           "https://github.com/xlhaw/wfmap/blob/1.0.3/README.md",
@@ -31219,10 +31219,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_02_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html",
           "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage",
@@ -38307,10 +38307,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_03_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://en.wikipedia.org/wiki/Shmoo_plot",
           "https://www.ni.com/en/solutions/semiconductor.html",
@@ -43666,10 +43666,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_03_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.median_abs_deviation.html",
           "https://github.com/Semi-ATE/STDF/blob/0.1.33/tests/test_PTR.py",
@@ -51168,10 +51168,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_04_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.median_abs_deviation.html",
           "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.zscore.html",
@@ -58673,10 +58673,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_05_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind.html",
           "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html",
@@ -66147,10 +66147,10 @@
   },
   {
     "global_id": "semiconductor_scenario_05_05_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pandas.pydata.org/docs/user_guide/merging.html",
           "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html",

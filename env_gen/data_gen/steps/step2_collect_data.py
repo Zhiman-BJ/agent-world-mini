@@ -49,7 +49,7 @@ AgentRunner = Callable[[str, int, tuple[Path, ...]], str]
 _SOURCE_ID = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 _ALLOWED_ROLES = {"business_records", "task_domain_files"}
 _SUBJECT_TYPES = ("entity", "tool", "task")
-_RESULT_REPAIR_SECONDS = 600
+_RESULT_REPAIR_SECONDS = 1200
 
 
 class DataCollectionError(RuntimeError):

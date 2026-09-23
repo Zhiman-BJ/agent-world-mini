@@ -17,6 +17,7 @@ from env_gen.tool_gen.software import (
     OFFICIAL_PYPI_INDEX,
     expanded_packages,
     prepare_software,
+    runtime_environment,
     software_download_environment,
     inspect_system_packages,
     validate_in_runtime,
@@ -26,6 +27,26 @@ from tests.test_tool_gen import FakeAgent, tool
 
 
 class SoftwareTests(unittest.TestCase):
+    def test_runtime_environment_exposes_profile_tools_and_libraries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "system/usr/bin/example-tool"
+            library = root / "system/usr/lib/x86_64-linux-gnu"
+            binary.parent.mkdir(parents=True)
+            library.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\nexit 0\n")
+
+            environment = runtime_environment(
+                root,
+                {"PATH": "/host/bin", "LD_LIBRARY_PATH": "/host/lib"},
+            )
+
+            self.assertEqual(environment["TOOLGEN_SOFTWARE_ROOT"], str(root))
+            self.assertIn(str(binary.parent), environment["PATH"].split(os.pathsep))
+            self.assertIn(
+                str(library), environment["LD_LIBRARY_PATH"].split(os.pathsep)
+            )
+
     def test_reused_profile_rechecks_declared_system_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
             package = Path(directory)

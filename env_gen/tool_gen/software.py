@@ -51,6 +51,14 @@ def _system_name(item: Any) -> str:
     return str(item.get("name") if isinstance(item, dict) else item).strip()
 
 
+def _declared_name(item: Any) -> str:
+    if isinstance(item, str):
+        return item.split("=", 1)[0].strip()
+    if isinstance(item, dict):
+        return str(item.get("name", "")).strip()
+    return ""
+
+
 def _profile_search_path(root: Path) -> str:
     bins = [root]
     bins.extend(path for path in root.rglob("bin") if path.is_dir())
@@ -191,6 +199,40 @@ def inspect_system_packages(
             checks.append({"name": name, "status": "ready" if command_path else "missing", "probe": "command", "path": str(command_path) if command_path else None})
             continue
         checks.append({"name": name, "status": "missing", "probe": "not_declared"})
+
+    installed_conda: set[str] = set()
+    conda_meta_dirs = [root / "conda-meta"] + [
+        prefix / "conda-meta" for prefix in root.glob("python-*")
+    ]
+    for conda_meta in conda_meta_dirs:
+        if not conda_meta.is_dir():
+            continue
+        for metadata in conda_meta.glob("*.json"):
+            try:
+                document = json.loads(metadata.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if document.get("name"):
+                installed_conda.add(str(document["name"]).lower())
+    for item in plan.get("conda_packages", []) or []:
+        name = _declared_name(item)
+        ready = bool(name and name.lower() in installed_conda)
+        checks.append({
+            "name": f"conda:{name}",
+            "status": "ready" if ready else "missing",
+            "probe": "conda_metadata",
+        })
+
+    for item in plan.get("executables", []) or []:
+        name = _declared_name(item)
+        found = _find_profile_executable(root, (name,)) if name else None
+        checks.append({
+            "name": f"executable:{name}",
+            "status": "ready" if found else "missing",
+            "probe": "executable",
+            "path": str(found) if found else None,
+        })
+
     missing = [check["name"] for check in checks if check["status"] != "ready"]
     return {"status": "ready" if not missing else "blocked", "missing": missing, "checks": checks}
 
@@ -256,27 +298,94 @@ def runtime_info(package_root: Path) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
+def runtime_environment(
+    software_root: Path,
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Expose binaries and native libraries bundled in a software profile."""
+
+    root = Path(software_root).expanduser().resolve()
+    environment = dict(os.environ if base is None else base)
+    if not root.is_dir():
+        return environment
+
+    prefixes = sorted(path for path in root.glob("python-*") if path.is_dir())
+    candidates = [root, *prefixes]
+    bin_dirs: list[Path] = []
+    lib_dirs: list[Path] = []
+    for prefix in candidates:
+        for relative in ("bin", "sbin"):
+            path = prefix / relative
+            if path.is_dir():
+                bin_dirs.append(path)
+        for relative in (
+            "lib",
+            "lib64",
+            "lib/x86_64-linux-gnu",
+            "lib/aarch64-linux-gnu",
+        ):
+            path = prefix / relative
+            if path.is_dir():
+                lib_dirs.append(path)
+
+    product_trees = [root / "system", root / "native", root / "external"]
+    product_trees.extend(path for path in root.iterdir() if path.is_dir())
+    for tree in product_trees:
+        if not tree.is_dir():
+            continue
+        products = (tree, *sorted(path for path in tree.iterdir() if path.is_dir()))
+        products += tuple(
+            child / "usr" for child in products if (child / "usr").is_dir()
+        )
+        for product in products:
+            for relative in ("bin", "sbin", "usr/bin", "usr/sbin"):
+                path = product / relative
+                if path.is_dir():
+                    bin_dirs.append(path)
+            for relative in (
+                "lib",
+                "lib64",
+                "usr/lib",
+                "usr/lib64",
+                "usr/lib/x86_64-linux-gnu",
+                "usr/lib/aarch64-linux-gnu",
+            ):
+                path = product / relative
+                if path.is_dir():
+                    lib_dirs.append(path)
+
+    bins = list(dict.fromkeys(str(path) for path in bin_dirs))
+    libraries = list(dict.fromkeys(str(path) for path in lib_dirs))
+    if bins:
+        environment["PATH"] = os.pathsep.join(
+            [*bins, environment.get("PATH", "")]
+        )
+    if libraries:
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+            [*libraries, environment.get("LD_LIBRARY_PATH", "")]
+        )
+
+    prefix = prefixes[-1] if prefixes else None
+    if prefix:
+        if (prefix / "lib/petsc").is_dir():
+            environment.setdefault("PETSC_DIR", str(prefix))
+        if (prefix / "lib/slepc").is_dir():
+            environment.setdefault("SLEPC_DIR", str(prefix))
+    environment["TOOLGEN_SOFTWARE_ROOT"] = str(root)
+    return environment
+
+
 def subprocess_environment(package_root: Path) -> dict[str, str]:
     environment = dict(os.environ)
     source_root = str(Path(__file__).resolve().parents[2])
     environment["PYTHONPATH"] = os.pathsep.join(filter(None, [source_root, environment.get("PYTHONPATH")]))
     info = runtime_info(package_root)
     if info:
-        root = Path(info["root"])
-        environment["PATH"] = os.pathsep.join([
-            _profile_search_path(root),
-            str(Path(info["python"]).parent),
-            environment.get("PATH", ""),
-        ])
-        library_dirs = [
-            path for path in (root / "lib", root / "lib64") if path.is_dir()
-        ]
-        if library_dirs:
-            environment["LD_LIBRARY_PATH"] = os.pathsep.join(
-                [*(str(path) for path in library_dirs), environment.get("LD_LIBRARY_PATH", "")]
-            )
+        environment = runtime_environment(Path(info["root"]), environment)
+        environment["PATH"] = os.pathsep.join(
+            [str(Path(info["python"]).parent), environment.get("PATH", "")]
+        )
         environment["VIRTUAL_ENV"] = info["prefix"]
-        environment["TOOLGEN_SOFTWARE_ROOT"] = info["root"]
     return environment
 
 

@@ -33,7 +33,11 @@ from tests.data_gen_test_helpers import (
     scenario_payload,
     write_json,
 )
-from env_gen.data_gen.analysis.seed import canonical_json_sha256, load_selected_seed
+from env_gen.data_gen.analysis.seed import (
+    canonical_json_sha256,
+    load_selected_seed,
+    reference_tool_labels,
+)
 
 
 class ScenarioResearchTests(unittest.TestCase):
@@ -115,6 +119,106 @@ class ScenarioResearchTests(unittest.TestCase):
                 ROOT / "schemas/validation/env_seeds.schema.json",
             )
             self.assertEqual(seed["global_id"], global_id)
+
+    def test_scenario_seed_uses_dedicated_contract_and_l3_identity(self) -> None:
+        scenario_seed = {
+            "global_id": "semiconductor_scenario_01_01_01",
+            "schema_version": "scenario-1.1",
+            "environment": {
+                "basic_info": {
+                    "source": "deep_research",
+                    "url": [
+                        "https://example.test/application",
+                        "https://example.test/reference",
+                        "https://example.test/workflow",
+                    ],
+                    "name": "晶体结构构建与转换",
+                    "version": "2026-09-18",
+                    "index": 1,
+                },
+                "description": "使用固定结构数据完成构建、转换和验证。",
+                "domain": {
+                    "level1": "01 材料与器件研发",
+                    "level2": "01.01 材料结构与数据",
+                    "level3": "01.01.01 晶体结构构建与转换",
+                },
+                "nums": {"class": 0, "function": 1, "class_func": 0, "all_func": 1},
+            },
+            "init_ref_tools": [{
+                "name": "read_structure",
+                "type": "function",
+                "module": "demo.structure",
+                "description": "",
+                "input": {},
+                "output": None,
+            }],
+            "init_ref_tasks": ["读取并验证一个结构文件。", "转换结构后重新读取并比较。"],
+            "others": {
+                "basic_info": [{"name": "demo-package"}],
+                "pypi_package": ["demo-package"],
+                "package_relation": "demo-package 提供结构读取和转换。",
+                "package_metadata": [{"python_source_extraction": {}}],
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scenario.json"
+            write_json(path, [scenario_seed])
+            loaded, _ = load_selected_seed(
+                path,
+                scenario_seed["global_id"],
+                ROOT / "schemas/validation/env_seeds.schema.json",
+            )
+        self.assertEqual(loaded, scenario_seed)
+        self.assertEqual(reference_tool_labels(loaded), {"demo.structure.read_structure"})
+
+    def test_scenario_seed_collection_rejects_duplicate_indices(self) -> None:
+        first = {
+            "global_id": "semiconductor_scenario_01_01_01",
+            "schema_version": "scenario-1.1",
+            "environment": {
+                "basic_info": {
+                    "source": "deep_research",
+                    "url": ["https://example.test/a", "https://example.test/b", "https://example.test/c"],
+                    "name": "场景一",
+                    "version": "2026-09-18",
+                    "index": 1,
+                },
+                "description": "第一个测试场景。",
+                "domain": {
+                    "level1": "01 材料与器件研发",
+                    "level2": "01.01 材料结构与数据",
+                    "level3": "01.01.01 晶体结构构建与转换",
+                },
+                "nums": {"class": 0, "function": 1, "class_func": 0, "all_func": 1},
+            },
+            "init_ref_tools": [{
+                "name": "run",
+                "type": "function",
+                "module": "demo",
+                "description": "Run.",
+                "input": {},
+                "output": None,
+            }],
+            "init_ref_tasks": ["执行任务一。", "执行任务二。"],
+            "others": {
+                "basic_info": [{"name": "demo"}],
+                "pypi_package": ["demo"],
+                "package_relation": "demo 提供计算。",
+                "package_metadata": [{"python_source_extraction": {}}],
+            },
+        }
+        second = json.loads(json.dumps(first, ensure_ascii=False))
+        second["global_id"] = "semiconductor_scenario_01_01_02"
+        second["environment"]["domain"]["level3"] = "01.01.02 材料数据库检索"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scenario.json"
+            write_json(path, [first, second])
+            with self.assertRaisesRegex(ValueError, "重复 index"):
+                load_selected_seed(
+                    path,
+                    first["global_id"],
+                    ROOT / "schemas/validation/env_seeds.schema.json",
+                )
 
     def test_python_package_step1_gets_a_larger_research_window(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

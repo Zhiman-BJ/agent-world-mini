@@ -21,9 +21,9 @@ class CollectionPolicy:
 
     max_total_seconds: int = 4200
     scenario_research_seconds: int = 900
-    scenario_research_total_seconds: int = 1200
+    scenario_research_total_seconds: int = 1800
     max_scenario_research_attempts: int = 2
-    source_collection_total_seconds: int = 2400
+    source_collection_total_seconds: int = 4200
     download_timeout_seconds: int = 900
     integration_seconds: int = 1500
     integration_total_seconds: int = 2100

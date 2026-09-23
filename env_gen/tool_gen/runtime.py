@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import ctypes
+import errno
+import io
 import json
 import hashlib
 import os
 import shutil
 import sqlite3
 import tempfile
+import sys
+from contextlib import redirect_stdout
+from contextlib import contextmanager
 from contextlib import closing
 from copy import deepcopy
 from dataclasses import dataclass
@@ -15,6 +21,72 @@ from typing import Any, Callable
 from jsonschema import Draft202012Validator
 
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas"
+MAX_CAPTURED_TOOL_STDOUT = 16 * 1024 * 1024
+
+
+@contextmanager
+def _capture_tool_stdout():
+    """Keep tool diagnostics off the stdio MCP/JSON-RPC wire."""
+    original_fd = os.dup(1)
+    python_output = io.StringIO()
+    native_output = tempfile.TemporaryFile()
+    original_replace = os.replace
+    original_rename = os.rename
+
+    def same_filesystem_replace(source, destination, *args, **kwargs):
+        try:
+            return original_replace(source, destination, *args, **kwargs)
+        except OSError as error:
+            if error.errno != errno.EXDEV or args or kwargs:
+                raise
+            source_path = Path(source)
+            destination_path = Path(destination)
+            if source_path.is_dir():
+                raise
+            destination_path.parent.mkdir(parents=True, exist_ok=True)
+            handle, staged = tempfile.mkstemp(
+                prefix=".replace-", dir=str(destination_path.parent)
+            )
+            os.close(handle)
+            try:
+                shutil.copy2(source_path, staged)
+                with open(staged, "rb") as stream:
+                    os.fsync(stream.fileno())
+                original_replace(staged, destination_path)
+                os.unlink(source_path)
+            except Exception:
+                try:
+                    os.unlink(staged)
+                except OSError:
+                    pass
+                raise
+
+    os.replace = same_filesystem_replace
+    os.rename = same_filesystem_replace
+    try:
+        sys.stdout.flush()
+        os.dup2(native_output.fileno(), 1)
+        with redirect_stdout(python_output):
+            yield
+    finally:
+        try:
+            ctypes.CDLL(None).fflush(None)
+        except Exception:
+            pass
+        os.dup2(original_fd, 1)
+        os.close(original_fd)
+        os.replace = original_replace
+        os.rename = original_rename
+        native_output.seek(0)
+        native_bytes = native_output.read(MAX_CAPTURED_TOOL_STDOUT + 1)
+        native_output.close()
+        python_bytes = python_output.getvalue().encode("utf-8", errors="replace")
+        combined = python_bytes + native_bytes
+        if len(combined) > MAX_CAPTURED_TOOL_STDOUT:
+            raise ValueError("工具 stdout 输出超过 16 MiB")
+        if combined:
+            sys.stderr.write(combined.decode("utf-8", errors="replace"))
+            sys.stderr.flush()
 
 
 def _quote(value: str) -> str:
@@ -304,12 +376,22 @@ class ToolRuntime:
         package: ToolPackage,
         *,
         software_root: Path | None = None,
+        temp_root: Path | None = None,
     ) -> None:
         self.package = package
-        self._temporary = tempfile.TemporaryDirectory(prefix="agent-world-tool-runtime-")
+        temporary_parent = None
+        if temp_root is not None:
+            temporary_parent = Path(temp_root).expanduser().resolve()
+            temporary_parent.mkdir(parents=True, exist_ok=True)
+        self._temporary = tempfile.TemporaryDirectory(
+            prefix="agent-world-tool-runtime-",
+            dir=str(temporary_parent) if temporary_parent is not None else None,
+        )
         self.root = Path(self._temporary.name)
         shutil.copy2(package.package_root / "environment.json", self.root / "environment.json")
         shutil.copytree(package.package_root / "state", self.root / "state")
+        self._software_root_path = self._software_root(software_root)
+        self._software_environment = self._software_environment_for(self._software_root_path)
         self._tools = {str(tool["name"]): deepcopy(tool) for tool in package.tools}
         self._handlers = {
             name: self._compile_handler(name, tool["internal"]["code"])
@@ -319,8 +401,25 @@ class ToolRuntime:
             environment=deepcopy(package.environment),
             records=RecordStore(self.root / "state/records.sqlite", package.environment),
             scope_root=lambda scope_id: self._scope_root(str(scope_id)),
-            software_root=self._software_root(software_root),
+            software_root=self._software_root_path,
         )
+
+    @staticmethod
+    def _software_environment_for(root: Path) -> dict[str, str]:
+        """Build the native runtime environment without leaking it globally."""
+        from .software import runtime_environment
+
+        return runtime_environment(root, os.environ)
+
+    @contextmanager
+    def _software_environment_scope(self):
+        previous = os.environ.copy()
+        os.environ.update(self._software_environment)
+        try:
+            yield
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
 
     def _software_root(self, override: Path | None) -> Path:
         """Return the installed dependency root when this package has one.
@@ -333,8 +432,6 @@ class ToolRuntime:
             override = Path(os.environ["TOOLGEN_SOFTWARE_ROOT"])
         if override is not None:
             root = override.expanduser().resolve()
-            if not root.is_dir():
-                raise ValueError(f"软件 Profile 目录不存在：{root}")
             return root
         info_path = self.package.package_root / "tool_generation/software_environment.json"
         if info_path.is_file():
@@ -389,10 +486,11 @@ class ToolRuntime:
             backup = Path(temporary) / "state"
             shutil.copytree(self.root / "state", backup)
             try:
-                result = _json_native(
-                    self._handlers[name](deepcopy(arguments), self.context),
-                    label=f"工具 {name} 的返回值",
-                )
+                with self._software_environment_scope(), _capture_tool_stdout():
+                    result = _json_native(
+                        self._handlers[name](deepcopy(arguments), self.context),
+                        label=f"工具 {name} 的返回值",
+                    )
                 output_errors = _schema_errors(tool["outputSchema"], result)
                 if output_errors:
                     raise ValueError(f"工具 {name} 输出不符合 Schema：{' | '.join(output_errors)}")

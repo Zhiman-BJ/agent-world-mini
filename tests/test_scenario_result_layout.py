@@ -10,21 +10,21 @@ from seed_gen.scripts import build_joint_scenario_seeds as builder
 from seed_gen.scripts.merge_scenario_results import collect_partitions
 
 
-def seed(sid):
+def seed(sid, *, index=None):
     return {'global_id': 'semiconductor_scenario_' + sid.replace('.', '_'),
-            'environment': {'basic_info': {'name': sid},
+            'schema_version': 'scenario-1.1',
+            'environment': {'basic_info': {'name': sid, 'source': 'deep_research',
+                                           'index': index if index is not None else int(sid.replace('.', ''))},
                             'domain': {'level1': '半导体 ' + sid[:2], 'level3': sid + ' 场景'},
                             'nums': {'class': 0, 'function': 0, 'class_func': 0, 'all_func': 0}},
             'init_ref_tools': [], 'init_ref_tasks': ['原任务'], 'others': {'pypi_package': []}}
 
 
 class ScenarioResultLayoutTests(unittest.TestCase):
-    def test_merge_preserves_mixed_metadata_and_original_partitions(self):
+    def test_merge_preserves_metadata_and_original_partitions(self):
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp)
             records = [seed('01.01.01'), seed('02.01.01')]
-            records[0]['schema_version'] = 'scenario-1.0'
-            records[1]['schema_version'] = '1.1'
             before = {}
             for record in records:
                 path = out / ('semiconductor_scenario_' + record['environment']['domain']['level3'][:2] + '.json')
@@ -39,8 +39,11 @@ class ScenarioResultLayoutTests(unittest.TestCase):
         duplicate_global['global_id'] = original['global_id']
         bad_count = copy.deepcopy(original)
         bad_count['environment']['nums']['all_func'] = 1
+        duplicate_index = seed('01.01.02', index=original['environment']['basic_info']['index'])
         cases = [([seed('02.01.01')], 'wrong L1'), ([original, original], 'Duplicate L3'),
-                 ([original, duplicate_global], 'Duplicate global'), ([bad_count], 'Count mismatch')]
+                 ([original, duplicate_global], 'Duplicate global'),
+                 ([original, duplicate_index], 'Duplicate scenario index'),
+                 ([bad_count], 'Count mismatch')]
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp)
             for payload, error in cases:

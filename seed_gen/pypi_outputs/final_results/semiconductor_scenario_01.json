@@ -1,10 +1,10 @@
 [
   {
     "global_id": "semiconductor_scenario_01_01_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pymatgen.org/usage.html",
           "https://pymatgen.org/pymatgen.io.html",
@@ -5064,10 +5064,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_01_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://jarvis-tools.readthedocs.io/en/master/databases.html",
           "https://jarvis-tools.readthedocs.io/en/master/tutorials.html",
@@ -7278,10 +7278,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_01_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/hackingmaterials/matminer/blob/v0.10.1/docs_rst/index.rst",
           "https://github.com/hackingmaterials/matminer/blob/v0.10.1/docs_rst/featurizer_summary.rst",
@@ -9593,10 +9593,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_01_04",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/CederGroupHub/chgnet/blob/v0.4.2/README.md",
           "https://github.com/CederGroupHub/chgnet/blob/v0.4.2/chgnet/model/dynamics.py",
@@ -14286,10 +14286,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_02_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://spglib.readthedocs.io/en/stable/python-interface.html",
           "https://spglib.readthedocs.io/en/stable/definition.html",
@@ -16515,10 +16515,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_02_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://seekpath.readthedocs.io/en/latest/maindoc.html",
           "https://github.com/materialscloud-org/seekpath",
@@ -18506,10 +18506,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_03_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://materialsproject.github.io/atomate2/user/codes/vasp.html",
           "https://materialsproject.github.io/jobflow/tutorials/1-quickstart.html",
@@ -21525,10 +21525,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_03_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://materialsproject.github.io/custodian/",
           "https://materialsproject.github.io/custodian/custodian.custodian.html",
@@ -23464,10 +23464,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_03_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://aiida.readthedocs.io/projects/aiida-core/en/stable/howto/query.html",
           "https://aiida.readthedocs.io/projects/aiida-core/en/stable/howto/run_workflows.html",
@@ -26581,10 +26581,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_03_04",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/pyiron/pyiron_workflow_atomistics/blob/pyiron_workflow_atomistics-0.2.1/pyiron_workflow_atomistics/engine/protocol.py",
           "https://github.com/pyiron/pyiron_workflow_atomistics/blob/pyiron_workflow_atomistics-0.2.1/tests/unit/engine/test_ase.py",
@@ -30425,10 +30425,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_04_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://materialsproject.github.io/pymatgen-analysis-defects/content/defining-defects.html",
           "https://github.com/materialsproject/pymatgen-analysis-defects/blob/v2026.3.20/pymatgen/analysis/defects/generators.py",
@@ -32619,10 +32619,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_04_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://shakenbreak.readthedocs.io/en/latest/ShakeNBreak_Example_Workflow.html",
           "https://shakenbreak.readthedocs.io/en/latest/Analysis.html",
@@ -35048,10 +35048,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_04_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://materialsproject.github.io/pymatgen-analysis-defects/content/formation-energy.html",
           "https://doped.readthedocs.io/en/latest/thermodynamics_tutorial.html",
@@ -37028,10 +37028,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_04_04",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://py-sc-fermi.readthedocs.io/en/latest/tutorial.html",
           "https://github.com/bjmorgan/py-sc-fermi/blob/3.0.0/README.md",
@@ -38474,10 +38474,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_05_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://phonopy.github.io/phonopy/phonopy-module.html",
           "https://phonopy.github.io/phonopy/examples.html",
@@ -40294,10 +40294,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_05_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://phonopy.github.io/phono3py/phono3py-api.html",
           "https://phonopy.github.io/phono3py/examples.html",
@@ -42351,10 +42351,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_05_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/materialsvirtuallab/pymatgen-analysis-diffusion/blob/v2025.11.14/README.rst",
           "https://github.com/materialsvirtuallab/pymatgen-analysis-diffusion/blob/v2025.11.14/src/pymatgen/analysis/diffusion/analyzer.py",
@@ -44565,10 +44565,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_06_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://smtg-bham.github.io/sumo/sumo-bandstats.html",
           "https://smtg-bham.github.io/sumo/sumo-bandplot.html",
@@ -47133,10 +47133,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_06_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://effmass.readthedocs.io/en/latest/",
           "https://effmass.readthedocs.io/en/latest/analysis.html",
@@ -51136,10 +51136,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_06_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://duarte-jfs.github.io/openbandparams/1.0/",
           "https://duarte-jfs.github.io/openbandparams/1.0/tutorial.html",
@@ -52901,10 +52901,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_07_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://gpaw.readthedocs.io/documentation/basic.html",
           "https://gpaw.readthedocs.io/documentation/restart_files.html",
@@ -59542,10 +59542,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_07_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://abinit.github.io/abipy/flow_gallery/run_si_ebands.html",
           "https://github.com/abinit/abipy/blob/v1.0.0/abipy/examples/flows/run_si_ebands.py",
@@ -62545,10 +62545,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_08_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://kdotpy.physik.uni-wuerzburg.de/",
           "https://gitpages.physik.uni-wuerzburg.de/kdotpy/web/gallery/pictures",
@@ -64388,10 +64388,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_08_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pythtb.readthedocs.io/en/latest/tutorials.html",
           "https://pythtb.readthedocs.io/en/latest/generated/pythtb.models.ssh.html",
@@ -66056,10 +66056,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_09_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://kwant-project.org/doc/1/tutorial/first_steps",
           "https://kwant-project.org/doc/1/tutorial/operators",
@@ -68556,10 +68556,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_09_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://tkwant.kwant-project.org/doc/stable/tutorial/onebody.html",
           "https://tkwant.kwant-project.org/doc/stable/tutorial/time_dep_system.html",
@@ -71269,10 +71269,10 @@
   },
   {
     "global_id": "semiconductor_scenario_01_09_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://z2pack.greschd.ch/en/latest/examples/tb/tb.html",
           "https://z2pack.greschd.ch/en/latest/examples/hm/haldane.html",

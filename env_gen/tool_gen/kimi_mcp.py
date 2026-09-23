@@ -30,6 +30,7 @@ from env_gen.tool_gen.runtime import (  # noqa: E402
     ToolRuntime,
     state_diff,
 )
+from env_gen.tool_gen.software import runtime_environment  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -214,6 +215,7 @@ class KimiMcpServer:
         *,
         trace_path: Path | None = None,
         max_tool_calls: int = 100,
+        temp_root: Path | None = None,
     ) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls 必须大于 0")
@@ -224,6 +226,7 @@ class KimiMcpServer:
         self.runtime = ToolRuntime(
             delivery.package,
             software_root=delivery.software_root,
+            temp_root=temp_root,
         )
         self._tools = {str(tool["name"]): tool for tool in delivery.package.tools}
 
@@ -321,10 +324,16 @@ def serve(
     stdout: TextIO = sys.stdout,
 ) -> None:
     delivery = load_delivery(binding_path)
+    # Keep copied Record Sets and Filesystem Scopes beside the task trace;
+    # /tmp is commonly a much smaller filesystem than the delivery disk.
+    temp_root = trace_path.expanduser().resolve().parent if trace_path else None
+    if temp_root is None and os.environ.get("AGENT_WORLD_TMPDIR"):
+        temp_root = Path(os.environ["AGENT_WORLD_TMPDIR"])
     with KimiMcpServer(
         delivery,
         trace_path=trace_path,
         max_tool_calls=max_tool_calls,
+        temp_root=temp_root,
     ) as server:
         serve_jsonrpc(server.handle, stdin=stdin, stdout=stdout)
 
@@ -349,19 +358,17 @@ def kimi_config(
     arguments.extend(["--max-tool-calls", str(max_tool_calls)])
     environment = {"PYTHONPATH": str(server_path.parents[2])}
     if delivery.software_root is not None:
-        root = delivery.software_root
-        bins = [path for path in root.rglob("bin") if path.is_dir()]
-        libraries = [
-            path for path in (root / "lib", root / "lib64") if path.is_dir()
-        ]
-        environment["TOOLGEN_SOFTWARE_ROOT"] = str(root)
-        environment["PATH"] = os.pathsep.join(
-            [*(str(path) for path in bins), os.environ.get("PATH", "")]
-        )
-        if libraries:
-            environment["LD_LIBRARY_PATH"] = os.pathsep.join(
-                [*(str(path) for path in libraries), os.environ.get("LD_LIBRARY_PATH", "")]
-            )
+        prepared = runtime_environment(delivery.software_root)
+        for name in (
+            "TOOLGEN_SOFTWARE_ROOT",
+            "PATH",
+            "LD_LIBRARY_PATH",
+            "PETSC_DIR",
+            "PETSC_ARCH",
+            "SLEPC_DIR",
+        ):
+            if prepared.get(name):
+                environment[name] = prepared[name]
     return {
         "mcpServers": {
             server_name: {

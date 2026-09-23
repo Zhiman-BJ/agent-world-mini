@@ -15,6 +15,10 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 
+SCENARIO_SEED_SCHEMA_VERSION = "scenario-1.1"
+SCENARIO_SEED_SCHEMA_NAME = "scenario_env_seeds.schema.json"
+
+
 def canonical_json_sha256(value: object) -> str:
     """计算与排版和 key 顺序无关的 JSON SHA-256。"""
 
@@ -44,7 +48,7 @@ def is_python_package_seed(seed: dict[str, Any]) -> bool:
         )
     )
     return (
-        seed.get("schema_version") == "1.1"
+        seed.get("schema_version") in {"1.1", SCENARIO_SEED_SCHEMA_VERSION}
         and isinstance(basic, dict)
         and (
             (basic.get("source") == "pypi" and isinstance(extraction, dict))
@@ -88,6 +92,14 @@ def reference_task_text(item: Any) -> str | None:
 
 
 def _expected_global_id(seed: dict[str, Any]) -> str | None:
+    if seed.get("schema_version") == SCENARIO_SEED_SCHEMA_VERSION:
+        domain = seed.get("environment", {}).get("domain", {})
+        level3 = domain.get("level3") if isinstance(domain, dict) else None
+        match = re.match(r"^(\d{2}\.\d{2}\.\d{2})(?:\s|$)", level3 or "")
+        if not match:
+            return None
+        return f"semiconductor_scenario_{match.group(1).replace('.', '_')}"
+
     basic = seed.get("environment", {}).get("basic_info", {})
     if not isinstance(basic, dict):
         return None
@@ -116,7 +128,15 @@ def load_selected_seed(
     if not isinstance(payload, list):
         raise ValueError("最终 Seed 文件根节点必须是数组")
 
-    schema = json.loads(validation_schema_path.read_text(encoding="utf-8"))
+    versions = {
+        item.get("schema_version")
+        for item in payload
+        if isinstance(item, dict)
+    }
+    schema_path = validation_schema_path
+    if versions == {SCENARIO_SEED_SCHEMA_VERSION}:
+        schema_path = validation_schema_path.with_name(SCENARIO_SEED_SCHEMA_NAME)
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     errors = sorted(validator.iter_errors(payload), key=lambda item: list(item.path))
@@ -133,6 +153,16 @@ def load_selected_seed(
     duplicates = sorted({value for value in ids if ids.count(value) > 1})
     if duplicates:
         raise ValueError(f"Seed 集合存在重复 global_id：{duplicates[:10]}")
+
+    if versions == {SCENARIO_SEED_SCHEMA_VERSION}:
+        indices = [
+            item["environment"]["basic_info"]["index"]
+            for item in payload
+            if isinstance(item, dict)
+        ]
+        duplicate_indices = sorted({value for value in indices if indices.count(value) > 1})
+        if duplicate_indices:
+            raise ValueError(f"场景 Seed 集合存在重复 index：{duplicate_indices[:10]}")
 
     matches = [
         item

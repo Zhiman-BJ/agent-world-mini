@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world.local/schemas/kimi-k3-trajectory-v1.json",
+  "title": "Agent World Kimi K3 trajectory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trajectory_id",
+    "created_at",
+    "model",
+    "task",
+    "environment",
+    "steps",
+    "compactions",
+    "outcome",
+    "reasoning_preservation",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "agent_world.kimi_trajectory.v1"},
+    "trajectory_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "model": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["alias", "upstream_id"],
+      "properties": {
+        "alias": {"type": "string", "minLength": 1},
+        "upstream_id": {"type": "string", "minLength": 1},
+        "display_name": {"type": ["string", "null"]},
+        "provider": {"type": ["string", "null"]},
+        "max_context_size": {"type": ["integer", "null"], "minimum": 1},
+        "max_output_size": {"type": ["integer", "null"], "minimum": 1},
+        "reasoning_effort": {"enum": ["low", "high", "max", null]}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["prompt"],
+      "properties": {
+        "prompt": {"type": "string", "minLength": 1},
+        "task_id": {"type": ["string", "null"]}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["tool_names"],
+      "properties": {
+        "environment_id": {"type": ["string", "null"]},
+        "tool_names": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "index",
+          "turn_id",
+          "step",
+          "reasoning",
+          "assistant_text",
+          "tool_calls",
+          "model_exchanges",
+          "retries"
+        ],
+        "properties": {
+          "index": {"type": "integer", "minimum": 0},
+          "turn_id": {"type": "integer", "minimum": 0},
+          "step": {"type": "integer", "minimum": 0},
+          "step_id": {"type": ["string", "null"]},
+          "reasoning": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text", "event_sequences"],
+            "properties": {
+              "text": {"type": "string"},
+              "event_sequences": {"type": "array", "items": {"type": "integer", "minimum": 1}}
+            }
+          },
+          "assistant_text": {"type": "string"},
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["call_id", "name", "tool_kind", "arguments", "output", "is_error"],
+              "properties": {
+                "call_id": {"type": "string"},
+                "name": {"type": "string"},
+                "tool_kind": {"enum": ["environment_mcp", "harness_support"]},
+                "arguments": {},
+                "output": {},
+                "is_error": {"type": "boolean"},
+                "environment_record": {"type": ["object", "null"]},
+                "support_record": {"type": ["object", "null"]}
+              }
+            }
+          },
+          "model_exchanges": {"type": "array", "items": {"$ref": "#/$defs/modelExchange"}},
+          "retries": {"type": "array", "items": {"type": "object"}},
+          "finish": {"type": ["object", "null"]}
+        }
+      }
+    },
+    "compactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["index", "trigger", "started_event_sequence", "status", "model_exchanges"],
+        "properties": {
+          "index": {"type": "integer", "minimum": 0},
+          "trigger": {"enum": ["auto", "manual"]},
+          "started_event_sequence": {"type": "integer", "minimum": 1},
+          "completed_event_sequence": {"type": ["integer", "null"], "minimum": 1},
+          "status": {"enum": ["started", "completed", "cancelled"]},
+          "summary": {"type": ["string", "null"]},
+          "context_summary": {"type": ["string", "null"]},
+          "tokens_before": {"type": ["integer", "null"], "minimum": 0},
+          "tokens_after": {"type": ["integer", "null"], "minimum": 0},
+          "compacted_count": {"type": ["integer", "null"], "minimum": 0},
+          "before_context": {"anyOf": [{"$ref": "#/$defs/artifactRef"}, {"type": "null"}]},
+          "after_context": {"anyOf": [{"$ref": "#/$defs/artifactRef"}, {"type": "null"}]},
+          "model_exchanges": {"type": "array", "items": {"$ref": "#/$defs/modelExchange"}}
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "final_answer", "usage", "evaluation"],
+      "properties": {
+        "status": {"type": "string"},
+        "final_answer": {"type": "string"},
+        "usage": {},
+        "evaluation": {"type": ["object", "null"]}
+      }
+    },
+    "reasoning_preservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thinking_deltas", "raw_model_responses", "model_input_contexts", "context_snapshots", "session_export"],
+      "properties": {
+        "thinking_deltas": {"type": "boolean"},
+        "raw_model_responses": {"type": "boolean"},
+        "model_input_contexts": {"type": "boolean"},
+        "context_snapshots": {"type": "boolean"},
+        "session_export": {"type": "boolean"}
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "bytes"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "bytes": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line", "sha256"],
+      "properties": {
+        "path": {"type": "string"},
+        "line": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "modelExchange": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["request_id", "kind", "request"],
+      "properties": {
+        "request_id": {"type": "integer", "minimum": 1},
+        "kind": {"enum": ["agent_step", "compaction", "other"]},
+        "request": {"$ref": "#/$defs/artifactRef"},
+        "response": {"anyOf": [{"$ref": "#/$defs/artifactRef"}, {"type": "null"}]}
+      }
+    }
+  }
+}

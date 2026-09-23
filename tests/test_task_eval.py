@@ -182,6 +182,45 @@ class TaskEvalTest(unittest.TestCase):
             self.assertIn("success=true", result["error"])
             self.assertEqual(state.read_text(encoding="utf-8"), "7")
 
+    def test_mcp_gateway_returns_tool_timeout_as_retryable(self) -> None:
+        from task_gen.task_eval_mcp import TaskEvalMcpServer
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tool = {
+                "name": "slow_tool",
+                "description": "A slow fixture.",
+                "inputSchema": {"type": "object"},
+                "outputSchema": {"type": "object"},
+                "internal": {"code": ""},
+            }
+            server = TaskEvalMcpServer({
+                "workspace": str(root),
+                "trace": str(root / "trace.jsonl"),
+                "max_tool_calls": 1,
+                "timeout": 1,
+                "memory_limit": 1024 * 1024,
+                "write_limit": 1024 * 1024,
+                "tools": [tool],
+            })
+            record = {
+                "tool": "slow_tool",
+                "arguments": {},
+                "result": None,
+                "error": "工具调用超过 1 秒",
+                "failure_kind": "timeout",
+            }
+            with patch("task_gen.task_eval_mcp.call_environment_tool", return_value=record):
+                response = server.handle({
+                    "method": "tools/call",
+                    "params": {"name": "slow_tool", "arguments": {}},
+                })
+
+            error = response["structuredContent"]["error"]
+            self.assertEqual(error["code"], "timeout")
+            self.assertTrue(error["retryable"])
+            self.assertTrue(response["isError"])
+
     def test_mcp_gateway_rejects_symlink_before_a_second_call_can_follow_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

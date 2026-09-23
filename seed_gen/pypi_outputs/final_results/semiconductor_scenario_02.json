@@ -1,10 +1,10 @@
 [
   {
     "global_id": "semiconductor_scenario_02_01_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://devsim.net/examples_diode.html",
           "https://github.com/devsim/devsim_3dmos",
@@ -15,11 +15,11 @@
         ],
         "name": "PN/MOS/diode 基础器件",
         "version": "2026-09-16",
-        "index": 1
+        "index": 28
       },
       "description": "针对 PN 结、二极管或 MOS 结构建立材料区域、掺杂、接触与偏压条件，联立求解泊松方程和载流子漂移-扩散方程，分析器件内部电势、载流子分布及端口电流响应。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.01 TCAD",
         "level3": "02.01.01 Poisson / Drift-Diffusion"
       },
@@ -1875,10 +1875,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_01_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://www.nextnano.com/nextnano3/tutorial/1Dtutorial7.htm",
           "https://www.nextnano.com/nextnano3/tutorial/1Dtutorial_RTD_green.htm",
@@ -1889,11 +1889,11 @@
         ],
         "name": "QW/QCL/RTD/HEMT",
         "version": "2026-09-16",
-        "index": 2
+        "index": 29
       },
       "description": "描述量子阱、量子级联激光器、共振隧穿二极管或 HEMT 的多层异质结构，计算能带弯曲、束缚态、波函数与跃迁能量，并比较层厚、组分和偏压变化的影响。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.01 TCAD",
         "level3": "02.01.02 Heterostructure / Quantum Device"
       },
@@ -3442,10 +3442,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_01_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://docs.solcore.solar/en/latest/Examples/tutorial.html",
           "https://www.nextnano.com/docu/nextnano3/tutorials/nnp/1D_GaAs_solar_cell.html",
@@ -3456,11 +3456,11 @@
         ],
         "name": "solar cell / QW solar cell",
         "version": "2026-09-16",
-        "index": 3
+        "index": 30
       },
       "description": "对单结、多结或含量子阱的太阳能电池进行层结构、材料光学性质与载流子输运的耦合建模，评估吸收、量子效率、I-V 特性及能量转换效率。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.01 TCAD",
         "level3": "02.01.03 Solar / Optoelectronic Device"
       },
@@ -5721,10 +5721,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_02_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://www.nextnano.com/docu/nextnano3/tutorials/1D_Mobility_2DEGs.html",
           "https://www.nextnano.com/docu/nextnano3/tutorials/nnp/1D_electron_scattering_QW.html",
@@ -5735,11 +5735,11 @@
         ],
         "name": "HEMT/2DEG mobility",
         "version": "2026-09-16",
-        "index": 4
+        "index": 31
       },
       "description": "在 HEMT 或二维电子气材料参数、温度和载流子浓度给定时，分别评估离化杂质、合金无序、界面粗糙及声子等散射机制对总迁移率的限制。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.02 Carrier",
         "level3": "02.02.01 Mobility / Scattering"
       },
@@ -6425,10 +6425,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_03_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://gmsh.info/doc/texinfo/gmsh.html",
           "https://jsdokken.com/src/tutorial_gmsh.html",
@@ -6439,11 +6439,11 @@
         ],
         "name": "TCAD/FEM 几何",
         "version": "2026-09-16",
-        "index": 5
+        "index": 32
       },
       "description": "把器件截面转化为可计算的几何模型，明确半导体、介质、电极、界面和接触区域，并按结区、薄层及界面等关键尺度设置局部网格约束。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.03 Mesh/PDE",
         "level3": "02.03.01 Geometry Construction"
       },
@@ -8795,10 +8795,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_03_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/nschloe/meshio",
           "https://docs.fenicsproject.org/dolfinx/main/python/demos/demo_gmsh.html",
@@ -8808,11 +8808,11 @@
         ],
         "name": "solver 间 mesh 传递",
         "version": "2026-09-16",
-        "index": 6
+        "index": 33
       },
       "description": "在网格生成器与 TCAD、有限元求解器之间转换网格文件，同时保持节点、单元、边界标签和物理分组的对应关系，使同一器件几何可被下游求解器正确识别。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.03 Mesh/PDE",
         "level3": "02.03.02 Mesh Interchange"
       },
@@ -10525,10 +10525,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_03_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://jsdokken.com/dolfinx-tutorial/chapter3/robin_neumann_dirichlet.html",
           "https://jsdokken.com/dolfinx-tutorial/chapter2/heat_equation.html",
@@ -10539,11 +10539,11 @@
         ],
         "name": "自定义 electrothermal/PDE",
         "version": "2026-09-16",
-        "index": 7
+        "index": 34
       },
       "description": "为标准器件模型之外的静电、导热或电热耦合问题定义弱形式、材料系数、源项与边界条件，在导入网格上组装并求解有限元方程。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.03 Mesh/PDE",
         "level3": "02.03.03 Generic FEM/PDE"
       },
@@ -12898,10 +12898,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_04_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pyspice.fabrice-salvaire.fr/releases/latest/examples/filter/rlc-filter.html",
           "https://pyspice.fabrice-salvaire.fr/releases/latest/examples/switched-power-supplies/buck-converter.html",
@@ -12912,11 +12912,11 @@
         ],
         "name": "DC/AC/transient",
         "version": "2026-09-16",
-        "index": 8
+        "index": 35
       },
       "description": "围绕器件模型、元件连接和激励构建或读取 SPICE 网表，调用底层电路求解器执行直流工作点、交流小信号或瞬态分析，并解析波形与诊断信息。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.04 SPICE",
         "level3": "02.04.01 Netlist Execution"
       },
@@ -14272,10 +14272,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_04_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://github.com/ngspice/ngspice/blob/master/examples/Monte_Carlo/MonteCarlo.sp",
           "https://spicelib.readthedocs.io/en/stable/modules/sim_analysis.html",
@@ -14285,11 +14285,11 @@
         ],
         "name": "process/device variation",
         "version": "2026-09-16",
-        "index": 9
+        "index": 36
       },
       "description": "把电阻、电容、器件尺寸或模型参数视为设计变量或随机变量，批量运行参数扫描与蒙特卡洛仿真，评估工艺波动下的性能分布、角落表现和规格良率。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.04 SPICE",
         "level3": "02.04.02 Parameter Sweep / Monte Carlo"
       },
@@ -16149,10 +16149,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_05_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://lcapy.readthedocs.io/en/latest/tutorials.html",
           "https://docs.sympy.org/latest/tutorials/physics/control/electrical_problems.html",
@@ -16163,11 +16163,11 @@
         ],
         "name": "transfer function、impedance",
         "version": "2026-09-16",
-        "index": 10
+        "index": 37
       },
       "description": "从电路拓扑和符号元件值推导传递函数、输入输出阻抗、极点与零点，保留参数依赖关系，并与数值 SPICE 结果相互校验。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.05 Circuit",
         "level3": "02.05.01 Symbolic Analysis"
       },
@@ -18321,10 +18321,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_05_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://fides.fe.uni-lj.si/pyopus/download/0.9/docsrc/_build/html/tutorial.evaluation.05-optimize.html",
           "https://fides.fe.uni-lj.si/pyopus/download/0.9/docsrc/_build/html/tutorial.design.miller.nominal.html",
@@ -18335,11 +18335,11 @@
         ],
         "name": "corner/performance optimization",
         "version": "2026-09-16",
-        "index": 11
+        "index": 38
       },
       "description": "在多个工艺角、温度和供电条件下统一评估电路性能，将元件或器件参数作为变量，以最差角指标和约束为依据搜索稳健设计。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.05 Circuit",
         "level3": "02.05.02 Design Optimization"
       },
@@ -21069,10 +21069,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_06_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://scikit-rf.readthedocs.io/en/latest/examples/networktheory/LNA%20Example.html",
           "https://scikit-rf.readthedocs.io/en/latest/examples/matching/Impedance%20Matching.html",
@@ -21083,11 +21083,11 @@
         ],
         "name": "RF device/VNA",
         "version": "2026-09-16",
-        "index": 12
+        "index": 39
       },
       "description": "处理 RF 器件或 VNA 测得的多端口 S 参数网络，完成网络级联、参数域转换、增益与稳定性计算，并分析端口匹配随频率的变化。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.06 RF",
         "level3": "02.06.01 S-parameter Network Analysis"
       },
@@ -22858,10 +22858,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_06_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://scikit-rf.readthedocs.io/en/latest/examples/metrology/SOLT.html",
           "https://scikit-rf.readthedocs.io/en/latest/examples/metrology/Multiline%20TRL.html",
@@ -22872,11 +22872,11 @@
         ],
         "name": "wafer probe/VNA",
         "version": "2026-09-16",
-        "index": 13
+        "index": 40
       },
       "description": "利用开路、短路、负载、直通等校准标准估计探针台和测量链路误差盒，从晶圆级原始测量中移除夹具、走线及系统误差，恢复器件本征网络。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.06 RF",
         "level3": "02.06.02 Calibration / De-embedding"
       },
@@ -24457,10 +24457,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_07_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://gdsfactory.github.io/sax/nbs/examples/03_circuit_from_yaml/",
           "https://gdsfactory.github.io/sax/nbs/examples/02_all_pass_filter/",
@@ -24471,11 +24471,11 @@
         ],
         "name": "PIC network",
         "version": "2026-09-16",
-        "index": 14
+        "index": 41
       },
       "description": "用波导、耦合器、MMI、相移器等组件的散射矩阵搭建光子集成电路网络，按端口连接传播光信号并计算整个电路的波长响应。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.07 Photonic",
         "level3": "02.07.01 Circuit-level S Matrix"
       },
@@ -25754,10 +25754,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_08_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://meep.readthedocs.io/en/stable/Python_Tutorials/Resonant_Modes_and_Transmission_in_a_Waveguide_Cavity/",
           "https://meep.readthedocs.io/en/stable/Python_Tutorials/Basics/",
@@ -25768,11 +25768,11 @@
         ],
         "name": "waveguide/cavity",
         "version": "2026-09-16",
-        "index": 15
+        "index": 42
       },
       "description": "将波导、谐振腔或耦合结构的几何和材料映射到开源时域网格，设置光源、边界与监视器，通过时域电磁传播提取频谱、透射和场分布。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.08 FDTD",
         "level3": "02.08.01 Open-source FDTD"
       },
@@ -31000,10 +31000,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_08_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://www.flexcompute.com/tidy3d/examples/notebooks/GratingCoupler/",
           "https://www.flexcompute.com/tidy3d/examples/notebooks/MultiplexingMMI/",
@@ -31014,11 +31014,11 @@
         ],
         "name": "大规模/优化",
         "version": "2026-09-16",
-        "index": 16
+        "index": 43
       },
       "description": "把较大规模的光子结构、宽带扫描或优化问题提交到云端 FDTD 服务，管理仿真任务、资源与结果，并在成本和精度约束下比较设计候选。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.08 FDTD",
         "level3": "02.08.02 Cloud FDTD"
       },
@@ -37171,10 +37171,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_09_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://helgegehring.github.io/femwell/photonics/examples/waveguide_modes.html",
           "https://helgegehring.github.io/femwell/photonics/examples/vary_width.html",
@@ -37185,11 +37185,11 @@
         ],
         "name": "waveguide mode",
         "version": "2026-09-16",
-        "index": 17
+        "index": 44
       },
       "description": "在波导横截面的折射率与边界条件上求解电磁本征模，得到有效折射率、损耗和模场分布，用于判断导模条件及结构参数敏感性。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.09 FEM",
         "level3": "02.09.01 Eigenmode"
       },
@@ -41490,10 +41490,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_09_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://www.flexcompute.com/tidy3d/examples/notebooks/EMESolver/",
           "https://helgegehring.github.io/femwell/photonics/examples/crosstalk.html",
@@ -41504,11 +41504,11 @@
         ],
         "name": "sectional waveguide propagation",
         "version": "2026-09-16",
-        "index": 18
+        "index": 45
       },
       "description": "把渐变或分段波导沿传播方向切分，在各截面求解局部模式并通过界面模态匹配组合传播，估计长器件或缓变结构的透射与反射。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.09 FEM",
         "level3": "02.09.02 EME / propagation"
       },
@@ -43467,10 +43467,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_10_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://meep.readthedocs.io/en/stable/Python_Tutorials/Adjoint_Solver/",
           "https://www.flexcompute.com/tidy3d/examples/notebooks/Autograd6GratingCoupler/",
@@ -43481,11 +43481,11 @@
         ],
         "name": "grating/coupler inverse design",
         "version": "2026-09-16",
-        "index": 19
+        "index": 46
       },
       "description": "将光栅、耦合器或其他光子器件表示为可调介电像素或参数化几何，依据电磁响应和梯度迭代更新设计，同时满足制造与尺寸约束。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.10 Inverse",
         "level3": "02.10.01 Geometry Inverse Design"
       },
@@ -46334,10 +46334,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_11_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://www.comsol.com/model/download/1568521/models.plasma.cf4_o2_si_etching_global_model.pdf",
           "https://www.comsol.com/model/model-of-an-argonchlorine-inductively-coupled-plasma-reactor-with-rf-bias-110171",
@@ -46348,11 +46348,11 @@
         ],
         "name": "plasma properties、etch chamber physics",
         "version": "2026-09-16",
-        "index": 20
+        "index": 47
       },
       "description": "根据刻蚀腔体中的气体组成、压力、功率和温度估算等离子体频率、德拜长度、碰撞性等状态量，判断适用的放电与输运物理区间。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.11 Process Physics",
         "level3": "02.11.01 Plasma / Etch Physics"
       },
@@ -51761,10 +51761,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_11_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://cantera.org/stable/examples/python/kinetics/diamond_cvd.html",
           "https://cantera.org/stable/examples/python/reactors/1D_pfr_surfchem.html",
@@ -51775,11 +51775,11 @@
         ],
         "name": "CVD/etch gas-phase chemistry",
         "version": "2026-09-16",
-        "index": 21
+        "index": 48
       },
       "description": "使用 CVD 或刻蚀气相反应机理描述组分、热力学和反应动力学，计算不同配比、温度与压力下的平衡或反应历程及关键物种浓度。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.11 Process Physics",
         "level3": "02.11.02 Reaction / Gas Chemistry"
       },
@@ -55958,10 +55958,10 @@
   },
   {
     "global_id": "semiconductor_scenario_02_11_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pages.nist.gov/fipy/en/stable/generated/examples.diffusion.mesh1D.html",
           "https://pages.nist.gov/fipy/en/stable/generated/examples.levelSet.electroChem.simpleTrenchSystem.html",
@@ -55972,11 +55972,11 @@
         ],
         "name": "diffusion、surface reaction、electrodeposition",
         "version": "2026-09-16",
-        "index": 22
+        "index": 49
       },
       "description": "建立工艺物种在空间中的扩散、迁移与体相或表面反应方程，结合初始条件和边界通量模拟浓度剖面、界面消耗或电沉积随时间的演化。",
       "domain": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.11 Process Physics",
         "level3": "02.11.03 Diffusion / Reaction PDE"
       },

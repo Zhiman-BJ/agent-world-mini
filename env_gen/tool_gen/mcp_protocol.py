@@ -39,6 +39,12 @@ def _usage_description(tool: dict[str, Any]) -> str:
                 for item in values
             ]
             lines.append(f"{label}: " + "; ".join(rendered))
+    if usage is not None:
+        lines.append(
+            "Filesystem Scope paths are relative to the named scope root. "
+            "Pass paths returned by one tool unchanged to the next tool; never prepend "
+            "/workspace, filesystem_scopes/<scope_id>, or a host absolute path."
+        )
     return "\n".join([description, *lines])
 
 

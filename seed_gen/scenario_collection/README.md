@@ -15,7 +15,7 @@
 | 07 Inspection / Defect / Metrology | 28 | 28 | 0 |
 | 08 Enterprise / Quality / Reliability | 11 | 11 | 0 |
 
-[inventory.json](inventory.json) 覆盖全部 160 个编号，保存原文字段和行号。20 条只有标题的自由列表已补充具体应用、任务及候选包线索，标记 `explicit_editorial_supplement`；后续来源与运行验证以对应种子为准，编辑补充本身不是库功能证据。其余来源表格的名称和应用字段保持原意。02的22场景原文件未修改，SHA256为`8a56d7b6d204a0a135a791f7c22a5e374ee41a29dae88552305e91bfaf7bbbef`。
+[inventory.json](inventory.json) 覆盖全部 160 个编号，保存原文字段和行号。20 条只有标题的自由列表已补充具体应用、任务及候选包线索，标记 `explicit_editorial_supplement`；后续来源与运行验证以对应种子为准，编辑补充本身不是库功能证据。其余来源表格的名称和应用字段保持原意。02的22个场景仍保留0916的包、工具、任务和验证口径；正式分片只做了`scenario-1.1`契约、唯一index和L1标签规范化。
 
 ## 已完成种子
 

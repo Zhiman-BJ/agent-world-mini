@@ -1,10 +1,10 @@
 [
   {
     "global_id": "semiconductor_scenario_08_01_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://reliability.readthedocs.io/en/latest/Fitting%20a%20specific%20distribution%20to%20data.html",
           "https://reliability.readthedocs.io/en/latest/Working%20with%20fitted%20distributions.html",
@@ -2349,10 +2349,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://lifelines.readthedocs.io/en/latest/Survival%20analysis%20with%20lifelines.html",
           "https://reliability.readthedocs.io/en/latest/What%20is%20censored%20data.html",
@@ -4118,10 +4118,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://lifelines.readthedocs.io/en/latest/Survival%20Regression.html",
           "https://lifelines.readthedocs.io/en/latest/Quickstart.html",
@@ -6003,10 +6003,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_04",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://reliability.readthedocs.io/en/latest/What%20is%20Accelerated%20Life%20Testing.html",
           "https://reliability.readthedocs.io/en/latest/Fitting%20a%20single%20stress%20model%20to%20ALT%20data.html",
@@ -8419,10 +8419,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_05",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://reliability.readthedocs.io/en/latest/Mean%20cumulative%20function.html",
           "https://reliability.readthedocs.io/en/latest/ROCOF.html",
@@ -10493,10 +10493,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_01_06",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://surpyval.readthedocs.io/en/latest/Degradation%20Analysis.html",
           "https://surpyval.readthedocs.io/en/latest/Degradation%20Modelling%20with%20SurPyval.html",
@@ -12452,10 +12452,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_01",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://pandas.pydata.org/docs/getting_started/intro_tutorials/09_timeseries.html",
           "https://pandas.pydata.org/docs/user_guide/timeseries.html",
@@ -19522,10 +19522,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_02",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://www.itl.nist.gov/div898/handbook/prc/section3/prc31.htm",
           "https://pandas.pydata.org/docs/user_guide/groupby.html",
@@ -26723,10 +26723,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_03",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://centre-borelli.github.io/ruptures-docs/user-guide/detection/dynp/",
           "https://centre-borelli.github.io/ruptures-docs/user-guide/detection/pelt/",
@@ -34047,10 +34047,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_04",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.dag.ancestors.html",
           "https://pandas.pydata.org/docs/user_guide/merging.html",
@@ -42940,10 +42940,10 @@
   },
   {
     "global_id": "semiconductor_scenario_08_02_05",
-    "schema_version": "1.1",
+    "schema_version": "scenario-1.1",
     "environment": {
       "basic_info": {
-        "source": "deep research",
+        "source": "deep_research",
         "url": [
           "https://networkx.org/documentation/stable/auto_examples/graph/plot_dag_layout.html",
           "https://networkx.org/documentation/stable/reference/readwrite/json_graph.html",
