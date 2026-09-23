@@ -18,6 +18,7 @@ from env_gen.tool_gen.software import (
     expanded_packages,
     prepare_software,
     software_download_environment,
+    inspect_system_packages,
     validate_in_runtime,
 )
 from tests import test_tool_gen as fixtures
@@ -25,6 +26,84 @@ from tests.test_tool_gen import FakeAgent, tool
 
 
 class SoftwareTests(unittest.TestCase):
+    def test_reused_profile_rechecks_declared_system_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            output = package / "tool_generation"
+            software_root = output / "software"
+            software_root.mkdir(parents=True)
+            plan = {
+                "system_packages": [
+                    {"name": "required tool", "executable": "missing-tool"}
+                ]
+            }
+            (output / "software_plan.json").write_text(json.dumps(plan))
+            (output / "software_environment.json").write_text(json.dumps({
+                "python": sys.executable,
+                "prefix": sys.prefix,
+                "root": str(software_root),
+                "plan": plan,
+            }))
+
+            with self.assertRaisesRegex(RuntimeError, "required tool"):
+                prepare_software(package)
+
+            status = json.loads(
+                (output / "software_system_status.json").read_text()
+            )
+            self.assertEqual(status["status"], "blocked")
+
+    def test_system_package_probe_includes_multiarch_library_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "system/usr/bin/example-tool"
+            library = root / "system/usr/lib/x86_64-linux-gnu"
+            binary.parent.mkdir(parents=True)
+            library.mkdir(parents=True)
+            binary.write_text(
+                "#!/bin/sh\n"
+                f"case :$LD_LIBRARY_PATH: in *:{library}:*) echo example-tool 1.0;; "
+                "*) echo missing library path >&2; exit 1;; esac\n"
+            )
+            binary.chmod(0o755)
+
+            status = inspect_system_packages(
+                root,
+                {"system_packages": [{"name": "example", "executable": "example-tool"}]},
+            )
+
+            self.assertEqual(status["status"], "ready")
+
+    def test_system_package_probe_requires_declared_runtime_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "bin").mkdir()
+            executable = root / "bin" / "iverilog"
+            executable.write_text("#!/bin/sh\necho iverilog version\nexit 0\n")
+            executable.chmod(0o755)
+            status = inspect_system_packages(
+                root,
+                {"system_packages": ["iverilog", "verilator"]},
+            )
+            self.assertEqual(status["status"], "blocked")
+            self.assertEqual(status["missing"], ["verilator"])
+            self.assertEqual(
+                {item["name"]: item["status"] for item in status["checks"]},
+                {"iverilog": "ready", "verilator": "missing"},
+            )
+
+    def test_system_package_probe_accepts_explicit_python_import(self):
+        status = inspect_system_packages(
+            Path(sys.prefix),
+            {
+                "system_packages": [
+                    {"name": "probe", "python_import": "json"},
+                ]
+            },
+            python=sys.executable,
+        )
+        self.assertEqual(status["status"], "ready")
+
     def test_download_environment_uses_shared_cache_and_mirror_fallback(self):
         environment = software_download_environment({}, shared_root=Path("/shared"))
         self.assertEqual(environment["UV_INDEX"], DEFAULT_PYPI_INDEX)
@@ -110,8 +189,10 @@ class SoftwareTests(unittest.TestCase):
             (site / 'toolgen_probe_library.py').write_text('VALUE = 731\n')
             with self.assertRaises(ModuleNotFoundError):
                 __import__('toolgen_probe_library')
+            software_root = package / 'tool_generation/software'
+            software_root.mkdir()
             (package / 'tool_generation/software_environment.json').write_text(json.dumps({
-                'python': str(executable), 'prefix': str(selected), 'root': str(package / 'tool_generation/software')}))
+                'python': str(executable), 'prefix': str(selected), 'root': str(software_root)}))
             probe = tool('get_ticket', 'import toolgen_probe_library\ndef run(arguments, context):\n    return {"success": True, "data": {"value": toolgen_probe_library.VALUE}}',
                          {'value': {'type': 'integer'}}, ['value'])
             drafts = [{'tool': probe, 'tests': [{'calls': [{'tool': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}],

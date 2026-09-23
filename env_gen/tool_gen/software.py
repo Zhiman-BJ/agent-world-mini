@@ -31,6 +31,170 @@ DEFAULT_NPM_REGISTRY = "https://registry.npmmirror.com"
 OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org"
 
 
+SYSTEM_EXECUTABLES = {
+    "ngspice": ("ngspice",),
+    "xyce": ("Xyce", "xyce"),
+    "spiceopus": ("spiceopus",),
+    "spice opus": ("spiceopus",),
+    "kicad": ("kicad-cli",),
+    "open mpi": ("mpirun", "mpiexec"),
+    "mpich": ("mpirun", "mpiexec"),
+    "gcc build toolchain": ("gcc", "cc"),
+    "iverilog": ("iverilog",),
+    "icarus verilog": ("iverilog",),
+    "verilator": ("verilator",),
+    "ghdl": ("ghdl",),
+}
+
+
+def _system_name(item: Any) -> str:
+    return str(item.get("name") if isinstance(item, dict) else item).strip()
+
+
+def _profile_search_path(root: Path) -> str:
+    bins = [root]
+    bins.extend(path for path in root.rglob("bin") if path.is_dir())
+    return os.pathsep.join(dict.fromkeys(str(path) for path in bins))
+
+
+def _find_profile_executable(root: Path, names: tuple[str, ...]) -> Path | None:
+    environment = dict(os.environ)
+    environment["PATH"] = os.pathsep.join(
+        [_profile_search_path(root), environment.get("PATH", "")]
+    )
+    for name in names:
+        found = shutil.which(name, path=environment["PATH"])
+        if found and Path(found).is_file():
+            return Path(found).resolve()
+    for name in names:
+        for candidate in root.rglob(name):
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return candidate.resolve()
+    return None
+
+
+def _probe_executable(root: Path, path: Path) -> tuple[bool, str]:
+    environment = dict(os.environ)
+    environment["PATH"] = os.pathsep.join(
+        [_profile_search_path(root), environment.get("PATH", "")]
+    )
+    library_dirs = [root / name for name in ("lib", "lib64") if (root / name).is_dir()]
+    parent = path.parent
+    while parent != root and parent != parent.parent:
+        for directory in (parent / "lib", parent / "lib64"):
+            if not directory.is_dir():
+                continue
+            library_dirs.append(directory)
+            library_dirs.extend(child for child in directory.iterdir() if child.is_dir())
+        parent = parent.parent
+    if library_dirs:
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+            [*(str(item) for item in library_dirs), environment.get("LD_LIBRARY_PATH", "")]
+        )
+    outputs: list[str] = []
+    for argument in ("--version", "-V", "-v"):
+        try:
+            result = subprocess.run(
+                [str(path), argument],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=environment,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return False, f"{type(error).__name__}: {error}"
+        output = (result.stdout or "") + (result.stderr or "")
+        outputs.append(output.strip())
+        if result.returncode == 0 and output.strip():
+            return True, output.strip()[-500:]
+        lowered = output.lower()
+        if (
+            "error while loading" in lowered
+            or "cannot open shared object" in lowered
+            or "schema file" in lowered
+        ):
+            return False, output.strip()[-500:]
+    return False, next((item[-500:] for item in reversed(outputs) if item), "no version output")
+
+
+def _python_probe(python: str, expression: str) -> tuple[bool, str]:
+    try:
+        result = subprocess.run(
+            [python, "-c", expression],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return False, f"{type(error).__name__}: {error}"
+    if result.returncode:
+        return False, (result.stderr or result.stdout).strip()[-500:]
+    return True, (result.stdout or "").strip()[-500:]
+
+
+def inspect_system_packages(
+    root: Path,
+    plan: dict[str, Any],
+    *,
+    python: str | None = None,
+) -> dict[str, Any]:
+    """Check declared non-Python dependencies inside the prepared profile."""
+    checks: list[dict[str, Any]] = []
+    for item in plan.get("system_packages", []) or []:
+        name = _system_name(item)
+        normalized = name.lower().replace("_", " ").replace("-", " ")
+        executable = item.get("executable") if isinstance(item, dict) else None
+        command = item.get("command") if isinstance(item, dict) else None
+        python_import = item.get("python_import") if isinstance(item, dict) else None
+        if executable:
+            candidates = (str(executable),)
+        else:
+            candidates = SYSTEM_EXECUTABLES.get(normalized, ())
+        if candidates:
+            found = _find_profile_executable(root, candidates)
+            usable, detail = (False, "not found")
+            if found:
+                usable, detail = _probe_executable(root, found)
+            checks.append({
+                "name": name,
+                "status": "ready" if usable else "missing",
+                "probe": "executable",
+                "candidate": list(candidates),
+                "path": str(found) if found else None,
+                "detail": detail,
+            })
+            continue
+        if normalized in {"blas/lapack", "blas lapack", "blas lapack system abi"}:
+            if python is None:
+                checks.append({"name": name, "status": "missing", "probe": "python_import"})
+            else:
+                ok, detail = _python_probe(
+                    python,
+                    "import numpy, scipy; import numpy.linalg; numpy.linalg.norm([1.0, 2.0])",
+                )
+                checks.append({"name": name, "status": "ready" if ok else "missing", "probe": "numpy_scipy", "detail": detail})
+            continue
+        if "glu" in normalized or "opengl" in normalized:
+            found = next(
+                (path for path in (Path("/usr/lib/x86_64-linux-gnu"), root / "lib")
+                 if (path / "libGLU.so.1").is_file()),
+                None,
+            )
+            checks.append({"name": name, "status": "ready" if found else "missing", "probe": "shared_library", "path": str(found) if found else None})
+            continue
+        if python_import and python:
+            ok, detail = _python_probe(python, f"import {python_import}")
+            checks.append({"name": name, "status": "ready" if ok else "missing", "probe": "python_import", "detail": detail})
+            continue
+        if command:
+            command_path = _find_profile_executable(root, (str(command),))
+            checks.append({"name": name, "status": "ready" if command_path else "missing", "probe": "command", "path": str(command_path) if command_path else None})
+            continue
+        checks.append({"name": name, "status": "missing", "probe": "not_declared"})
+    missing = [check["name"] for check in checks if check["status"] != "ready"]
+    return {"status": "ready" if not missing else "blocked", "missing": missing, "checks": checks}
+
+
 def software_download_environment(
     base: dict[str, str] | None = None,
     *,
@@ -98,7 +262,19 @@ def subprocess_environment(package_root: Path) -> dict[str, str]:
     environment["PYTHONPATH"] = os.pathsep.join(filter(None, [source_root, environment.get("PYTHONPATH")]))
     info = runtime_info(package_root)
     if info:
-        environment["PATH"] = os.pathsep.join([str(Path(info["python"]).parent), environment.get("PATH", "")])
+        root = Path(info["root"])
+        environment["PATH"] = os.pathsep.join([
+            _profile_search_path(root),
+            str(Path(info["python"]).parent),
+            environment.get("PATH", ""),
+        ])
+        library_dirs = [
+            path for path in (root / "lib", root / "lib64") if path.is_dir()
+        ]
+        if library_dirs:
+            environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+                [*(str(path) for path in library_dirs), environment.get("LD_LIBRARY_PATH", "")]
+            )
         environment["VIRTUAL_ENV"] = info["prefix"]
         environment["TOOLGEN_SOFTWARE_ROOT"] = info["root"]
     return environment
@@ -148,6 +324,14 @@ def prepare_software(package_root: Path, *, restore: bool = False) -> dict[str, 
     log = output / "software_install.log"
     previous = runtime_info(package_root)
     if previous and previous.get("plan") == plan and Path(previous["python"]).is_file():
+        system_status = inspect_system_packages(
+            Path(previous["root"]), plan, python=str(previous["python"])
+        )
+        write_json(output / "software_system_status.json", system_status)
+        if system_status["status"] != "ready":
+            raise RuntimeError(
+                "软件计划中的依赖未全部可用：" + ", ".join(system_status["missing"])
+            )
         return previous
 
     python = sys.executable
@@ -263,6 +447,13 @@ def prepare_software(package_root: Path, *, restore: bool = False) -> dict[str, 
             raise install_error
         for name in ("package.json", "package-lock.json"):
             shutil.copy2(node_root / name, recipe / name)
+
+    system_status = inspect_system_packages(root, plan, python=python)
+    write_json(output / "software_system_status.json", system_status)
+    if system_status["status"] != "ready":
+        raise RuntimeError(
+            "软件计划中的依赖未全部可用：" + ", ".join(system_status["missing"])
+        )
 
     info = {"python": python, "prefix": prefix, "root": str(root), "plan": plan}
     write_json(output / "software_environment.json", info)
