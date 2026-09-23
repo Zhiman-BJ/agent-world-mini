@@ -6,6 +6,7 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path, PurePosixPath
 import sys
 from typing import Any, TextIO
@@ -346,12 +347,27 @@ def kimi_config(
     if trace_path is not None:
         arguments.extend(["--trace", str(trace_path.expanduser().resolve())])
     arguments.extend(["--max-tool-calls", str(max_tool_calls)])
+    environment = {"PYTHONPATH": str(server_path.parents[2])}
+    if delivery.software_root is not None:
+        root = delivery.software_root
+        bins = [path for path in root.rglob("bin") if path.is_dir()]
+        libraries = [
+            path for path in (root / "lib", root / "lib64") if path.is_dir()
+        ]
+        environment["TOOLGEN_SOFTWARE_ROOT"] = str(root)
+        environment["PATH"] = os.pathsep.join(
+            [*(str(path) for path in bins), os.environ.get("PATH", "")]
+        )
+        if libraries:
+            environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+                [*(str(path) for path in libraries), os.environ.get("LD_LIBRARY_PATH", "")]
+            )
     return {
         "mcpServers": {
             server_name: {
                 "command": str(command),
                 "args": arguments,
-                "env": {"PYTHONPATH": str(server_path.parents[2])},
+                "env": environment,
                 "startupTimeoutMs": 30000,
                 "toolTimeoutMs": 300000,
             }

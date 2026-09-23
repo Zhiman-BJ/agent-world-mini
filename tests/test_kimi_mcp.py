@@ -380,10 +380,16 @@ class KimiMcpTests(unittest.TestCase):
                 max_tool_calls=10,
             )
 
-            command = Path(config["mcpServers"]["agent_world_support"]["command"])
+            entry = config["mcpServers"]["agent_world_support"]
+            command = Path(entry["command"])
             self.assertEqual(command, delivery.python_path)
             self.assertTrue(command.is_relative_to(delivery.delivery_root))
             self.assertEqual(delivery.software_root, command.parents[2])
+            self.assertEqual(
+                Path(entry["env"]["TOOLGEN_SOFTWARE_ROOT"]),
+                delivery.software_root,
+            )
+            self.assertIn(str(delivery.python_path.parent), entry["env"]["PATH"])
 
 
 if __name__ == "__main__":
