@@ -226,6 +226,31 @@ class KimiMcpServer:
         )
         self._tools = {str(tool["name"]): tool for tool in delivery.package.tools}
 
+    def _public_tools(self) -> list[dict[str, Any]]:
+        """Expose file paths using the environment's Filesystem Scope convention."""
+        tools = public_tools(self.delivery.package.tools)
+        scope_ids = {
+            str(scope["scope_id"])
+            for scope in self.delivery.package.environment.get("filesystem_scopes", [])
+        }
+        for public, source in zip(tools, self.delivery.package.tools):
+            target_scopes = sorted(
+                scope_ids.intersection(
+                    str(value)
+                    for value in source.get("usageConditions", {}).get(
+                        "targetResources", []
+                    )
+                )
+            )
+            if target_scopes:
+                public["description"] += (
+                    "\nFile path convention: paths in this tool's inputs and outputs "
+                    "are relative to the Filesystem Scope "
+                    f"{', '.join(target_scopes)}; they are not relative to the MCP process "
+                    "working directory."
+                )
+        return tools
+
     def close(self) -> None:
         self.runtime.close()
 
@@ -301,7 +326,7 @@ class KimiMcpServer:
                 },
             }
         if method == "tools/list":
-            return {"tools": public_tools(self.delivery.package.tools)}
+            return {"tools": self._public_tools()}
         if method == "tools/call":
             return self._call_tool(request.get("params"))
         if method == "ping":

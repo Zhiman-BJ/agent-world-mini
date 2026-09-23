@@ -11,7 +11,7 @@ import unittest
 from types import SimpleNamespace
 
 from env_gen.tool_gen.delivery import publish
-from env_gen.tool_gen.kimi_mcp import kimi_config, load_delivery, serve
+from env_gen.tool_gen.kimi_mcp import KimiMcpServer, kimi_config, load_delivery, serve
 
 
 def _closed_object(properties: dict[str, object], required: list[str]) -> dict[str, object]:
@@ -115,6 +115,27 @@ def run(arguments, context):
 
 
 class KimiMcpTests(unittest.TestCase):
+    def test_tools_list_explains_filesystem_scope_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            binding = self._make_delivery(Path(temporary))
+            delivery = load_delivery(binding)
+            delivery.package.tools[0]["usageConditions"]["targetResources"] = [
+                "tickets",
+                "reports",
+            ]
+
+            with KimiMcpServer(delivery) as server:
+                result = server.handle(
+                    {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+                )
+
+            tools = {tool["name"]: tool for tool in result["tools"]}
+            scoped_description = tools["get_ticket"]["description"]
+            record_description = tools["resolve_ticket"]["description"]
+            self.assertIn("relative to the Filesystem Scope reports", scoped_description)
+            self.assertIn("not relative to the MCP process working directory", scoped_description)
+            self.assertNotIn("File path convention", record_description)
+
     def test_real_venv_interpreter_mapping_preserves_site_packages(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
