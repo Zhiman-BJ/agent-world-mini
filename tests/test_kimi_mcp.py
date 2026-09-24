@@ -306,10 +306,19 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual([item["id"] for item in responses], [1, 2, 3, 4])
             self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
             listed = responses[1]["result"]["tools"]
-            self.assertEqual([item["name"] for item in listed], ["get_ticket", "resolve_ticket"])
-            self.assertIn("Preconditions", listed[0]["description"])
-            self.assertNotIn("internal", listed[0])
-            self.assertEqual(listed[0]["outputSchema"]["type"], "object")
+            self.assertEqual(
+                [item["name"] for item in listed],
+                [
+                    "get_environment_overview",
+                    "list_environment_resources",
+                    "inspect_environment_resource",
+                    "get_ticket",
+                    "resolve_ticket",
+                ],
+            )
+            self.assertIn("Preconditions", listed[3]["description"])
+            self.assertNotIn("internal", listed[3])
+            self.assertEqual(listed[3]["outputSchema"]["type"], "object")
             self.assertEqual(
                 responses[3]["result"]["structuredContent"]["data"]["status"],
                 "resolved",
@@ -324,6 +333,49 @@ class KimiMcpTests(unittest.TestCase):
             ) as connection:
                 status = connection.execute('SELECT status FROM "tickets"').fetchone()[0]
             self.assertEqual(status, "open")
+
+    def test_resource_tools_expose_scope_files_without_workspace_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binding = self._make_delivery(root)
+            environment_root = (
+                root / "delivery/environments/support/environment/state/filesystem_scopes/reports"
+            )
+            (environment_root / "daily.json").write_text(
+                json.dumps({"status": "open"}), encoding="utf-8"
+            )
+            requests = [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "get_environment_overview",
+                        "arguments": {},
+                    },
+                },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "list_environment_resources",
+                        "arguments": {"scope_id": "reports", "query": "daily"},
+                    },
+                },
+            ]
+            stdout = io.StringIO()
+            serve(
+                binding,
+                stdin=io.StringIO("\n".join(json.dumps(item) for item in requests)),
+                stdout=stdout,
+            )
+            responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+            overview = responses[0]["result"]["structuredContent"]["data"]
+            self.assertEqual(overview["filesystem_scopes"][0]["file_count"], 1)
+            resources = responses[1]["result"]["structuredContent"]["data"]["resources"]
+            self.assertEqual(resources[0]["ref"], "aw://reports/daily.json")
+            self.assertNotIn(str(root), json.dumps(resources))
 
     def test_business_failure_is_returned_as_structured_mcp_error(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -360,6 +412,8 @@ class KimiMcpTests(unittest.TestCase):
             )
 
             entry = config["mcpServers"]["agent_world_support"]
+            self.assertEqual(entry["transport"], "stdio")
+            self.assertEqual(Path(entry["cwd"]), delivery.package.package_root)
             self.assertEqual(Path(entry["command"]), Path(sys.executable).absolute())
             self.assertEqual(Path(entry["args"][1]), binding)
             self.assertTrue(entry["args"][0].endswith("kimi_mcp.py"))
@@ -372,6 +426,11 @@ class KimiMcpTests(unittest.TestCase):
                 Path(temporary), with_software_profile=True
             )
             delivery = load_delivery(binding)
+            nested_library = delivery.software_root / "python/lib"
+            nested_library.mkdir(parents=True, exist_ok=True)
+            petsc_prefix = delivery.software_root / "python-3.11"
+            (petsc_prefix / "lib/petsc").mkdir(parents=True)
+            (petsc_prefix / "lib/slepc").mkdir(parents=True)
 
             config = kimi_config(
                 delivery,
@@ -390,6 +449,54 @@ class KimiMcpTests(unittest.TestCase):
                 delivery.software_root,
             )
             self.assertIn(str(delivery.python_path.parent), entry["env"]["PATH"])
+            self.assertIn(str(nested_library), entry["env"]["LD_LIBRARY_PATH"])
+            self.assertEqual(Path(entry["env"]["PETSC_DIR"]), petsc_prefix)
+            self.assertEqual(Path(entry["env"]["SLEPC_DIR"]), petsc_prefix)
+
+    def test_config_uses_declared_docker_image_and_translates_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binding = self._make_delivery(root)
+            binding_document = json.loads(binding.read_text(encoding="utf-8"))
+            runtime_path = root / "delivery" / binding_document["runtime_path"]
+            runtime_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "backend": "docker",
+                        "image": "agentworld/kicad:9.0",
+                        "delivery_mount": "/delivery",
+                        "code_mount": "/opt/agent-world",
+                        "software_root": "/opt/tool-software",
+                        "python_command": "python",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            delivery = load_delivery(binding)
+            config = kimi_config(
+                delivery,
+                server_name="agent_world_kicad",
+                trace_path=root / "traces/calls.jsonl",
+                max_tool_calls=20,
+            )
+
+            entry = config["mcpServers"]["agent_world_kicad"]
+            self.assertEqual(Path(entry["command"]).name, "docker")
+            self.assertEqual(entry["args"][:3], ["run", "--rm", "-i"])
+            self.assertIn("agentworld/kicad:9.0", entry["args"])
+            self.assertIn(
+                "/delivery/environments/support/binding.json", entry["args"]
+            )
+            self.assertTrue(
+                any(
+                    item.endswith("/env_gen/tool_gen/kimi_mcp.py")
+                    and item.startswith("/opt/agent-world/")
+                    for item in entry["args"]
+                )
+            )
+            self.assertIn("/external/0/calls.jsonl", entry["args"])
+            self.assertEqual(entry["env"], {})
 
 
 if __name__ == "__main__":

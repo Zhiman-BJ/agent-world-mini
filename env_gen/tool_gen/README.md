@@ -100,6 +100,17 @@ Profile；依赖组合不同的环境保持隔离，同时共享 uv 和 npm 下�
 仍在任务副本内操作；专业算法必须调用真实接口或处理真实项目文件。软件安装成功只说明运行条件
 满足，工具仍需通过实际调用验证。
 
+依赖系统程序或共享库的环境可以在 `software_plan.json` 中增加 `container`：明确基础镜像、
+可安装的 apt 包名和必要环境变量。镜像按完整软件计划计算稳定名称，相同计划只构建一次：
+
+```bash
+python3 -m env_gen.tool_gen.docker_runtime <环境包目录>
+```
+
+构建完成后会写入 `tool_generation/container_runtime.json`。正式交付把运行方式保存到
+`runtime/runtime.json`：普通环境继续使用宿主机 Python 或共享 Python Profile，选择 Docker 的
+环境由 MCP 启动层执行对应镜像。环境状态和工具定义仍是独立交付内容，不会被放进镜像。
+
 软件环境也可以单独准备或恢复：
 
 ```bash
@@ -115,7 +126,8 @@ python3 -m env_gen.tool_gen.software exec <环境包> -- <下游脚本.py> <参�
 │   ├── binding.json
 │   ├── environment/
 │   ├── tools/
-│   └── software/profile.json
+│   ├── software/profile.json
+│   └── runtime/runtime.json
 ├── software_profiles/profiles/<profile_id>/
 └── contracts/
 ```
@@ -125,6 +137,35 @@ python3 -m env_gen.tool_gen.software exec <环境包> -- <下游脚本.py> <参�
 下游从环境目录里的 `binding.json` 开始加载，不需要自己拼接几个顶层目录。
 下游加载、任务级状态隔离和工具调用方式见
 [`ToolGen 下游交付契约 v1.0`](../../schemas/ToolGen下游交付契约-v1.0.md)。
+
+## 环境资源与运行边界
+
+`workspace` 是 Runtime 内部保存任务状态副本的物理目录，本地运行、沙箱和容器中的位置可以
+不同，不进入公开工具参数。`Filesystem Scope` 是 `environment.json` 声明的逻辑资源分区，
+说明一组文件的用途和读写权限。Agent 通过 `aw://<scope_id>/<relative_path>` 引用具体资源，
+不需要知道服务器目录或容器挂载点。
+
+MCP 执行器统一提供三个资源工具：
+
+- `get_environment_overview`：查看 Record Set、Filesystem Scope 和文件数量；
+- `list_environment_resources`：按 Scope 和名称查找真实资源；
+- `inspect_environment_resource`：查看资源属性和文本预览。
+
+例如 `aw://design_files/main.kicad_sch` 在本地和容器中可以对应不同的物理目录。Runtime 会在
+业务工具执行前核对 Scope 和资源类型，再把该引用转换成 `main.kicad_sch`；工具代码始终通过
+`context.scope_root("design_files")` 找到当前任务副本。新生成工具的文件输入和输出字段都使用
+`x-resource-scope` 标明它属于哪个 Scope，使用 `x-resource-kind` 标明它应当是文件还是目录。
+工具代码内部仍接收、返回 Scope 内相对路径，Runtime 对外统一转换成 `aw://` 引用，因此一个
+工具返回的文件可以直接作为下一个工具的参数。已有工具仍可继续接收原来的相对路径。
+
+Kimi Code 的工作区只决定它自己的文件工具从哪里读取相对路径；MCP 配置中的 `cwd` 只决定
+MCP 子进程从哪里启动。ToolGen 在生成 Kimi 配置时会明确设置该 `cwd`，但环境资源始终由
+`binding.json` 和 Filesystem Scope 解析，不把 Kimi 工作区当作环境资源根目录。
+
+代码职责保持独立：`resources.py` 负责资源目录与引用解析，`runtime.py` 负责工具执行，
+`mcp_server.py` 提供与客户端无关的 MCP 能力，`kimi_mcp.py` 只负责 Kimi Code 的启动适配，
+软件 Profile 与 Docker 的进程环境由 `runtime_launch.py` 组织，镜像配方和构建由
+`docker_runtime.py` 负责；这些运行后端不进入 ToolGen 的能力盘点、工具规划和工具代码生成逻辑。
 
 ## 中间产物
 

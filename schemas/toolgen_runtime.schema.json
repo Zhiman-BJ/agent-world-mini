@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world-mini.local/schemas/toolgen_runtime.schema.json",
+  "title": "ToolGen delivery runtime",
+  "type": "object",
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "backend": {
+      "type": "string",
+      "enum": ["host_python", "python_profile", "docker"]
+    },
+    "profile_id": {"type": "string", "minLength": 1},
+    "image": {"type": "string", "minLength": 1},
+    "delivery_mount": {"type": "string", "pattern": "^/"},
+    "code_mount": {"type": "string", "pattern": "^/"},
+    "software_root": {"type": "string", "pattern": "^/"},
+    "python_command": {"type": "string", "minLength": 1}
+  },
+  "required": ["schema_version", "backend"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"backend": {"const": "python_profile"}}},
+      "then": {"required": ["profile_id"]}
+    },
+    {
+      "if": {"properties": {"backend": {"const": "docker"}}},
+      "then": {
+        "required": [
+          "image",
+          "delivery_mount",
+          "code_mount",
+          "software_root",
+          "python_command"
+        ]
+      }
+    }
+  ]
+}

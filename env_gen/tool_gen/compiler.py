@@ -38,6 +38,48 @@ class ToolGenerationError(RuntimeError):
     pass
 
 
+def _validate_resource_annotations(
+    tool_name: str,
+    schema: Any,
+    filesystem_scopes: set[str],
+    target_resources: set[str],
+    *,
+    schema_name: str = "inputSchema",
+) -> None:
+    def visit(node: Any, path: str = schema_name) -> None:
+        if isinstance(node, list):
+            for index, item in enumerate(node):
+                visit(item, f"{path}[{index}]")
+            return
+        if not isinstance(node, dict):
+            return
+        scope = node.get("x-resource-scope")
+        kind = node.get("x-resource-kind")
+        if scope is not None or kind is not None:
+            if scope not in filesystem_scopes:
+                raise ToolGenerationError(
+                    f"工具草稿 {tool_name} 的 {path}.x-resource-scope "
+                    f"不是当前 Filesystem Scope：{scope}"
+                )
+            if scope not in target_resources:
+                raise ToolGenerationError(
+                    f"工具草稿 {tool_name} 的资源参数使用了未声明的目标资源：{scope}"
+                )
+            if kind not in {"file", "directory"}:
+                raise ToolGenerationError(
+                    f"工具草稿 {tool_name} 的 {path}.x-resource-kind "
+                    "必须是 file 或 directory"
+                )
+            if node.get("type") != "string":
+                raise ToolGenerationError(
+                    f"工具草稿 {tool_name} 的资源参数必须是 string：{path}"
+                )
+        for key, item in node.items():
+            visit(item, f"{path}.{key}")
+
+    visit(schema)
+
+
 @dataclass(frozen=True)
 class ToolGenerationResult:
     package_root: Path
@@ -604,8 +646,9 @@ class ToolGenerator:
 
 common_software.json 是按用途整理的通用依赖目录。领域核心包由当前环境根据官方资料选择。
 software_plan.json 示例：
-{"python":"3.11","common_modules":["numerical"],"python_packages":[{"name":"软件包名称","version":">=1,<2","purpose":"所需接口"}],"node_packages":[]}
+{"python":"3.11","common_modules":["numerical"],"python_packages":[{"name":"软件包名称","version":">=1,<2","purpose":"所需接口"}],"node_packages":[],"container":{"base_image":"python:3.11-slim-bookworm","apt_packages":["专业程序的系统包名"],"environment":{}}}
 包名和版本应根据注册表核实；python 指定该软件所需的解释器。依赖可以用字符串或 name/version 对象，Node 字符串采用 package@version。
+纯 Python/Node 环境不需要 container。依赖 KiCad、Gmsh、PETSc、SPICE 等系统程序或共享库时，container 明确填写可安装的基础镜像、apt 包名和必要环境变量，后续按该配方构建可复用镜像；不要只写软件名称让安装器猜包名。
 主程序安装失败后会返回错误让智能体修正计划，再自动安装。也可使用当前代码的 Python -m env_gen.tool_gen.software install <环境包目录> 主动安装。
 安装位置在 software_environment.json 的 python/prefix/root。草稿和修复中的 Python 探测使用这里的 python，Node 包在 root/node/node_modules 下。可以联网读取官方源码、调用示例及版本信息，并在本环境软件目录安装辅助程序。
 草稿验证自动使用所选 Python。工具用 context.software_root 定位辅助程序及 Node 包，业务文件仍通过 context.scope_root 访问任务副本。
@@ -621,7 +664,7 @@ software_plan.json 示例：
     def _build_inventory_prompt(package_root: Path) -> str:
         return f"""你负责盘点一个 DataGen 环境真正能够实现的工具能力。当前目录是 {package_root.name}/tool_generation。
 
-先读 environment.md（若存在）和 environment.json，理解业务场景、Record Set、已验证关系、Filesystem Scope 与 read_only/copy_on_write 边界。再按需抽样 state/records.sqlite 中的真实记录并查看 Scope 中的真实文件。reference_tools.json 汇总了种子和 DataGen 场景研究中的参考工具；联网核对专业系统的官方文档、官方 API/CLI 或真实产品工作流。若内置搜索服务不可用，使用允许联网的 curl、python urllib 或 git 直接读取官方页面，不要反复重试搜索服务。若专业操作需要额外软件，将软件名称、版本和用途写入 software_plan.json；通用计算、表格、文档、图像和 HDF5 依赖写入 common_modules，领域核心软件写入 python_packages 或 node_packages。不要因为尚未安装就把能力判为不可实现。
+先读 environment.md（若存在）和 environment.json，理解业务场景、Record Set、已验证关系、Filesystem Scope 与 read_only/copy_on_write 边界。再按需抽样 state/records.sqlite 中的真实记录并查看 Scope 中的真实文件。reference_tools.json 汇总了种子和 DataGen 场景研究中的参考工具；联网核对专业系统的官方文档、官方 API/CLI 或真实产品工作流。若内置搜索服务不可用，使用允许联网的 curl、python urllib 或 git 直接读取官方页面，不要反复重试搜索服务。若专业操作需要额外软件，将软件名称、版本和用途写入 software_plan.json；通用计算、表格、文档、图像和 HDF5 依赖写入 common_modules，领域核心软件写入 python_packages 或 node_packages。需要 KiCad、Gmsh、PETSc、SPICE 等系统程序或共享库时，同时写 container 配置，明确基础镜像、可安装的 apt 包名和必要环境变量；纯 Python/Node 环境省略 container。不要因为尚未安装就把能力判为不可实现。
 
 逐项盘点专业系统中真实存在、并且当前环境可以真实执行的工作面：每个 Record Set 的按键获取、搜索筛选、比较统计和适合其字段的领域分析；每条 Relationship 的关联查询或业务操作；每个 Scope 中现实文件格式支持的查看、校验、计算、转换和产物操作；以及跨记录与文件的常见工作流。copy_on_write 只说明技术上允许修改；创建、更新、删除或状态变化仍须有现实业务依据。专业软件操作必须调用真实 API、CLI 或操作真实项目文件，不能用自建 JSON 状态模拟软件动作。读取复杂 JSON 时先查看实际类型和字段；某个探索脚本报错时记录错误并换用更简单的读取方法继续，不要让单个样本阻塞盘点。先写 software_plan.json 和 capability_inventory.json，再进行更深入的补充调研；软件计划至少包含 common_modules、python_packages、node_packages 三个数组，缺少额外软件时写空数组。
 
@@ -653,7 +696,7 @@ software_plan.json 示例：
 动作计划如下：
 {action_json}
 
-读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set，通过 context.scope_root(scope_id) 访问文件；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
+读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。工具内部接收并返回 Scope 内相对路径，通过 context.scope_root(scope_id) 访问文件；Runtime 会在公开接口处把输入、输出转换为稳定的 `aw://scope_id/relative/path`。不要把 workspace、服务器绝对路径或容器路径写入公开参数和返回值。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
 
 保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
 
@@ -848,6 +891,27 @@ software_plan.json 示例：
                     continue
                 missing = ", ".join(sorted(condition_fields - input_fields))
                 raise ToolGenerationError(f"工具草稿 {name} 的对象定位字段未在 inputSchema 声明：{missing}")
+            known_scopes = {
+                str(item["scope_id"])
+                for item in environment.get("filesystem_scopes", [])
+            }
+            target_resources = {
+                str(item) for item in action["usageConditions"]["targetResources"]
+            }
+
+            _validate_resource_annotations(
+                name,
+                draft["tool"].get("inputSchema"),
+                known_scopes,
+                target_resources,
+            )
+            _validate_resource_annotations(
+                name,
+                draft["tool"].get("outputSchema"),
+                known_scopes,
+                target_resources,
+                schema_name="outputSchema",
+            )
             drafts.append(
                 {
                     "action": action,
@@ -1310,10 +1374,13 @@ context.records.create(record_set_id, record)
 context.records.update(record_set_id, key, changes)
 context.records.delete(record_set_id, key)
 context.scope_root(scope_id)
+context.resources.list(scope_id=None, query=None, limit=100)
+context.resources.inspect(resource_ref)
 ```
 
 `get` 的 key 必须包含该 Record Set 声明的全部 key_fields。`create` 接收完整记录；
 `update` 和 `delete` 返回受影响记录数。`scope_root` 返回任务隔离副本中的 pathlib.Path。
+Agent 可以传入 `aw://scope_id/relative/path` 资源引用；Runtime 会在进入工具代码前将它转换为该 Scope 内的相对路径。文件输入和输出字段分别在 inputSchema、outputSchema 上声明 `x-resource-scope` 和 `x-resource-kind`。工具代码内部返回 Scope 内相对路径，Runtime 会将公开返回值转换回 `aw://` 引用。工具代码和返回值不得暴露 workspace、服务器绝对路径或容器路径。
 只对 `access=copy_on_write` 的 Record Set 或 Scope 执行写操作。
 """
 

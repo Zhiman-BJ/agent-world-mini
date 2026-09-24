@@ -25,6 +25,7 @@ class ToolDelivery:
     tools_root: Path
     environment_root: Path
     software_mapping_root: Path
+    runtime_root: Path
     binding_path: Path
     software_profile: str | None
 
@@ -150,12 +151,32 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
     tools_root = delivery_package_root / "tools"
     environment_root = delivery_package_root / "environment"
     software_mapping_root = delivery_package_root / "software"
+    runtime_root = delivery_package_root / "runtime"
     source_package_root = result.package_root
     package_root = delivery_package_root
     environment_validation_path = _environment_validation_path(source_package_root)
+    container_runtime_path = (
+        source_package_root / "tool_generation/container_runtime.json"
+    )
+    container_runtime: dict[str, object] | None = None
+    if container_runtime_path.is_file():
+        value = json.loads(container_runtime_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("backend") != "docker":
+            raise ValueError(
+                f"container_runtime.json 必须声明 docker 后端：{container_runtime_path}"
+            )
+        container_runtime = value
     software = runtime_info(source_package_root)
-    profile = _software_profile_id(software) if software else None
-    software_source = Path(str(software["root"])).resolve() if software else None
+    profile = (
+        _software_profile_id(software)
+        if software and container_runtime is None
+        else None
+    )
+    software_source = (
+        Path(str(software["root"])).resolve()
+        if software and container_runtime is None
+        else None
+    )
     if software_source and not software_source.is_dir():
         raise ValueError(f"软件运行目录不存在：{software_source}")
     software_profile_root = (
@@ -182,9 +203,11 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
         staged_tools = staging / "tools"
         staged_environment = staging / "environment"
         staged_software = staging / "software"
+        staged_runtime = staging / "runtime"
         staged_tools.mkdir(parents=True)
         staged_environment.mkdir()
         staged_software.mkdir()
+        staged_runtime.mkdir()
         shutil.copy2(result.tools_path, staged_tools / "tools.json")
         for source, name in (
             (result.grounding_path, "tool_grounding.json"),
@@ -217,6 +240,17 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
                 ),
             },
         )
+        if container_runtime is not None:
+            runtime = container_runtime
+        elif profile:
+            runtime = {
+                "schema_version": "1.0",
+                "backend": "python_profile",
+                "profile_id": profile,
+            }
+        else:
+            runtime = {"schema_version": "1.0", "backend": "host_python"}
+        write_json(staged_runtime / "runtime.json", runtime)
         binding = {
             "schema_version": BINDING_SCHEMA_VERSION,
             "package_id": package_id,
@@ -231,6 +265,7 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
             "software_profile_path": (
                 f"software_profiles/profiles/{profile}" if profile else None
             ),
+            "runtime_path": f"environments/{package_id}/runtime/runtime.json",
         }
         write_json(staging / "binding.json", binding)
         _replace_directory(staging, package_root)
@@ -241,6 +276,7 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
         tools_root=tools_root,
         environment_root=environment_root,
         software_mapping_root=software_mapping_root,
+        runtime_root=runtime_root,
         binding_path=binding_path,
         software_profile=profile,
     )

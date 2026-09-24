@@ -66,6 +66,7 @@ class ToolDeliveryTests(unittest.TestCase):
             self.assertTrue((package / "environment/environment.json").is_file())
             self.assertTrue((package / "tools/tools.json").is_file())
             self.assertTrue((package / "software/profile.json").is_file())
+            self.assertTrue((package / "runtime/runtime.json").is_file())
             self.assertFalse((root / "delivery/tools").exists())
             self.assertFalse((root / "delivery/bindings").exists())
             mapping = json.loads(
@@ -87,6 +88,49 @@ class ToolDeliveryTests(unittest.TestCase):
                 binding["software_mapping_path"],
                 "environments/source/software/profile.json",
             )
+            self.assertEqual(
+                binding["runtime_path"],
+                "environments/source/runtime/runtime.json",
+            )
+            runtime = json.loads(
+                (package / "runtime/runtime.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(runtime["backend"], "python_profile")
+            self.assertEqual(runtime["profile_id"], binding["software_profile"])
+
+            (source / "tool_generation/container_runtime.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "backend": "docker",
+                        "image": "agentworld/kicad:9.0",
+                        "delivery_mount": "/delivery",
+                        "code_mount": "/opt/agent-world",
+                        "software_root": "/opt/tool-software",
+                        "python_command": "python",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            docker_delivery = publish(result, root / "docker_delivery")
+            docker_binding = json.loads(
+                docker_delivery.binding_path.read_text(encoding="utf-8")
+            )
+            self.assertIsNone(docker_binding["software_profile"])
+            self.assertIsNone(docker_binding["software_profile_path"])
+            docker_mapping = json.loads(
+                (docker_delivery.software_mapping_root / "profile.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIsNone(docker_mapping["profile_id"])
+            docker_runtime = json.loads(
+                (docker_delivery.runtime_root / "runtime.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(docker_runtime["image"], "agentworld/kicad:9.0")
+            self.assertFalse((root / "docker_delivery/software_profiles").exists())
 
 
 if __name__ == "__main__":

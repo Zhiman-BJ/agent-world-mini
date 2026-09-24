@@ -29,8 +29,10 @@
 │       │   ├── tool_validation.json
 │       │   ├── tool_grounding.json
 │       │   └── action_plan.json
-│       └── software/
-│           └── profile.json
+│       ├── software/
+│       │   └── profile.json
+│       └── runtime/
+│           └── runtime.json
 ├── software_profiles/
 │   └── profiles/<profile_id>/              # 多个环境可复用的软件本体
 └── contracts/
@@ -43,6 +45,7 @@
 - `environment/` 保存 DataGen 环境包和基线状态；
 - `tools/` 保存该环境的正式工具及验证记录；
 - `software/profile.json` 保存该环境到共享软件 Profile 的映射；
+- `runtime/runtime.json` 指定宿主机 Python、共享 Python Profile 或 Docker 镜像运行方式；
 - `binding.json` 是这个环境的唯一加载入口。
 
 `software_profiles/` 只保存软件本体。多个环境使用相同依赖组合时共享同一个 Profile，
@@ -66,6 +69,7 @@ Binding 必须符合 `contracts/toolgen_delivery_binding.schema.json`。所有�
 | `software_mapping_path` | 当前环境到共享软件 Profile 的映射文件 |
 | `software_profile` | 专业依赖 Profile ID；无额外依赖时为 `null` |
 | `software_profile_path` | Profile 目录；与 `software_profile` 同时有值或同时为 `null` |
+| `runtime_path` | 当前环境使用的运行后端配置 |
 
 示例：
 
@@ -81,7 +85,8 @@ Binding 必须符合 `contracts/toolgen_delivery_binding.schema.json`。所有�
   "environment_validation_path": "environments/pypi_atomate2_5/environment/validation.json",
   "software_mapping_path": "environments/pypi_atomate2_5/software/profile.json",
   "software_profile": "py311-c3ac59c31e29",
-  "software_profile_path": "software_profiles/profiles/py311-c3ac59c31e29"
+  "software_profile_path": "software_profiles/profiles/py311-c3ac59c31e29",
+  "runtime_path": "environments/pypi_atomate2_5/runtime/runtime.json"
 }
 ```
 
@@ -132,6 +137,25 @@ tools[]
 `success=false` 表示一次有效的业务失败。`retryable=true` 表示同一参数在临时性故障恢复后可重试；
 参数、对象状态或业务规则导致的失败使用 `retryable=false`。
 
+文件和目录参数使用逻辑资源引用，不传服务器、沙箱或容器的绝对路径。例如：
+
+```json
+{
+  "schematic": {
+    "type": "string",
+    "description": "需要导出的 KiCad 原理图。",
+    "x-resource-scope": "design_files",
+    "x-resource-kind": "file"
+  }
+}
+```
+
+Agent 先通过资源查询工具获得 `aw://design_files/main.kicad_sch`，再把该引用传给业务工具。
+文件返回值采用同一格式，例如 `aw://reports/main.svg`。`x-resource-scope` 和
+`x-resource-kind` 同时适用于 inputSchema 与 outputSchema，分别声明资源所属 Scope 以及文件或
+目录类型。Runtime 在调用工具前把输入引用转成 Scope 内相对路径，在返回模型前把标注过的相对
+路径转回 `aw://` 引用。工具和模型都不依赖 Kimi 工作区、MCP 启动目录或容器挂载点。
+
 ## 5. Runtime 会话
 
 下游以“一条任务一个 Runtime 会话”为状态边界：
@@ -159,7 +183,15 @@ with ToolRuntime(package) as runtime:
 Runtime 会校验输入与输出、执行真实 `internal.code`、限制只读资源变更，并在调用异常或
 业务失败产生副作用时恢复该次调用前的状态。
 
-## 6. 专业软件加载
+## 6. 运行后端与专业软件
+
+`runtime.json` 支持三种后端：
+
+| `backend` | 使用方式 |
+| --- | --- |
+| `host_python` | 不需要额外软件，使用接入程序自身的 Python |
+| `python_profile` | 使用交付目录中的共享软件 Profile Python |
+| `docker` | 使用指定镜像运行 MCP 和工具，交付环境以只读方式挂载 |
 
 Binding 存在 `software_profile_path` 时，下游使用该 Profile 的 Python 启动工具执行工作进程：
 
@@ -176,6 +208,10 @@ Node 模块位于：
 Profile 是只读依赖运行时，任务状态仍位于 Runtime 创建的独立副本中。
 下游的主进程可以使用自身 Python，但实际工具必须在绑定的 Profile 工作进程中执行，
 以便 `atomate2`、`pymatgen`、`doped`、`klayout`、`solc` 等依赖可正常导入和调用。
+
+Docker 后端用于 KiCad、Gmsh、PETSc、SPICE 等依赖系统程序或共享库的组合。镜像只承载软件运行
+条件，环境状态、工具和 binding 仍在交付目录中。不同环境的软件计划相同时可复用同一镜像；
+软件版本或系统依赖不同时使用不同镜像。
 
 ## 7. TaskGen 对接
 

@@ -20,6 +20,8 @@ from types import SimpleNamespace
 from typing import Any, Callable
 from jsonschema import Draft202012Validator
 
+from .resources import ResourceCatalog
+
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas"
 MAX_CAPTURED_TOOL_STDOUT = 16 * 1024 * 1024
 
@@ -397,10 +399,15 @@ class ToolRuntime:
             name: self._compile_handler(name, tool["internal"]["code"])
             for name, tool in self._tools.items()
         }
+        self.resources = ResourceCatalog(package.environment, self._scope_root)
         self.context = SimpleNamespace(
             environment=deepcopy(package.environment),
             records=RecordStore(self.root / "state/records.sqlite", package.environment),
             scope_root=lambda scope_id: self._scope_root(str(scope_id)),
+            resources=self.resources,
+            resolve_resource=lambda ref, must_exist=False: self.resources.resolve(
+                str(ref), must_exist=bool(must_exist)
+            ),
             software_root=self._software_root_path,
         )
 
@@ -477,6 +484,19 @@ class ToolRuntime:
             raise KeyError(f"未知工具：{name}")
         tool = self._tools[name]
         arguments = _json_native(arguments, label=f"工具 {name} 的 arguments")
+        known_scopes = {
+            str(item["scope_id"])
+            for item in self.package.environment.get("filesystem_scopes", [])
+        }
+        declared_resources = set(
+            str(item)
+            for item in tool.get("usageConditions", {}).get("targetResources", [])
+        )
+        arguments = self.resources.normalize_arguments(
+            arguments,
+            schema=tool["inputSchema"],
+            allowed_scopes=known_scopes & declared_resources,
+        )
         input_errors = _schema_errors(tool["inputSchema"], arguments)
         if input_errors:
             raise ValueError(f"工具 {name} 输入不符合 Schema：{' | '.join(input_errors)}")
@@ -491,6 +511,11 @@ class ToolRuntime:
                         self._handlers[name](deepcopy(arguments), self.context),
                         label=f"工具 {name} 的返回值",
                     )
+                result = self.resources.externalize_result(
+                    result,
+                    schema=tool["outputSchema"],
+                    allowed_scopes=known_scopes & declared_resources,
+                )
                 output_errors = _schema_errors(tool["outputSchema"], result)
                 if output_errors:
                     raise ValueError(f"工具 {name} 输出不符合 Schema：{' | '.join(output_errors)}")

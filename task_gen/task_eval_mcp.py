@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 import shutil
 import sys
@@ -19,6 +20,8 @@ from task_gen.tool_graph.step_3_chain_execute import (  # noqa: E402
 from env_gen.tool_gen.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
 )
+from env_gen.tool_gen.mcp_server import RESOURCE_TOOLS  # noqa: E402
+from env_gen.tool_gen.resources import ResourceCatalog  # noqa: E402
 
 
 CallToolFn = Callable[..., dict[str, Any]]
@@ -68,6 +71,24 @@ def call_environment_tool(
     tool = tools.get(name)
     if tool is None:
         return {"tool": name, "arguments": arguments, "result": None, "error": "未知工具"}
+    if environment and environment.get("filesystem_scopes"):
+        catalog = ResourceCatalog(
+            environment,
+            lambda scope_id: workspace.resolve() / "filesystem_scopes" / scope_id,
+        )
+        known_scopes = {
+            str(item["scope_id"])
+            for item in environment.get("filesystem_scopes", [])
+        }
+        declared = set(
+            str(item)
+            for item in tool.get("usageConditions", {}).get("targetResources", [])
+        )
+        arguments = catalog.normalize_arguments(
+            arguments,
+            schema=tool["inputSchema"],
+            allowed_scopes=known_scopes & declared,
+        )
     schema_error = _schema_error(tool["inputSchema"], arguments)
     if schema_error:
         return {"tool": name, "arguments": arguments, "result": None, "error": schema_error}
@@ -121,6 +142,12 @@ class TaskEvalMcpServer:
             raise ValueError("重复工具名")
         self.workspace = Path(config["workspace"]).resolve()
         self.trace = Path(config["trace"]).resolve()
+        self.resources = None
+        if config.get("environment", {}).get("filesystem_scopes"):
+            self.resources = ResourceCatalog(
+                config["environment"],
+                lambda scope_id: self.workspace / "filesystem_scopes" / scope_id,
+            )
         self.calls = 0
         self.choices = None
         self.choice_tool = None
@@ -141,10 +168,18 @@ class TaskEvalMcpServer:
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
         method = request.get("method")
         if method == "initialize":
-            return {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "agent-world-task-eval", "version": SERVER_VERSION}}
+            result = {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {"listChanged": False}},
+                      "serverInfo": {"name": "agent-world-task-eval", "version": SERVER_VERSION}}
+            if self.resources is not None:
+                result["instructions"] = (
+                    "Use get_environment_overview and list_environment_resources to find files. "
+                    "Pass aw:// references to business tools instead of guessing workspace paths."
+                )
+            return result
         if method == "tools/list":
             tools = public_tools(self.tools.values())
+            if self.resources is not None:
+                tools = [*deepcopy(RESOURCE_TOOLS), *tools]
             if self.choice_tool:
                 tools.append(self.choice_tool)
             return {"tools": tools}
@@ -161,14 +196,36 @@ class TaskEvalMcpServer:
             raise RpcError(-32602, "tools/call 缺少 params")
         name, arguments = params.get("name"), params.get("arguments", {})
         is_choice = self.choice_tool is not None and name == self.choice_tool['name']
-        if not isinstance(name, str) or (name not in self.tools and not is_choice):
+        resource_names = {tool["name"] for tool in RESOURCE_TOOLS} if self.resources else set()
+        is_resource = name in resource_names
+        if not isinstance(name, str) or (
+            name not in self.tools and not is_choice and not is_resource
+        ):
             raise RpcError(-32602, f"未知工具：{name}")
         if not isinstance(arguments, dict):
             raise RpcError(-32602, "工具 arguments 必须是 object")
         if self.calls >= int(self.config["max_tool_calls"]):
             raise RpcError(-32000, "工具调用次数已达到上限")
         self.calls += 1
-        if is_choice:
+        if is_resource:
+            try:
+                if name == "get_environment_overview":
+                    data = self.resources.overview()
+                elif name == "list_environment_resources":
+                    data = {"resources": self.resources.list(
+                        scope_id=arguments.get("scope_id"), query=arguments.get("query"),
+                        limit=arguments.get("limit", 100))}
+                else:
+                    data = self.resources.inspect(
+                        str(arguments.get("ref", "")),
+                        preview_chars=arguments.get("preview_chars", 4000),
+                    )
+                record = {"tool": name, "arguments": arguments,
+                          "result": {"success": True, "data": data}, "error": None}
+            except Exception as error:
+                record = {"tool": name, "arguments": arguments, "result": None,
+                          "error": f"{type(error).__name__}: {error}"}
+        elif is_choice:
             try:
                 error = _schema_error(self.choice_tool['inputSchema'], arguments)
                 if error:
@@ -193,7 +250,7 @@ class TaskEvalMcpServer:
         # Business failures retain their schema-defined shape; the trace keeps
         # the existing error semantics used by evaluators and ReAct.
         business_failure = (
-            not is_choice and isinstance(payload, dict) and payload.get("success") is False
+            not is_choice and not is_resource and isinstance(payload, dict) and payload.get("success") is False
             and _schema_error(self.tools[name]["outputSchema"], payload) is None
         )
         if record["error"] is not None and not business_failure:
