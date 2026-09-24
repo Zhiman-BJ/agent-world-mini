@@ -18,7 +18,7 @@ from utils.io import write_json
 from .software import SYSTEM_EXECUTABLES, expanded_packages
 
 
-IMAGE_RECIPE_VERSION = "1"
+IMAGE_RECIPE_VERSION = "2"
 
 
 def _load_plan(package_root: Path) -> dict[str, Any]:
@@ -102,7 +102,11 @@ def dockerfile(plan: dict[str, Any]) -> str:
     apt_packages = spec["apt_packages"]
     environment = spec["environment"]
 
-    lines = [f"FROM {base_image}", "ENV DEBIAN_FRONTEND=noninteractive"]
+    lines = [
+        f"FROM {base_image}",
+        "ENTRYPOINT []",
+        "ENV DEBIAN_FRONTEND=noninteractive",
+    ]
     if apt_packages:
         names = " ".join(shlex.quote(item) for item in apt_packages)
         lines.append(

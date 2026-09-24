@@ -23,6 +23,7 @@ def local_stdio_launch(
     *,
     server_path: Path,
     arguments: list[str],
+    writable_paths: tuple[Path, ...] = (),
 ) -> StdioLaunch:
     """Launch an adapter with the delivery's ordinary Python software profile."""
     command = delivery.python_path or Path(os.sys.executable).absolute()
@@ -47,6 +48,7 @@ def docker_stdio_launch(
     *,
     server_path: Path,
     arguments: list[str],
+    writable_paths: tuple[Path, ...] = (),
 ) -> StdioLaunch:
     """Launch the adapter in the reusable image selected by runtime.json."""
     runtime = delivery.runtime
@@ -56,18 +58,31 @@ def docker_stdio_launch(
     delivery_mount = str(runtime["delivery_mount"])
     code_mount = str(runtime["code_mount"])
     translated: list[str] = []
-    extra_mounts: list[tuple[Path, str]] = []
+    extra_mounts: dict[Path, str] = {}
+    writable = {
+        path.expanduser().resolve()
+        for path in writable_paths
+    }
     for item in arguments:
         candidate = Path(item).expanduser()
-        if candidate.is_absolute() and candidate.is_relative_to(delivery.delivery_root):
+        resolved_candidate = candidate.resolve() if candidate.is_absolute() else None
+        if resolved_candidate in writable:
+            source = resolved_candidate.parent
+            target_root = extra_mounts.setdefault(
+                source, f"/external/{len(extra_mounts)}"
+            )
+            translated.append(f"{target_root}/{resolved_candidate.name}")
+        elif candidate.is_absolute() and candidate.is_relative_to(delivery.delivery_root):
             relative = candidate.relative_to(delivery.delivery_root).as_posix()
             translated.append(f"{delivery_mount}/{relative}")
         elif candidate.is_absolute() and candidate.is_relative_to(project_root):
             relative = candidate.relative_to(project_root).as_posix()
             translated.append(f"{code_mount}/{relative}")
         elif candidate.is_absolute():
-            target_root = f"/external/{len(extra_mounts)}"
-            extra_mounts.append((candidate.parent.resolve(), target_root))
+            source = candidate.parent.resolve()
+            target_root = extra_mounts.setdefault(
+                source, f"/external/{len(extra_mounts)}"
+            )
             translated.append(f"{target_root}/{candidate.name}")
         else:
             translated.append(item)
@@ -77,12 +92,14 @@ def docker_stdio_launch(
         "run",
         "--rm",
         "-i",
+        "--user",
+        f"{os.getuid()}:{os.getgid()}",
         "--mount",
         f"type=bind,source={delivery.delivery_root},target={delivery_mount},readonly",
         "--mount",
         f"type=bind,source={project_root},target={code_mount},readonly",
     ]
-    for source, target in extra_mounts:
+    for source, target in extra_mounts.items():
         command.extend(
             ["--mount", f"type=bind,source={source},target={target}"]
         )
@@ -103,15 +120,18 @@ def stdio_launch(
     *,
     server_path: Path,
     arguments: list[str],
+    writable_paths: tuple[Path, ...] = (),
 ) -> StdioLaunch:
     if delivery.runtime.get("backend") == "docker":
         return docker_stdio_launch(
             delivery,
             server_path=server_path,
             arguments=arguments,
+            writable_paths=writable_paths,
         )
     return local_stdio_launch(
         delivery,
         server_path=server_path,
         arguments=arguments,
+        writable_paths=writable_paths,
     )

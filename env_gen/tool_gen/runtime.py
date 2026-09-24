@@ -379,17 +379,24 @@ class ToolRuntime:
         *,
         software_root: Path | None = None,
         temp_root: Path | None = None,
+        session_root: Path | None = None,
     ) -> None:
         self.package = package
-        temporary_parent = None
-        if temp_root is not None:
-            temporary_parent = Path(temp_root).expanduser().resolve()
-            temporary_parent.mkdir(parents=True, exist_ok=True)
-        self._temporary = tempfile.TemporaryDirectory(
-            prefix="agent-world-tool-runtime-",
-            dir=str(temporary_parent) if temporary_parent is not None else None,
-        )
-        self.root = Path(self._temporary.name)
+        self._temporary: tempfile.TemporaryDirectory[str] | None = None
+        if session_root is not None:
+            self.root = Path(session_root).expanduser().resolve()
+            self.root.parent.mkdir(parents=True, exist_ok=True)
+            self.root.mkdir()
+        else:
+            temporary_parent = None
+            if temp_root is not None:
+                temporary_parent = Path(temp_root).expanduser().resolve()
+                temporary_parent.mkdir(parents=True, exist_ok=True)
+            self._temporary = tempfile.TemporaryDirectory(
+                prefix="agent-world-tool-runtime-",
+                dir=str(temporary_parent) if temporary_parent is not None else None,
+            )
+            self.root = Path(self._temporary.name)
         shutil.copy2(package.package_root / "environment.json", self.root / "environment.json")
         shutil.copytree(package.package_root / "state", self.root / "state")
         self._software_root_path = self._software_root(software_root)
@@ -542,7 +549,12 @@ class ToolRuntime:
         return deepcopy(result)
 
     def close(self) -> None:
-        self._temporary.cleanup()
+        if self._temporary is not None:
+            self._temporary.cleanup()
+
+    @property
+    def persistent(self) -> bool:
+        return self._temporary is None
 
     def __enter__(self) -> "ToolRuntime":
         return self

@@ -327,6 +327,15 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual(records[0]["state_changes"]["record_sets"], ["tickets"])
             self.assertEqual(records[1]["state_changes"]["record_sets"], [])
 
+            sandbox = root / "sandbox"
+            receipt = json.loads((sandbox / "session.json").read_text())
+            self.assertEqual(receipt["tool_calls"], 2)
+            with sqlite3.connect(sandbox / "state/records.sqlite") as connection:
+                sandbox_status = connection.execute(
+                    'SELECT status FROM "tickets"'
+                ).fetchone()[0]
+            self.assertEqual(sandbox_status, "resolved")
+
             delivery = load_delivery(binding)
             with sqlite3.connect(
                 delivery.package.package_root / "state/records.sqlite"
@@ -418,6 +427,8 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual(Path(entry["args"][1]), binding)
             self.assertTrue(entry["args"][0].endswith("kimi_mcp.py"))
             self.assertIn("--trace", entry["args"])
+            self.assertIn("--session-root", entry["args"])
+            self.assertIn(str(root / "sandbox"), entry["args"])
             self.assertEqual(entry["args"][-2:], ["--max-tool-calls", "25"])
 
     def test_config_uses_bound_software_profile_python(self) -> None:
@@ -496,6 +507,15 @@ class KimiMcpTests(unittest.TestCase):
                 )
             )
             self.assertIn("/external/0/calls.jsonl", entry["args"])
+            self.assertIn("/external/0/sandbox", entry["args"])
+            external_mounts = [
+                item
+                for item in entry["args"]
+                if item.startswith("type=bind,source=")
+                and "target=/external/" in item
+            ]
+            self.assertEqual(len(external_mounts), 1)
+            self.assertIn("--user", entry["args"])
             self.assertEqual(entry["env"], {})
 
 

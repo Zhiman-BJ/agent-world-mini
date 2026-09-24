@@ -167,6 +167,12 @@ MCP 子进程从哪里启动。ToolGen 在生成 Kimi 配置时会明确设置�
 软件 Profile 与 Docker 的进程环境由 `runtime_launch.py` 组织，镜像配方和构建由
 `docker_runtime.py` 负责；这些运行后端不进入 ToolGen 的能力盘点、工具规划和工具代码生成逻辑。
 
+每条任务使用一个独立运行会话。启动时从交付包复制基线 `state/` 到任务目录的 `sandbox/`，
+同一 MCP 会话中的多次工具调用共用这份状态。Docker 后端通过 `docker run --rm` 启动一个临时
+容器，交付包和代码只读挂载，任务目录可写；MCP 退出后容器自动删除，`sandbox/state/`、
+`sandbox/session.json` 和工具调用轨迹保留给下游验收。镜像按软件计划生成稳定名称，已存在时
+直接复用，不在每条任务中重新构建。
+
 ## 中间产物
 
 ```text

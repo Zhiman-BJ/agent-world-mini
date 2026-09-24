@@ -78,6 +78,7 @@ class ToolMcpServer:
         trace_path: Path | None = None,
         max_tool_calls: int = 100,
         temp_root: Path | None = None,
+        session_root: Path | None = None,
     ) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls 必须大于 0")
@@ -85,6 +86,7 @@ class ToolMcpServer:
         self.trace_path = trace_path.expanduser().resolve() if trace_path else None
         self.max_tool_calls = max_tool_calls
         self.calls = 0
+        self._closed = False
         software_root = (
             Path(str(delivery.runtime["software_root"]))
             if delivery.runtime.get("backend") == "docker"
@@ -94,6 +96,7 @@ class ToolMcpServer:
             delivery.package,
             software_root=software_root,
             temp_root=temp_root,
+            session_root=session_root,
         )
         self._tools = {str(tool["name"]): tool for tool in delivery.package.tools}
         reserved = {tool["name"] for tool in RESOURCE_TOOLS}
@@ -103,6 +106,22 @@ class ToolMcpServer:
             raise ValueError("业务工具名与环境资源工具冲突：" + ", ".join(conflicts))
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self.runtime.persistent:
+            receipt = {
+                "schema_version": "1.0",
+                "package_id": self.delivery.binding["package_id"],
+                "environment_id": self.delivery.binding["environment_id"],
+                "tool_calls": self.calls,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "final_snapshot": self.runtime.snapshot(),
+            }
+            (self.runtime.root / "session.json").write_text(
+                json.dumps(receipt, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         self.runtime.close()
 
     def __enter__(self) -> "ToolMcpServer":
