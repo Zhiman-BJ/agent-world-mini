@@ -1,45 +1,60 @@
-# ToolGen 下游对接说明
+# ToolGen 产物对接说明
 
-ToolGen 每个环境交付一个 `binding.json`。它指出环境初始数据、正式工具、软件依赖和运行方式。下游只需选定一个环境的 `binding.json`，两条后续流程都从这里开始。
+ToolGen 交付的是“一个环境及其工具”。下游无论是继续生成任务，还是让模型调用工具，都从该环境的 `binding.json` 开始。这个文件相当于交付包的目录：它告诉程序环境数据、工具清单、软件依赖分别在哪里。
 
-例如，170 上现有的一个环境入口是：
+170 上的一个现成例子：
 
 ```text
 /data1/agent_world/toolgen_semiconductor_160_20260918/delivery/environments/semiconductor_circuit_level_s_matrix_1/binding.json
 ```
 
-```text
-                         ┌→ TaskGen：生成任务、参考解和验证数据
-环境交付 binding.json ──────┤
-                         └→ Kimi + MCP：执行任务、收集工具调用轨迹 → 蒸馏或训练
-```
+| 交付内容 | 用途 |
+| --- | --- |
+| `environment/` | 环境说明和原始数据；`state/` 是工具要读取、修改的数据 |
+| `tools/tools.json` | 正式工具的说明、参数和执行代码；模型只看到公开说明 |
+| `software/profile.json` | 指向这个环境所需的软件和 Python 解释器 |
+| `binding.json` | 把以上内容绑定在一起，是下游入口 |
 
-## 路线一：交给 TaskGen 继续造任务数据
+软件包本体放在交付根目录的 `software_profiles/`。运行工具时，程序根据 `binding.json` 找到它；模型不需要知道软件安装在哪个目录。
 
-TaskGen 读取 `binding.json`，取得环境初始数据和工具；生成任务时，工具执行必须使用该环境绑定的软件运行方式。建议直接复用 ToolGen 的加载入口：
+## 一、继续生成任务数据：TaskGen 怎么接
+
+目标是让 TaskGen 基于交付环境生成任务和参考解，并在**这个环境的软件条件下**实际执行工具。
+
+1. 选一个环境的 `binding.json`，读取环境原始数据、正式工具和软件运行方式。
+2. TaskGen 生成每条任务时，为该任务复制一份独立的环境状态。同一条任务的多次工具调用使用同一份状态；下一条任务重新从原始状态开始。
+3. 执行工具时使用该环境绑定的 Python 或 Docker 后端，不能仅加载工具名称而忽略软件依赖。
+
+ToolGen 已提供统一加载入口，TaskGen 可以直接使用：
 
 ```python
 from pathlib import Path
 from env_gen.tool_gen.delivery_contract import load_delivery
 
 delivery = load_delivery(Path("/path/to/environments/<package_id>/binding.json"))
-environment_root = delivery.package.package_root  # environment.json 和初始 state/
+environment_root = delivery.package.package_root  # 环境说明和原始 state/
 tools = delivery.package.tools                    # 正式工具
-python = delivery.python_path                     # Python Profile 环境时使用
-backend = delivery.runtime["backend"]             # host_python / python_profile / docker
+python_path = delivery.python_path                 # Python 环境的解释器
+software_root = delivery.software_root             # 安装好的软件依赖
+backend = delivery.runtime["backend"]             # 运行方式
 ```
 
-TaskGen 的 Step 0 用 `environment_root` 和 `tools` 冻结一份任务生成基线。每条任务从这份基线复制独立状态；执行工具时沿用 `delivery.python_path`、`delivery.software_root` 和 `delivery.runtime` 指定的运行方式，同一条任务中的多次调用使用同一份状态。这样任务生成和工具执行都对应同一个环境包。
+**TaskGen 当前要调整的是加载入口。**`task_gen/program/step_0_environment_load.py` 还在自行拼交付路径，并假设软件目录里有 `profile.json`、解释器固定在 `python/bin/python`。现有交付包把真实路径写在各环境的 `software/profile.json`，解释器可能位于 `python-3.11/bin/python`。用上面的真实环境测试，当前 Step 0 会在寻找共享目录的 `profile.json` 时停下；只传 `--binding` 时，交付根目录也会推算错一级。
 
-**TaskGen 需要改的地方：**`task_gen/program/step_0_environment_load.py` 目前自己推算交付根目录、软件目录和 Python 路径。其中，仅传 `--binding` 时交付根目录会少退一级；它还要求共享软件目录中有 `profile.json`，并固定寻找 `python/bin/python`。现有交付包的实际 Python 路径写在各环境的 `software/profile.json` 中，例如 `python-3.11/bin/python`。我用上面的真实环境试过：即使明确传交付根目录，当前 Step 0 仍会在查找共享 `profile.json` 时停止。
+下游把 Step 0 的路径解析统一改为 `load_delivery(binding_path)`，再将得到的运行方式传给工具执行层。接好后，用一个真实环境跑通 Step 0 和一次工具调用，就能确认“生成任务”和“执行任务”用的是同一套环境。
 
-下游将 Step 0 的路径解析改为 `load_delivery(binding_path)`，把得到的环境、工具和运行方式传给后续步骤；任务执行层按绑定的后端调用工具。改完用一个真实环境跑通 Step 0 和一次正式工具调用。
+## 二、让 Kimi 通过 MCP 调用工具
 
-## 路线二：通过 Kimi Code 的 MCP 衔接层调用工具
+MCP 衔接层的作用很直接：Kimi 发起工具调用，MCP 在一份独立的环境状态上执行，再把结果返回给 Kimi。下游需要先确定**任务从哪份状态开始**：
 
-这条路线用于让 Kimi 等模型通过 MCP 操作环境，收集蒸馏或在线强化学习所需的调用轨迹。**每条任务使用一个新的运行目录和 MCP 会话**。Kimi 调用 MCP 工具；MCP 在独立的状态副本上执行。如果环境绑定 Python Profile，就在对应 Python 中运行；如果绑定 Docker，就启动该镜像中的临时容器。
+| 要做的事 | 使用的初始状态 | 接入方式 |
+| --- | --- | --- |
+| 探索交付环境，或从环境原始数据开始执行新任务 | 交付包的 `environment/state/` | 下方的 ToolGen MCP 命令 |
+| 执行 TaskGen 已生成的具体任务 | 该任务保存的初始状态 | TaskGen 的任务级 MCP 入口 |
 
-如果任务从交付环境的原始状态开始，在能访问交付包和 ToolGen 代码的机器上生成 MCP 配置：
+### 从交付环境原始状态开始
+
+在能访问交付包的机器上，每条任务建立一个新的运行目录，并生成 MCP 配置：
 
 ```bash
 cd /data1/agent_world/toolgen
@@ -47,28 +62,43 @@ BINDING=/data1/agent_world/toolgen_semiconductor_160_20260918/delivery/environme
 RUN_DIR=/data1/agent_world/toolgen_runs/task_001
 mkdir -p "$RUN_DIR"
 .venv/bin/python -m env_gen.tool_gen.kimi_mcp "$BINDING" \
-  --server-name agent_world \
   --trace "$RUN_DIR/tool_calls.jsonl" \
   --session-root "$RUN_DIR/sandbox" \
   --print-kimi-config > "$RUN_DIR/mcp.json"
 ```
 
-在 Kimi Code 中加载这份 `mcp.json`；使用 Kimi SDK 时，将 `mcpServers.agent_world` 作为名为 `agent_world` 的 stdio MCP server 注册，再开始模型会话。配置已包含启动命令、参数和环境变量；运行器与交付包须在同一台机器上，或能访问相同路径。Kimi 可先调用 `get_environment_overview`、`list_environment_resources` 寻找资源，再调用业务工具。文件在工具接口中用 `aw://<scope_id>/<相对路径>` 表示，而不是主机上的绝对路径。
+这一步只生成配置；Kimi 开始会话时才会启动 MCP 进程。把 `mcp.json` 中的 `mcpServers.agent_world` 以 `agent_world` 为名称注册到 Kimi Code 或 Kimi SDK。配置中已有启动命令、参数和环境变量。Kimi 运行器必须能访问这些交付包路径；最简单的方式是在 170 上运行。
 
-一次任务结束后，运行目录中有：
+模型可以先调用 `get_environment_overview`、`list_environment_resources` 找到数据，再调用业务工具。工具返回的文件引用形如 `aw://<scope_id>/<相对路径>`：这是**环境内部**的文件地址，不是服务器磁盘的绝对路径。
 
-| 文件 | 内容 |
+一条任务结束后，`RUN_DIR` 中保存：
+
+| 产物 | 可以用来做什么 |
 | --- | --- |
-| `tool_calls.jsonl` | 每次工具调用的参数、返回值和状态变化 |
-| `sandbox/state/` | 这条任务结束时的环境状态 |
-| `sandbox/session.json` | 调用次数及最终状态摘要，文件以 SHA-256 和字节数记录 |
+| `tool_calls.jsonl` | 查看每次调用了哪个工具、传了什么参数、返回了什么 |
+| `sandbox/state/` | 查看工具执行后的环境数据 |
+| `sandbox/session.json` | 查看调用次数和最终状态摘要 |
 
-蒸馏运行器还需要保存 Kimi 的完整对话（任务输入、模型回复和工具选择），与上面的工具轨迹一起组成训练样本。如果只希望模型使用这套环境工具，运行器需要将可用工具限制为相应的 MCP 工具。做下一条任务或下一次强化学习 rollout 时，换一个新的 `RUN_DIR`，从环境初始状态重新开始。
+做蒸馏时，还要由 Kimi 运行器保存任务输入、模型回复和工具选择；这些对话与 `tool_calls.jsonl` 合在一起才是完整训练轨迹。做下一条任务或下一次在线强化学习 rollout 时，换一个新的 `RUN_DIR`，从初始状态重新开始。
 
-**如果执行的是 TaskGen 已生成的任务**，应使用该任务自己的初始状态，而不是上面 `binding.json` 对应的原始状态。现有 `task_gen/task_eval_kimi_mcp.py` 是任务级入口：它接收任务状态目录，再通过同一套环境工具执行；`task_gen/task_eval.py --agent-backend kimi` 会调用它。蒸馏或训练运行器接入时也要传入任务初态、`binding.json` 和独立轨迹路径。Docker 环境的任务级执行后端还需由下游接通。
+### 执行 TaskGen 已生成的任务
 
-## 当前可用性
+这时要用任务自己的初始状态。现有任务级入口是 `task_gen/task_eval_kimi_mcp.py`；`task_gen/task_eval.py --agent-backend kimi` 会启动它。下游先在 `config/task_eval_kimi.yaml` 的 `llm.kimi.binding_path` 填入该环境的 `binding.json`，再用安装了 TaskGen 依赖的 Python 3.11+ 运行：
 
-- MCP 会话已在 170 上通过真实 Python Profile 环境调用；Docker 后端也已通过包含文件修改的真实容器会话测试。
-- 现有 160 环境是较早的 Python Profile 交付，`binding.json` 尚无 `runtime_path`；`load_delivery()` 会据其软件映射识别为 `python_profile`。TaskGen 需按上文对齐 Step 0 的软件路径。
-- 170 当前未发现 `kimi` 命令；MCP 进程与配置已经验证，Kimi 模型回合由下游的 Kimi Code/SDK 运行器接入并验收。
+```bash
+python -m task_gen.task_eval \
+  --config config/task_eval_kimi.yaml \
+  --input-root /path/to/taskgen/run \
+  --agent-backend kimi --limit 1
+```
+
+任务级 MCP 使用该任务的状态副本，执行工具后保存轨迹。这里的 `/path/to/taskgen/run` 是 TaskGen 的任务产物目录。170 上 ToolGen 自带的 `.venv` 是 Python 3.10，不能直接用它启动这段 TaskGen 代码；TaskGen 运行环境还需安装自己的依赖。
+
+TaskGen 的 Python 环境任务已有这条接入路径；Docker 环境的任务级工具执行还需按绑定后端接通。上面直接生成 `mcp.json` 的命令适用于“从交付环境原始状态开始”的场景。
+
+## 交接时核对
+
+- TaskGen：用真实 `binding.json` 跑通加载、任务状态复制和一次正式工具调用。
+- Kimi/MCP：用一条任务确认模型能看到工具、工具结果返回、`tool_calls.jsonl` 与最终状态落盘。
+
+截至 2026 年 9 月 24 日，170 上已验证交付包的 Python MCP 调用和 Docker 测试镜像中的会话及文件修改；Kimi 模型完成整条任务的验收由接入方继续进行。
