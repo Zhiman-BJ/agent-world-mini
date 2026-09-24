@@ -123,6 +123,16 @@ def _table_digest(database: Path, table: str) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _file_fingerprint(path: Path) -> dict[str, Any]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    return {"sha256": digest.hexdigest(), "size_bytes": size}
+
+
 def _validate_v2_package(package_root: Path, environment: dict[str, Any]) -> None:
     schema = json.loads((SCHEMA_ROOT / "environment.schema.json").read_text(encoding="utf-8"))
     errors = _schema_errors(schema, environment)
@@ -347,12 +357,12 @@ def snapshot_state(root: Path, environment: dict[str, Any]) -> dict[str, Any]:
         str(item["record_set_id"]): _table_digest(database, str(item["record_set_id"]))
         for item in environment.get("record_sets", [])
     }
-    scopes: dict[str, dict[str, bytes]] = {}
+    scopes: dict[str, dict[str, dict[str, Any]]] = {}
     for scope in environment.get("filesystem_scopes", []):
         scope_id = str(scope["scope_id"])
         scope_root = root / "state/filesystem_scopes" / scope_id
         scopes[scope_id] = {
-            path.relative_to(scope_root).as_posix(): path.read_bytes()
+            path.relative_to(scope_root).as_posix(): _file_fingerprint(path)
             for path in sorted(item for item in scope_root.rglob("*") if item.is_file())
         }
     return {"record_sets": records, "filesystem_scopes": scopes}
