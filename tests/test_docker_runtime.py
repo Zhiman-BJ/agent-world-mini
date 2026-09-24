@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -62,7 +63,7 @@ class DockerRuntimeTests(unittest.TestCase):
         test_root = os.environ.get("TOOLGEN_DOCKER_TEST_ROOT")
         with tempfile.TemporaryDirectory(dir=test_root) as temporary:
             root = Path(temporary)
-            binding = KimiMcpTests()._make_delivery(root)
+            binding = KimiMcpTests()._make_delivery(root, with_report_tool=True)
             document = json.loads(binding.read_text(encoding="utf-8"))
             runtime_path = root / "delivery" / document["runtime_path"]
             runtime_path.write_text(
@@ -106,6 +107,24 @@ class DockerRuntimeTests(unittest.TestCase):
                         "arguments": {"ticket_id": "ticket-1"},
                     },
                 },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "write_report",
+                        "arguments": {"path": "daily.json", "status": "done"},
+                    },
+                },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "inspect_environment_resource",
+                        "arguments": {"ref": "aw://reports/daily.json"},
+                    },
+                },
             ]
             before = set(
                 subprocess.check_output(
@@ -124,10 +143,10 @@ class DockerRuntimeTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             responses = [json.loads(line) for line in result.stdout.splitlines()]
-            self.assertEqual(
-                responses[-1]["result"]["structuredContent"]["data"]["status"],
-                "resolved",
-            )
+            self.assertEqual(len(responses), 4)
+            self.assertTrue(all(not item["result"]["isError"] for item in responses))
+            self.assertEqual(responses[1]["result"]["structuredContent"]["data"]["status"], "resolved")
+            self.assertIn("done", responses[3]["result"]["structuredContent"]["data"]["text_preview"])
             sandbox = root / "run/sandbox"
             with sqlite3.connect(sandbox / "state/records.sqlite") as connection:
                 self.assertEqual(
@@ -135,7 +154,17 @@ class DockerRuntimeTests(unittest.TestCase):
                     "resolved",
                 )
             receipt = json.loads((sandbox / "session.json").read_text())
-            self.assertEqual(receipt["tool_calls"], 2)
+            self.assertEqual(receipt["tool_calls"], 4)
+            contents = (sandbox / "state/filesystem_scopes/reports/daily.json").read_bytes()
+            self.assertEqual(json.loads(contents)["status"], "done")
+            self.assertEqual(
+                receipt["final_snapshot"]["filesystem_scopes"]["reports"]["daily.json"],
+                {"sha256": hashlib.sha256(contents).hexdigest(), "size_bytes": len(contents)},
+            )
+            self.assertEqual(
+                (delivery.package.package_root / "state/filesystem_scopes/reports/daily.json").read_text(),
+                '{"status":"open"}',
+            )
             self.assertEqual((sandbox / "session.json").stat().st_uid, os.getuid())
             after = set(
                 subprocess.check_output(
