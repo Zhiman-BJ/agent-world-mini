@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import shutil
 import subprocess
@@ -128,6 +129,20 @@ subagents: []
 
 ${base_prompt}
 """, encoding="utf-8")
+
+
+def _write_kimi_launcher(path: Path) -> None:
+    """Load a prompt after execve so large tasks do not exceed argv limits."""
+    path.write_text("""\
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+const [cliPath, promptPath, ...args] = process.argv.slice(2);
+process.argv = [process.argv[0], cliPath, '--prompt', readFileSync(promptPath, 'utf8'), ...args];
+await import(pathToFileURL(cliPath).href);
+""", encoding="utf-8")
+    path.chmod(0o700)
 
 
 def _write_mcp_config(path: Path, server_config: Path, workspace: Path, timeout: int) -> None:
@@ -300,30 +315,17 @@ def _tool_names_match(observed: set[str], expected: set[str]) -> bool:
         if name in unmatched:
             unmatched.remove(name)
             continue
+        suffix = re.search(
+            r"(?:_[0-9a-f]{8}|-[0-9a-f]{8}|_-[0-9a-f]{7,8})$", name
+        )
         candidates = [
             candidate for candidate in unmatched
             if len(candidate) > 64
             and len(name) == 64
-            # Kimi Code shortens long MCP names at the last safe boundary
-            # before the collision suffix.  The boundary is not fixed across
-            # CLI versions (for example, 54 chars in 2.0.2).  Observed forms
-            # are ``_<hash>``, ``-<hash>``, and ``_-<hash>``.
-            and any(
-                candidate.startswith(name[:cut])
-                and (
-                    (
-                        len(name) - cut == 9
-                        and name[cut] in "_-"
-                        and all(character in "0123456789abcdef" for character in name[cut + 1:])
-                    )
-                    or (
-                        len(name) - cut == 10
-                        and name[cut:cut + 2] == "_-"
-                        and all(character in "0123456789abcdef" for character in name[cut + 2:])
-                    )
-                )
-                for cut in range(48, 56)
-            )
+            # Kimi Code shortens at different safe boundaries across versions.
+            # Match the preserved prefix rather than a fixed cut position.
+            and suffix is not None
+            and candidate.startswith(name[:suffix.start()])
         ]
         if len(candidates) != 1:
             return False
@@ -464,6 +466,11 @@ def run_k3_distillation(
         private_server.chmod(0o600)
         agent_file = kimi_home / "agent.md"
         _write_agent(agent_file)
+        prompt_file = kimi_home / "prompt.txt"
+        prompt_file.write_text(prompt, encoding="utf-8")
+        prompt_file.chmod(0o600)
+        launcher = kimi_home / "launch-kimi.mjs"
+        _write_kimi_launcher(launcher)
         skills_dir = kimi_home / "skills"
         skills_dir.mkdir()
 
@@ -483,8 +490,7 @@ def run_k3_distillation(
                 "KIMI_CLI_NO_AUTO_UPDATE": "1",
             })
             command = [
-                str(executable),
-                "--prompt", prompt,
+                str(launcher), str(executable), str(prompt_file),
                 "--output-format", "stream-json",
                 "--agent-file", str(agent_file),
                 "--skills-dir", str(skills_dir),

@@ -98,7 +98,7 @@ def run_selected_steps(
     research_attempts: int = 3,
     candidates_path: Path | None = None,
     overwrite: bool = False,
-    agent_timeout_seconds: int = 1800,
+    agent_timeout_seconds: int = 2000,
 ) -> dict[int, Any]:
     """Run selected generation steps while preserving their file checkpoints."""
     policy.validate()
@@ -193,14 +193,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidates", type=Path)
     parser.add_argument("--model", default="gpt-5.6-sol")
     parser.add_argument("--task-count", type=int, default=1)
-    parser.add_argument("--candidate-multiplier", type=int, default=2)
+    parser.add_argument(
+        "--candidate-multiplier",
+        type=int,
+        default=1,
+        help="兼容旧参数；当前 Step 2 每次 Agent 调用固定只生成 1 条任务",
+    )
     parser.add_argument("--research-attempts", type=int, default=3)
     parser.add_argument("--task-generation-attempts", type=int, default=3)
     parser.add_argument("--clean-replays", type=int, default=2)
     parser.add_argument("--require-state-change", action="store_true")
     parser.add_argument("--max-repair-rounds", type=int, default=10)
     parser.add_argument("--execution-timeout-seconds", type=float, default=15.0)
-    parser.add_argument("--agent-timeout-seconds", type=int, default=1800)
+    parser.add_argument("--agent-timeout-seconds", type=int, default=2000)
     parser.add_argument("--fresh", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser

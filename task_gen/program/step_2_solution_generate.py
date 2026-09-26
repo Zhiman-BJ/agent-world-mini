@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import traceback
+from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,10 +67,100 @@ def _run_agent_until_json(
     return agent.run(prompt, working_directory=working_directory)
 
 
+def _write_generation_tool_access(
+    working_directory: Path,
+    package: CompleteEnvironmentPackage,
+) -> None:
+    """Give the authoring Agent a safe, disposable view of the real tools.
+
+    The Agent may inspect internal implementations and probe a tool against a
+    fresh copy of the frozen state. Probe calls never share state with the
+    eventual reference-program execution and are not part of the task output.
+    """
+    probe_package = working_directory / "probe_package"
+    shutil.copytree(package.package_root, probe_package)
+    write_json(
+        working_directory / "tools.internal.json",
+        {
+            "environment_id": package.environment["environment_id"],
+            "tools": [deepcopy(tool) for tool in package.tools],
+            "warning": "仅供任务生成阶段分析；不得把 internal.code 写入 task_public。",
+        },
+    )
+    project_root = Path(__file__).resolve().parents[2]
+    probe_source = f'''#!/usr/bin/env python3
+"""Inspect or probe one ToolGen tool against a disposable state copy."""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, {str(project_root)!r})
+from task_gen.program.utils.environment import CompleteEnvironmentPackage
+from task_gen.program.utils.tool_runtime import CompleteEnvironmentRuntime
+
+ROOT = Path(__file__).resolve().parent
+TOOLS_PATH = ROOT / "tools.internal.json"
+PACKAGE_PATH = ROOT / "probe_package"
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--show-code")
+    parser.add_argument("--tool")
+    parser.add_argument("--arguments-json", default="{{}}")
+    args = parser.parse_args()
+    document = json.loads(TOOLS_PATH.read_text(encoding="utf-8"))
+    tools = {{str(item["name"]): item for item in document["tools"]}}
+    if args.list:
+        print(json.dumps({{"tools": [
+            {{"name": name, "description": item["description"],
+              "usageConditions": item.get("usageConditions")}}
+            for name, item in tools.items()
+        ]}}, ensure_ascii=False, indent=2))
+        return
+    if args.show_code:
+        if args.show_code not in tools:
+            raise SystemExit(f"unknown tool: {{args.show_code}}")
+        print(tools[args.show_code]["internal"]["code"])
+        return
+    if not args.tool:
+        raise SystemExit("provide --list, --show-code TOOL, or --tool TOOL")
+    if args.tool not in tools:
+        raise SystemExit(f"unknown tool: {{args.tool}}")
+    arguments = json.loads(args.arguments_json)
+    if not isinstance(arguments, dict):
+        raise SystemExit("--arguments-json must encode a JSON object")
+    package = CompleteEnvironmentPackage.load(PACKAGE_PATH)
+    with CompleteEnvironmentRuntime(package) as runtime:
+        try:
+            result = runtime.call(args.tool, arguments)
+            state_diff = runtime.trace[-1].state_diff if runtime.trace else {{}}
+            print(json.dumps({{"tool": args.tool, "result": result,
+                              "state_diff": state_diff}},
+                             ensure_ascii=False, indent=2))
+        except Exception as error:
+            print(json.dumps({{"tool": args.tool, "error_type": type(error).__name__,
+                              "error": str(error)}},
+                             ensure_ascii=False, indent=2))
+            raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    main()
+'''
+    probe_path = working_directory / "tool_probe.py"
+    probe_path.write_text(probe_source, encoding="utf-8")
+    probe_path.chmod(0o755)
+
+
 @dataclass
 class ProgramTaskCandidate:
     archetype_id: str
     task_internal: str
+    workspace_brief: str
+    task_summary: str
     task_public: str
     output_schema: dict[str, Any]
     task_resources: dict[str, Any]
@@ -80,6 +171,8 @@ class ProgramTaskCandidate:
         return cls(
             archetype_id=str(value["archetype_id"]).strip(),
             task_internal=str(value["task_internal"]).strip(),
+            workspace_brief=str(value["workspace_brief"]).strip(),
+            task_summary=str(value["task_summary"]).strip(),
             task_public=str(value["task_public"]).strip(),
             output_schema=deepcopy(value["output_schema"]),
             task_resources=deepcopy(value["task_resources"]),
@@ -101,8 +194,12 @@ FORBIDDEN_SOLUTION_NODES = (
     ast.Yield,
     ast.YieldFrom,
     ast.Raise,
+    ast.Try,
     ast.While,
     ast.Delete,
+    ast.Lambda,
+    ast.Match,
+    ast.AsyncFor,
 )
 FORBIDDEN_SOLUTION_CALLS = {
     "breakpoint",
@@ -201,7 +298,7 @@ def _solution_dataflow_errors(tree: ast.Module) -> list[str]:
             ):
                 dependent_tool_calls += 1
 
-    def process(statements: list[ast.stmt]) -> None:
+    def process(statements: list[ast.stmt], *, control_tainted: bool = False) -> None:
         nonlocal final_answer_depends_on_tool
         for statement in statements:
             if isinstance(statement, (ast.Assign, ast.AnnAssign)):
@@ -217,7 +314,11 @@ def _solution_dataflow_errors(tree: ast.Module) -> list[str]:
                     for target in targets
                     for name in _assigned_names(target)
                 }
-                derived = _contains_tool_call(value) or _uses_tainted_value(value, tainted)
+                derived = (
+                    control_tainted
+                    or _contains_tool_call(value)
+                    or _uses_tainted_value(value, tainted)
+                )
                 if "final_answer" in names:
                     final_answer_depends_on_tool = derived
                 if derived:
@@ -227,24 +328,39 @@ def _solution_dataflow_errors(tree: ast.Module) -> list[str]:
                 continue
             if isinstance(statement, ast.For):
                 count_dependent_calls(statement.iter)
-                if _contains_tool_call(statement.iter) or _uses_tainted_value(
+                iterator_tainted = _contains_tool_call(
+                    statement.iter
+                ) or _uses_tainted_value(
                     statement.iter, tainted
-                ):
+                )
+                if iterator_tainted:
                     tainted.update(_assigned_names(statement.target))
-                process(statement.body)
-                process(statement.orelse)
+                process(
+                    statement.body,
+                    control_tainted=control_tainted or iterator_tainted,
+                )
+                process(statement.orelse, control_tainted=control_tainted)
                 continue
             if isinstance(statement, ast.If):
                 count_dependent_calls(statement.test)
-                process(statement.body)
-                process(statement.orelse)
+                test_tainted = _contains_tool_call(
+                    statement.test
+                ) or _uses_tainted_value(statement.test, tainted)
+                process(
+                    statement.body,
+                    control_tainted=control_tainted or test_tainted,
+                )
+                process(
+                    statement.orelse,
+                    control_tainted=control_tainted or test_tainted,
+                )
                 continue
             if isinstance(statement, ast.Try):
-                process(statement.body)
+                process(statement.body, control_tainted=control_tainted)
                 for handler in statement.handlers:
-                    process(handler.body)
-                process(statement.orelse)
-                process(statement.finalbody)
+                    process(handler.body, control_tainted=control_tainted)
+                process(statement.orelse, control_tainted=control_tainted)
+                process(statement.finalbody, control_tainted=control_tainted)
                 continue
             count_dependent_calls(statement)
             if (
@@ -262,8 +378,6 @@ def _solution_dataflow_errors(tree: ast.Module) -> list[str]:
 
     process(tree.body)
     errors: list[str] = []
-    if dependent_tool_calls == 0:
-        errors.append("至少一个后续工具调用的参数必须依赖前序工具结果")
     if not final_answer_depends_on_tool:
         errors.append("final_answer 必须由真实工具结果推导，不能写死")
     return errors
@@ -279,6 +393,9 @@ class SolutionComplexityProfile:
     max_dependency_depth: int
     business_decisions: int
     loops_over_tool_results: int
+    per_item_tool_calls: int
+    conditional_tool_calls: int
+    result_calculations: int
 
 
 def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
@@ -286,7 +403,7 @@ def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return SolutionComplexityProfile(0, 0, 0, 0, 0, 0)
+        return SolutionComplexityProfile(0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     depths: dict[str, int] = {}
     tool_calls = 0
@@ -295,6 +412,18 @@ def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
     max_dependency_depth = 0
     business_decisions = 0
     loops_over_tool_results = 0
+    per_item_tool_calls = 0
+    conditional_tool_calls = 0
+    result_calculations = 0
+
+    def count_tool_call_sites(node: ast.AST) -> int:
+        return sum(
+            1
+            for item in ast.walk(node)
+            if isinstance(item, ast.Call)
+            and isinstance(item.func, ast.Name)
+            and item.func.id == "call_tool"
+        )
 
     def expression_depth(node: ast.AST | None) -> int:
         nonlocal tool_calls, dependent_tool_calls, max_dependency_depth
@@ -338,12 +467,41 @@ def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
             for item in ast.walk(node)
         )
 
+    def inspect_comprehensions(node: ast.AST) -> None:
+        """Count result-dependent filtering inside list/set/dict comprehensions.
+
+        A common valid solution selects records with a comprehension, for
+        example ``[point for point in result if point["axis"] == target]``.
+        The previous statement-only scan missed that business decision even
+        though the iterator and predicate were derived from a tool result.
+        """
+        nonlocal business_decisions, loops_over_tool_results
+        for item in ast.walk(node):
+            if not isinstance(
+                item, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+            ):
+                continue
+            for generator in item.generators:
+                iterator_depth = expression_depth(generator.iter)
+                if iterator_depth <= 0:
+                    continue
+                loops_over_tool_results += 1
+                for predicate in generator.ifs:
+                    if is_business_decision(predicate, iterator_depth):
+                        business_decisions += 1
+
     def process(statements: list[ast.stmt]) -> None:
         nonlocal business_decisions, loops_over_tool_results
+        nonlocal per_item_tool_calls, conditional_tool_calls, result_calculations
         for statement in statements:
             if isinstance(statement, (ast.Assign, ast.AnnAssign)):
                 value = statement.value
                 value_depth = expression_depth(value)
+                inspect_comprehensions(value)
+                if value_depth > 0 and any(
+                    isinstance(item, ast.BinOp) for item in ast.walk(value)
+                ):
+                    result_calculations += 1
                 targets = (
                     statement.targets
                     if isinstance(statement, ast.Assign)
@@ -363,6 +521,9 @@ def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
                 iterator_depth = expression_depth(statement.iter)
                 if iterator_depth > 0:
                     loops_over_tool_results += 1
+                    per_item_tool_calls += sum(
+                        count_tool_call_sites(item) for item in statement.body
+                    )
                 for name in _assigned_names(statement.target):
                     depths[name] = iterator_depth
                 process(statement.body)
@@ -372,6 +533,10 @@ def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
                 test_depth = expression_depth(statement.test)
                 if is_business_decision(statement.test, test_depth):
                     business_decisions += 1
+                    conditional_tool_calls += sum(
+                        count_tool_call_sites(item)
+                        for item in [*statement.body, *statement.orelse]
+                    )
                 process(statement.body)
                 process(statement.orelse)
                 continue
@@ -402,17 +567,64 @@ def _solution_complexity_profile(source: str) -> SolutionComplexityProfile:
         max_dependency_depth=max_dependency_depth,
         business_decisions=business_decisions,
         loops_over_tool_results=loops_over_tool_results,
+        per_item_tool_calls=per_item_tool_calls,
+        conditional_tool_calls=conditional_tool_calls,
+        result_calculations=result_calculations,
     )
 
 
+def _solution_difficulty_forms(
+    profile: SolutionComplexityProfile,
+) -> frozenset[str]:
+    """Describe how a solution is difficult without prescribing one workflow."""
+    forms: set[str] = set()
+    if profile.max_dependency_depth >= 3 and profile.dependent_tool_calls >= 2:
+        forms.add("result_chain")
+    if profile.loops_over_tool_results >= 1:
+        forms.add("result_batch")
+    if profile.per_item_tool_calls >= 1:
+        forms.add("per_item_tool_work")
+    if profile.business_decisions >= 2:
+        forms.add("multiple_runtime_decisions")
+    if profile.conditional_tool_calls >= 1:
+        forms.add("conditional_tool_path")
+    if profile.result_calculations >= 1:
+        forms.add("result_calculation")
+    if profile.distinct_tools >= 4:
+        forms.add("multiple_evidence_sources")
+    return frozenset(forms)
+
+
 def _solution_complexity_errors(source: str) -> list[str]:
-    """Reject linear workflows even when every individual call is valid."""
+    """Require real runtime reasoning without imposing one workflow shape."""
     profile = _solution_complexity_profile(source)
     errors: list[str] = []
-    if profile.max_dependency_depth < 3 or profile.dependent_tool_calls < 2:
+    has_deep_dependency = (
+        profile.max_dependency_depth >= 3
+        and profile.dependent_tool_calls >= 2
+    )
+    has_batch_reasoning = (
+        profile.loops_over_tool_results >= 1
+        and profile.tool_calls >= 3
+    )
+    has_multi_decision_reasoning = (
+        profile.business_decisions >= 2
+        and profile.distinct_tools >= 3
+    )
+    has_multi_evidence_reasoning = (
+        profile.business_decisions >= 1
+        and profile.distinct_tools >= 4
+        and profile.tool_calls >= 4
+    )
+    if not (
+        has_deep_dependency
+        or has_batch_reasoning
+        or has_multi_decision_reasoning
+        or has_multi_evidence_reasoning
+    ):
         errors.append(
-            "任务依赖链过浅：至少需要两段连续依赖，使一次工具结果影响后续调用，"
-            "后续结果再影响更后面的调用或业务决定"
+            "任务缺少足够的运行时推理：应自然具备深结果依赖、基于工具结果的批处理，"
+            "或多个会改变后续操作/最终结论的业务判断之一"
         )
     if profile.business_decisions == 0 and profile.loops_over_tool_results == 0:
         errors.append(
@@ -423,13 +635,86 @@ def _solution_complexity_errors(source: str) -> list[str]:
 
 def _candidate_complexity_sort_key(raw: dict[str, Any]) -> tuple[int, ...]:
     profile = _solution_complexity_profile(str(raw.get("solution_code") or ""))
+    difficulty_forms = _solution_difficulty_forms(profile)
+    balanced_score = (
+        min(profile.max_dependency_depth, 5) * 3
+        + min(profile.business_decisions, 5) * 2
+        + min(profile.loops_over_tool_results, 3) * 3
+        + min(profile.per_item_tool_calls, 4) * 4
+        + min(profile.conditional_tool_calls, 4) * 3
+        + min(profile.result_calculations, 4) * 2
+        + min(profile.dependent_tool_calls, 6) * 2
+        + min(profile.distinct_tools, 6)
+        + min(profile.tool_calls, 10)
+    )
     return (
-        profile.max_dependency_depth,
+        len(difficulty_forms),
+        balanced_score,
+        profile.per_item_tool_calls + profile.conditional_tool_calls,
         profile.business_decisions + profile.loops_over_tool_results,
+        profile.max_dependency_depth,
         profile.dependent_tool_calls,
         profile.distinct_tools,
         profile.tool_calls,
     )
+
+
+def _rank_candidates_for_diversity(
+    candidates: list[dict[str, Any]],
+    accepted: list[dict[str, Any]],
+) -> list[tuple[int, dict[str, Any]]]:
+    """Greedily prefer strong candidates that add a different reasoning shape.
+
+    This is a portfolio preference, not a per-task requirement. A candidate is
+    still allowed to use any natural workflow; when several are available, the
+    batch avoids selecting the same structural pattern repeatedly.
+    """
+    form_counts: Counter[str] = Counter()
+    signature_counts: Counter[tuple[str, ...]] = Counter()
+    archetype_counts: Counter[str] = Counter()
+    for item in accepted:
+        profile = _solution_complexity_profile(
+            str(item.get(TaskFields.SOLUTION_CODE) or "")
+        )
+        forms = _solution_difficulty_forms(profile)
+        form_counts.update(forms)
+        signature_counts.update([tuple(sorted(forms))])
+        archetype_counts.update([str(item.get(TaskFields.ARCHETYPE_ID) or "")])
+
+    remaining = list(enumerate(candidates))
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    while remaining:
+        def selection_key(item: tuple[int, dict[str, Any]]) -> tuple[Any, ...]:
+            _, raw = item
+            profile = _solution_complexity_profile(
+                str(raw.get("solution_code") or "")
+            )
+            forms = _solution_difficulty_forms(profile)
+            signature = tuple(sorted(forms))
+            archetype_id = str(raw.get("archetype_id") or "")
+            new_forms = sum(form_counts[form] == 0 for form in forms)
+            underused_forms = sum(
+                1.0 / (1 + form_counts[form]) for form in forms
+            )
+            return (
+                new_forms,
+                signature_counts[signature] == 0,
+                archetype_counts[archetype_id] == 0,
+                underused_forms,
+                _candidate_complexity_sort_key(raw),
+            )
+
+        chosen = max(remaining, key=selection_key)
+        remaining.remove(chosen)
+        ranked.append(chosen)
+        _, raw = chosen
+        forms = _solution_difficulty_forms(
+            _solution_complexity_profile(str(raw.get("solution_code") or ""))
+        )
+        form_counts.update(forms)
+        signature_counts.update([tuple(sorted(forms))])
+        archetype_counts.update([str(raw.get("archetype_id") or "")])
+    return ranked
 
 
 def validate_solution_code(source: str) -> list[str]:
@@ -454,6 +739,12 @@ def validate_solution_code(source: str) -> list[str]:
         if isinstance(node, FORBIDDEN_SOLUTION_NODES):
             errors.append(
                 f"第 {getattr(node, 'lineno', '?')} 行禁止使用 {type(node).__name__}"
+            )
+        if isinstance(node, ast.Name) and node.id in {"true", "false", "null"}:
+            replacement = {"true": "True", "false": "False", "null": "None"}[node.id]
+            errors.append(
+                f"第 {node.lineno} 行使用了 JSON 字面量 {node.id}；"
+                f"solution_code 是 Python，必须写 {replacement}"
             )
         if isinstance(node, ast.Name) and node.id.startswith("__"):
             errors.append(f"第 {node.lineno} 行禁止访问双下划线名称 {node.id}")
@@ -630,229 +921,206 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
         if policy.require_state_change
         else "任务可以只读，也可以修改状态；由所选现实工作类型决定，不要强行写入。"
     )
-    return f"""# 任务：根据一个真实离线环境编写高难度任务及可执行参考程序
+    # Keep the authoring request focused on the artifact the Agent must create.
+    # Runtime validation and semantic review happen in Python after this call;
+    # repeating their implementation details here distracts from task design.
+    return f"""# 目标：生成真实、可执行且具有自然难度的一条任务及其参考程序
 
-## 背景
+你正在为一个已经冻结的离线环境制作一条训练任务。请生成 `candidates.json`，其中必须只有
+`generation_request.json` 中 `candidate_count=1` 指定的一条候选任务；不能生成备用候选或把
+多个任务放在同一个文件中。每条候选必须是一个现实工作场景的具体实例，
+并同时包含：
 
-系统正在为一个已经固定初始状态的离线环境制作任务数据。未来会有一个执行者只看到任务
-正文、公开环境说明和公开工具，然后从相同初始状态独立完成任务。为了证明任务确实可做，
-你需要同时提供一段隐藏的参考程序；系统会真实执行这段程序并保存正确答案和执行后的状态。
+1. 给未来执行者看的任务正文 `task_public`；
+2. 描述最终答案结构的 `output_schema`；
+3. 只供系统执行的隐藏参考程序 `solution_code`；
+4. 说明该任务实际涉及哪些数据和工具的 `task_resources`。
 
-你没有本项目此前的对话上下文。不要假设读者知道任何内部步骤、缩写或目录约定。工作目录
-中的文件是当前任务的完整输入，下面的字段定义和约束是完整要求。
+不要写解释报告，完成后直接在工作目录创建或覆盖 `candidates.json`。
 
-这是第 {round_index} 轮生成。`validation_feedback.json` 中如果有此前失败原因，本轮必须针对
-这些真实错误重新设计或修正，不能只换一种说法后重复提交。
+## 你可以使用的输入
 
-## 输入文件
+先阅读下面这些文件，再开始设计任务：
 
-1. `environment.public.json`
+- `task_research.json`：现实工作调研。只选择其中 `environment_support.generatable=true` 的
+  任务类型作为业务依据。候选的 `archetype_id` 必须逐字复制其中一个现有 ID，不能创建新 ID、
+  改名或把多个 ID 合成新名称；复杂任务仍应归入其最主要的现实工作类型；
+- `environment.public.json`：公开的记录集合、关系、文件区域和工具契约；
+- `state/`：当前环境真实初始数据，只读。用它确认真实存在的记录、文件和可用条件；
+- `tools.internal.json`：公开工具的实现代码、输入 Schema、输出 Schema 和使用条件；
+- `candidate.schema.json`：`candidates.json` 的字段格式；
+- `generation_request.json` 和 `validation_feedback.json`：本轮数量、已接受任务和之前失败原因；
+- `references/`：环境、工具和任务契约，需要理解边界时再查阅。
 
-   这是执行者可见的环境说明。顶层 `environment` 描述环境和可访问内容，`tools` 描述可
-   调用工具。环境内容分为：
+`state/` 和工具内部代码只用于你生成任务时调查。不要把内部数据库路径、主机路径、内部
+实现代码或隐藏答案写进 `task_public`。
 
-   - `record_sets`：数据库中的业务记录集合；
-   - `relationships`：记录集合之间的关联方式；
-   - `filesystem_scopes`：由 `scope_id` 命名的文件区域；
-   - `tools`：公开工具。每个工具的 `inputSchema` 是参数格式，`outputSchema` 是返回格式，
-     `usageConditions` 说明调用前提、目标对象和副作用。
+## 生成顺序
 
-2. `task_research.json`
+对这一条候选按以下顺序工作：
 
-   这是经过外部来源核实的现实工作调研。`task_archetypes` 的每一项表示一种现实工作类型，
-   其中 `environment_support.generatable=true` 表示当前环境能够支持其核心工作。选择一个可
-   生成原型作为任务的主要现实依据，也可以吸收其他调研项中与同一业务闭环直接相关的异常
-   处理或复核要求。`environment_support.tools` 是调研时确认的主要能力映射，不是工具白名单。
+### 1. 选择一个真实业务目标
 
-3. `state/`
+从 `task_research.json` 中选择一项 `environment_support.generatable=true` 的现实工作，结合
+当前初始数据把它写成一条具体任务。任务应忠于调研描述，具有明确目标和交付结果，并在当前
+环境能够支撑的范围内尽量有一定难度。不要套用固定任务类型、固定工作流或固定调用次数。
+先保证它是一项聚焦的现实工作，再保留这项工作本身需要的分析、比较和判断。不要为了显得
+更完整或更困难，额外加入源码检查、关系核验、来源追溯、文件交付或其他旁支。只有它们是完成
+该现实工作不可缺少的一部分，且 solution 会真实调用工具完成并在最终答案中交付证据时，才能写入
+`task_public`。
 
-   这是本次环境初始状态的只读副本，也是生成任务时唯一需要查看的真实数据。数据库记录
-   位于 `state/records.sqlite`；文件只位于 `state/filesystem_scopes/<scope_id>/`。你可以
-   读取这些内容来选择真实存在的对象、条件、文件和冲突，但不得修改任何内容，也不要读取
-   工作目录中的其他路径。未来执行者不会看到你在这里做的调查过程。
+这些任务将用于训练 Agent 的工具调用能力。在多个方向同样真实、同样有可靠调研依据且都能正确执行时，
+优先选择需要更多必要工具交互才能完成的具体任务，不要优先选择一次聚合调用就直接返回全部答案的简单实例。
+同一工具可以针对不同对象或条件多次调用，前提是每次返回都为最终判断提供不可替代的证据。不设固定最低调用次数；
+删除任何一次调用都应会导致某项任务要求无法完成、某个后续参数无法确定，或最终结论缺少必要证据。
 
-4. `generation_request.json`
+选择前先在内部比较至少三个 `generatable=true` 的具体实例：根据真实工具的输入输出，估算完成各自全部
+必要业务要求会产生多少次有效交互，以及是否覆盖工具选择、前序结果传参、多对象处理和跨结果汇总。
+在真实性、证据可靠性和可执行性不降低的前提下，选择交互更丰富的实例。这个内部比较不要写入 `task_public`。
 
-   这里给出需要补充的任务数量、候选数量、重复执行次数等质量要求。尽量提交其中
-   `candidate_count` 指定数量的有效候选。
+上述比较必须采用两级顺序，不能直接按调用次数排序：
 
-5. `validation_feedback.json`
+1. 先比较是否真正推进了领域工作。当环境能够实际运行仿真或分析、产生新结果、比较候选、优化参数、
+   生成交付产物或支持具体业务决策时，优先从这些工作中选择。配置就绪检查、来源追溯、文件完整性检查、
+   历史结果复核和回归签核仍是合法现实工作，但它们不能因为容易拆成较多查询就压过可执行的领域任务。
+2. 只在同一领域价值层级内，再比较多少次必要工具交互。一条只读审计任务即使需要八次查询，也不应因此
+   取代一条会真实运行仿真、评估设计并作出选择的任务。
 
-   `accepted_task_public` 是已经接受的任务正文，不能生成语义重复项；
-   `previous_rejections` 是此前候选被程序拒绝的真实原因。
+任务的深度优先来自结果之间的因果关系，而不是更长的步骤描述。如果调研和环境同时支持两种工作：
+一种只判断已有方案是否合格，另一种能从初始方案出发产生新方案，再把新方案交给后续工具在更全面的
+条件下复验，应优先后者。前一步产生的参数、对象 ID、文件路径或候选集应真实成为后续调用的输入，
+最终答案同时说明产生了什么、与起点相比发生了什么变化、以及扩大条件后是否仍然成立。
 
-6. `candidate.schema.json`
+这是同一个业务目标中的闭环，不是把多个任务硬拼在一起。候选任务仍只属于一个主要 `archetype_id`，
+但可以包含为达成同一交付结果而必不可少的上游方案产生和下游验证。如果后续工具无法消费前一结果，或来源没有支持
+这种业务闭环，就不要为了增加深度而编造参数调整规则。
 
-   这是 `candidates.json` 的唯一合法结构。所有字段必须符合该 Schema，不能增加自定义字段。
+如果 `validation_feedback.json` 中的上一个候选已经是真实、工具交互丰富且所有工具都成功执行的任务，仅因个别参数
+来源、答案字段或要求对齐问题被拒绝，本轮应保留同一业务目标和必要交互，只修正反馈指出的局部问题。
+不得为了更容易通过而改选能被单个聚合工具直接完成的简单任务。只有上一个业务目标本身不真实、环境不支持，
+或必须依赖无关调用才能显得复杂时，才改选方向。
 
-7. `references/环境契约-v2.0.md`、`references/工具契约-v1.0.md` 和
-   `references/任务契约-v1.0.md`
+### 2. 先确认数据和工具真的可用
 
-   这些文档分别解释环境状态、公开工具和最终任务包的边界。它们是理解 JSON 输入的
-   参考，不是额外数据来源；对象、字段和路径只能使用前面 JSON 文件中真实存在的值。
+阅读相关工具的 `internal.code`，确认它实际读取的记录、文件和软件依赖。对不确定的调用可以
+使用下面的方式做真实探测：
 
-## 要生成的内容
-
-文件 `candidates.json` 中的 `candidates` 数组，每一项都是一条完整候选。可以把它理解为
-“一份交给执行者的任务说明，加上一份只供系统验证的参考程序”，而不是六个互相独立的
-字段。下面只说明这些内容之间的职责边界。
-
-### 交给未来执行者的任务
-
-`task_public` 是唯一会交给未来执行者的任务正文。它必须从现实使用者的角度提出一个
-具体、可完成的业务请求；`output_schema` 定义执行者最终返回的业务结果结构；
-`task_resources` 列出这项工作实际涉及的最小记录集合、关系、文件和工具范围，供系统检查
-任务是否越界。这三者必须互相一致：正文说明目标和公开文件位置，答案结构只包含用户需要
-的结果，资源范围只列完成该目标确实需要的内容。
-
-### 只供系统验证的参考信息
-
-`archetype_id` 指向 `task_research.json` 中一个 `generatable=true` 的现实工作类型。
-`task_internal` 用一段话记录本题如何把该现实工作落到初始状态、必须满足哪些业务规则、
-预期发生什么状态变化，便于独立审查；它不能直接泄露最终答案。`solution_code` 是隐藏的
-参考程序，系统会真实执行它来得到参考答案和最终状态，未来执行者看不到它。
-
-### 任务正文的具体要求
-
-未来执行者看到的任务正文。请站在现实使用者的角度提出工作请求，而不是解释如何制作
-测试题。正文必须让一个没有上下文的执行者准确知道：
-
-- 为什么现在要做这项工作；
-- 要处理哪些对象或文件；
-- 筛选、比较、计算或修改时必须满足哪些规则；
-- 哪些内容必须保持不变；
-- 最终需要返回哪些业务结果；
-- 涉及文件时，输入和输出分别位于哪个公开 `scope_id` 及该区域内的哪个相对路径。
-
-正文不得出现公开工具的 `name`、工具调用顺序、Python、`call_tool`、`solution_code`、
-`final_answer`、数据库物理路径、隐藏答案或“先调用 A 再调用 B”式实现提示。不要把
-`output_schema` 原样复述到正文，也不要假设执行者知道未写出的范围、规则或文件位置。
-
-### 最终答案结构
-
-定义最终结构化答案。它必须是合法的 JSON Schema Draft 2020-12 封闭对象：
-
-- 根节点 `type` 为 `object`；
-- `properties` 非空，每个字段都表示使用者实际需要的业务结果；
-- `required` 恰好列出全部 `properties`；
-- `additionalProperties` 为 `false`。
-
-不要把工具调用过程、调试信息或内部状态快照当作答案字段。
-
-### 最小资源范围
-
-这是完成该任务所需的最小环境范围：
-
-- `record_sets`：实际使用的记录集合标识；
-- `relationships`：实际使用的记录关系标识；
-- `files`：实际使用或生成的文件；
-- `allowed_tools`：隐藏参考程序实际允许调用的工具标识。
-
-这些值只能使用 `environment.public.json` 中真实存在的标识，而且必须是当前具体任务实际
-需要的最小范围。可以使用所选原型未列出、但确实服务于同一现实工作闭环的公开能力；不能
-为了增加难度扩大范围。
-`files` 中的 `path` 是对应 `scope_id` 区域内的相对路径，不能带
-`filesystem_scopes/` 物理前缀。输入可以使用确有匹配文件的 glob；固定输出必须给出完整
-相对路径、设置 `role="output"` 和 `path_is_exact=true`，而且输出目录必须已经存在。
-每个文件的 `scope_id` 和 `path` 都必须逐字出现在 `task_public` 中。
-
-### 隐藏参考程序
-
-这是系统内部执行的隐藏参考程序，不会展示给未来执行者。它是普通 Python 语句序列，
-唯一允许访问环境的接口是：
-
-```python
-result = call_tool("公开工具名", {{"参数名": "参数值"}})
+```bash
+python tool_probe.py --show-code TOOL_NAME
+python tool_probe.py --tool TOOL_NAME --arguments-json '{{"参数": "值"}}'
 ```
 
-工具返回以下两种结构之一，具体 `data` 字段必须以该工具的 `outputSchema` 为准：
+探测必须使用当前环境中真实存在的对象和参数。不要把已知会失败的调用写进 solution_code。
+本次只生成一条任务，并避免与 `validation_feedback.json` 中已接受任务重复。任务的具体难度、
+步骤和工具使用方式由所选现实工作与当前数据决定；solution 必须完成任务正文要求的工作，
+最终答案必须由真实工具结果构造。
 
-```json
-{{"success": true, "data": {{}}}}
-```
+探测时不仅要看调用是否成功，还要看每个返回字段的确切含义。不得用名称相似但语义不同的字段
+回答任务，例如不能把“扫描首末点变化”当成“末点相对于指定基线的变化”。如果工具没有直接返回
+任务要求的量，就必须在 solution 中用返回的原始值明确计算；无法计算时不要把该要求写入任务。
 
-```json
-{{"success": false, "error": {{"code": "...", "path": "...", "message": "...", "retryable": false}}}}
-```
+### 3. 编写任务正文 `task_public`
 
-参考程序必须：
+正文要像真实用户提出的工作请求，不要描述测试题制作过程，也不要出现工具名、Python、
+`call_tool` 或调用顺序。也不要让用户替程序填写 `direction=...`、`comparison_mode=...`
+之类工具参数；要用领域工作语言说清楚意图，例如“从该案例确认其所属结构”。正文必须明确写出：
 
-1. 严格按 `inputSchema` 构造参数，按 `outputSchema` 读取返回值；
-2. 从工具返回结果中取得对象 ID、文件信息、判断证据和后续动作参数；
-3. 至少有一次后续工具调用的参数依赖前序工具结果；
-4. 让最终答案真实依赖工具结果，不能先做若干无关调用后写死答案；
-5. 不直接读取 `state/`、数据库或文件，不导入模块，也不访问未提供的环境对象；
-6. 最后一条语句必须给 `final_answer` 赋一个 JSON object，字段与 `output_schema` 完全一致。
+- 当前要解决的业务问题和目标对象；
+- 执行者需要使用的公开记录、关系或文件位置；
+- 现实工作要求遵守的全部规则和限制；
+- 最终必须返回的每一项业务结果；
+- 哪些内容不能修改，以及允许的输出位置。
 
-参考程序不得使用 `import`、函数或类定义、`with`、`while`、`raise`、异步语法、生成器、
-`global`、`nonlocal`、`delete`、反射、动态执行或文件接口。
-工具预计成功时直接读取其 `data`；若需要让业务失败停止程序，可使用 `assert result["success"]`
-而不是 `raise`。
+如果核心工作是产生新的设计、计算结果或交付物，正文开头应直接说明要完成的设计或决策，
+不要用“审计”、“复核”、“签核”或“检查”把整个任务包装成只读工作。必要的输入校验只是执行约束，
+不应取代真正的业务目标。
 
-### 每个工具参数都必须有来源
+任务中的对象、路径、阈值、范围、开关和排序规则必须来自真实数据或现实工作要求，不能凭空
+添加。对象 ID、文件路径、数值、布尔选择和排序方式应在正文中明确写出；仅用于把业务意图
+序列化的工具枚举值，可以由正文的自然语言要求唯一确定，无需把参数名和枚举字符串暴露给用户。
+若任务要求返回某个信息，必须在后面的 `output_schema` 中为它设置字段。
+如果任务涉及文件，正文必须逐字写出文件区域的 `scope_id` 和该区域内的相对路径，例如
+`scope_id=mobility_models`、`source/mobility.py`；`task_resources.files` 中的每一项都必须
+能在正文中找到完全相同的两段文字。只有 solution 实际通过工具读取、检查或生成的文件才可
+列入 `task_resources.files`；如果 solution 不会使用该文件，就不要把它列为任务资源。
+某个计算工具内部使用了源码或数据文件，不等于 solution 已经“检查”了该文件；除非真的有工具读取并
+返回检查证据，否则不得在正文中要求检查它，也不得把它列入 `task_resources.files`。关系核验同理：
+直接读取两端记录不等于已经通过指定关系完成核验。
+如果任务指定一个确定的交付文件，使用完整相对路径并设置 `path_is_exact=true`。
+如果工具合同明确会在某个目录下自行产生多个文件，而具体文件名只能在运行后知道，
+可以声明以 `/` 结尾的目录边界并设置 `path_is_exact=false`；不得用这种方式模糊一个本来
+就能在任务中确定的文件位置。
 
-`solution_code` 中每一次实际工具调用的每一个输入参数，都只能来自以下两类来源：
+### 4. 从任务正文反推 `output_schema`
 
-1. `task_public` 已经明确给出的对象、路径、范围、阈值、格式、开关、排序或处理规则；
-2. 更早一次成功工具调用返回的值，或按照 `task_public` 的明确规则对这些返回值计算出的值。
+先列一份“任务要求的最终结果清单”，再设计 JSON Schema。Schema 必须是封闭的 object：
 
-生成时查看过的隐藏初始状态、常识、工具名称、参数名称、Schema 示例、可选参数默认值，都
-不能单独成为业务取值的来源。若某个值只能在生成时从 `state/` 看到，就必须把执行者需要的
-业务信息自然地写进 `task_public`；若某个可选参数没有任务依据，就省略它，不得随意选择。
-工具契约只能帮助把任务语言转换成合法参数格式，不能替任务补充一个没有提出的决定。
+- 每个用户要求的结果都有对应字段；
+- 每个字段都能由 solution 的工具结果计算得到；
+- `required` 恰好包含全部 properties；
+- `additionalProperties` 必须为 `false`。
 
-## 真实性和难度要求
+不要把工具调用日志、内部状态快照、调试信息或工具名当作用户答案字段。
 
-任务必须是所选现实工作类型在当前真实初始状态中的一个具体实例。不能把环境主题相关但
-现实中不会一起发生的目标拼成一条任务，也不能为了使用更多工具增加与业务结果无关的动作。
+### 5. 编写隐藏 `solution_code`
 
-先比较所有 `generatable=true` 的现实工作原型及其当前初态实例，选择能够形成最丰富业务
-闭环的方向。不要因为某个方向容易写通就优先选择它；如果环境同时支持简单格式转换和需要
-多轮取证、判断、处理、复核的工作，应选择后者。
+这是系统用来产生标准答案的普通 Python 代码，未来执行者看不到。它只能通过
+`call_tool(name, arguments)` 使用环境，不能直接读 `state/`、数据库或文件。
 
-一条合格的高难度任务必须在同一目标下形成完整且有真实因果依赖的业务闭环。根据当前环境
-选择最自然的一种结构，而不是机械套用同一种模板：
+代码只能使用一组很小的 Python 语句：变量赋值、`call_tool` 调用、`assert`、`if/elif/else`、
+`for`，以及这些语句需要的字典/列表、索引、比较、布尔和算术表达式。不要使用其他控制
+结构或运行时能力，例如 `import`、函数/类定义、`try/except`、`while`、`lambda`、模式匹配、
+文件接口、动态执行或主机路径。{mutation_rule}
 
-- 决策型：建立多个候选，收集不同证据，按硬条件排除，再按明确偏好比较或排序，执行决定
-  并复查结果；
-- 产物型：核验输入，根据查询结果确定转换或处理参数，生成产物，重新读取并与基线比较，
-  发现异常时执行任务允许的修正或回退；
-- 批处理型：枚举范围内对象，逐项关联其他记录或文件，分类处理失败与业务排除，汇总结果，
-  再核对汇总与最终状态；
-- 诊断型：从总体异常逐层缩小范围，交叉核对多类证据，定位唯一原因或处理集合，采取动作后
-  用新的观测确认问题确实消失且没有引入相关回归。
+每一次工具调用的每一个输入参数都必须单独满足以下来源规则：
 
-无论选择哪种结构，都必须同时满足：
+- 业务对象 ID、文件路径、数值、阈值、范围、开关和排序规则，必须由 `task_public`
+  明确给出；工具内部的方向或模式枚举可以由正文的业务说法唯一映射，但不得仅依赖工具默认值或猜测；
+- 动态 ID、路径和业务值，必须来自更早一次成功工具调用的返回结果，或按照 `task_public`
+  明确写出的规则由这些结果计算得到；
+- 不能把生成时从 `state/` 查到的值、工具 Schema 示例、工具默认值、常识或内部代码中的
+  示例值直接写入调用参数；
+- 如果一个可选参数没有任务依据，就省略它；不能为了调用合法或增加难度自行补参数；
+- 先在头脑中逐个核对参数来源，再写出 solution。后续调用需要使用前序结果中的对象时，
+  必须通过变量传递，不能重新手写同一个 ID。
 
-1. 至少有两段连续依赖：一次工具结果决定后续调用的对象或参数，该后续结果还要继续影响
-   更后的调用或业务决定；只把写出路径从一次调用复制给下一次不算充分的业务判断。
-2. 至少有一个执行前无法写死的业务判断，例如从多个对象中筛选、比较证据、分类异常、根据
-   观测选择处理集合或计算动作参数。仅在固定操作完成后读取一个 `identical`/`success` 布尔值
-   不足以构成高难度任务。
-3. 对修改或新产物进行独立复查，并让复查结果影响最终结论；不能只相信写操作返回成功。
-4. 多个证据或处理环节必须各自影响最终决定。若一个聚合工具已经直接返回全部答案，不得在
-   前后增加无关查询把它包装成复杂任务。
+如果任务的核心目标包含迭代、优化或候选生成，后续调用必须真正使用前一次工具返回的新参数或新对象。
+不得在任务正文中声称“根据结果迭代”，却在 solution 中继续使用原始常量或另一组手写参数。
 
-删除或调换一个关键环节应当会改变最终决定、参数或结果。调用次数和工具种类没有固定最低值，
-不能重复查询、拆碎一次操作或拼接无关目标来伪造复杂度。所有调用必须服务于
-`task_public` 的同一个工作目标。
-{mutation_rule}
+最终只能用工具结果和任务明确要求的计算构造 `final_answer`，且每个字段都必须出现在
+`output_schema` 中；使用 Python 字面量 `True`、`False`、`None`，不要使用 JSON 的
+`true`、`false`、`null`；最后一条语句必须是 `final_answer = ...`。
 
-不同候选必须具有不同的业务目标、触发条件或决策结构，不能只替换对象名称、文件名或数字。
+在提交前，用刚才的真实探测结果按 solution 逻辑构造一次完整 `final_answer`，再逐句回看
+`task_public`：每一个“检查、核对、比较、计算、返回、保留、生成”要求，都必须能指向
+某次实际调用的直接证据、明确计算或 `final_answer` 字段。只有在句子表面上相似，或只出现在
+工具输出但没有进入最终交付，都不算完成。
 
-## 程序验收方式
+### 6. 填写资源和内部说明
 
-提交后，系统会从干净初始状态真实执行参考程序，并检查：工具参数和返回结构、业务失败、
-只读边界、参数来源、最终答案格式和实际状态变化。执行失败时，错误会
-写入后续修复请求。通过后还会从干净初始状态重复执行，并由另一次独立检查确认任务正文、
-参考程序、工具结果、最终状态和资源范围一致。你在文字中声称“已验证”不能替代这些检查。
+- `task_resources` 只列这条任务实际用到的最小 `record_sets`、`relationships`、`files` 和
+  `allowed_tools`；
+- `task_internal` 简要记录业务闭环、关键判断和预期结果，不要复制隐藏答案；
+- `workspace_brief` 必须逐字使用 `environment.public.json` 中的环境摘要；
+- `task_summary` 用一两句话描述本题业务目标，用于批量去重，不要写工具调用过程。
 
-## 输出
+## 提交前自检
 
-最终只创建或更新工作目录中的 `candidates.json`。写完后按照 `candidate.schema.json` 逐字段
-检查。不要修改输入文件或 `state/`，不要创建其他交付文件，也不要在最终回复中粘贴 JSON。
+逐条检查：
+
+1. 任务目标是否像现实工作，而不是工具操作清单？
+2. 任务正文中的每个最终要求是否都有 Schema 字段和 solution 赋值？
+3. 每个工具参数是否来自任务正文或更早的成功工具结果？
+4. 所有对象、文件和工具是否在当前环境中真实存在且已探测可用？
+5. 现实工作要求的每个必要环节是否都被保留，且没有加入无关环节？
+6. 这条任务是否与 `validation_feedback.json` 中已接受任务的业务目标不同，而不是只替换
+   ID、文件名或数字？
+7. 如果环境中有同样真实可行、但能自然覆盖更多必要工具交互的实例，当前是否误选了被单一聚合工具
+   直接完成的简单实例？同时确认每一次保留的调用都不是为了增加数量而加入。
+
+只提交符合 `candidate.schema.json` 的 `candidates.json`，不要修改输入文件或 `state/`。
+这是第 {round_index} 轮；请吸收 `validation_feedback.json` 中的失败原因，不要重复同一错误。
 """
-
 
 def build_solution_repair_prompt(round_index: int) -> str:
     return f"""# 任务：修复一段执行失败的参考程序
@@ -875,15 +1143,19 @@ def build_solution_repair_prompt(round_index: int) -> str:
 
 ## 修复边界
 
-- 保持 `task_internal`、`task_public`、`output_schema` 和 `task_resources` 表达的目标不变；
+- 保持 `task_internal`、`workspace_brief`、`task_summary`、`task_public`、`output_schema`
+  和 `task_resources` 表达的目标不变；
 - 只能使用 `call_tool(name, arguments)` 访问环境；
 - 工具名和参数结构必须来自 `environment.public.json`；每个参数的业务取值必须能追溯到
   `task_public` 或更早的成功工具结果；
-- 后续工具参数应尽量从前序结果动态取得，最终答案必须由真实结果推导；
+- 当后续对象由前序结果选择时，参数必须动态取得；并列收集独立证据时，参数可以直接来自
+  任务正文，不必人为制造串行依赖；最终答案必须由真实结果推导；
 - 不得读取状态目录、导入模块、访问环境对象或硬编码对象 ID 和最终答案；
 - 不得使用函数或类定义、`with`、`while`、`raise`、异步语法、生成器、反射、
   动态执行或文件接口；需要检查工具成功时使用 `assert result["success"]`；
 - 不得用无关调用或相同查询伪造复杂度；
+- `solution_code` 是 Python 源代码，必须全文使用 `True`、`False`、`None`，不得残留
+  JSON 的 `true`、`false`、`null`；修复一种字面量错误时要检查完整程序中的所有同类位置；
 - 修复后最后一条语句仍须给 `final_answer` 赋值，并符合 `output_schema`。
 
 ## 输出
@@ -972,6 +1244,14 @@ def _candidate_errors(
     if candidate.archetype_id not in archetypes:
         errors.append(f"archetype_id 不属于可生成原型：{candidate.archetype_id}")
         return errors
+    expected_brief = _environment_workspace_brief(package.environment)
+    if candidate.workspace_brief != expected_brief:
+        errors.append(
+            "workspace_brief 必须逐字等于当前环境的 environment.summary，"
+            "同一环境不能为不同任务编写不同环境介绍"
+        )
+    if len(re.sub(r"\s+", " ", candidate.task_summary).strip()) < 40:
+        errors.append("task_summary 必须具体记录本题的业务目标，不能是泛化标题")
     public_lower = candidate.task_public.casefold()
     leaked_tools = [name for name in package.tool_names if name.casefold() in public_lower]
     if leaked_tools:
@@ -979,7 +1259,6 @@ def _candidate_errors(
     for word in ("call_tool", "solution_code", "final_answer", "output_schema"):
         if word in public_lower:
             errors.append(f"task_public 泄露内部概念：{word}")
-    errors.extend(_solution_complexity_errors(candidate.solution_code))
     schema = candidate.output_schema
     properties = schema.get("properties") if isinstance(schema, dict) else None
     if not isinstance(schema, dict) or schema.get("type") != "object":
@@ -1037,10 +1316,6 @@ def _candidate_errors(
             )
         if "\\" in path:
             errors.append(f"task_resources.files[{index}].path 必须使用 POSIX /")
-        if item.get("role") == "output" and item.get("path_is_exact") is not True:
-            errors.append(
-                f"task_resources.files[{index}] 输出文件必须指定精确路径"
-            )
         if scope_id in known_scopes and path:
             scope_root = package.state_root / "filesystem_scopes" / scope_id
             if item.get("role") == "input":
@@ -1057,15 +1332,57 @@ def _candidate_errors(
                 errors.append(
                     f"task_resources.files[{index}] 输出路径不能包含 glob"
                 )
-            elif not (scope_root / path).parent.is_dir():
+            elif item.get("path_is_exact") is not True and not path.endswith("/"):
                 errors.append(
-                    f"task_resources.files[{index}] 输出目录在初态中不存在"
+                    f"task_resources.files[{index}] 动态输出目录必须以 / 结尾"
+                )
+            elif (scope_root / path).exists() and (
+                item.get("path_is_exact") is True
+                and (scope_root / path).is_dir()
+            ):
+                errors.append(
+                    f"task_resources.files[{index}] 精确输出路径不能是已有目录"
+                )
+            elif (scope_root / path).exists() and (
+                item.get("path_is_exact") is not True
+                and not (scope_root / path).is_dir()
+            ):
+                errors.append(
+                    f"task_resources.files[{index}] 动态输出路径不能是已有文件"
                 )
         if scope_id not in candidate.task_public or path not in candidate.task_public:
             errors.append(
                 f"task_resources.files[{index}] 的 scope_id/path 未在 task_public 中明确说明"
             )
     return errors
+
+
+def _environment_workspace_brief(environment: dict[str, Any]) -> str:
+    """Return the stable environment-level context used by every task.
+
+    v2 environments provide ``summary``. The description fallback keeps the
+    task authoring path usable for legacy v1 packages during migration.
+    """
+    return str(
+        environment.get("summary")
+        or environment.get("description")
+        or environment.get("name")
+        or ""
+    ).strip()
+
+
+def _task_descriptor_key(value: str) -> str:
+    """Normalize a task summary for deterministic within-run de-duplication.
+
+    IDs and numeric settings identify an instance, but they do not make a new
+    business task. Removing them catches the common "same task, new project ID"
+    variant while retaining the actual business wording for comparison.
+    """
+    text = value.casefold()
+    text = re.sub(r"\b[a-z][a-z0-9_-]*\d[a-z0-9_-]*\b", " ", text)
+    text = re.sub(r"\d+(?:\.\d+)?", " ", text)
+    text = re.sub(r"[^\w\u4e00-\u9fff]+", " ", text, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _state_changed(execution: ProgramExecutionResult) -> bool:
@@ -1255,6 +1572,8 @@ def _repair_solution(
         write_json(repair_dir / "environment.public.json", package.public_environment())
         write_json(repair_dir / "repair_request.json", {
             "task_internal": candidate.task_internal,
+            "workspace_brief": candidate.workspace_brief,
+            "task_summary": candidate.task_summary,
             "task_public": candidate.task_public,
             "output_schema": candidate.output_schema,
             "task_resources": candidate.task_resources,
@@ -1379,6 +1698,113 @@ def _replay_comparable_state(value: Any, *, layout_file: bool = False) -> Any:
     return value
 
 
+def _dynamic_output_prefixes(
+    candidate: ProgramTaskCandidate,
+) -> dict[str, tuple[str, ...]]:
+    """Return declared directories whose concrete files are tool-generated.
+
+    Some real tools deterministically choose an artifact directory but use
+    process IDs or random suffixes for scratch files inside it.  The directory
+    is the public resource boundary; those private filenames are not part of
+    the task contract.
+    """
+    prefixes: dict[str, list[str]] = {}
+    for item in candidate.task_resources.get("files", []):
+        if item.get("role") != "output" or item.get("path_is_exact") is True:
+            continue
+        scope_id = str(item.get("scope_id") or "")
+        path = str(item.get("path") or "").strip("/")
+        if scope_id and path:
+            prefixes.setdefault(scope_id, []).append(path)
+    return {
+        scope_id: tuple(sorted(set(paths)))
+        for scope_id, paths in prefixes.items()
+    }
+
+
+def _path_has_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
+    normalized = path.strip("/")
+    return any(
+        normalized == prefix or normalized.startswith(prefix + "/")
+        for prefix in prefixes
+    )
+
+
+def _without_dynamic_output_files(
+    value: dict[str, Any],
+    prefixes_by_scope: dict[str, tuple[str, ...]],
+) -> dict[str, Any]:
+    """Remove only files hidden behind declared dynamic output directories."""
+    normalized = deepcopy(value)
+    scopes = normalized.get("filesystem_scopes")
+    if not isinstance(scopes, dict):
+        return normalized
+    emptied_scopes: set[str] = set()
+    for scope_id, prefixes in prefixes_by_scope.items():
+        scope = scopes.get(scope_id)
+        if not isinstance(scope, dict):
+            continue
+        files = scope.get("files")
+        if isinstance(files, dict):
+            scope["files"] = {
+                path: metadata
+                for path, metadata in files.items()
+                if not _path_has_prefix(str(path), prefixes)
+            }
+        for field in ("created", "modified", "deleted"):
+            paths = scope.get(field)
+            if isinstance(paths, list):
+                scope[field] = [
+                    path
+                    for path in paths
+                    if not _path_has_prefix(str(path), prefixes)
+                ]
+        changes = scope.get("changes")
+        if isinstance(changes, dict):
+            scope["changes"] = {
+                path: change
+                for path, change in changes.items()
+                if not _path_has_prefix(str(path), prefixes)
+            }
+        if not any(scope.get(field) for field in ("created", "modified", "deleted")):
+            emptied_scopes.add(scope_id)
+    changed_assets = normalized.get("changed_assets")
+    if isinstance(changed_assets, list):
+        normalized["changed_assets"] = [
+            asset for asset in changed_assets if asset not in emptied_scopes
+        ]
+    return normalized
+
+
+def _dynamic_output_errors(
+    candidate: ProgramTaskCandidate,
+    execution: ProgramExecutionResult,
+) -> list[str]:
+    """Confirm that every declared dynamic output directory produced a file."""
+    errors: list[str] = []
+    scopes = execution.final_state.get("filesystem_scopes", {})
+    for scope_id, prefixes in _dynamic_output_prefixes(candidate).items():
+        scope = scopes.get(scope_id, {}) if isinstance(scopes, dict) else {}
+        files = scope.get("files", {}) if isinstance(scope, dict) else {}
+        for prefix in prefixes:
+            if not any(
+                _path_has_prefix(str(path), (prefix,))
+                for path in files
+            ):
+                errors.append(
+                    f"动态输出目录 {scope_id}:{prefix}/ 没有产生任何文件"
+                )
+    return errors
+
+
+def _replay_comparable_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compare public calls and results, excluding per-call filesystem diffs."""
+    return [
+        {key: deepcopy(value) for key, value in item.items() if key != "state_diff"}
+        for item in trace
+    ]
+
+
 def _replay_solution(
     *,
     package: CompleteEnvironmentPackage,
@@ -1386,6 +1812,7 @@ def _replay_solution(
     schema: dict[str, Any],
     policy: ProgramGenerationPolicy,
     first: ProgramExecutionResult,
+    candidate: ProgramTaskCandidate,
 ) -> tuple[list[ProgramExecutionResult], list[str]]:
 
     runs = [first]
@@ -1400,15 +1827,32 @@ def _replay_solution(
             errors.append(f"clean replay {index} 失败：{run.error_type}: {run.error}")
     if not errors:
         reference = runs[0]
+        dynamic_prefixes = _dynamic_output_prefixes(candidate)
         for index, run in enumerate(runs[1:], start=1):
             if run.answer != reference.answer:
                 errors.append(f"clean replay {index} 的 final_answer 不稳定")
-            if _replay_comparable_state(run.final_state) != _replay_comparable_state(
-                reference.final_state
+            if _replay_comparable_trace(run.trace) != _replay_comparable_trace(
+                reference.trace
+            ):
+                errors.append(f"clean replay {index} 的工具返回结果不稳定")
+            run_final = _without_dynamic_output_files(
+                run.final_state, dynamic_prefixes
+            )
+            reference_final = _without_dynamic_output_files(
+                reference.final_state, dynamic_prefixes
+            )
+            if _replay_comparable_state(run_final) != _replay_comparable_state(
+                reference_final
             ):
                 errors.append(f"clean replay {index} 的 final_state 不稳定")
-            if _replay_comparable_state(run.state_diff) != _replay_comparable_state(
-                reference.state_diff
+            run_diff = _without_dynamic_output_files(
+                run.state_diff, dynamic_prefixes
+            )
+            reference_diff = _without_dynamic_output_files(
+                reference.state_diff, dynamic_prefixes
+            )
+            if _replay_comparable_state(run_diff) != _replay_comparable_state(
+                reference_diff
             ):
                 errors.append(f"clean replay {index} 的 state_diff 不稳定")
     return runs, errors
@@ -1514,12 +1958,25 @@ def run_step2(
     accepted: list[dict[str, Any]] = []
     formal_tasks: list[dict[str, Any]] = []
     accepted_texts: set[str] = set()
+    accepted_summaries: set[str] = set()
     rejections: list[dict[str, Any]] = []
-    rounds = 1 if candidates_path is not None else policy.task_generation_attempts
+    # One Agent call produces one task. A failed task consumes one retry for
+    # the current slot; a successful task advances the slot to the next task.
+    rounds = (
+        1
+        if candidates_path is not None
+        else policy.task_count * policy.task_generation_attempts
+    )
+    attempts_for_current_task = 0
 
     for round_index in range(1, rounds + 1):
         if len(accepted) >= policy.task_count:
             break
+        if candidates_path is None:
+            if attempts_for_current_task >= policy.task_generation_attempts:
+                break
+            attempts_for_current_task += 1
+        accepted_before_round = len(accepted)
         if candidates_path is not None:
             payload = read_json(candidates_path.resolve())
         else:
@@ -1528,6 +1985,7 @@ def run_step2(
             with tempfile.TemporaryDirectory(prefix="agent-world-program-step2-") as temporary:
                 authoring = Path(temporary)
                 shutil.copytree(package.state_root, authoring / "state")
+                _write_generation_tool_access(authoring, package)
                 before = snapshot_state(
                     authoring / "state", package.environment,
                     package_format=package.package_format,
@@ -1538,13 +1996,15 @@ def run_step2(
                 copy_schema_docs(authoring, STEP2_SCHEMA_DOCS)
                 write_json(authoring / "generation_request.json", {
                     **policy.to_dict(),
-                    "remaining_tasks": policy.task_count - len(accepted),
-                    "candidate_count": (
-                        policy.task_count - len(accepted)
-                    ) * policy.candidate_multiplier,
+                    "workspace_brief": _environment_workspace_brief(package.environment),
+                    "remaining_tasks": 1,
+                    "candidate_count": 1,
                 })
                 write_json(authoring / "validation_feedback.json", {
                     "accepted_task_public": [item[TaskFields.TASK_PUBLIC] for item in accepted],
+                    "accepted_task_summaries": [
+                        item[TaskFields.TASK_SUMMARY] for item in accepted
+                    ],
                     "previous_rejections": rejections[-12:],
                 })
                 prompt = build_task_solution_prompt(round_index, policy)
@@ -1588,21 +2048,41 @@ def run_step2(
                 "reasons": structural_errors,
             })
             continue
-        ranked_candidates = sorted(
-            enumerate(payload["candidates"]),
-            key=lambda item: _candidate_complexity_sort_key(item[1]),
-            reverse=True,
+        if candidates_path is None and len(payload.get("candidates", [])) != 1:
+            rejections.append({
+                "round": round_index,
+                "candidate": None,
+                "reasons": [
+                    "单任务生成轮次必须恰好返回 1 条候选，不能通过一次 Agent 调用批量生成任务"
+                ],
+            })
+            continue
+        ranked_candidates = (
+            _rank_candidates_for_diversity(payload["candidates"], accepted)
+            if candidates_path is not None
+            else [(0, payload["candidates"][0])]
         )
         for candidate_index, raw in ranked_candidates:
             candidate = ProgramTaskCandidate.from_dict(raw)
             normalized_text = re.sub(r"\s+", " ", candidate.task_public.casefold()).strip()
-            if normalized_text in accepted_texts:
+            normalized_summary = _task_descriptor_key(candidate.task_summary)
+            if normalized_text in accepted_texts or normalized_summary in accepted_summaries:
+                rejections.append({
+                    "round": round_index,
+                    "candidate": candidate_index,
+                    "archetype_id": candidate.archetype_id,
+                    "task_summary": candidate.task_summary,
+                    "reasons": ["任务正文或任务业务摘要与本轮已接受任务重复"],
+                })
                 continue
             errors = _candidate_errors(package, candidate, archetypes)
             if errors:
                 rejections.append({
                     "round": round_index,
                     "candidate": candidate_index,
+                    "archetype_id": candidate.archetype_id,
+                    "task_summary": candidate.task_summary,
+                    "task_public": candidate.task_public,
                     "reasons": errors,
                 })
                 continue
@@ -1638,6 +2118,8 @@ def run_step2(
                 )
             if policy.require_state_change and not _state_changed(execution):
                 errors.append("任务要求状态变化，但 Solution 没有产生状态变化")
+            if execution.success:
+                errors.extend(_dynamic_output_errors(candidate, execution))
             replays: list[ProgramExecutionResult] = []
             if not errors:
                 replays, replay_errors = _replay_solution(
@@ -1646,6 +2128,7 @@ def run_step2(
                     schema=candidate.output_schema,
                     policy=policy,
                     first=execution,
+                    candidate=candidate,
                 )
                 errors.extend(replay_errors)
             review: dict[str, Any] = {}
@@ -1682,13 +2165,28 @@ def run_step2(
                 timeout_seconds=policy.execution_timeout_seconds,
                 final_state_output=task_root / "final",
             )
+            dynamic_prefixes = _dynamic_output_prefixes(candidate)
+            published_final = _without_dynamic_output_files(
+                published_execution.final_state, dynamic_prefixes
+            )
+            reference_final = _without_dynamic_output_files(
+                execution.final_state, dynamic_prefixes
+            )
+            published_diff = _without_dynamic_output_files(
+                published_execution.state_diff, dynamic_prefixes
+            )
+            reference_diff = _without_dynamic_output_files(
+                execution.state_diff, dynamic_prefixes
+            )
             publication_mismatch = (
                 not published_execution.success
                 or published_execution.answer != execution.answer
-                or _replay_comparable_state(published_execution.final_state)
-                != _replay_comparable_state(execution.final_state)
-                or _replay_comparable_state(published_execution.state_diff)
-                != _replay_comparable_state(execution.state_diff)
+                or _replay_comparable_trace(published_execution.trace)
+                != _replay_comparable_trace(execution.trace)
+                or _replay_comparable_state(published_final)
+                != _replay_comparable_state(reference_final)
+                or _replay_comparable_state(published_diff)
+                != _replay_comparable_state(reference_diff)
             )
             if publication_mismatch:
                 if task_root.exists():
@@ -1712,6 +2210,8 @@ def run_step2(
                 "schema_version": "1.0",
                 "task_id": task_id,
                 "environment_id": str(package.environment["environment_id"]),
+                "workspace_brief": candidate.workspace_brief,
+                "task_summary": candidate.task_summary,
                 "task_text": candidate.task_public,
                 "output_schema": deepcopy(candidate.output_schema),
                 "task_resources": task_resources,
@@ -1737,6 +2237,8 @@ def run_step2(
                 TaskFields.ARCHETYPE_ID: candidate.archetype_id,
                 "task_archetype": deepcopy(archetypes[candidate.archetype_id]),
                 TaskFields.TASK_INTERNAL: candidate.task_internal,
+                TaskFields.WORKSPACE_BRIEF: candidate.workspace_brief,
+                TaskFields.TASK_SUMMARY: candidate.task_summary,
                 TaskFields.TASK_PUBLIC: candidate.task_public,
                 TaskFields.OUTPUT_SCHEMA: deepcopy(candidate.output_schema),
                 TaskFields.SOLUTION_CODE_ORIGINAL: candidate.solution_code,
@@ -1763,11 +2265,29 @@ def run_step2(
                 "external_task": deepcopy(formal_task),
             })
             accepted_texts.add(normalized_text)
+            accepted_summaries.add(normalized_summary)
             if len(accepted) >= policy.task_count:
                 break
 
+        if len(accepted) > accepted_before_round:
+            attempts_for_current_task = 0
+
     write_jsonl(output_path, accepted)
     write_json(tasks_path, formal_tasks)
+    write_json(output_dir / "task_catalog.json", {
+        "schema_version": "1.0",
+        "environment_id": str(package.environment["environment_id"]),
+        "workspace_brief": _environment_workspace_brief(package.environment),
+        "tasks": [
+            {
+                "task_id": item["task_id"],
+                "task_summary": item[TaskFields.TASK_SUMMARY],
+                "task_public": item[TaskFields.TASK_PUBLIC],
+                "archetype_id": item[TaskFields.ARCHETYPE_ID],
+            }
+            for item in accepted
+        ],
+    })
     write_json(output_dir / "rejected.json", rejections)
     write_json(bundle_path, {
         "schema_version": "1.0",
@@ -1829,6 +2349,7 @@ def generate_solutions(
         "generated_tasks": read_records(output.output_path),
         "rejected": read_json(Path(input["run_dir"]) / "rejected.json"),
         "step2_path": str(output.output_path),
+        "task_catalog_path": str(Path(input["run_dir"]) / "task_catalog.json"),
         "external_bundle_path": str(output.bundle_path),
     }
 

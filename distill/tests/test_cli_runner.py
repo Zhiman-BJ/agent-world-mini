@@ -1,5 +1,7 @@
 import json
 import os
+import shutil
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -7,6 +9,63 @@ import tomllib
 from urllib.request import Request, urlopen
 
 import pytest
+
+
+def test_kimi_tool_schema_splits_mixed_enum_without_mutating_source():
+    from task_gen.task_eval_kimi_mcp import _normalize_kimi_tool_schema
+
+    source = {
+        "type": "object",
+        "properties": {
+            "aggregation": {
+                "type": ["string", "null"],
+                "enum": ["mean", "min", "max", None],
+                "default": None,
+            },
+            "mode": {"type": "string", "enum": ["fast", "exact"]},
+        },
+    }
+
+    normalized = _normalize_kimi_tool_schema(source)
+
+    assert source["properties"]["aggregation"]["enum"][-1] is None
+    aggregation = normalized["properties"]["aggregation"]
+    assert "enum" not in aggregation
+    assert "type" not in aggregation
+    assert aggregation["default"] is None
+    assert aggregation["anyOf"] == [
+        {"type": "string", "enum": ["mean", "min", "max"]},
+        {"type": "null", "enum": [None]},
+    ]
+    assert normalized["properties"]["mode"] == source["properties"]["mode"]
+
+
+def test_kimi_launcher_loads_prompt_after_execve(tmp_path):
+    from distill.runner import _write_kimi_launcher
+
+    if shutil.which("node") is None:
+        pytest.skip("node is required by the official Kimi CLI")
+    launcher = tmp_path / "launch-kimi.mjs"
+    _write_kimi_launcher(launcher)
+    prompt = "x" * 200_000
+    prompt_path = tmp_path / "prompt.txt"
+    prompt_path.write_text(prompt, encoding="utf-8")
+    output = tmp_path / "argv.json"
+    fake_cli = tmp_path / "fake-cli.mjs"
+    fake_cli.write_text(
+        "import {writeFileSync} from 'node:fs';"
+        "writeFileSync(process.env.ARGV_OUTPUT, JSON.stringify(process.argv));",
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        [str(launcher), str(fake_cli), str(prompt_path), "--model", "test"],
+        env={**os.environ, "ARGV_OUTPUT": str(output)},
+        check=True,
+    )
+
+    argv = json.loads(output.read_text(encoding="utf-8"))
+    assert argv[1:] == [str(fake_cli), "--prompt", prompt, "--model", "test"]
 
 
 def test_kimi_config_declares_official_k3_metadata(tmp_path):
@@ -156,6 +215,16 @@ def test_tool_policy_accepts_kimi_code_shortened_long_name():
     assert _tool_names_match(
         {"mcp__agent_world_distill__solve_equilibrium_and_quench_-3ec75202"},
         {"mcp__agent_world_distill__solve_equilibrium_and_quenched_concentrations"},
+    )
+
+    assert _tool_names_match(
+        {"mcp__agent_world_distill__update_simulated_event_report_332a6acd"},
+        {"mcp__agent_world_distill__update_simulated_event_report_definition"},
+    )
+
+    assert _tool_names_match(
+        {"mcp__agent_world_distill__update_simulated_remote_comma_-8194698"},
+        {"mcp__agent_world_distill__update_simulated_remote_command_definition"},
     )
 
 

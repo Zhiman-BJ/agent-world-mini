@@ -38,124 +38,31 @@ class ToolGenDelivery:
         *,
         delivery_root: Path | None = None,
     ) -> "ToolGenDelivery":
+        # ToolGen owns the binding contract, including the environment-level
+        # software/profile mapping. Reuse its loader instead of reconstructing
+        # profile.json and Python paths here; the shared profile is not itself
+        # an environment mapping directory.
+        from env_gen.tool_gen.kimi_mcp import load_delivery
+
         binding_path = binding_path.expanduser().resolve()
-        root = (
-            delivery_root.expanduser().resolve()
-            if delivery_root is not None
-            else binding_path.parent.parent
-        )
-        if not binding_path.is_file():
-            raise FileNotFoundError(f"找不到 ToolGen binding：{binding_path}")
-        binding = read_json(binding_path)
-        schema = read_json(
-            Path(__file__).resolve().parent
-            / "schemas"
-            / "toolgen_delivery_binding.schema.json"
-        )
-        errors = [
-            f"{'.'.join(str(part) for part in error.absolute_path) or '$'}: {error.message}"
-            for error in Draft202012Validator(schema).iter_errors(binding)
-        ]
-        if errors:
-            raise ValueError("ToolGen binding 不符合契约：" + " | ".join(errors[:20]))
-        def resolve(field: str, *, directory: bool = False) -> Path:
-            relative = Path(binding[field])
-            target = (root / relative).resolve()
-            try:
-                target.relative_to(root)
-            except ValueError as error:
-                raise ValueError(f"binding.{field} 越出 delivery_root") from error
-            exists = target.is_dir() if directory else target.is_file()
-            if not exists:
-                kind = "目录" if directory else "文件"
-                raise FileNotFoundError(f"binding.{field} 指向的{kind}不存在：{target}")
-            return target
-
-        package_path = resolve("package_path", directory=True)
-        if binding_path.parent != package_path:
-            raise ValueError("binding.json 必须位于 binding.package_path 指向的交付单元中")
-        if package_path.name != binding["package_id"]:
-            raise ValueError("binding.package_path 的目录名必须等于 package_id")
-        environment_path = resolve("environment_path", directory=True)
-        environment_validation_path = resolve("environment_validation_path")
-        tools_path = resolve("tools_path")
-        tool_validation_path = resolve("tool_validation_path")
-        software_mapping_path = resolve("software_mapping_path")
-        if environment_path.parent != package_path:
-            raise ValueError("binding.environment_path 必须位于 binding.package_path 中")
-        if tools_path.parent.parent != package_path:
-            raise ValueError("binding.tools_path 必须位于 binding.package_path 中")
-        if software_mapping_path.parent.parent != package_path:
-            raise ValueError("binding.software_mapping_path 必须位于 binding.package_path 中")
-        if environment_validation_path != (environment_path / "validation.json").resolve():
-            raise ValueError("binding.environment_validation_path 必须指向环境包内 validation.json")
-
-        environment = read_json(environment_path / "environment.json")
-        tools_document = read_json(tools_path)
-        if environment.get("environment_id") != binding["environment_id"]:
-            raise ValueError("binding.environment_id 与 environment.json 不一致")
-        if tools_document.get("environment_id") != binding["environment_id"]:
-            raise ValueError("binding.environment_id 与 tools.json 不一致")
-        tools = tools_document.get("tools")
-        if not isinstance(tools, list) or not tools:
-            raise ValueError("ToolGen tools.json.tools 必须是非空数组")
-        public_fields = {
-            "name",
-            "description",
-            "usageConditions",
-            "inputSchema",
-            "outputSchema",
-        }
-        incomplete = [
-            str(tool.get("name") or index)
-            for index, tool in enumerate(tools)
-            if not isinstance(tool, dict) or not public_fields <= set(tool)
-        ]
-        if incomplete:
+        delivery = load_delivery(binding_path)
+        if delivery_root is not None and delivery.delivery_root != delivery_root.expanduser().resolve():
             raise ValueError(
-                "正式工具缺少公开契约字段：" + ", ".join(incomplete)
+                "binding 解析出的 delivery_root 与显式 --delivery-root 不一致："
+                f"{delivery.delivery_root} != {delivery_root.expanduser().resolve()}"
             )
-
-        validation = read_json(environment_validation_path)
-        if not isinstance(validation, dict) or validation.get("valid") is not True:
-            raise ValueError("binding 对应的 DataGen validation.json 未通过")
-        tool_validation = read_json(tool_validation_path)
-        if tool_validation.get("environment_id") != binding["environment_id"]:
-            raise ValueError("tool_validation.environment_id 与 binding 不一致")
-        reports = {
-            item.get("tool"): item
-            for item in tool_validation.get("reports", [])
-            if isinstance(item, dict) and isinstance(item.get("tool"), str)
-        }
-        rejected = [
-            str(tool.get("name"))
-            for tool in tools
-            if reports.get(tool.get("name"), {}).get("status") != "passed"
-        ]
-        if rejected:
-            raise ValueError(
-                "正式 tools.json 包含未通过实际执行校验的工具：" + ", ".join(rejected)
-            )
-
-        profile_path: Path | None = None
-        profile_python: Path | None = None
-        software_mapping = read_json(software_mapping_path)
-        if software_mapping.get("profile_id") != binding["software_profile"]:
-            raise ValueError("software mapping 的 profile_id 与 binding 不一致")
-        if binding["software_profile_path"] is not None:
-            profile_path = resolve("software_profile_path", directory=True)
-            profile = read_json(profile_path / "profile.json")
-            if profile.get("profile_id") != binding["software_profile"]:
-                raise ValueError("software Profile ID 与 binding 不一致")
-            mapped_profile_path = (root / software_mapping.get("profile_path", "")).resolve()
-            if mapped_profile_path != profile_path:
-                raise ValueError("software mapping 的 profile_path 与 binding 不一致")
-            profile_python = profile_path / "python" / "bin" / "python"
-            if not profile_python.is_file() or not os.access(profile_python, os.X_OK):
-                raise ValueError(f"software Profile Python 不可执行：{profile_python}")
+        binding = delivery.binding
+        package_path = binding_path.parent
+        environment_path = delivery.package.package_root
+        environment_validation_path = delivery.delivery_root / Path(
+            binding["environment_validation_path"]
+        )
+        tools_path = delivery.delivery_root / Path(binding["tools_path"])
+        tool_validation_path = delivery.delivery_root / Path(binding["tool_validation_path"])
+        software_mapping_path = delivery.delivery_root / Path(binding["software_mapping_path"])
 
         return cls(
-            root,
+            delivery.delivery_root,
             binding_path,
             binding,
             package_path,
@@ -164,8 +71,8 @@ class ToolGenDelivery:
             tools_path,
             tool_validation_path,
             software_mapping_path,
-            profile_path,
-            profile_python,
+            delivery.software_root,
+            delivery.python_path,
         )
 
 

@@ -13,6 +13,8 @@ class TaskFields:
     TASK_ID = "task_id"
     ARCHETYPE_ID = "archetype_id"
     TASK_INTERNAL = "task_internal"
+    WORKSPACE_BRIEF = "workspace_brief"
+    TASK_SUMMARY = "task_summary"
     TASK_PUBLIC = "task_public"
     OUTPUT_SCHEMA = "output_schema"
     SOLUTION_CODE = "solution_code"
@@ -25,7 +27,8 @@ class TaskFields:
 @dataclass(frozen=True)
 class ProgramGenerationPolicy:
     task_count: int = 1
-    candidate_multiplier: int = 2
+    # 保留该字段只是为了兼容旧命令行；Step 2 现在每轮固定生成一条任务。
+    candidate_multiplier: int = 1
     task_generation_attempts: int = 3
     clean_replays: int = 2
     require_state_change: bool = False
@@ -49,7 +52,8 @@ class ProgramGenerationPolicy:
     def to_dict(self) -> dict[str, Any]:
         return {
             "task_count": self.task_count,
-            "candidate_count": self.task_count * self.candidate_multiplier,
+            "candidate_count": 1,
+            "single_task_generation": True,
             "task_generation_attempts": self.task_generation_attempts,
             "clean_replays": self.clean_replays,
             "require_state_change": self.require_state_change,

@@ -32,7 +32,7 @@ class Config:
     scenario_research_path: Path | None = None
     research_fixture_path: Path | None = None
     candidates_path: Path | None = None
-    agent_timeout_seconds: int = 1800
+    agent_timeout_seconds: int = 2000
 
 
 @dataclass(frozen=True)
@@ -60,5 +60,6 @@ class StageOutput(TypedDict, total=False):
     tasks: list[dict[str, Any]]
     generated_tasks: list[dict[str, Any]]
     step2_path: str
+    task_catalog_path: str
     external_bundle_path: str
     rejected: list[dict[str, Any]]

@@ -18,6 +18,16 @@
             "type": "string",
             "minLength": 40
           },
+          "workspace_brief": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 160
+          },
+          "task_summary": {
+            "type": "string",
+            "minLength": 40,
+            "maxLength": 320
+          },
           "task_public": {
             "type": "string",
             "minLength": 40
@@ -74,6 +84,8 @@
         "required": [
           "archetype_id",
           "task_internal",
+          "workspace_brief",
+          "task_summary",
           "task_public",
           "output_schema",
           "task_resources",
