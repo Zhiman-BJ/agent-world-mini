@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from task_gen.program_form import (
+from task_gen.program import (
     CompleteEnvironmentPackage,
     CompleteEnvironmentRuntime,
     ProgramGenerationPolicy,
@@ -15,10 +15,10 @@ from task_gen.program_form import (
     run_step1,
     run_step2,
 )
-from task_gen.program_form.step_1_task_research import (
+from task_gen.program.step_1_task_research import (
     validate_task_research,
 )
-from task_gen.program_form.utils.io import read_json, read_records, write_json
+from task_gen.program.utils.io import read_json, read_records, write_json
 
 
 def closed_object(properties: dict, required: list[str]) -> dict:
@@ -285,8 +285,10 @@ for row in listed["data"]["items"]:
     detail = call_tool("get_candidate", {"item_id": row["item_id"]})
     if detail["data"]["item"]["eligible"]:
         eligible.append(detail["data"]["item"])
-eligible = sorted(eligible, key=lambda row: row["score"], reverse=True)
 winner = eligible[0]
+for row in eligible:
+    if row["score"] > winner["score"]:
+        winner = row
 updated = call_tool("select_candidate", {"item_id": winner["item_id"]})
 final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner["score"], "status": updated["data"]["status"]}"""
 
@@ -356,6 +358,8 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                 {
                     "archetype_id": "select_best_eligible_candidate",
                     "task_internal": "Inspect all current candidate records, enforce the eligibility gate, compare the eligible scores, persist the winning selection, and report the selected candidate and resulting status.",
+                    "workspace_brief": "Review eligible candidates and record the selected candidate.",
+                    "task_summary": "Review the complete candidate pool, select the highest-scoring eligible candidate, and persist the resulting decision.",
                     "task_public": task_public or self.task_public(),
                     "output_schema": self.answer_schema(),
                     "task_resources": {

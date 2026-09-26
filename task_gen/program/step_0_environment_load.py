@@ -42,7 +42,7 @@ class ToolGenDelivery:
         # software/profile mapping. Reuse its loader instead of reconstructing
         # profile.json and Python paths here; the shared profile is not itself
         # an environment mapping directory.
-        from env_gen.tool_gen.kimi_mcp import load_delivery
+        from harness.delivery import load_delivery
 
         binding_path = binding_path.expanduser().resolve()
         delivery = load_delivery(binding_path)

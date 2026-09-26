@@ -8,66 +8,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from harness.mcp_tools import RESOURCE_TOOLS
+
 from .delivery_contract import DeliveryPackage
 from .mcp_protocol import PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, tool_call_result
 from .runtime import ToolRuntime, state_diff
-
-
-def _object_schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required,
-        "additionalProperties": False,
-    }
-
-
-RESOURCE_TOOLS = (
-    {
-        "name": "get_environment_overview",
-        "description": (
-            "Show the current environment's record sets and filesystem scopes. "
-            "Use this before choosing files when the task does not already identify a resource."
-        ),
-        "inputSchema": _object_schema({}, []),
-        "outputSchema": {"type": "object"},
-    },
-    {
-        "name": "list_environment_resources",
-        "description": (
-            "List real files and directories in the environment and return stable aw:// resource "
-            "references. Filter by scope or name instead of guessing a workspace path."
-        ),
-        "inputSchema": _object_schema(
-            {
-                "scope_id": {"type": "string", "minLength": 1},
-                "query": {"type": "string"},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 500},
-            },
-            [],
-        ),
-        "outputSchema": {"type": "object"},
-    },
-    {
-        "name": "inspect_environment_resource",
-        "description": (
-            "Inspect one aw:// resource and optionally preview UTF-8 text. "
-            "Use the returned reference directly in a business tool call."
-        ),
-        "inputSchema": _object_schema(
-            {
-                "ref": {"type": "string", "pattern": "^aw://"},
-                "preview_chars": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 20000,
-                },
-            },
-            ["ref"],
-        ),
-        "outputSchema": {"type": "object"},
-    },
-)
 
 
 class ToolMcpServer:

@@ -12,7 +12,7 @@ from typing import Any, TextIO
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from env_gen.tool_gen.delivery_contract import DeliveryPackage, load_delivery  # noqa: E402
+from harness.delivery import DeliveryPackage, load_delivery  # noqa: E402
 from env_gen.tool_gen.mcp_protocol import serve_jsonrpc  # noqa: E402
 from env_gen.tool_gen.mcp_server import ToolMcpServer  # noqa: E402
 from env_gen.tool_gen.runtime_launch import stdio_launch  # noqa: E402

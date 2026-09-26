@@ -86,6 +86,18 @@ def normalize(text: str) -> list[dict]:
     return rows
 
 
+def normalized_markdown(rows: list[dict]) -> str:
+    lines = ['# 半导体场景规范化清单', '',
+             '由原分类逐条生成；保留原L1/L2/L3编号，散列绑定原文。自由列表的应用边界为显式补充，详见inventory.json，不代表已完成调研。', '']
+    previous = None
+    for row in rows:
+        if previous != row['domain']['level1']:
+            previous = row['domain']['level1']
+            lines += ['# ' + previous, '', '| L2 | L3 | 实际应用场景 | 代表包 |', '| --- | --- | --- | --- |']
+        lines.append('| ' + ' | '.join([row['domain']['level2'], row['domain']['level3'], row['application'], row['candidate_package_text']]) + ' |')
+    return '\n'.join(lines) + '\n'
+
+
 def main():
     text = SOURCE.read_text(encoding='utf-8')
     rows = normalize(text)
@@ -97,15 +109,7 @@ def main():
                'scenarios': rows}
     BASE.mkdir(parents=True, exist_ok=True)
     (BASE / 'inventory.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    lines = ['# 半导体场景规范化清单', '',
-             '由原分类逐条生成；保留原L1/L2/L3编号，散列绑定原文。自由列表的应用边界为显式补充，详见inventory.json，不代表已完成调研。', '']
-    previous = None
-    for row in rows:
-        if previous != row['domain']['level1']:
-            previous = row['domain']['level1']
-            lines += ['# ' + previous, '', '| L2 | L3 | 实际应用场景 | 代表包 |', '| --- | --- | --- | --- |']
-        lines.append('| ' + ' | '.join([row['domain']['level2'], row['domain']['level3'], row['application'], row['candidate_package_text']]) + ' |')
-    (BASE / 'classification.normalized.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    (BASE / 'classification.normalized.md').write_text(normalized_markdown(rows), encoding='utf-8')
     print(json.dumps({k: v for k, v in payload.items() if k != 'scenarios'}, ensure_ascii=False))
 
 

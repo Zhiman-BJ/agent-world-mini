@@ -15,7 +15,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT = ROOT / "seed_gen/pypi_outputs/semiconductor_scenario_02_0916.json"
+DEFAULT_INPUT = (
+    ROOT / "seed_gen/pypi_outputs/final_results/semiconductor_scenario_02.json"
+)
 DEFAULT_OUTPUT = (
     ROOT
     / "seed_gen/pypi_outputs/semiconductor_scenario_02_0916_corrected_v1.1.json"
@@ -222,6 +224,7 @@ def correct(source: list[Any]) -> list[dict[str, Any]]:
         if not isinstance(raw_seed, dict):
             raise ValueError("Seed 集合只能包含对象")
         seed = deepcopy(raw_seed)
+        seed["schema_version"] = "1.1"
         original_id = str(seed.get("global_id") or "")
         if original_id not in DOMAIN_IDS:
             raise ValueError(f"未知场景：{original_id}")

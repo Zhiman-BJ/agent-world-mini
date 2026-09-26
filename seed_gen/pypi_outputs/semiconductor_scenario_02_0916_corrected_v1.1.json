@@ -1873,7 +1873,7 @@
       "original_global_id": "semiconductor_scenario_02_01_01",
       "scenario_name": "PN/MOS/diode 基础器件",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.01 TCAD",
         "level3": "02.01.01 Poisson / Drift-Diffusion"
       },
@@ -2538,7 +2538,7 @@
       "original_global_id": "semiconductor_scenario_02_01_02",
       "scenario_name": "QW/QCL/RTD/HEMT",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.01 TCAD",
         "level3": "02.01.02 Heterostructure / Quantum Device"
       },
@@ -4582,7 +4582,7 @@
       "original_global_id": "semiconductor_scenario_02_01_03",
       "scenario_name": "solar cell / QW solar cell",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.01 TCAD",
         "level3": "02.01.03 Solar / Optoelectronic Device"
       },
@@ -5022,7 +5022,7 @@
       "original_global_id": "semiconductor_scenario_02_02_01",
       "scenario_name": "HEMT/2DEG mobility",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.02 Carrier",
         "level3": "02.02.01 Mobility / Scattering"
       },
@@ -7085,7 +7085,7 @@
       "original_global_id": "semiconductor_scenario_02_03_01",
       "scenario_name": "TCAD/FEM 几何",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.03 Mesh/PDE",
         "level3": "02.03.01 Geometry Construction"
       },
@@ -7843,7 +7843,7 @@
       "original_global_id": "semiconductor_scenario_02_03_02",
       "scenario_name": "solver 间 mesh 传递",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.03 Mesh/PDE",
         "level3": "02.03.02 Mesh Interchange"
       },
@@ -9440,7 +9440,7 @@
       "original_global_id": "semiconductor_scenario_02_03_03",
       "scenario_name": "自定义 electrothermal/PDE",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.03 Mesh/PDE",
         "level3": "02.03.03 Generic FEM/PDE"
       },
@@ -10751,7 +10751,7 @@
       "original_global_id": "semiconductor_scenario_02_04_01",
       "scenario_name": "DC/AC/transient",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.04 SPICE",
         "level3": "02.04.01 Netlist Execution"
       },
@@ -12389,7 +12389,7 @@
       "original_global_id": "semiconductor_scenario_02_04_02",
       "scenario_name": "process/device variation",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.04 SPICE",
         "level3": "02.04.02 Parameter Sweep / Monte Carlo"
       },
@@ -14246,7 +14246,7 @@
       "original_global_id": "semiconductor_scenario_02_05_01",
       "scenario_name": "transfer function、impedance",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.05 Circuit",
         "level3": "02.05.01 Symbolic Analysis"
       },
@@ -15892,7 +15892,7 @@
       "original_global_id": "semiconductor_scenario_02_05_02",
       "scenario_name": "corner/performance optimization",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.05 Circuit",
         "level3": "02.05.02 Design Optimization"
       },
@@ -17636,7 +17636,7 @@
       "original_global_id": "semiconductor_scenario_02_06_01",
       "scenario_name": "RF device/VNA",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.06 RF",
         "level3": "02.06.01 S-parameter Network Analysis"
       },
@@ -19152,7 +19152,7 @@
       "original_global_id": "semiconductor_scenario_02_06_02",
       "scenario_name": "wafer probe/VNA",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.06 RF",
         "level3": "02.06.02 Calibration / De-embedding"
       },
@@ -20358,7 +20358,7 @@
       "original_global_id": "semiconductor_scenario_02_07_01",
       "scenario_name": "PIC network",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.07 Photonic",
         "level3": "02.07.01 Circuit-level S Matrix"
       },
@@ -25051,7 +25051,7 @@
       "original_global_id": "semiconductor_scenario_02_08_01",
       "scenario_name": "waveguide/cavity",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.08 FDTD",
         "level3": "02.08.01 Open-source FDTD"
       },
@@ -31092,7 +31092,7 @@
       "original_global_id": "semiconductor_scenario_02_08_02",
       "scenario_name": "大规模/优化",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.08 FDTD",
         "level3": "02.08.02 Cloud FDTD"
       },
@@ -34480,7 +34480,7 @@
       "original_global_id": "semiconductor_scenario_02_09_01",
       "scenario_name": "waveguide mode",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.09 FEM",
         "level3": "02.09.01 Eigenmode"
       },
@@ -35884,7 +35884,7 @@
       "original_global_id": "semiconductor_scenario_02_09_02",
       "scenario_name": "sectional waveguide propagation",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.09 FEM",
         "level3": "02.09.02 EME / propagation"
       },
@@ -38459,7 +38459,7 @@
       "original_global_id": "semiconductor_scenario_02_10_01",
       "scenario_name": "grating/coupler inverse design",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.10 Inverse",
         "level3": "02.10.01 Geometry Inverse Design"
       },
@@ -40648,7 +40648,7 @@
       "original_global_id": "semiconductor_scenario_02_11_01",
       "scenario_name": "plasma properties、etch chamber physics",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.11 Process Physics",
         "level3": "02.11.01 Plasma / Etch Physics"
       },
@@ -42928,7 +42928,7 @@
       "original_global_id": "semiconductor_scenario_02_11_02",
       "scenario_name": "CVD/etch gas-phase chemistry",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.11 Process Physics",
         "level3": "02.11.02 Reaction / Gas Chemistry"
       },
@@ -47067,7 +47067,7 @@
       "original_global_id": "semiconductor_scenario_02_11_03",
       "scenario_name": "diffusion、surface reaction、electrodeposition",
       "domain_labels": {
-        "level1": "半导体 02 器件与物理仿真",
+        "level1": "02 器件与物理仿真",
         "level2": "02.11 Process Physics",
         "level3": "02.11.03 Diffusion / Reaction PDE"
       },

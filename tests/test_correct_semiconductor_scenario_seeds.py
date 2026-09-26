@@ -6,11 +6,11 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 
 from env_gen.data_gen.analysis.seed import is_python_package_seed, load_selected_seed
-from seed_gen.scripts.correct_semiconductor_scenario_seeds import correct
+from seed_gen.scripts.correct_semiconductor_scenario_seeds import DEFAULT_OUTPUT, correct
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "seed_gen/pypi_outputs/semiconductor_scenario_02_0916.json"
+SOURCE = ROOT / "seed_gen/pypi_outputs/final_results/semiconductor_scenario_02.json"
 SCHEMA = ROOT / "schemas/validation/env_seeds.schema.json"
 
 
@@ -27,6 +27,7 @@ def test_corrected_semiconductor_seeds_are_pipeline_valid(tmp_path: Path) -> Non
     assert not errors, "\n".join(error.message for error in errors[:20])
     assert len(corrected) == 22
     assert len({item["global_id"] for item in corrected}) == 22
+    assert corrected == json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
 
     for seed in corrected:
         loaded, _digest = load_selected_seed(output, seed["global_id"], SCHEMA)

@@ -4,13 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from task_gen.program_form.run_pipeline import (
+from task_gen.program.run_pipeline import (
     build_parser,
     parse_step_range,
     run_selected_steps,
     validate_arguments,
 )
-from task_gen.program_form.utils.contracts import ProgramGenerationPolicy
+from task_gen.program.utils.contracts import ProgramGenerationPolicy
 
 
 class ProgramFormRunnerTests(unittest.TestCase):

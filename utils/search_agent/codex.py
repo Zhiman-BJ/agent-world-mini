@@ -316,7 +316,10 @@ class CodexAgentClient:
                     process.stdin.close()
                     deadline = time.monotonic() + self.timeout_seconds
                     while process.poll() is None:
-                        if stop_when and all(path.resolve().is_file() for path in stop_when):
+                        checkpoints_ready = bool(stop_when) and all(
+                            self._checkpoint_is_complete(path) for path in stop_when
+                        )
+                        if checkpoints_ready:
                             if stable_json_path is None:
                                 stopped_at_checkpoint = True
                                 self._terminate_process_group(
@@ -382,6 +385,21 @@ class CodexAgentClient:
                     retryable=False,
                 )
             return response
+
+    @staticmethod
+    def _checkpoint_is_complete(path: Path) -> bool:
+        """Require JSON checkpoints to be parseable before stopping the writer."""
+
+        path = path.resolve()
+        if not path.is_file():
+            return False
+        if path.suffix.lower() != ".json":
+            return True
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return False
+        return True
 
     @staticmethod
     def _terminate_process_group(

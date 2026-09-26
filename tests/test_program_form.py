@@ -6,12 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from task_gen.program_form import ProgramGenerationPolicy, validate_solution_code
-from task_gen.program_form.step_1_task_research import (
+from task_gen.program import ProgramGenerationPolicy, validate_solution_code
+from task_gen.program.step_1_task_research import (
     _run_research_agent,
     build_task_research_prompt,
 )
-from task_gen.program_form.step_2_solution_generate import (
+from task_gen.program.step_2_solution_generate import (
     _argument_leaf_paths,
     _solution_complexity_errors,
     _solution_complexity_profile,
@@ -25,8 +25,8 @@ from task_gen.program_form.step_2_solution_generate import (
     build_task_solution_prompt,
     build_task_solution_review_prompt,
 )
-from task_gen.program_form.utils.io import read_records, write_jsonl
-from task_gen.program_form.utils.schema_docs import (
+from task_gen.program.utils.io import read_records, write_jsonl
+from task_gen.program.utils.schema_docs import (
     STEP1_SCHEMA_DOCS,
     STEP2_SCHEMA_DOCS,
     copy_schema_docs,
@@ -98,11 +98,11 @@ class ProgramFormContractTests(unittest.TestCase):
         self.assertIn("数据库中的记录集合", research)
         self.assertIn("task_research.json", research)
         self.assertIn("你没有本项目此前的对话上下文", generation)
-        self.assertIn("未来执行者看到的任务正文", generation)
-        self.assertIn("`state/records.sqlite`", generation)
+        self.assertIn("给未来执行者看的任务正文", generation)
+        self.assertIn("`state/`", generation)
         self.assertIn("solution_code", generation)
         self.assertIn("task_resources", generation)
-        self.assertIn("有真实因果依赖的业务闭环", generation)
+        self.assertIn("任务的深度优先来自结果之间的因果关系", generation)
         self.assertIn("你没有此前对话上下文", repair)
         self.assertIn("真实执行错误", repair)
         self.assertIn("把 `task_public` 当作用户发来的完整原始要求", review)
@@ -154,7 +154,7 @@ ready = audit["data"]["identical"] and written["success"]
 final_answer = {"ready": ready}"""
         profile = _solution_complexity_profile(linear)
         self.assertEqual(profile.max_dependency_depth, 2)
-        self.assertTrue(any("依赖链过浅" in error for error in _solution_complexity_errors(linear)))
+        self.assertTrue(any("运行时推理" in error for error in _solution_complexity_errors(linear)))
 
     def test_complexity_accepts_two_link_decision_chain(self):
         dependent = """listed = call_tool("list_items", {})

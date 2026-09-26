@@ -22,7 +22,8 @@ Each case contains:
 ```text
 case/
   trajectory.json
-  workspace/
+  execution-state/          # MCP backend state; not the model cwd
+  model-workspace/          # empty Kimi cwd; environment state is not exposed here
   raw/
     cli_stream.jsonl
     cli_stderr.txt

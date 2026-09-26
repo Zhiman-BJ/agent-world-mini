@@ -439,10 +439,17 @@ class CompleteEnvironmentRuntime:
         self.filesystem_scopes_root = self.state_root / "filesystem_scopes"
         self.software_root = package.software_root or package.package_root
         self._tools = {str(tool["name"]): deepcopy(tool) for tool in package.tools}
-        self._handlers = {
-            name: self._compile_handler(name, str(tool["internal"]["code"]))
-            for name, tool in self._tools.items()
-        }
+        # Profile-backed tools must be imported by the Profile interpreter.
+        # Compiling them here would execute their imports in TaskGen's Python
+        # before the Profile worker gets a chance to run.
+        self._handlers = (
+            {
+                name: self._compile_handler(name, str(tool["internal"]["code"]))
+                for name, tool in self._tools.items()
+            }
+            if package.profile_python is None
+            else {}
+        )
         self.trace: list[ToolCallRecord] = []
 
     @staticmethod

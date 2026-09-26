@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from seed_gen.scripts.prepare_scenario_inventory import SOURCE, normalize
+from seed_gen.scripts.prepare_scenario_inventory import SOURCE, normalize, normalized_markdown
 from seed_gen.scripts.build_joint_scenario_seeds import build_profile, classification_rows
 
 
@@ -32,7 +32,7 @@ class ScenarioInventoryTests(unittest.TestCase):
             normalize('# 06 Fab\n## 06.09 New\n06.09.01 Unknown\n')
 
     def test_normalized_rows_are_all_compatible_with_existing_builder(self):
-        text = Path('seed_gen/scenario_collection/classification.normalized.md').read_text(encoding='utf-8')
+        text = normalized_markdown(normalize(SOURCE.read_text(encoding='utf-8')))
         self.assertEqual(len(classification_rows(text)), 160)
 
     def test_changed_normalized_application_rejected_even_with_new_local_hash(self):

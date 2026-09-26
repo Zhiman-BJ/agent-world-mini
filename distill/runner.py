@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -16,6 +15,8 @@ import threading
 import time
 from typing import Any
 
+from harness.layout import TaskRunLayout, create_task_run_layout
+from harness.mcp_tools import expected_mcp_tool_names
 from task_gen.task_eval_mcp import bind_delivery
 from task_gen.tool_graph.step_3_chain_execute import _public_environment
 
@@ -34,29 +35,11 @@ class DistillRunError(RuntimeError):
     """The raw run was retained but Kimi did not complete the task."""
 
 
-@dataclass(frozen=True)
-class DistillPaths:
-    output: Path
-    workspace: Path
-    raw: Path
-    trajectory: Path
+DistillPaths = TaskRunLayout
 
 
 def _prepare_paths(initial_state: Path, output_dir: Path) -> DistillPaths:
-    initial_state = initial_state.expanduser().resolve()
-    output_dir = output_dir.expanduser().resolve()
-    if not initial_state.is_dir():
-        raise ValueError(f"initial_state is not a directory: {initial_state}")
-    if any(path.is_symlink() for path in [initial_state, *initial_state.rglob("*")]):
-        raise ValueError("initial_state must not contain symbolic links")
-    if output_dir.exists():
-        raise ValueError(f"output directory already exists: {output_dir}")
-    output_dir.mkdir(parents=True)
-    workspace = output_dir / "workspace"
-    shutil.copytree(initial_state, workspace)
-    raw = output_dir / "raw"
-    raw.mkdir()
-    return DistillPaths(output_dir, workspace, raw, output_dir / "trajectory.json")
+    return create_task_run_layout(initial_state, output_dir)
 
 
 def _server_config(value: Path | dict[str, Any]) -> dict[str, Any]:
@@ -431,7 +414,8 @@ def run_k3_distillation(
     environment_trace.touch()
     result_reads.touch()
     config.update({
-        "workspace": str(paths.workspace),
+        "state_root": str(paths.execution_state),
+        "workspace": str(paths.execution_state),
         "trace": str(environment_trace),
         "tool_result_page_chars": 6000,
         "result_read_trace": str(result_reads),
@@ -439,10 +423,12 @@ def run_k3_distillation(
     tool_names = [tool["name"] for tool in config["tools"]]
     if "read_tool_result" in tool_names:
         raise ValueError("environment tool name conflicts with read_tool_result")
-    expected_names = {
-        *(f"mcp__agent_world_distill__{name}" for name in tool_names),
-        "mcp__agent_world_distill__read_tool_result",
-    }
+    expected_names = expected_mcp_tool_names(
+        config["tools"],
+        config.get("environment"),
+        server_name="agent_world_distill",
+        support_tools=("read_tool_result",),
+    )
     (paths.raw / "harness_policy.json").write_text(json.dumps({
         "harness": "official_kimi_code_cli",
         "streaming_required": True,
@@ -479,7 +465,12 @@ def run_k3_distillation(
                 kimi_home / "config.toml", relay.base_url, model_alias, model_id,
                 max_context_size, provider_type, reasoning_effort,
             )
-            _write_mcp_config(kimi_home / "mcp.json", private_server, paths.workspace, int(config["timeout"]))
+            _write_mcp_config(
+                kimi_home / "mcp.json",
+                private_server,
+                paths.model_workspace,
+                int(config["timeout"]),
+            )
             child_env = dict(os.environ)
             for name, value in list(child_env.items()):
                 if value == api_key or name in {"OPENAI_API_KEY", "KIMI_API_KEY"}:
@@ -498,7 +489,7 @@ def run_k3_distillation(
             ]
             process = subprocess.Popen(
                 command,
-                cwd=paths.workspace,
+                cwd=paths.model_workspace,
                 env=child_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -529,7 +520,7 @@ def run_k3_distillation(
                 monitor_thread.join()
 
         try:
-            session = _session_record(kimi_home, paths.workspace)
+            session = _session_record(kimi_home, paths.model_workspace)
             session_id = _copy_session_evidence(session, kimi_home, paths.raw)
             export = subprocess.run(
                 [
@@ -537,7 +528,7 @@ def run_k3_distillation(
                     "--output", str(paths.raw / "kimi_session.zip"),
                     "--yes", "--no-include-global-log",
                 ],
-                cwd=paths.workspace,
+                cwd=paths.model_workspace,
                 env=child_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

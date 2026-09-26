@@ -926,6 +926,8 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
     # repeating their implementation details here distracts from task design.
     return f"""# 目标：生成真实、可执行且具有自然难度的一条任务及其参考程序
 
+你没有本项目此前的对话上下文；工作目录中的文件是本轮唯一事实来源。
+
 你正在为一个已经冻结的离线环境制作一条训练任务。请生成 `candidates.json`，其中必须只有
 `generation_request.json` 中 `candidate_count=1` 指定的一条候选任务；不能生成备用候选或把
 多个任务放在同一个文件中。每条候选必须是一个现实工作场景的具体实例，

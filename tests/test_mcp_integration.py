@@ -92,12 +92,13 @@ def test_copied_venv_runs_with_its_own_import_paths(tmp_path):
     # Install compatible fixture dependencies into the venv, not via host search paths.
     import shutil
     import jsonschema
+    import typing_extensions
     purelib = subprocess.check_output([str(launcher), '-I', '-c',
         'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
     packages = Path(jsonschema.__file__).parent.parent
     for name in ('jsonschema', 'jsonschema_specifications', 'referencing', 'rpds', 'attr', 'attrs'):
         shutil.copytree(packages / name, Path(purelib) / name)
-    shutil.copyfile(packages / 'typing_extensions.py', Path(purelib) / 'typing_extensions.py')
+    shutil.copyfile(Path(typing_extensions.__file__), Path(purelib) / 'typing_extensions.py')
     state = tmp_path / 'state'
     state.mkdir()
     tool = {'name': 'inspect', 'inputSchema': {'type': 'object'}, 'outputSchema': {'type': 'object'},
@@ -128,7 +129,11 @@ def test_pipeline_loads_binding_and_keeps_runtime_out_of_public_inputs(tmp_path)
 
 
 def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch):
+    import shutil
+    import subprocess
     import sys
+    import jsonschema
+    import typing_extensions
     from tests.test_kimi_mcp import KimiMcpTests
     from task_gen.tool_graph.contracts import Config
     from task_gen.tool_graph.step_0_environment_load import load_environment
@@ -136,25 +141,43 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
     from task_gen.tool_graph.execution_agent import execute_candidates
     from task_gen.task_eval_mcp import TaskEvalMcpServer
     binding = KimiMcpTests()._make_delivery(tmp_path)
-    config = Config(environment_dir=binding.parent)
+    config = Config(environment_dir=binding.parent,
+                    execution={'min_tool_calls': 1, 'target_tool_calls': 1})
     bundle = load_environment({'config': config})
     software = tmp_path / 'software'
-    software.mkdir()
+    launcher = software / 'venv/bin/python'
+    subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip',
+                    str(software / 'venv')], check=True)
+    purelib = Path(subprocess.check_output([str(launcher), '-I', '-c',
+        'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip())
+    packages = Path(jsonschema.__file__).parent.parent
+    for name in ('jsonschema', 'jsonschema_specifications', 'referencing', 'rpds', 'attr', 'attrs'):
+        shutil.copytree(packages / name, purelib / name)
+    shutil.copyfile(Path(typing_extensions.__file__), purelib / 'typing_extensions.py')
     (software / 'marker').write_text('correct profile')
-    bundle['runtime']['software'] = {'root': str(software), 'python': sys.executable}
+    bundle['runtime']['software'] = {'root': str(software), 'python': str(launcher)}
     tool = bundle['environment']['tools'][0]
     tool['internal']['code'] = tool['internal']['code'].replace(
         'record = context.records.get',
         "assert (context.software_root / 'marker').read_text() == 'correct profile'\n    record = context.records.get")
     bundle['tasks'] = [{'task_id': 'task1', 'chain': ['get_ticket'], 'objective': 'Read ticket', 'score': 1}]
 
+    preparation_calls = 0
+
     def run(client, prompt, working_directory):
+        nonlocal preparation_calls
+        client.session_id = client.session_id or f'test-{Path(client.server_config).parent.name}'
+        if 'preparation' in Path(client.server_config).parts:
+            preparation_calls += 1
+            action = 'execute' if preparation_calls == 1 else 'accept'
+            return json.dumps({'action': action, 'objective': 'Read ticket',
+                               'reason': 'Use the delivery state and profile.',
+                               'feedback': '', 'score': 0 if action == 'execute' else 4})
         server = TaskEvalMcpServer(json.loads(client.server_config.read_text()))
         response = server.handle({'method': 'tools/call', 'params': {
             'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
         assert response['structuredContent']['data']['status'] == 'open', response
-        return json.dumps({'reason': 'Read actual ticket', 'objective': 'Read ticket',
-                           'completed': True, 'answer': 'open', 'score': 4})
+        return json.dumps({'reason': 'Read actual ticket', 'completed': True, 'answer': 'open'})
 
     monkeypatch.setattr('task_gen.tool_graph.execution_agent._ReviewClient.run', run)
     result = execute_candidates(to_execute_chains_input(bundle, config, tmp_path / 'run'))

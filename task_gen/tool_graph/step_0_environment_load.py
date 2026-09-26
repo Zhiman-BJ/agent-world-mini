@@ -416,7 +416,7 @@ def load_environment(stage_input: EnvironmentLoadInput) -> EnvironmentLoadOutput
 
     binding = environment_dir / "binding.json"
     if binding.is_file():
-        from env_gen.tool_gen.kimi_mcp import load_delivery
+        from harness.delivery import load_delivery
         delivery = load_delivery(binding)
         environment = {**delivery.package.environment, "tools": list(delivery.package.tools)}
         state = delivery.package.package_root / "state"

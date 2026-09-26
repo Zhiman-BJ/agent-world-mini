@@ -303,7 +303,7 @@ def snapshot_state(root, environment):
                 sets[rid] = {"records": rows, "key_fields": keys}
         finally:
             c.close()
-    from task_gen.program_form.utils.tool_runtime import snapshot_state as base_snapshot
+    from task_gen.program.utils.tool_runtime import snapshot_state as base_snapshot
 
     snapshot = base_snapshot(root, environment, package_format="v2")
     # 保留逐字段信息，供状态差异报告使用。
@@ -356,7 +356,7 @@ def state_diff(before, after):
                 upd.append({"key": k, "changed_fields": fields})
         if ins or dele or upd:
             changes[rid] = {"inserted": ins, "updated": upd, "deleted": dele}
-    from task_gen.program_form.utils.tool_runtime import workspace_diff
+    from task_gen.program.utils.tool_runtime import workspace_diff
 
     metadata_diff = workspace_diff(
         {**before, "record_sets": {}}, {**after, "record_sets": {}}

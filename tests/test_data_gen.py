@@ -108,13 +108,13 @@ class ScenarioResearchTests(unittest.TestCase):
         self.assertIn("unknown_python_package_tools", {item.code for item in issues})
 
     def test_both_real_python_package_seeds_pass_seed_loading(self) -> None:
-        cases = (
-            ("atomate2_v0.1.5.json", "pypi_atomate2_2"),
-            ("pymatgen-core_v2026.8.30.json", "pypi_pymatgen_core_1"),
-        )
-        for filename, global_id in cases:
+        seed_path = ROOT / "seed_gen/pypi_outputs/semiconductor_scenario_02_0916_corrected_v1.1.json"
+        for global_id in (
+            "semiconductor_poisson_drift_diffusion_1",
+            "semiconductor_diffusion_reaction_pde_1",
+        ):
             seed, _ = load_selected_seed(
-                ROOT / "seed_gen/pypi_outputs" / filename,
+                seed_path,
                 global_id,
                 ROOT / "schemas/validation/env_seeds.schema.json",
             )

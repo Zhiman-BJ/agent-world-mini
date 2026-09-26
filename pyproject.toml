@@ -15,19 +15,22 @@ agent-world-data-gen = "env_gen.data_gen.__main__:main"
 agent-world-data-gen-batch = "env_gen.data_gen.batch:main"
 agent-world-tool-gen = "env_gen.tool_gen.__main__:main"
 agent-world-tool-gen-batch = "env_gen.tool_gen.batch:main"
-agent-world-program-form = "task_gen.program_form_backup.__main__:main"
+agent-world-program-form = "task_gen.program.__main__:main"
 agent-world-program = "task_gen.program.__main__:main"
 agent-world-distill = "distill.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["distill*", "env_gen*", "seed_gen*", "task_gen*", "utils*"]
+include = ["distill*", "env_gen*", "harness*", "seed_gen*", "task_gen*", "utils*"]
 
 [tool.setuptools.package-data]
 seed_gen = ["*.md", "data/*.json"]
 env_gen = ["data_gen/*.md", "data_gen/internal_schemas/*.json"]
-task_gen = ["program/*.json", "program/*.md", "program/schemas/*.json", "program_form/*.json", "program_form/*.md", "program_form/schemas/*.json"]
+task_gen = ["program/*.json", "program/*.md", "program/schemas/*.json"]
 distill = ["*.json", "*.mjs", "*.md"]
 "task_gen.tool_graph" = ["skills/*/SKILL.md", "prompts/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "distill/tests"]
 
 [tool.setuptools.data-files]
 "schemas" = ["schemas/*.json", "schemas/*.md"]

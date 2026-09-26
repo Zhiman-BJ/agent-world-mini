@@ -5,33 +5,28 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
-import shutil
 import sys
-import tempfile
-from typing import Any, Callable, TextIO
+from typing import Any, TextIO
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from task_gen.tool_graph.step_3_chain_execute import (  # noqa: E402
-    _call_tool,
     _schema_error,
 )
+from harness.delivery import load_delivery  # noqa: E402
+from harness.execution import CallToolFn, call_environment_tool  # noqa: E402, F401
+from harness.mcp_tools import RESOURCE_TOOLS  # noqa: E402
+from harness.resources import ResourceCatalog  # noqa: E402
 from env_gen.tool_gen.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
 )
-from env_gen.tool_gen.mcp_server import RESOURCE_TOOLS  # noqa: E402
-from env_gen.tool_gen.resources import ResourceCatalog  # noqa: E402
-
-
-CallToolFn = Callable[..., dict[str, Any]]
 
 
 def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
     """Resolve a delivery while retaining the caller's task-specific state path."""
     if not config.get('binding_path'):
         return config
-    from env_gen.tool_gen.kimi_mcp import load_delivery
     delivery = load_delivery(Path(config['binding_path']))
     # Internal code is deliberately allowed to differ from the frozen delivery
     # artifact: the public MCP contract is the name, description, usage rules,
@@ -53,84 +48,6 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
                         if delivery.software_root else None}
 
 
-def call_environment_tool(
-    name: str,
-    arguments: dict[str, Any],
-    tools: dict[str, dict[str, Any]],
-    workspace: Path,
-    *,
-    timeout: int,
-    memory_limit: int,
-    write_limit: int,
-    process_limit: int = 1024,
-    call_tool_fn: CallToolFn = _call_tool,
-    environment: dict[str, Any] | None = None,
-    software: dict[str, str] | None = None,
-    software_root: Path | None = None,
-) -> dict[str, Any]:
-    tool = tools.get(name)
-    if tool is None:
-        return {"tool": name, "arguments": arguments, "result": None, "error": "未知工具"}
-    if environment and environment.get("filesystem_scopes"):
-        catalog = ResourceCatalog(
-            environment,
-            lambda scope_id: workspace.resolve() / "filesystem_scopes" / scope_id,
-        )
-        known_scopes = {
-            str(item["scope_id"])
-            for item in environment.get("filesystem_scopes", [])
-        }
-        declared = set(
-            str(item)
-            for item in tool.get("usageConditions", {}).get("targetResources", [])
-        )
-        arguments = catalog.normalize_arguments(
-            arguments,
-            schema=tool["inputSchema"],
-            allowed_scopes=known_scopes & declared,
-        )
-    schema_error = _schema_error(tool["inputSchema"], arguments)
-    if schema_error:
-        return {"tool": name, "arguments": arguments, "result": None, "error": schema_error}
-    workspace = workspace.resolve()
-    with tempfile.TemporaryDirectory(prefix=".task-eval-tool-", dir=workspace.parent) as temporary:
-        temporary_path = Path(temporary)
-        candidate = temporary_path / "workspace"
-        shutil.copytree(workspace, candidate, symlinks=True)
-        runtime_options: dict[str, Any] = {
-            **({'software': software} if software else {}),
-            **({'software_root': software_root} if software_root is not None else {}),
-        }
-        if call_tool_fn is _call_tool:
-            runtime_options['process_limit'] = process_limit
-        outcome = call_tool_fn(
-            tool["internal"]["code"], arguments, candidate, timeout, memory_limit, write_limit,
-            environment, **runtime_options,
-        )
-        result = outcome.get("result")
-        error = outcome.get("error")
-        if outcome.get("kind") is not None:
-            error = error or f"工具执行失败：{outcome['kind']}"
-        elif not isinstance(result, dict):
-            error = "工具返回值必须是 object"
-        elif result.get("success") is not True:
-            error = "工具返回值必须包含 success=true"
-        else:
-            error = _schema_error(tool["outputSchema"], result)
-        if error is None:
-            previous = temporary_path / "previous"
-            workspace.rename(previous)
-            try:
-                candidate.rename(workspace)
-            except Exception:
-                previous.rename(workspace)
-                raise
-    record = {"tool": name, "arguments": arguments, "result": result, "error": error}
-    if outcome.get("kind") is not None:
-        record["failure_kind"] = outcome["kind"]
-    return record
-
-
 class TaskEvalMcpServer:
     """Task-scoped executor using ToolGen's shared public MCP contract."""
 
@@ -140,13 +57,17 @@ class TaskEvalMcpServer:
         self.tools = {tool["name"]: tool for tool in config["tools"]}
         if len(self.tools) != len(config["tools"]):
             raise ValueError("重复工具名")
-        self.workspace = Path(config["workspace"]).resolve()
+        state_value = config.get("state_root", config.get("workspace"))
+        if not isinstance(state_value, str) or not state_value:
+            raise ValueError("MCP 配置缺少 state_root（兼容字段：workspace）")
+        self.state_root = Path(state_value).resolve()
+        self.workspace = self.state_root  # Compatibility for existing callers.
         self.trace = Path(config["trace"]).resolve()
         self.resources = None
         if config.get("environment", {}).get("filesystem_scopes"):
             self.resources = ResourceCatalog(
                 config["environment"],
-                lambda scope_id: self.workspace / "filesystem_scopes" / scope_id,
+                lambda scope_id: self.state_root / "filesystem_scopes" / scope_id,
             )
         self.calls = 0
         self.choices = None
@@ -235,7 +156,7 @@ class TaskEvalMcpServer:
                 record = {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
         else:
             record = call_environment_tool(
-                name, arguments, self.tools, self.workspace,
+                name, arguments, self.tools, self.state_root,
                 timeout=int(self.config["timeout"]), memory_limit=int(self.config["memory_limit"]),
                 write_limit=int(self.config["write_limit"]),
                 process_limit=int(self.config.get("process_limit", 1024)),
