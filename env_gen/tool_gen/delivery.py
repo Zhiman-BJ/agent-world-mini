@@ -120,6 +120,13 @@ def _publish_software_profile(
     ) as temporary:
         staged = Path(temporary) / destination.name
         _copy_software(source, staged)
+        for entrypoint in staged.glob("python-*/bin/*"):
+            if entrypoint.is_symlink() or not entrypoint.is_file() or entrypoint.stat().st_size > 1_000_000:
+                continue
+            original = entrypoint.read_bytes()
+            relocated = original.replace(str(source).encode(), str(destination).encode())
+            if relocated != original:
+                entrypoint.write_bytes(relocated)
         for package, filename in (("petsc4py", "petsc.cfg"), ("slepc4py", "slepc.cfg")):
             for config in staged.glob(
                 f"python-*/lib/python*/site-packages/{package}/lib/{filename}"

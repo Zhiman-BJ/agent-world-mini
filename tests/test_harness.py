@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 
 import pytest
 
@@ -126,3 +127,56 @@ def test_task_call_externalizes_annotated_output_as_aw_reference(tmp_path):
     assert record["error"] is None
     assert record["result"]["data"]["report"] == "aw://reports/daily.json"
     assert str(tmp_path) not in json.dumps(record)
+
+
+def test_read_only_tool_uses_state_directly_without_copy(tmp_path, monkeypatch):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "value.txt").write_text("original", encoding="utf-8")
+    tool = {
+        "inputSchema": {"type": "object"},
+        "outputSchema": {"type": "object"},
+        "usageConditions": {"sideEffects": []},
+        "internal": {"code": "unused by fixture"},
+    }
+
+    def inspect(_code, _arguments, workspace, *_args, **kwargs):
+        assert workspace == state.resolve()
+        assert kwargs["read_only"] is True
+        return {"kind": None, "result": {"success": True}, "error": None}
+
+    monkeypatch.setattr("harness.execution._sandbox_call_tool", inspect)
+    record = call_environment_tool(
+        "inspect", {}, {"inspect": tool}, state,
+        timeout=10, memory_limit=1024 * 1024, write_limit=1024 * 1024,
+    )
+    assert record["error"] is None
+    assert (state / "value.txt").read_text(encoding="utf-8") == "original"
+
+
+@pytest.mark.skipif(shutil.which("bwrap") is None, reason="bubblewrap is unavailable")
+def test_read_only_tool_cannot_modify_state(tmp_path):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "value.txt").write_text("original", encoding="utf-8")
+    tool = {
+        "inputSchema": {"type": "object"},
+        "outputSchema": {"type": "object"},
+        "usageConditions": {"sideEffects": []},
+        "internal": {"code": (
+            "def run(arguments, context):\n"
+            " from pathlib import Path\n"
+            " try:\n"
+            "  Path('/workspace/value.txt').write_text('changed')\n"
+            " except OSError:\n"
+            "  return {'success': True, 'write_blocked': True}\n"
+            " return {'success': True, 'write_blocked': False}\n"
+        )},
+    }
+    record = call_environment_tool(
+        "inspect", {}, {"inspect": tool}, state,
+        timeout=10, memory_limit=1024**3, write_limit=1024**2,
+    )
+    assert record["error"] is None, record
+    assert record["result"]["write_blocked"] is True
+    assert (state / "value.txt").read_text(encoding="utf-8") == "original"

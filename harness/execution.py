@@ -83,16 +83,23 @@ def call_environment_tool(
 
     state_root = state_root.resolve()
     active_call = call_tool_fn or _sandbox_call_tool
+    read_only = (
+        call_tool_fn is None
+        and tool.get("usageConditions", {}).get("sideEffects") == []
+    )
     with tempfile.TemporaryDirectory(prefix=".task-eval-tool-", dir=state_root.parent) as temporary:
         temporary_path = Path(temporary)
-        candidate = temporary_path / "state"
-        shutil.copytree(state_root, candidate, symlinks=True)
+        candidate = state_root if read_only else temporary_path / "state"
+        if not read_only:
+            shutil.copytree(state_root, candidate, symlinks=True)
         runtime_options: dict[str, Any] = {
             **({"software": software} if software else {}),
             **({"software_root": software_root} if software_root is not None else {}),
         }
         if call_tool_fn is None:
             runtime_options["process_limit"] = process_limit
+            if read_only:
+                runtime_options["read_only"] = True
             if runtime is not None:
                 runtime_options["runtime"] = runtime
         outcome = active_call(
@@ -121,7 +128,7 @@ def call_environment_tool(
                     allowed_scopes=allowed_scopes,
                 )
             error = _schema_error(tool["outputSchema"], result)
-        if error is None:
+        if error is None and not read_only:
             previous = temporary_path / "previous"
             state_root.rename(previous)
             try:

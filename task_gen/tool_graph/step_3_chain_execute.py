@@ -580,10 +580,12 @@ else:
 try:
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
-    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
+    if not payload.get('memory_cgroup'):
+        resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write_limit, write_limit))
     process_limit = int(payload["process_limit"])
     resource.setrlimit(resource.RLIMIT_NPROC, (process_limit, process_limit))
+    os.chdir('/tmp')
     runtime = {}
     exec(payload["context_source"], runtime)
     namespace = {"json": json, "sqlite3": sqlite3}
@@ -645,15 +647,21 @@ def _call_tool(
     software_root: Path | None = None,
     *, process_limit: int = 1024, software: dict[str, str] | None = None,
     runtime: dict[str, Any] | None = None,
+    read_only: bool = False,
 ) -> dict[str, Any]:
     from functools import partial
     if runtime and runtime.get("backend") == "docker":
-        run_tool = partial(_run_docker_tool, runtime=runtime)
+        run_tool = partial(_run_docker_tool, runtime=runtime, read_only=read_only)
     else:
-        run_tool = partial(_run_tool, software=software) if software else _run_tool
+        run_tool = partial(_run_tool, software=software, read_only=read_only)
     if software_root is not None and not (runtime and runtime.get("backend") == "docker"):
         run_tool = partial(run_tool, software_root=software_root)
     if not environment or environment.get('schema_version') != '2.0':
+        return run_tool(
+            code, arguments, workspace, timeout, memory_limit, write_limit, environment,
+            process_limit=process_limit,
+        )
+    if read_only:
         return run_tool(
             code, arguments, workspace, timeout, memory_limit, write_limit, environment,
             process_limit=process_limit,
@@ -695,7 +703,7 @@ def _call_tool(
 
 def _run_tool(
     code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None,
-    *, process_limit=1024, software=None,
+    *, process_limit=1024, software=None, read_only=False,
 ):
     import jsonschema
     workspace = workspace.resolve()
@@ -755,7 +763,7 @@ def _run_tool(
         "--dev", "/dev",
         "--dir", "/tmp",
         "--dir", "/workspace",
-        "--bind", str(workspace), "/workspace",
+        "--ro-bind" if read_only else "--bind", str(workspace), "/workspace",
         "--chdir", "/workspace",
         "--clearenv",
         "--setenv", "HOME", "/tmp",
@@ -874,7 +882,7 @@ def _run_tool(
 
 def _run_docker_tool(
     code, arguments, workspace, timeout, memory_limit, write_limit,
-    environment=None, *, process_limit=1024, runtime,
+    environment=None, *, process_limit=1024, runtime, read_only=False,
 ):
     workspace = workspace.resolve()
     before_bytes, before_entries, workspace_error = _workspace_usage(workspace)
@@ -895,6 +903,7 @@ def _run_docker_tool(
         "software_root": runtime["software_root"],
         "software_prefix": None,
         "software_import_paths": [],
+        "memory_cgroup": True,
     }, ensure_ascii=False)
     with tempfile.TemporaryDirectory(prefix=".tool-docker-", dir=workspace.parent) as control:
         cidfile = Path(control) / "container.cid"
@@ -910,8 +919,10 @@ def _run_docker_tool(
             "--network", "none", "--read-only",
             "--memory", str(memory_limit), "--pids-limit", str(process_limit),
             "--tmpfs", f"/tmp:rw,exec,size={write_limit}",
+            "--tmpfs", f"{runtime['software_root']}/cache:rw,exec,size=256m",
             "--mount", f"type=bind,source={passwd},target=/etc/passwd,readonly",
-            "--mount", f"type=bind,source={workspace},target=/workspace",
+            "--mount", f"type=bind,source={workspace},target=/workspace"
+                       + (",readonly" if read_only else ""),
             "--workdir", "/workspace",
             "--env", "HOME=/tmp", "--env", "TMPDIR=/tmp",
             "--env", "XDG_CACHE_HOME=/tmp/cache",

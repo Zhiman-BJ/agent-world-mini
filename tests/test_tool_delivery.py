@@ -22,11 +22,17 @@ class ToolDeliveryTests(unittest.TestCase):
                 config = source / f"python-3.11/lib/python3.11/site-packages/{package}/lib/{filename}"
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_text(f"{key} = {source}/python-3.11\n", encoding="utf-8")
+            entrypoint = source / "python-3.11/bin/yowasp-yosys"
+            entrypoint.parent.mkdir(parents=True, exist_ok=True)
+            entrypoint.write_text(f"#!/bin/sh\nexec {source}/python-3.11/bin/python -m yowasp_yosys\n")
             _publish_software_profile(source, destination, root / "missing-requirements.txt")
             for package, filename in (("petsc4py", "petsc.cfg"), ("slepc4py", "slepc.cfg")):
                 config = destination / f"python-3.11/lib/python3.11/site-packages/{package}/lib/{filename}"
                 self.assertIn(str(destination), config.read_text(encoding="utf-8"))
                 self.assertNotIn(str(source), config.read_text(encoding="utf-8"))
+            relocated = destination / "python-3.11/bin/yowasp-yosys"
+            self.assertIn(str(destination), relocated.read_text(encoding="utf-8"))
+            self.assertNotIn(str(source), relocated.read_text(encoding="utf-8"))
 
     def test_publishes_one_environment_as_a_self_contained_unit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
