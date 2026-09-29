@@ -120,6 +120,14 @@ def _publish_software_profile(
     ) as temporary:
         staged = Path(temporary) / destination.name
         _copy_software(source, staged)
+        for package, filename in (("petsc4py", "petsc.cfg"), ("slepc4py", "slepc.cfg")):
+            for config in staged.glob(
+                f"python-*/lib/python*/site-packages/{package}/lib/{filename}"
+            ):
+                value = config.read_text(encoding="utf-8")
+                updated = value.replace(str(source), str(destination))
+                if updated != value:
+                    config.write_text(updated, encoding="utf-8")
         if requirements.is_file():
             shutil.copy2(requirements, staged / "requirements.txt")
         try:

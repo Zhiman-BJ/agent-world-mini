@@ -605,6 +605,7 @@ except BaseException as error:
 wire = json.dumps(response, ensure_ascii=False, allow_nan=False).encode('utf-8') + b'\n'
 os.write(_WIRE_FD, wire)
 os.close(_WIRE_FD)
+os._exit(0)
 """
 _MAX_SANDBOX_OUTPUT_BYTES = 16 * 1024 * 1024
 
@@ -643,10 +644,14 @@ def _call_tool(
     environment: dict[str, Any] | None = None,
     software_root: Path | None = None,
     *, process_limit: int = 1024, software: dict[str, str] | None = None,
+    runtime: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from functools import partial
-    run_tool = partial(_run_tool, software=software) if software else _run_tool
-    if software_root is not None:
+    if runtime and runtime.get("backend") == "docker":
+        run_tool = partial(_run_docker_tool, runtime=runtime)
+    else:
+        run_tool = partial(_run_tool, software=software) if software else _run_tool
+    if software_root is not None and not (runtime and runtime.get("backend") == "docker"):
         run_tool = partial(run_tool, software_root=software_root)
     if not environment or environment.get('schema_version') != '2.0':
         return run_tool(
@@ -744,6 +749,8 @@ def _run_tool(
         "--new-session",
         "--ro-bind-try", "/lib", "/lib",
         "--ro-bind-try", "/lib64", "/lib64",
+        "--dir", "/etc",
+        "--ro-bind-try", "/etc/passwd", "/etc/passwd",
         "--proc", "/proc",
         "--dev", "/dev",
         "--dir", "/tmp",
@@ -790,9 +797,15 @@ def _run_tool(
         command.extend(['--ro-bind', str(ca_bundle.resolve()), '/ca-certificates.crt',
                         '--setenv', 'SSL_CERT_FILE', '/ca-certificates.crt'])
     if software:
+        from env_gen.tool_gen.software import runtime_environment
+
         for path in runtime_mounts:
             command.extend(['--ro-bind', str(path), str(path)])
         command.extend(['--ro-bind', str(Path(software['root']).resolve()), '/software'])
+        prepared = runtime_environment(Path(software['root']), {})
+        for name in ('PATH', 'LD_LIBRARY_PATH', 'PETSC_DIR', 'PETSC_ARCH', 'SLEPC_DIR'):
+            if prepared.get(name):
+                command.extend(['--setenv', name, prepared[name]])
         # CPU libraries otherwise size thread pools from the host CPU count,
         # which can exhaust this tool's memory/process limits on import alone.
         for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'OMP_THREAD_LIMIT', 'MKL_NUM_THREADS'):
@@ -854,6 +867,95 @@ def _run_tool(
         return {"kind": "exception", "result": None, "error": f"工具沙箱返回无效 JSON：{error}"}
     if not isinstance(message, dict) or set(message) != {"result", "error"}:
         return {"kind": "exception", "result": None, "error": "工具沙箱返回结构非法"}
+    if message["error"] is not None:
+        return {"kind": "exception", "result": None, "error": message["error"]}
+    return {"kind": None, "result": message["result"], "error": None}
+
+
+def _run_docker_tool(
+    code, arguments, workspace, timeout, memory_limit, write_limit,
+    environment=None, *, process_limit=1024, runtime,
+):
+    workspace = workspace.resolve()
+    before_bytes, before_entries, workspace_error = _workspace_usage(workspace)
+    if workspace_error:
+        return {"kind": "exception", "result": None, "error": workspace_error}
+    docker = shutil.which("docker")
+    if docker is None:
+        return {"kind": "exception", "result": None, "error": "找不到 Docker 命令"}
+
+    payload = json.dumps({
+        "code": code,
+        "arguments": arguments,
+        "environment": environment or {},
+        "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
+        "memory_limit": memory_limit,
+        "write_limit": write_limit,
+        "process_limit": process_limit,
+        "software_root": runtime["software_root"],
+        "software_prefix": None,
+        "software_import_paths": [],
+    }, ensure_ascii=False)
+    with tempfile.TemporaryDirectory(prefix=".tool-docker-", dir=workspace.parent) as control:
+        cidfile = Path(control) / "container.cid"
+        passwd = Path(control) / "passwd"
+        passwd.write_text(
+            f"root:x:0:0:root:/root:/bin/sh\n"
+            f"tool:x:{os.getuid()}:{os.getgid()}:tool:/tmp:/bin/sh\n",
+            encoding="utf-8",
+        )
+        command = [
+            docker, "run", "--rm", "-i", "--runtime", "runc", "--cidfile", str(cidfile),
+            "--user", f"{os.getuid()}:{os.getgid()}",
+            "--network", "none", "--read-only",
+            "--memory", str(memory_limit), "--pids-limit", str(process_limit),
+            "--tmpfs", f"/tmp:rw,exec,size={write_limit}",
+            "--mount", f"type=bind,source={passwd},target=/etc/passwd,readonly",
+            "--mount", f"type=bind,source={workspace},target=/workspace",
+            "--workdir", "/workspace",
+            "--env", "HOME=/tmp", "--env", "TMPDIR=/tmp",
+            "--env", "XDG_CACHE_HOME=/tmp/cache",
+            "--env", "XDG_CONFIG_HOME=/tmp/config",
+            "--env", f"TOOLGEN_SOFTWARE_ROOT={runtime['software_root']}",
+            "--env", "OPENBLAS_NUM_THREADS=1", "--env", "OMP_NUM_THREADS=1",
+            runtime["image"], runtime["python_command"], "-I", "-c", _TOOL_WORKER,
+        ]
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            try:
+                completed = subprocess.run(
+                    command, input=payload.encode("utf-8"), stdout=stdout,
+                    stderr=stderr, timeout=timeout, check=False,
+                )
+            except subprocess.TimeoutExpired:
+                if cidfile.is_file():
+                    subprocess.run(
+                        [docker, "rm", "-f", cidfile.read_text().strip()],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=15, check=False,
+                    )
+                return {"kind": "timeout", "result": None, "error": f"工具调用超过 {timeout} 秒"}
+            except OSError as error:
+                return {"kind": "exception", "result": None, "error": f"启动 Docker 工具失败：{error}"}
+            stdout_value = _read_limited(stdout)
+            stderr_value = _read_limited(stderr, 2000)
+    if completed.returncode != 0:
+        detail = (stderr_value or stdout_value).decode("utf-8", errors="replace").strip()[-2000:]
+        return {"kind": "exception", "result": None, "error": f"Docker 工具异常退出：{detail}"}
+    if len(stdout_value) > _MAX_SANDBOX_OUTPUT_BYTES:
+        return {"kind": "exception", "result": None, "error": "工具沙箱输出超过 16 MiB"}
+    after_bytes, after_entries, workspace_error = _workspace_usage(workspace)
+    if workspace_error:
+        return {"kind": "exception", "result": None, "error": workspace_error}
+    if after_bytes > before_bytes + write_limit:
+        return {"kind": "exception", "result": None, "error": f"workspace 文件总增长超过 {write_limit} 字节"}
+    if after_entries > before_entries + max(1024, write_limit // 4096):
+        return {"kind": "exception", "result": None, "error": "workspace 新增条目数量超过限制"}
+    try:
+        message = json.loads(stdout_value)
+    except json.JSONDecodeError as error:
+        return {"kind": "exception", "result": None, "error": f"Docker 工具返回无效 JSON：{error}"}
+    if not isinstance(message, dict) or set(message) != {"result", "error"}:
+        return {"kind": "exception", "result": None, "error": "Docker 工具返回结构非法"}
     if message["error"] is not None:
         return {"kind": "exception", "result": None, "error": message["error"]}
     return {"kind": None, "result": message["result"], "error": None}

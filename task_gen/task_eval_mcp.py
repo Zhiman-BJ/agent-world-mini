@@ -44,6 +44,7 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
                                       for k, v in delivery.package.environment.items()):
         raise ValueError('任务环境与 binding 交付环境不一致')
     return {**config, 'tools': list(delivery.package.tools), 'environment': delivery.package.environment,
+            'runtime': delivery.runtime,
             'software': {'root': str(delivery.software_root), 'python': str(delivery.python_path)}
                         if delivery.software_root else None}
 
@@ -161,6 +162,7 @@ class TaskEvalMcpServer:
                 write_limit=int(self.config["write_limit"]),
                 process_limit=int(self.config.get("process_limit", 1024)),
                 environment=self.config.get("environment", {}),
+                runtime=self.config.get("runtime"),
                 **({'software': self.config['software']} if self.config.get('software') else {}),
                 **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -173,6 +174,81 @@ class DockerRuntimeTests(unittest.TestCase):
                 ).split()
             )
             self.assertEqual(after, before)
+
+    @unittest.skipUnless(
+        os.environ.get("TOOLGEN_DOCKER_TEST_IMAGE"),
+        "设置 TOOLGEN_DOCKER_TEST_IMAGE 后运行真实 Docker 会话测试",
+    )
+    def test_task_eval_mcp_uses_delivery_docker_image(self) -> None:
+        from distill.runner import _server_config
+        from task_gen.task_eval_mcp import TaskEvalMcpServer
+        from tests.test_kimi_mcp import KimiMcpTests
+
+        image = os.environ["TOOLGEN_DOCKER_TEST_IMAGE"]
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TOOLGEN_DOCKER_TEST_ROOT")) as temporary:
+            root = Path(temporary)
+            binding = KimiMcpTests()._make_delivery(root, with_report_tool=True)
+            document = json.loads(binding.read_text(encoding="utf-8"))
+            runtime_path = root / "delivery" / document["runtime_path"]
+            runtime_path.write_text(json.dumps({
+                "schema_version": "1.0", "backend": "docker", "image": image,
+                "delivery_mount": "/delivery", "code_mount": "/opt/agent-world",
+                "software_root": "/opt/tool-software", "python_command": "python",
+            }), encoding="utf-8")
+            tools_path = root / "delivery" / document["tools_path"]
+            tool_document = json.loads(tools_path.read_text(encoding="utf-8"))
+            for tool in tool_document["tools"]:
+                if tool["name"] == "get_ticket":
+                    tool["internal"]["code"] = (
+                        "from pathlib import Path\n"
+                        "import os, pwd\n"
+                        "assert Path('/opt/tool-software').is_dir()\n"
+                        "assert pwd.getpwuid(os.getuid()).pw_name == 'tool'\n"
+                        + tool["internal"]["code"]
+                    )
+            tools_path.write_text(json.dumps(tool_document), encoding="utf-8")
+            delivery = load_delivery(binding)
+            state = root / "task_state"
+            shutil.copytree(delivery.package.package_root / "state", state)
+            config = _server_config({
+                "binding_path": str(binding), "state_root": str(state),
+                "trace": str(root / "task_calls.jsonl"), "max_tool_calls": 3,
+                "timeout": 30, "memory_limit": 2 * 1024**3,
+                "write_limit": 256 * 1024**2,
+                "tools": list(delivery.package.tools),
+            })
+            self.assertEqual(config["runtime"]["backend"], "docker")
+            server = TaskEvalMcpServer(config)
+            update = server.handle({
+                "method": "tools/call", "params": {
+                    "name": "resolve_ticket", "arguments": {"ticket_id": "ticket-1"},
+                },
+            })
+            self.assertFalse(update["isError"], update)
+            response = server.handle({
+                "method": "tools/call", "params": {
+                    "name": "get_ticket", "arguments": {"ticket_id": "ticket-1"},
+                },
+            })
+            self.assertFalse(response["isError"], response)
+            self.assertEqual(response["structuredContent"]["data"]["status"], "resolved")
+            report = server.handle({
+                "method": "tools/call", "params": {
+                    "name": "write_report", "arguments": {"path": "daily.json", "status": "done"},
+                },
+            })
+            self.assertFalse(report["isError"], report)
+            with sqlite3.connect(state / "records.sqlite") as connection:
+                self.assertEqual(connection.execute("SELECT status FROM tickets").fetchone()[0], "resolved")
+            with sqlite3.connect(delivery.package.package_root / "state/records.sqlite") as connection:
+                self.assertEqual(connection.execute("SELECT status FROM tickets").fetchone()[0], "open")
+            self.assertEqual(
+                json.loads((state / "filesystem_scopes/reports/daily.json").read_text())["status"], "done",
+            )
+            self.assertEqual(
+                json.loads((delivery.package.package_root / "state/filesystem_scopes/reports/daily.json").read_text())["status"],
+                "open",
+            )
 
 
 if __name__ == "__main__":

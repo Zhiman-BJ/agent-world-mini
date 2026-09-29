@@ -6,10 +6,28 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from env_gen.tool_gen.delivery import publish
+from env_gen.tool_gen.delivery import _publish_software_profile, publish
 
 
 class ToolDeliveryTests(unittest.TestCase):
+    def test_profile_relocates_petsc_and_slepc_configs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            destination = root / "delivery/profile"
+            for package, filename, key in (
+                ("petsc4py", "petsc.cfg", "PETSC_DIR"),
+                ("slepc4py", "slepc.cfg", "SLEPC_DIR"),
+            ):
+                config = source / f"python-3.11/lib/python3.11/site-packages/{package}/lib/{filename}"
+                config.parent.mkdir(parents=True, exist_ok=True)
+                config.write_text(f"{key} = {source}/python-3.11\n", encoding="utf-8")
+            _publish_software_profile(source, destination, root / "missing-requirements.txt")
+            for package, filename in (("petsc4py", "petsc.cfg"), ("slepc4py", "slepc.cfg")):
+                config = destination / f"python-3.11/lib/python3.11/site-packages/{package}/lib/{filename}"
+                self.assertIn(str(destination), config.read_text(encoding="utf-8"))
+                self.assertNotIn(str(source), config.read_text(encoding="utf-8"))
+
     def test_publishes_one_environment_as_a_self_contained_unit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

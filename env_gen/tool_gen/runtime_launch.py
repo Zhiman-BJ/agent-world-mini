@@ -92,6 +92,8 @@ def docker_stdio_launch(
         "run",
         "--rm",
         "-i",
+        "--runtime",
+        "runc",
         "--user",
         f"{os.getuid()}:{os.getgid()}",
         "--mount",

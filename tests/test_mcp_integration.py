@@ -199,6 +199,50 @@ def test_profile_missing_validation_dependencies_does_not_borrow_host_packages(t
     assert "No module named 'jsonschema'" in result['error']
 
 
+def test_profile_native_library_paths_reach_tool_sandbox(tmp_path):
+    import os
+    import sys
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+
+    profile = tmp_path / 'profile'
+    native = profile / 'python-3.11/native/usr/lib/x86_64-linux-gnu'
+    native.mkdir(parents=True)
+    state = tmp_path / 'state'
+    state.mkdir()
+    outcome = _run_tool(
+        'def run(arguments, context):\n import os\n return {"libraries": os.environ.get("LD_LIBRARY_PATH", "")}',
+        {}, state, 10, 2147483648, 268435456,
+        software={'root': str(profile), 'python': sys.executable},
+    )
+    assert outcome['error'] is None, outcome
+    assert str(native) in outcome['result']['libraries'].split(os.pathsep)
+
+
+def test_tool_sandbox_resolves_its_user_id(tmp_path):
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+
+    outcome = _run_tool(
+        'def run(arguments, context):\n import os, pwd\n'
+        ' return {"user": pwd.getpwuid(os.getuid()).pw_name}',
+        {}, tmp_path, 10, 2147483648, 268435456,
+    )
+    assert outcome['error'] is None, outcome
+    assert outcome['result']['user']
+
+
+def test_native_shutdown_logs_do_not_extend_tool_response(tmp_path):
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+
+    outcome = _run_tool(
+        'def run(arguments, context):\n import atexit, os\n'
+        ' atexit.register(lambda: os.write(1, b"native shutdown log\\n"))\n'
+        ' return {"success": True}',
+        {}, tmp_path, 10, 2147483648, 268435456,
+    )
+    assert outcome['error'] is None, outcome
+    assert outcome['result'] == {'success': True}
+
+
 def test_library_caches_are_temporary_not_task_state(tmp_path):
     import sys
     from task_gen.tool_graph.step_3_chain_execute import _call_tool

@@ -50,6 +50,7 @@ def call_environment_tool(
     environment: dict[str, Any] | None = None,
     software: dict[str, str] | None = None,
     software_root: Path | None = None,
+    runtime: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execute one tool transaction without exposing the state root to the model."""
     tool = tools.get(name)
@@ -92,6 +93,8 @@ def call_environment_tool(
         }
         if call_tool_fn is None:
             runtime_options["process_limit"] = process_limit
+            if runtime is not None:
+                runtime_options["runtime"] = runtime
         outcome = active_call(
             tool["internal"]["code"],
             arguments,
