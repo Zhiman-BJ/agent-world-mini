@@ -28,6 +28,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-312/
 .venv-scenario-*/
 venv/
 build/
