@@ -16,6 +16,104 @@ from env_gen.tool_gen.kimi_mcp import kimi_config
 
 
 class DockerRuntimeTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get('TOOLGEN_DOCKER_TEST_IMAGE'), '设置测试镜像后执行')
+    def test_existing_container_mcp_launch_remains_executable(self):
+        from env_gen.tool_gen.runtime_launch import docker_stdio_launch
+        from tests.test_kimi_mcp import KimiMcpTests
+        import env_gen.tool_gen.kimi_mcp as adapter
+
+        with tempfile.TemporaryDirectory(dir=os.environ.get('TOOLGEN_DOCKER_TEST_ROOT')) as tmp:
+            root = Path(tmp)
+            binding = KimiMcpTests()._make_delivery(root, with_report_tool=True)
+            document = json.loads(binding.read_text())
+            runtime = root / 'delivery' / document['runtime_path']
+            runtime.write_text(json.dumps({'schema_version': '1.0', 'backend': 'docker',
+                'image': os.environ['TOOLGEN_DOCKER_TEST_IMAGE'], 'python_command': 'python',
+                'software_root': '/opt/tool-software', 'delivery_mount': '/delivery', 'code_mount': '/opt/agent-world'}))
+            delivery = load_delivery(binding)
+            run = root / 'run'
+            run.mkdir()
+            session = run / 'sandbox'
+            trace = run / 'calls.jsonl'
+            launch = docker_stdio_launch(delivery, server_path=Path(adapter.__file__),
+                arguments=[str(Path(adapter.__file__)), str(binding), '--session-root', str(session),
+                           '--trace', str(trace), '--max-tool-calls', '5'],
+                writable_paths=(session, trace))
+            for name in ('resolve_ticket', 'get_ticket'):
+                request = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                           'params': {'name': name, 'arguments': {'ticket_id': 'ticket-1'}}}
+                result = subprocess.run([str(launch.command), *launch.arguments],
+                    input=json.dumps(request)+'\n', text=True, capture_output=True, timeout=60)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                response = json.loads(result.stdout.strip())
+                self.assertFalse(response['result']['isError'], response)
+                self.assertEqual(response['result']['structuredContent']['data']['status'], 'resolved')
+            self.assertEqual(json.loads((session / 'session.json').read_text())['tool_calls'], 2)
+
+    @unittest.skipUnless(os.environ.get('TOOLGEN_DOCKER_BUILD_TEST_BASE'), '设置测试基础镜像后执行')
+    def test_container_recipe_is_prepared_validated_and_published(self):
+        from types import SimpleNamespace
+        from env_gen.tool_gen.compiler import ToolGenerator
+        from env_gen.tool_gen.delivery import publish
+        from env_gen.tool_gen.mcp_server import ToolMcpServer
+        from tests.test_kimi_mcp import KimiMcpTests
+
+        with tempfile.TemporaryDirectory(dir=os.environ.get('TOOLGEN_DOCKER_TEST_ROOT')) as tmp:
+            root = Path(tmp)
+            KimiMcpTests()._make_delivery(root)
+            source = root / 'support'
+            output = source / 'tool_generation'
+            output.mkdir(exist_ok=True)
+            plan = {'python': '3.13', 'python_packages': [], 'system_packages': ['kicad'],
+                    'container': {'base_image': os.environ['TOOLGEN_DOCKER_BUILD_TEST_BASE'], 'apt_packages': []}}
+            (output / 'software_plan.json').write_text(json.dumps(plan))
+            generator = ToolGenerator(None, software_repair_attempts=0)
+            generator._prepare_software(source)
+            environment = json.loads((source / 'environment.json').read_text())
+            tools = json.loads((source / 'tools.json').read_text())['tools']
+            drafts = [{'tool': tool, 'tests': [{'calls': [{'tool': tool['name'], 'arguments': {'ticket_id': 'ticket-1'}}],
+                       'expect_success': True, 'expect_changed': tool['name'] == 'resolve_ticket',
+                       'expected_data': {'status': 'resolved' if tool['name'] == 'resolve_ticket' else 'open'}}]}
+                      for tool in tools]
+            reports = generator._validate(source, environment, drafts)
+            self.assertTrue(all(report['status'] == 'passed' for report in reports), reports)
+            receipt = json.loads((output / 'container_runtime.json').read_text())
+            probe = subprocess.run(['docker', 'run', '--rm', '--runtime', 'runc', '--network', 'none',
+                receipt['image'], 'python', '-c',
+                "import subprocess; subprocess.run(['/opt/tool-software/bin/kicad-cli','version'],check=True)"],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(probe.returncode, 0, probe.stderr)
+            result = SimpleNamespace(package_root=source, environment_path=source/'environment.json',
+                tools_path=source/'tools.json', validation_path=source/'tool_validation.json',
+                grounding_path=source/'tool_grounding.json', action_plan_path=source/'action_plan.json')
+            binding = publish(result, root/'container-delivery').binding_path
+            delivery = load_delivery(binding)
+            session = root / 'run/sandbox'
+            with ToolMcpServer(delivery, session_root=session) as server:
+                updated = server.handle({'method': 'tools/call', 'params': {'name': 'resolve_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+                self.assertFalse(updated['isError'], updated)
+            with ToolMcpServer(delivery, session_root=session) as server:
+                read = server.handle({'method': 'tools/call', 'params': {'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+                self.assertEqual(read['structuredContent']['data']['status'], 'resolved')
+
+    @unittest.skipUnless(os.environ.get('TOOLGEN_DOCKER_BUILD_TEST_BASE'), '设置测试基础镜像后执行')
+    def test_image_with_unloadable_executable_is_not_ready(self):
+        from env_gen.tool_gen.compiler import ToolGenerator, ToolGenerationError
+
+        with tempfile.TemporaryDirectory(dir=os.environ.get('TOOLGEN_DOCKER_TEST_ROOT')) as tmp:
+            source = Path(tmp)
+            output = source / 'tool_generation'
+            output.mkdir()
+            plan = {'python': '3.13', 'python_packages': [],
+                    'system_packages': [{'name': 'runtime check', 'executable': 'runtime-check'}],
+                    'container': {'base_image': os.environ['TOOLGEN_DOCKER_BUILD_TEST_BASE'], 'apt_packages': []}}
+            (output / 'software_plan.json').write_text(json.dumps(plan))
+            (output / 'container_runtime.json').write_text(json.dumps({'backend': 'docker', 'image': 'older-image'}))
+            with self.assertRaises(ToolGenerationError):
+                ToolGenerator(None, software_repair_attempts=0)._prepare_software(source)
+            self.assertFalse((output / 'container_runtime.json').exists())
+            self.assertEqual(json.loads((output/'software_status.json').read_text())['status'], 'blocked')
+
     def test_renders_explicit_professional_software_recipe(self) -> None:
         plan = {
             "python": "3.11",
@@ -35,6 +133,12 @@ class DockerRuntimeTests(unittest.TestCase):
         self.assertIn('ENV QT_QPA_PLATFORM="offscreen"', recipe)
         self.assertIn("TOOLGEN_SOFTWARE_ROOT=/opt/tool-software", recipe)
         self.assertTrue(image_name(plan).startswith("agentworld/tool-runtime:"))
+
+    def test_container_environment_is_applied_before_install_and_discovery(self):
+        recipe = dockerfile({'python_packages': [], 'system_packages': ['kicad'],
+            'container': {'apt_packages': [], 'environment': {'PATH': '/opt/kicad/bin:/usr/bin'}}})
+        self.assertLess(recipe.index('ENV PATH='), recipe.index('RUN python -m pip'))
+        self.assertLess(recipe.index('ENV PATH='), recipe.index('for candidate in kicad-cli'))
 
     def test_does_not_guess_container_packages(self) -> None:
         with self.assertRaisesRegex(ValueError, "container 配置"):

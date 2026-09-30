@@ -18,7 +18,7 @@ from utils.io import write_json
 from .software import SYSTEM_EXECUTABLES, expanded_packages
 
 
-IMAGE_RECIPE_VERSION = "2"
+IMAGE_RECIPE_VERSION = "3"
 
 
 def _load_plan(package_root: Path) -> dict[str, Any]:
@@ -107,6 +107,8 @@ def dockerfile(plan: dict[str, Any]) -> str:
         "ENTRYPOINT []",
         "ENV DEBIAN_FRONTEND=noninteractive",
     ]
+    for key, value in sorted(environment.items()):
+        lines.append(f"ENV {key}={json.dumps(value)}")
     if apt_packages:
         names = " ".join(shlex.quote(item) for item in apt_packages)
         lines.append(
@@ -141,8 +143,6 @@ def dockerfile(plan: dict[str, Any]) -> str:
             f"--no-audit --no-fund {packages}"
         )
     lines.append("ENV TOOLGEN_SOFTWARE_ROOT=/opt/tool-software")
-    for key, value in sorted(environment.items()):
-        lines.append(f"ENV {key}={json.dumps(value)}")
     lines.extend(["WORKDIR /workspace", "CMD [\"python\", \"--version\"]", ""])
     return "\n".join(lines)
 
@@ -158,6 +158,7 @@ def build_image(
     package_root = package_root.resolve()
     plan = _load_plan(package_root)
     target_image = image or image_name(plan)
+    (package_root / 'tool_generation/container_runtime.json').unlink(missing_ok=True)
     executable = shutil.which(docker_command)
     if executable is None:
         raise RuntimeError(f"找不到 Docker 命令：{docker_command}")
@@ -205,6 +206,22 @@ def build_image(
         "software_root": "/opt/tool-software",
         "python_command": "python",
     }
+    project = Path(__file__).resolve().parents[2]
+    probe_code = (
+        "import sys,json;sys.path.insert(0,'/opt/agent-world');"
+        "from pathlib import Path;from env_gen.tool_gen.software import inspect_system_packages;"
+        "status=inspect_system_packages(Path('/opt/tool-software'),json.loads(sys.argv[1]),python=sys.executable);"
+        "print(json.dumps(status));sys.exit(0 if status['status']=='ready' else 1)"
+    )
+    checked = subprocess.run(
+        [executable, 'run', '--rm', '--runtime', 'runc', '--network', 'none',
+         '--mount', f'type=bind,source={project},target=/opt/agent-world,readonly',
+         target_image, 'python', '-c', probe_code, json.dumps(plan)],
+        capture_output=True, text=True, timeout=min(timeout, 180),
+    )
+    if checked.returncode:
+        raise RuntimeError('镜像中的软件依赖检查失败：' + (checked.stdout + checked.stderr)[-4000:])
+    write_json(package_root / 'tool_generation/software_system_status.json', json.loads(checked.stdout))
     output = package_root / "tool_generation"
     output.mkdir(exist_ok=True)
     write_json(output / "container_runtime.json", runtime)

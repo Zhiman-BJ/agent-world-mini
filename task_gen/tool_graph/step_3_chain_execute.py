@@ -58,7 +58,12 @@ from jsonschema import validators
 from .prompt_principles import REVIEW_GUIDANCE, TASK_STATE_CHAIN
 
 from .contracts import ExecuteChainsInput, ExecuteChainsOutput
-from .llm import infer, parse_json_object
+
+
+def infer(*args, **kwargs):
+    from .llm import infer as infer_arguments
+
+    return infer_arguments(*args, **kwargs)
 
 
 def execute_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutput:
@@ -363,6 +368,8 @@ def _generate_arguments(
     objective: str,
     review_guidance: str | None = None,
 ) -> dict[str, Any]:
+    from .llm import parse_json_object
+
     prompt = json.dumps({
             "task": (
                 "为当前调用生成能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
@@ -612,6 +619,19 @@ os._exit(0)
 _MAX_SANDBOX_OUTPUT_BYTES = 16 * 1024 * 1024
 
 
+def _context_source() -> str:
+    project = Path(__file__).resolve().parents[2]
+    shared = project / 'utils/record_store.py'
+    resources = (project / 'env_gen/tool_gen/resources.py').read_text(encoding='utf-8').replace(
+        'from __future__ import annotations', ''
+    )
+    context = Path(__file__).with_name('state_runtime.py').read_text(encoding='utf-8')
+    context = context.replace('from env_gen.tool_gen.resources import ResourceCatalog', '')
+    return shared.read_text(encoding='utf-8') + '\n' + resources + '\n' + context.replace(
+        'from utils.record_store import RecordStore, _validate, _json, _quote', ''
+    )
+
+
 def _workspace_usage(root: Path) -> tuple[int, int, str | None]:
     """Return regular-file bytes/count and reject links or special filesystem nodes."""
     total = 0
@@ -826,7 +846,7 @@ def _run_tool(
         "code": code,
         "arguments": arguments,
         "environment": environment or {},
-        "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
+        "context_source": _context_source(),
         "memory_limit": memory_limit,
         "write_limit": write_limit,
         "process_limit": process_limit,
@@ -896,7 +916,7 @@ def _run_docker_tool(
         "code": code,
         "arguments": arguments,
         "environment": environment or {},
-        "context_source": Path(__file__).with_name("state_runtime.py").read_text(encoding="utf-8"),
+        "context_source": _context_source(),
         "memory_limit": memory_limit,
         "write_limit": write_limit,
         "process_limit": process_limit,

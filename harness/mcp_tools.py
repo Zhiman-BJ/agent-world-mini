@@ -36,6 +36,7 @@ RESOURCE_TOOLS = (
                 "scope_id": {"type": "string", "minLength": 1},
                 "query": {"type": "string"},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+                "offset": {"type": "integer", "minimum": 0},
             },
             [],
         ),

@@ -72,11 +72,12 @@ def call_environment_tool(
             for item in tool.get("usageConditions", {}).get("targetResources", [])
         }
         allowed_scopes = known_scopes & declared
-        arguments = catalog.normalize_arguments(
-            arguments,
-            schema=tool["inputSchema"],
-            allowed_scopes=allowed_scopes,
-        )
+        try:
+            arguments = catalog.normalize_arguments(
+                arguments, schema=tool['inputSchema'], allowed_scopes=allowed_scopes,
+            )
+        except (ValueError, OSError) as error:
+            return {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
     schema_error = _schema_error(tool["inputSchema"], arguments)
     if schema_error:
         return {"tool": name, "arguments": arguments, "result": None, "error": schema_error}
@@ -121,13 +122,17 @@ def call_environment_tool(
         elif result.get("success") is not True:
             error = "工具返回值必须包含 success=true"
         else:
-            if catalog is not None:
-                result = catalog.externalize_result(
-                    result,
-                    schema=tool["outputSchema"],
-                    allowed_scopes=allowed_scopes,
-                )
-            error = _schema_error(tool["outputSchema"], result)
+            try:
+                if catalog is not None:
+                    output_catalog = ResourceCatalog(
+                        environment, lambda scope_id: candidate / 'filesystem_scopes' / scope_id,
+                    )
+                    result = output_catalog.externalize_result(
+                        result, schema=tool['outputSchema'], allowed_scopes=allowed_scopes,
+                    )
+                error = _schema_error(tool['outputSchema'], result)
+            except (ValueError, OSError) as caught:
+                error = str(caught)
         if error is None and not read_only:
             previous = temporary_path / "previous"
             state_root.rename(previous)

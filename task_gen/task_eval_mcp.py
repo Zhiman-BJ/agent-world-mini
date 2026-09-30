@@ -136,7 +136,7 @@ class TaskEvalMcpServer:
                 elif name == "list_environment_resources":
                     data = {"resources": self.resources.list(
                         scope_id=arguments.get("scope_id"), query=arguments.get("query"),
-                        limit=arguments.get("limit", 100))}
+                        limit=arguments.get("limit", 100), offset=arguments.get("offset", 0))}
                 else:
                     data = self.resources.inspect(
                         str(arguments.get("ref", "")),

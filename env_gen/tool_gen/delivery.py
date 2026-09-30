@@ -13,7 +13,7 @@ from pathlib import Path
 from utils.io import write_json
 
 from .compiler import ToolGenerationResult
-from .software import runtime_info
+from .software import runtime_info, installed_versions
 
 
 BINDING_SCHEMA_VERSION = "1.0"
@@ -112,7 +112,10 @@ def _publish_software_profile(
 ) -> None:
     """Publish one immutable profile without racing another environment."""
 
+    versions = installed_versions(source, requirements)
     if destination.exists():
+        if installed_versions(destination, destination / 'requirements.txt') != versions:
+            raise ValueError(f'共享软件版本与当前安装结果不同：{destination}')
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -137,18 +140,21 @@ def _publish_software_profile(
                     config.write_text(updated, encoding="utf-8")
         if requirements.is_file():
             shutil.copy2(requirements, staged / "requirements.txt")
+        write_json(staged / 'installed_versions.json', versions)
         try:
             staged.rename(destination)
         except OSError:
             if not destination.is_dir():
                 raise
+            if installed_versions(destination, destination / 'requirements.txt') != versions:
+                raise ValueError(f'共享软件版本与当前安装结果不同：{destination}')
 
 
 def _software_profile_id(software: dict[str, object]) -> str:
     profile = software.get("profile_id")
     if profile:
         return str(profile)
-    plan = software.get("plan", {})
+    plan = {'plan': software.get('plan', {}), 'installed_versions': software.get('installed_versions', {})}
     payload = json.dumps(plan, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return "py-" + hashlib.sha256(payload).hexdigest()[:12]
 
@@ -182,6 +188,11 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
             )
         container_runtime = value
     software = runtime_info(source_package_root)
+    if software and container_runtime is None:
+        software = dict(software)
+        software['installed_versions'] = installed_versions(
+            Path(str(software['root'])), source_package_root / 'tool_runtime/requirements.txt'
+        )
     profile = (
         _software_profile_id(software)
         if software and container_runtime is None

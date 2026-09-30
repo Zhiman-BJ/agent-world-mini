@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import mimetypes
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -86,20 +87,27 @@ class ResourceCatalog:
         scope_id: str | None = None,
         query: str | None = None,
         limit: int = 100,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         if not 1 <= limit <= 500:
             raise ValueError("limit 必须在 1..500")
+        if type(offset) is not int or offset < 0:
+            raise ValueError("offset 必须是非负整数")
         selected = [scope_id] if scope_id is not None else list(self._scopes)
         unknown = [item for item in selected if item not in self._scopes]
         if unknown:
             raise ValueError("未知 Filesystem Scope：" + ", ".join(unknown))
         needle = (query or "").casefold()
         resources: list[dict[str, Any]] = []
+        skipped = 0
         for current_scope in selected:
             root = self._scope_root(current_scope)
             for path in sorted(root.rglob("*")):
                 relative = path.relative_to(root).as_posix()
                 if needle and needle not in relative.casefold():
+                    continue
+                if skipped < offset:
+                    skipped += 1
                     continue
                 resources.append(self._describe(current_scope, path))
                 if len(resources) >= limit:
@@ -113,10 +121,13 @@ class ResourceCatalog:
         path = self.resolve(ref, must_exist=True)
         result = self._describe(scope_id, path)
         if path.is_file() and preview_chars:
-            sample = path.read_bytes()[: min(preview_chars * 4, 80000)]
+            with path.open('rb') as stream:
+                sample = stream.read(preview_chars * 4 + 4)
             try:
-                result["text_preview"] = sample.decode("utf-8")[:preview_chars]
-                result["preview_truncated"] = path.stat().st_size > len(sample)
+                size = path.stat().st_size
+                text = codecs.getincrementaldecoder('utf-8')().decode(sample, final=size <= len(sample))
+                result["text_preview"] = text[:preview_chars]
+                result["preview_truncated"] = size > len(sample) or len(text) > preview_chars
             except UnicodeDecodeError:
                 result["text_preview"] = None
                 result["preview_truncated"] = False
@@ -260,6 +271,8 @@ class ResourceCatalog:
                 else:
                     relative = _relative_path(current)
                 target = self._scope_root(str(scope_id)) / Path(*relative.parts)
+                if declared_kind in {'file', 'directory'} and not target.exists():
+                    raise FileNotFoundError(f'输出资源不存在：{current}')
                 if target.exists() and declared_kind == "file" and not target.is_file():
                     raise ValueError(f"输出资源要求文件，实际为目录：{current}")
                 if target.exists() and declared_kind == "directory" and not target.is_dir():

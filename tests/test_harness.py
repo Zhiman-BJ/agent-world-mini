@@ -106,6 +106,7 @@ def test_task_call_externalizes_annotated_output_as_aw_reference(tmp_path):
     }
 
     def fixture_call(*_args, **_kwargs):
+        (_args[2] / 'filesystem_scopes/reports/daily.json').write_text('{}')
         return {
             "kind": None,
             "result": {"success": True, "data": {"report": "daily.json"}},

@@ -42,7 +42,24 @@ class ToolMcpServer:
             software_root=software_root,
             temp_root=temp_root,
             session_root=session_root,
+            isolated=not (
+                delivery.runtime.get('backend') == 'docker'
+                and Path('/.dockerenv').is_file()
+            ),
+            execution_runtime=delivery.runtime,
         )
+        if self.runtime.resumed:
+            saved = self.runtime.root / 'session.json'
+            if saved.is_file():
+                self.calls = int(json.loads(saved.read_text(encoding='utf-8')).get('tool_calls', 0))
+            if self.trace_path and self.trace_path.is_file():
+                for line in self.trace_path.read_text(encoding='utf-8').splitlines():
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if record.get('package_id') == delivery.binding['package_id']:
+                        self.calls = max(self.calls, int(record.get('sequence', 0)))
         self._tools = {str(tool["name"]): tool for tool in delivery.package.tools}
         reserved = {tool["name"] for tool in RESOURCE_TOOLS}
         conflicts = sorted(reserved & set(self._tools))
@@ -91,6 +108,7 @@ class ToolMcpServer:
                     scope_id=arguments.get("scope_id"),
                     query=arguments.get("query"),
                     limit=arguments.get("limit", 100),
+                    offset=arguments.get("offset", 0),
                 )
             }
         elif name == "inspect_environment_resource":
@@ -118,7 +136,8 @@ class ToolMcpServer:
             raise RpcError(-32602, "工具 arguments 必须是 object")
 
         self.calls += 1
-        before = self.runtime.snapshot()
+        read_only = name in resource_names or self._tools[name]['usageConditions']['sideEffects'] == []
+        before = None if read_only else self.runtime.snapshot()
         runtime_error: str | None = None
         try:
             result = (
@@ -137,8 +156,8 @@ class ToolMcpServer:
                     "retryable": False,
                 },
             }
-        after = self.runtime.snapshot()
-        changes = state_diff(before, after)
+        changes = ({'record_sets': [], 'filesystem_scopes': []} if read_only
+                   else state_diff(before, self.runtime.snapshot()))
         is_error = runtime_error is not None or result.get("success") is False
         self._trace(
             {

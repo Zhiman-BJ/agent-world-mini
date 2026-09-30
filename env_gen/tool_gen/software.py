@@ -298,6 +298,32 @@ def runtime_info(package_root: Path) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
+def installed_versions(root: Path, requirements: Path | None = None) -> dict[str, Any]:
+    """Describe resolved software versions used for profile reuse."""
+    from importlib.metadata import Distribution
+
+    packages = set()
+    python_versions = set()
+    conda = set()
+    for prefix in [root, *root.glob('python*')]:
+        config = prefix / 'pyvenv.cfg'
+        if config.is_file():
+            python_versions.update(line.strip() for line in config.read_text().splitlines()
+                                   if line.startswith(('version =', 'version_info =')))
+        for metadata in prefix.glob('lib/python*/site-packages/*.dist-info'):
+            distribution = Distribution.at(metadata)
+            packages.add((str(distribution.metadata['Name']).lower(), distribution.version))
+        for metadata in prefix.glob('conda-meta/*.json'):
+            value = json.loads(metadata.read_text())
+            conda.add((value['name'], value['version'], value.get('build', '')))
+    lock = root / 'node/package-lock.json'
+    return {'python': sorted(python_versions), 'packages': sorted(packages),
+            'conda': sorted(conda),
+            'node': json.loads(lock.read_text()) if lock.is_file() else None,
+            'requirements': sorted(requirements.read_text().splitlines())
+                if requirements is not None and requirements.is_file() else []}
+
+
 def runtime_environment(
     software_root: Path,
     base: dict[str, str] | None = None,

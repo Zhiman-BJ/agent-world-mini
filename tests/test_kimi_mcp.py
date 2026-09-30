@@ -597,7 +597,7 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual(Path(entry["env"]["PETSC_DIR"]), petsc_prefix)
             self.assertEqual(Path(entry["env"]["SLEPC_DIR"]), petsc_prefix)
 
-    def test_config_uses_declared_docker_image_and_translates_paths(self) -> None:
+    def test_config_loads_docker_binding_through_host_mcp(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             binding = self._make_delivery(root)
@@ -626,30 +626,12 @@ class KimiMcpTests(unittest.TestCase):
             )
 
             entry = config["mcpServers"]["agent_world_kicad"]
-            self.assertEqual(Path(entry["command"]).name, "docker")
-            self.assertEqual(entry["args"][:3], ["run", "--rm", "-i"])
-            self.assertIn("agentworld/kicad:9.0", entry["args"])
-            self.assertIn(
-                "/delivery/environments/support/binding.json", entry["args"]
-            )
-            self.assertTrue(
-                any(
-                    item.endswith("/env_gen/tool_gen/kimi_mcp.py")
-                    and item.startswith("/opt/agent-world/")
-                    for item in entry["args"]
-                )
-            )
-            self.assertIn("/external/0/calls.jsonl", entry["args"])
-            self.assertIn("/external/0/sandbox", entry["args"])
-            external_mounts = [
-                item
-                for item in entry["args"]
-                if item.startswith("type=bind,source=")
-                and "target=/external/" in item
-            ]
-            self.assertEqual(len(external_mounts), 1)
-            self.assertIn("--user", entry["args"])
-            self.assertEqual(entry["env"], {})
+            self.assertEqual(Path(entry['command']), Path(sys.executable).absolute())
+            self.assertEqual(Path(entry['args'][1]), binding)
+            self.assertIn(str(root / 'traces/calls.jsonl'), entry['args'])
+            self.assertIn(str(root / 'traces/sandbox'), entry['args'])
+            self.assertEqual(delivery.runtime['backend'], 'docker')
+            self.assertEqual(delivery.runtime['image'], 'agentworld/kicad:9.0')
 
 
 if __name__ == "__main__":

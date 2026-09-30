@@ -235,7 +235,7 @@ class FakeAgent:
                         {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
                         ["ticket_id", "status"],
                     ),
-                    "tests": [{"calls": [{"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False}],
+                    "tests": [{"calls": [{"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False, "expected_data": {"ticket_id": "ticket-1", "status": "open"}}],
                 },
                 "resolve_ticket": {
                     "tool": tool(
