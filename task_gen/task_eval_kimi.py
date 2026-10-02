@@ -13,6 +13,7 @@ import tempfile
 import time
 from typing import Any
 
+from harness.kimi_file_policy import build_kimi_file_hook_command
 from .tool_graph.llm import _client
 from .tool_result_reader import ResultReader
 from .task_eval_mcp import bind_delivery
@@ -102,16 +103,20 @@ def run_kimi_agent(
         profile = root / "agent.md"
         profile_text = (
             '---\nname: agent\noverride: true\ndescription: Environment task solver\n'
-            'tools: ["mcp__agent_world_eval__*"]\ndisallowedTools: ["select_tools"]\n'
+            'tools: ["mcp__agent_world_eval__*", "Read", "Grep", "Glob"]\n'
+            'disallowedTools: ["Write", "Edit", "Bash", "Agent", "AgentSwarm", "WebSearch", "FetchURL", "AskUserQuestion", "select_tools"]\n'
             'subagents: []\n---\n' + system_prompt.strip() + '\n'
         )
         profile.write_text(profile_text, encoding="utf-8")
         (log_dir / "agent.md").write_text(profile_text, encoding="utf-8")
+        native_file_audit = log_dir / "native_file_access.jsonl"
+        native_file_audit.touch(mode=0o600)
         payload = {
             "sdk_path": str(Path(sdk_value).expanduser().resolve()),
             "home_dir": str(root / "home"), "work_dir": str(work_dir),
             "profile": str(profile), "log_dir": str(log_dir.resolve()), "prompt": prompt,
-            "tool_count": len(config["tools"]) + 1,
+            "tool_count": len(config["tools"]) + 4,
+            "mcp_tool_count": len(config["tools"]) + 1,
             "model": client.model, "base_url": client.base_url, "api_key": client.api_key,
             "provider_type": options.get("provider_type", "openai"),
             "responses_stream": options.get("responses_stream", True),
@@ -119,6 +124,11 @@ def run_kimi_agent(
             **({'max_output_size': integer_options['max_output_size']}
                if 'max_output_size' in integer_options else {}),
             "temperature": temperature,
+            "file_hook_command": build_kimi_file_hook_command(
+                work_dir,
+                root / "home",
+                native_file_audit,
+            ),
             "loop_control": {
                 **({'maxStepsPerTurn': integer_options['max_steps_per_turn']}
                    if 'max_steps_per_turn' in integer_options else {}),
