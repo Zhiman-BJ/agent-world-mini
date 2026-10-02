@@ -408,36 +408,36 @@ IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
 
 def load_environment(stage_input: EnvironmentLoadInput) -> EnvironmentLoadOutput:
-    """读取环境包、做合规性检查，并返回完整 environment dict。
+    """Load one published ToolGen delivery through its binding contract.
 
-    只使用 ``config.environment_dir``；不读 workspace 内容，不复制任何文件。
+    The new delivery is the only supported input.  Runtime paths stay private
+    to later execution stages and are never part of the public environment.
     """
     environment_dir = stage_input["config"].environment_dir
-
     binding = environment_dir / "binding.json"
-    if binding.is_file():
-        from env_gen.tool_gen.kimi_mcp import load_delivery
-        delivery = load_delivery(binding)
-        environment = {**delivery.package.environment, "tools": list(delivery.package.tools)}
-        state = delivery.package.package_root / "state"
-        _validate_v2_state(state, environment)
-        return {"environment": environment, "runtime": {
-            "binding_path": str(delivery.binding_path), "initial_state": str(state),
-            "software": {"root": str(delivery.software_root), "python": str(delivery.python_path)}
-                        if delivery.software_root else None,
-        }}
+    if not binding.is_file():
+        raise ValueError(f"新版环境必须提供 binding.json：{binding}")
 
-    # ==================== 分区 0：读入三个被检查对象 ====================
-    environment = _read_json_object(environment_dir / "environment.json")
-    if environment.get("schema_version") == "2.0":
-        return {"environment": _load_v2_environment(environment_dir, environment, stage_input["config"].schema_dir)}
-    validation = _read_json_object(environment_dir / "validation.json")
-    workspace = environment_dir / "workspace"
-    if not workspace.is_dir():
-        raise ValueError(f"workspace 不存在或不是目录：{workspace}")
+    from harness.delivery import load_delivery
 
-    check_environment_compliance(environment, validation, workspace)
-    return {"environment": environment}
+    delivery = load_delivery(binding)
+    environment = {
+        **delivery.package.environment,
+        "tools": list(delivery.package.tools),
+    }
+    state = delivery.package.package_root / "state"
+    return {
+        "environment": environment,
+        "runtime": {
+            "binding_path": str(delivery.binding_path),
+            "initial_state": str(state),
+            "runtime": delivery.runtime,
+            "software": (
+                {"root": str(delivery.software_root), "python": str(delivery.python_path)}
+                if delivery.software_root else None
+            ),
+        },
+    }
 
 
 def _load_v2_environment(root: Path, environment: dict[str, Any], schema_dir: Path) -> dict[str, Any]:

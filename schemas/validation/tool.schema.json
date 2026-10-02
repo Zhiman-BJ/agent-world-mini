@@ -18,15 +18,7 @@
       "description": "说明工具做什么、何时使用、关键限制和主要副作用。不得包含 Python 代码、内部路径或测试细节。"
     },
     "usageConditions": {
-      "type": "object",
-      "required": ["targetResources", "targetObjects", "preconditions", "sideEffects"],
-      "properties": {
-        "targetResources": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
-        "targetObjects": {"type": "array", "items": {"type": "object", "required": ["objectType", "identifiedBy"], "properties": {"objectType": {"type": "string"}, "identifiedBy": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false}, "minItems": 1},
-        "preconditions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "sideEffects": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
-      },
-      "additionalProperties": false
+      "$ref": "#/$defs/usageConditions"
     },
     "inputSchema": {
       "$ref": "#/$defs/inputSchema"
@@ -49,9 +41,53 @@
       "additionalProperties": false
     }
   },
-  "required": ["name", "description", "inputSchema", "outputSchema", "internal"],
+  "required": ["name", "description", "usageConditions", "inputSchema", "outputSchema", "internal"],
   "additionalProperties": false,
   "$defs": {
+    "usageConditions": {
+      "type": "object",
+      "description": "工具适用的环境对象、调用前状态和成功后的可观察变化。",
+      "properties": {
+        "targetResources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "targetObjects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "objectType": {"type": "string", "minLength": 1},
+              "identifiedBy": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {"type": "string", "minLength": 1}
+              }
+            },
+            "required": ["objectType", "identifiedBy"],
+            "additionalProperties": false
+          }
+        },
+        "preconditions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "sideEffects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "required": ["targetResources", "targetObjects", "preconditions", "sideEffects"],
+      "additionalProperties": false
+    },
     "jsonSchemaNode": {
       "$ref": "https://json-schema.org/draft/2020-12/schema",
       "description": "一个通过 Draft 2020-12 元 Schema 校验的 JSON Schema 节点；标准允许对象形式或布尔形式。"

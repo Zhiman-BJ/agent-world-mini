@@ -111,6 +111,8 @@ class _Session:
                   'write_limit': config.execution.get('tool_max_write_bytes', 256 * 1024**2),
                   'software_root': config.execution.get('tool_software_root'),
                   'software': (runtime or {}).get('software')}
+        if runtime and runtime.get('runtime'):
+            server['runtime'] = runtime['runtime']
         server['review_choice_seed'] = config.llm.get('review_choice_seed', secrets.randbits(64)) + index
         _write(root / 'server.json', server)
         self.budget = int(config.llm.get('timeout_seconds', 1800))

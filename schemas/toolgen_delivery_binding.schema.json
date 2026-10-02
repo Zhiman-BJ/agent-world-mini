@@ -43,6 +43,9 @@
         {"$ref": "#/$defs/relativePath"},
         {"type": "null"}
       ]
+    },
+    "runtime_path": {
+      "$ref": "#/$defs/relativePath"
     }
   },
   "required": [

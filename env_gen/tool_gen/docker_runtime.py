@@ -1,0 +1,276 @@
+"""Build reusable software images for ToolGen professional environments."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import tempfile
+from typing import Any
+from urllib.parse import urlsplit
+
+from utils.io import write_json
+
+from .software import SYSTEM_EXECUTABLES, expanded_packages
+
+
+IMAGE_RECIPE_VERSION = "3"
+
+
+def _load_plan(package_root: Path) -> dict[str, Any]:
+    candidates = (
+        package_root / "tool_generation/software_plan.json",
+        package_root / "tool_runtime.json",
+    )
+    for path in candidates:
+        if path.is_file():
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError(f"软件计划必须是 JSON object：{path}")
+            return value
+    raise FileNotFoundError(f"没有找到软件计划：{package_root}")
+
+
+def _node_packages(plan: dict[str, Any]) -> list[str]:
+    normalized = []
+    for item in plan.get("node_packages", []) or []:
+        if isinstance(item, str):
+            normalized.append(item)
+        elif isinstance(item, dict) and item.get("name"):
+            suffix = "@" + str(item["version"]) if item.get("version") else ""
+            normalized.append(str(item["name"]) + suffix)
+        else:
+            raise ValueError("node_packages 包含无效条目")
+    return normalized
+
+
+def _container_spec(plan: dict[str, Any]) -> dict[str, Any]:
+    container = plan.get("container")
+    if not isinstance(container, dict):
+        raise ValueError("需要 Docker 的环境必须在软件计划中提供 container 配置")
+    version = str(plan.get("python") or "3.11")
+    base_image = str(
+        container.get("base_image") or f"python:{version}-slim-bookworm"
+    )
+    apt_packages = container.get("apt_packages", [])
+    if not isinstance(apt_packages, list) or not all(
+        isinstance(item, str) and item for item in apt_packages
+    ):
+        raise ValueError("container.apt_packages 必须是软件包名称数组")
+    environment = container.get("environment", {})
+    if not isinstance(environment, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in environment.items()
+    ):
+        raise ValueError("container.environment 必须是字符串键值 object")
+    executable_groups: list[list[str]] = []
+    for item in plan.get("system_packages", []) or []:
+        name = str(item.get("name") if isinstance(item, dict) else item).strip()
+        normalized = name.lower().replace("_", " ").replace("-", " ")
+        if isinstance(item, dict) and item.get("executable"):
+            candidates = [str(item["executable"])]
+        else:
+            candidates = list(SYSTEM_EXECUTABLES.get(normalized, ()))
+        if candidates:
+            executable_groups.append(candidates)
+    spec = {
+        "recipe_version": IMAGE_RECIPE_VERSION,
+        "base_image": base_image,
+        "apt_packages": sorted(set(apt_packages)),
+        "python_packages": sorted(set(expanded_packages(plan))),
+        "node_packages": sorted(set(_node_packages(plan))),
+        "environment": dict(sorted(environment.items())),
+        "system_executables": executable_groups,
+    }
+    mirror = container.get("apt_mirror")
+    if mirror is not None:
+        if not isinstance(mirror, str):
+            raise ValueError("container.apt_mirror 必须是 HTTP(S) 镜像站根地址")
+        parsed = urlsplit(mirror)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+                or any(character in mirror for character in "\\\n\r\t |'\";`$")):
+            raise ValueError("container.apt_mirror 必须是 HTTP(S) 镜像站根地址")
+        spec["apt_mirror"] = mirror.rstrip("/")
+    return spec
+
+
+def image_name(plan: dict[str, Any]) -> str:
+    payload = json.dumps(
+        _container_spec(plan), ensure_ascii=False, sort_keys=True
+    ).encode("utf-8")
+    return "agentworld/tool-runtime:" + hashlib.sha256(payload).hexdigest()[:12]
+
+
+def dockerfile(plan: dict[str, Any]) -> str:
+    """Render one deterministic image recipe from an explicit container plan."""
+    spec = _container_spec(plan)
+    base_image = spec["base_image"]
+    apt_packages = spec["apt_packages"]
+    environment = spec["environment"]
+
+    lines = [
+        f"FROM {base_image}",
+        "ENTRYPOINT []",
+        "ENV DEBIAN_FRONTEND=noninteractive",
+    ]
+    for key, value in sorted(environment.items()):
+        lines.append(f"ENV {key}={json.dumps(value)}")
+    if apt_packages:
+        if mirror := spec.get("apt_mirror"):
+            # Keep Debian security updates on their existing signed upstream.
+            replacement = (
+                r"s#https?://deb\.debian\.org/debian([ /]|$)#"
+                + mirror + r"/debian\1#g"
+            )
+            lines.append(
+                "RUN find /etc/apt -maxdepth 2 -type f "
+                "\\( -name '*.list' -o -name '*.sources' \\) "
+                f"-exec sed -i -E {shlex.quote(replacement)} {{}} +"
+            )
+        names = " ".join(shlex.quote(item) for item in apt_packages)
+        lines.append(
+            "RUN apt-get update && apt-get install -y --no-install-recommends "
+            f"{names} && rm -rf /var/lib/apt/lists/*"
+        )
+    lines.extend(
+        [
+            "COPY requirements.txt /tmp/toolgen-requirements.txt",
+            "RUN python -m pip install --no-cache-dir -r /tmp/toolgen-requirements.txt",
+            "RUN mkdir -p /opt/tool-software/bin /opt/tool-software/python/bin "
+            "&& ln -sf $(command -v python) /opt/tool-software/python/bin/python",
+        ]
+    )
+    for candidates in spec["system_executables"]:
+        names = " ".join(shlex.quote(item) for item in candidates)
+        links = " ".join(
+            f"ln -sf \"$resolved\" /opt/tool-software/bin/{shlex.quote(item)};"
+            for item in candidates
+        )
+        lines.append(
+            "RUN resolved=; for candidate in "
+            f"{names}; do resolved=$(command -v \"$candidate\" || true); "
+            "[ -z \"$resolved\" ] || break; done; "
+            f"if [ -z \"$resolved\" ]; then exit 1; fi; {links}"
+        )
+    node_packages = spec["node_packages"]
+    if node_packages:
+        packages = " ".join(shlex.quote(item) for item in node_packages)
+        lines.append(
+            "RUN npm install --prefix /opt/tool-software/node "
+            f"--no-audit --no-fund {packages}"
+        )
+    lines.append("ENV TOOLGEN_SOFTWARE_ROOT=/opt/tool-software")
+    lines.extend(["WORKDIR /workspace", "CMD [\"python\", \"--version\"]", ""])
+    return "\n".join(lines)
+
+
+def build_image(
+    package_root: Path,
+    *,
+    image: str | None = None,
+    docker_command: str = "docker",
+    timeout_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Build an image once and save the runtime receipt consumed by delivery."""
+    package_root = package_root.resolve()
+    plan = _load_plan(package_root)
+    target_image = image or image_name(plan)
+    (package_root / 'tool_generation/container_runtime.json').unlink(missing_ok=True)
+    executable = shutil.which(docker_command)
+    if executable is None:
+        raise RuntimeError(f"找不到 Docker 命令：{docker_command}")
+    timeout = timeout_seconds or int(
+        os.environ.get("TOOLGEN_DOCKER_BUILD_TIMEOUT_SECONDS", "3600")
+    )
+    if timeout < 1:
+        raise ValueError("Docker 构建超时必须大于 0 秒")
+    exists = subprocess.run(
+        [executable, "image", "inspect", target_image],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=60,
+    ).returncode == 0
+    if not exists:
+        requirements = ["jsonschema>=4.18", *expanded_packages(plan)]
+        with tempfile.TemporaryDirectory(prefix="toolgen-image-") as temporary:
+            context = Path(temporary)
+            (context / "Dockerfile").write_text(dockerfile(plan), encoding="utf-8")
+            (context / "requirements.txt").write_text(
+                "\n".join(dict.fromkeys(requirements)) + "\n",
+                encoding="utf-8",
+            )
+            try:
+                subprocess.run(
+                    [executable, "build", "--tag", target_image, str(context)],
+                    check=True,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError(
+                    f"Docker 镜像构建超过 {timeout} 秒：{target_image}"
+                ) from error
+    image_id = subprocess.check_output(
+        [executable, "image", "inspect", "--format", "{{.Id}}", target_image],
+        text=True,
+        timeout=60,
+    ).strip()
+    runtime = {
+        "schema_version": "1.0",
+        "backend": "docker",
+        "image": target_image,
+        "delivery_mount": "/delivery",
+        "code_mount": "/opt/agent-world",
+        "software_root": "/opt/tool-software",
+        "python_command": "python",
+    }
+    project = Path(__file__).resolve().parents[2]
+    probe_code = (
+        "import sys,json;sys.path.insert(0,'/opt/agent-world');"
+        "from pathlib import Path;from env_gen.tool_gen.software import inspect_system_packages;"
+        "status=inspect_system_packages(Path('/opt/tool-software'),json.loads(sys.argv[1]),python=sys.executable);"
+        "print(json.dumps(status));sys.exit(0 if status['status']=='ready' else 1)"
+    )
+    checked = subprocess.run(
+        [executable, 'run', '--rm', '--runtime', 'runc', '--network', 'none',
+         '--mount', f'type=bind,source={project},target=/opt/agent-world,readonly',
+         target_image, 'python', '-c', probe_code, json.dumps(plan)],
+        capture_output=True, text=True, timeout=min(timeout, 180),
+    )
+    if checked.returncode:
+        raise RuntimeError('镜像中的软件依赖检查失败：' + (checked.stdout + checked.stderr)[-4000:])
+    write_json(package_root / 'tool_generation/software_system_status.json', json.loads(checked.stdout))
+    output = package_root / "tool_generation"
+    output.mkdir(exist_ok=True)
+    write_json(output / "container_runtime.json", runtime)
+    write_json(
+        output / "container_image.json",
+        {"image": target_image, "image_id": image_id},
+    )
+    return runtime
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="为一个 ToolGen 软件计划构建可复用镜像")
+    parser.add_argument("package", type=Path)
+    parser.add_argument("--image")
+    parser.add_argument("--docker-command", default="docker")
+    parser.add_argument("--timeout-seconds", type=int)
+    arguments = parser.parse_args(argv)
+    runtime = build_image(
+        arguments.package,
+        image=arguments.image,
+        docker_command=arguments.docker_command,
+        timeout_seconds=arguments.timeout_seconds,
+    )
+    print(json.dumps(runtime, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

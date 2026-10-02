@@ -10,6 +10,7 @@
 | 契约入口 | 机器校验文件 | 校验对象 |
 | --- | --- | --- |
 | `../env_seeds.schema.json` | `env_seeds.schema.json` | v1.1 环境种子数组 |
+| `scenario_env_seeds.schema.json` | `scenario_env_seeds.schema.json` | scenario-1.1 多包场景种子数组 |
 | `../environment.schema.json` | `../environment.schema.json` | 当前 Record Set / Filesystem Scope 环境对象 |
 | `../tool.schema.json` | `tool.schema.json` | 单个工具对象 |
 | `../complete_environment.schema.json` | `complete_environment.schema.json` | 带工具的完整环境对象 |

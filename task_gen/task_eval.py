@@ -164,6 +164,7 @@ def evaluate_case(
                 "environment": case.environment,
                 **({"binding_path": case.runtime['binding_path']} if case.runtime.get('binding_path') else {}),
                 **({"software": case.runtime['software']} if case.runtime.get('software') else {}),
+                **({"runtime": case.runtime['runtime']} if case.runtime.get('runtime') else {}),
             }, ensure_ascii=False), encoding="utf-8")
             try:
                 answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()

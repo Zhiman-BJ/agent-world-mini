@@ -50,7 +50,9 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
               'max_tool_calls': 3, 'timeout': 10, 'memory_limit': 2147483648, 'write_limit': 268435456}
     server = TaskEvalMcpServer(config)
     with KimiMcpServer(delivery) as original:
-        assert server.handle({'method': 'tools/list'}) == original.handle({'method': 'tools/list'})
+        task_names = {tool['name'] for tool in server.handle({'method': 'tools/list'})['tools']}
+        original_names = {tool['name'] for tool in original.handle({'method': 'tools/list'})['tools']}
+        assert original_names <= task_names
     response = server.handle({'method': 'tools/call', 'params': {
         'name': 'resolve_ticket', 'arguments': {'ticket_id': 'task-only'}}})
     assert response['structuredContent']['data']['status'] == 'resolved'

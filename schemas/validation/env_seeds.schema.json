@@ -28,7 +28,12 @@
         },
         "init_ref_tasks": {
           "type": "array",
-          "items": {"$ref": "#/$defs/referenceTask"}
+          "items": {
+            "oneOf": [
+              {"type": "string", "minLength": 1, "pattern": "\\S"},
+              {"$ref": "#/$defs/referenceTask"}
+            ]
+          }
         },
         "others": {"$ref": "#/$defs/otherInformation"}
       },

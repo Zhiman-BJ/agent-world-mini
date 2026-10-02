@@ -61,6 +61,30 @@ def runtime_info(package_root: Path) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
+def runtime_environment(
+    software_root: Path,
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Return environment variables for binaries and libraries in one profile."""
+    root = Path(software_root).expanduser().resolve()
+    environment = dict(os.environ if base is None else base)
+    if not root.is_dir():
+        return environment
+    bins = [root, *sorted(path for path in root.rglob("bin") if path.is_dir())]
+    libs = [
+        path for path in (root / "lib", root / "lib64")
+        if path.is_dir()
+    ]
+    environment["PATH"] = os.pathsep.join(
+        [*(str(path) for path in bins), environment.get("PATH", "")]
+    )
+    environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+        [*(str(path) for path in libs), environment.get("LD_LIBRARY_PATH", "")]
+    )
+    environment["TOOLGEN_SOFTWARE_ROOT"] = str(root)
+    return environment
+
+
 def subprocess_environment(package_root: Path) -> dict[str, str]:
     environment = dict(os.environ)
     source_root = str(Path(__file__).resolve().parents[2])

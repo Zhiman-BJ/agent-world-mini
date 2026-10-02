@@ -1,0 +1,202 @@
+"""Generic MCP server for one ToolGen delivery, independent of the client harness."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+from typing import Any
+
+from harness.mcp_tools import RESOURCE_TOOLS
+
+from .delivery_contract import DeliveryPackage
+from .mcp_protocol import PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, tool_call_result
+from .runtime import ToolRuntime, state_diff
+
+
+class ToolMcpServer:
+    def __init__(
+        self,
+        delivery: DeliveryPackage,
+        *,
+        trace_path: Path | None = None,
+        max_tool_calls: int = 100,
+        temp_root: Path | None = None,
+        session_root: Path | None = None,
+    ) -> None:
+        if max_tool_calls < 1:
+            raise ValueError("max_tool_calls 必须大于 0")
+        self.delivery = delivery
+        self.trace_path = trace_path.expanduser().resolve() if trace_path else None
+        self.max_tool_calls = max_tool_calls
+        self.calls = 0
+        self._closed = False
+        software_root = (
+            Path(str(delivery.runtime["software_root"]))
+            if delivery.runtime.get("backend") == "docker"
+            else delivery.software_root
+        )
+        self.runtime = ToolRuntime(
+            delivery.package,
+            software_root=software_root,
+            temp_root=temp_root,
+            session_root=session_root,
+            isolated=not (
+                delivery.runtime.get('backend') == 'docker'
+                and Path('/.dockerenv').is_file()
+            ),
+            execution_runtime=delivery.runtime,
+        )
+        if self.runtime.resumed:
+            saved = self.runtime.root / 'session.json'
+            if saved.is_file():
+                self.calls = int(json.loads(saved.read_text(encoding='utf-8')).get('tool_calls', 0))
+            if self.trace_path and self.trace_path.is_file():
+                for line in self.trace_path.read_text(encoding='utf-8').splitlines():
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if record.get('package_id') == delivery.binding['package_id']:
+                        self.calls = max(self.calls, int(record.get('sequence', 0)))
+        self._tools = {str(tool["name"]): tool for tool in delivery.package.tools}
+        reserved = {tool["name"] for tool in RESOURCE_TOOLS}
+        conflicts = sorted(reserved & set(self._tools))
+        if conflicts:
+            self.runtime.close()
+            raise ValueError("业务工具名与环境资源工具冲突：" + ", ".join(conflicts))
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self.runtime.persistent:
+            receipt = {
+                "schema_version": "1.0",
+                "package_id": self.delivery.binding["package_id"],
+                "environment_id": self.delivery.binding["environment_id"],
+                "tool_calls": self.calls,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "final_snapshot": self.runtime.snapshot(),
+            }
+            (self.runtime.root / "session.json").write_text(
+                json.dumps(receipt, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        self.runtime.close()
+
+    def __enter__(self) -> "ToolMcpServer":
+        return self
+
+    def __exit__(self, *_args: Any) -> None:
+        self.close()
+
+    def _trace(self, record: dict[str, Any]) -> None:
+        if self.trace_path is None:
+            return
+        self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.trace_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+
+    def _resource_call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if name == "get_environment_overview":
+            data = self.runtime.resources.overview()
+        elif name == "list_environment_resources":
+            data = {
+                "resources": self.runtime.resources.list(
+                    scope_id=arguments.get("scope_id"),
+                    query=arguments.get("query"),
+                    limit=arguments.get("limit", 100),
+                    offset=arguments.get("offset", 0),
+                )
+            }
+        elif name == "inspect_environment_resource":
+            data = self.runtime.resources.inspect(
+                str(arguments.get("ref", "")),
+                preview_chars=arguments.get("preview_chars", 4000),
+            )
+        else:
+            raise RpcError(-32602, f"未知环境资源工具：{name}")
+        return {"success": True, "data": data}
+
+    def _call_tool(self, params: Any) -> dict[str, Any]:
+        if self.calls >= self.max_tool_calls:
+            raise RpcError(-32000, "工具调用次数已达上限")
+        if not isinstance(params, dict):
+            raise RpcError(-32602, "tools/call 缺少 params")
+        name = params.get("name")
+        arguments = params.get("arguments", {})
+        resource_names = {tool["name"] for tool in RESOURCE_TOOLS}
+        if not isinstance(name, str) or (
+            name not in self._tools and name not in resource_names
+        ):
+            raise RpcError(-32602, f"未知工具：{name}")
+        if not isinstance(arguments, dict):
+            raise RpcError(-32602, "工具 arguments 必须是 object")
+
+        self.calls += 1
+        read_only = name in resource_names or self._tools[name]['usageConditions']['sideEffects'] == []
+        before = None if read_only else self.runtime.snapshot()
+        runtime_error: str | None = None
+        try:
+            result = (
+                self._resource_call(name, arguments)
+                if name in resource_names
+                else self.runtime.call(name, arguments)
+            )
+        except Exception as error:
+            runtime_error = f"{type(error).__name__}: {error}"
+            result = {
+                "success": False,
+                "error": {
+                    "code": "runtime_error",
+                    "path": "$",
+                    "message": runtime_error,
+                    "retryable": False,
+                },
+            }
+        changes = ({'record_sets': [], 'filesystem_scopes': []} if read_only
+                   else state_diff(before, self.runtime.snapshot()))
+        is_error = runtime_error is not None or result.get("success") is False
+        self._trace(
+            {
+                "sequence": self.calls,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "package_id": self.delivery.binding["package_id"],
+                "environment_id": self.delivery.binding["environment_id"],
+                "tool": name,
+                "arguments": arguments,
+                "result": result,
+                "runtime_error": runtime_error,
+                "state_changes": changes,
+            }
+        )
+        return tool_call_result(result, is_error=is_error)
+
+    def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
+        request_id = request.get("id")
+        method = request.get("method")
+        if method == "initialize":
+            return {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {"listChanged": False}},
+                "serverInfo": {
+                    "name": "agent-world-toolgen",
+                    "version": SERVER_VERSION,
+                },
+                "instructions": (
+                    "Use get_environment_overview and list_environment_resources to find files. "
+                    "Pass the returned aw:// references to business tools instead of guessing "
+                    "workspace paths."
+                ),
+            }
+        if method == "tools/list":
+            return {"tools": [*deepcopy(RESOURCE_TOOLS), *public_tools(self.delivery.package.tools)]}
+        if method == "tools/call":
+            return self._call_tool(request.get("params"))
+        if method == "ping":
+            return {}
+        if request_id is None:
+            return None
+        raise RpcError(-32601, f"不支持的 MCP 方法：{method}")
