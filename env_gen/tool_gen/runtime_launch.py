@@ -24,10 +24,16 @@ def local_stdio_launch(
     server_path: Path,
     arguments: list[str],
     writable_paths: tuple[Path, ...] = (),
+    project_root: Path | None = None,
 ) -> StdioLaunch:
     """Launch an adapter with the delivery's ordinary Python software profile."""
     command = delivery.python_path or Path(os.sys.executable).absolute()
-    environment = {"PYTHONPATH": str(server_path.resolve().parents[2])}
+    code_root = (
+        project_root.expanduser().resolve()
+        if project_root is not None
+        else server_path.resolve().parents[2]
+    )
+    environment = {"PYTHONPATH": str(code_root)}
     if delivery.software_root is not None:
         prepared = runtime_environment(delivery.software_root, os.environ)
         for name in (
@@ -49,12 +55,17 @@ def docker_stdio_launch(
     server_path: Path,
     arguments: list[str],
     writable_paths: tuple[Path, ...] = (),
+    project_root: Path | None = None,
 ) -> StdioLaunch:
     """Launch the adapter in the reusable image selected by runtime.json."""
     runtime = delivery.runtime
     if runtime.get("backend") != "docker":
         raise ValueError("交付包没有选择 Docker 运行后端")
-    project_root = server_path.resolve().parents[2]
+    project_root = (
+        project_root.expanduser().resolve()
+        if project_root is not None
+        else server_path.resolve().parents[2]
+    )
     delivery_mount = str(runtime["delivery_mount"])
     code_mount = str(runtime["code_mount"])
     translated: list[str] = []
@@ -92,8 +103,14 @@ def docker_stdio_launch(
         "run",
         "--rm",
         "-i",
-        "--runtime",
-        "runc",
+        # Docker's default seccomp and AppArmor profiles block creation and
+        # mount propagation for the task-local bubblewrap user namespace. The
+        # container still runs without added capabilities as the host user;
+        # bubblewrap supplies the actual per-tool filesystem/network boundary.
+        "--security-opt",
+        "seccomp=unconfined",
+        "--security-opt",
+        "apparmor=unconfined",
         "--user",
         f"{os.getuid()}:{os.getgid()}",
         "--mount",
@@ -109,6 +126,8 @@ def docker_stdio_launch(
         [
             "--env",
             f"TOOLGEN_SOFTWARE_ROOT={runtime['software_root']}",
+            "--env",
+            "AGENT_WORLD_DOCKER_RUNTIME=1",
             str(runtime["image"]),
             str(runtime["python_command"]),
             *translated,
@@ -123,6 +142,7 @@ def stdio_launch(
     server_path: Path,
     arguments: list[str],
     writable_paths: tuple[Path, ...] = (),
+    project_root: Path | None = None,
 ) -> StdioLaunch:
     if delivery.runtime.get("backend") == "docker":
         return docker_stdio_launch(
@@ -130,10 +150,12 @@ def stdio_launch(
             server_path=server_path,
             arguments=arguments,
             writable_paths=writable_paths,
+            project_root=project_root,
         )
     return local_stdio_launch(
         delivery,
         server_path=server_path,
         arguments=arguments,
         writable_paths=writable_paths,
+        project_root=project_root,
     )

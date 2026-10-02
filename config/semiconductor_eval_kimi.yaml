@@ -13,7 +13,6 @@ llm:
     node: node
     provider_type: openai
     parallel_tool_calls: true
-    tool_result_page_chars: 6000
     max_context_size: 131072
     reserved_context_size: 50000
     compaction_trigger_ratio: 0.85

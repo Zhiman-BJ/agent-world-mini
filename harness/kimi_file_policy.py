@@ -21,6 +21,7 @@ def build_kimi_file_hook_command(
     *,
     python: str | Path = sys.executable,
 ) -> str:
+    """Return the shell command used by Kimi's external hook runner."""
     return shlex.join([
         str(Path(python).expanduser().resolve()),
         str(Path(__file__).resolve()),
@@ -63,8 +64,12 @@ class KimiFileAccessPolicy:
 
     def _resolve_path(self, value: str) -> Path:
         if value == "~" or value.startswith(("~/", "~\\")):
+            # Kimi expands this against its host home, which is deliberately not
+            # a model-visible root. Do not reinterpret it as a workspace name.
             raise ValueError("home-relative paths are not allowed")
         raw = Path(value)
+        # Kimi resolves ordinary relative paths against the session cwd. Use the
+        # configured workspace instead of trusting a cwd value from hook input.
         candidate = raw if raw.is_absolute() else self.workspace / raw
         return candidate.resolve(strict=False)
 
@@ -92,7 +97,9 @@ class KimiFileAccessPolicy:
             return self._decision(False, "invalid_path", **base)
         if value.startswith("kimi-file://"):
             if tool == "Read":
-                return self._decision(True, "current_session_attachment", normalized_path=value, **base)
+                return self._decision(
+                    True, "current_session_attachment", normalized_path=value, **base
+                )
             return self._decision(False, "attachment_uri_requires_read", **base)
 
         try:
@@ -101,13 +108,19 @@ class KimiFileAccessPolicy:
             return self._decision(False, f"path_resolution_failed: {error}", **base)
         normalized = str(target)
         if self._is_within(target, self.workspace):
-            return self._decision(True, "model_workspace", normalized_path=normalized, **base)
-        kind = self._session_path_kind(target, session_id if isinstance(session_id, str) else "")
+            return self._decision(
+                True, "model_workspace", normalized_path=normalized, **base
+            )
+        kind = self._session_path_kind(
+            target, session_id if isinstance(session_id, str) else ""
+        )
         if kind == "session_tool_results":
             return self._decision(True, kind, normalized_path=normalized, **base)
         if kind == "session_wire" and tool in {"Read", "Grep"}:
             return self._decision(True, kind, normalized_path=normalized, **base)
-        return self._decision(False, "path_outside_session_allowlist", normalized_path=normalized, **base)
+        return self._decision(
+            False, "path_outside_session_allowlist", normalized_path=normalized, **base
+        )
 
     @staticmethod
     def _decision(allowed: bool, reason: str, **fields: Any) -> dict[str, Any]:
@@ -116,7 +129,11 @@ class KimiFileAccessPolicy:
     def record(self, decision: dict[str, Any]) -> None:
         self.audit_log.parent.mkdir(parents=True, exist_ok=True)
         line = json.dumps(decision, ensure_ascii=False, allow_nan=False) + "\n"
-        descriptor = os.open(self.audit_log, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        descriptor = os.open(
+            self.audit_log,
+            os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+            0o600,
+        )
         try:
             os.write(descriptor, line.encode("utf-8"))
         finally:
@@ -138,7 +155,10 @@ def main(argv: list[str] | None = None) -> int:
         payload = json.load(sys.stdin)
         decision = policy.check(payload)
     except BaseException as error:
-        decision = {"allowed": False, "reason": f"file_policy_failure: {type(error).__name__}: {error}"}
+        decision = {
+            "allowed": False,
+            "reason": f"file_policy_failure: {type(error).__name__}: {error}",
+        }
     try:
         policy.record(decision)
     except BaseException as error:

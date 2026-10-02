@@ -151,10 +151,17 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
     bundle['tasks'] = [{'task_id': 'task1', 'chain': ['get_ticket'], 'objective': 'Read ticket', 'score': 1}]
 
     def run(client, prompt, working_directory):
+        client.session_id = 'test-persistent-session'
+        if 'call_indices' in prompt:
+            return json.dumps({'reason': 'Read actual ticket', 'objective': 'Read ticket',
+                               'completed': True, 'answer': 'open', 'score': 4,
+                               'call_indices': list(range(1, 21)),
+                               'chain_changes': 'Fixture retains all calls', 'restart': False})
         server = TaskEvalMcpServer(json.loads(client.server_config.read_text()))
-        response = server.handle({'method': 'tools/call', 'params': {
-            'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
-        assert response['structuredContent']['data']['status'] == 'open', response
+        for _ in range(20):
+            response = server.handle({'method': 'tools/call', 'params': {
+                'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+            assert response['structuredContent']['data']['status'] == 'open', response
         return json.dumps({'reason': 'Read actual ticket', 'objective': 'Read ticket',
                            'completed': True, 'answer': 'open', 'score': 4})
 

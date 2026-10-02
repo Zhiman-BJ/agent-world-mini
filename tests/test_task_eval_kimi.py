@@ -121,8 +121,10 @@ def test_kimi_rejects_builtin_preserves_public_contract_and_observation(tmp_path
     assert records[0]['result']['value'] == 'observed-731'
     assert len(requests) == 3
     for request in requests:
-        assert [t['function']['name'] for t in request['tools']] == [
-            'mcp__agent_world_eval__inspect', 'mcp__agent_world_eval__read_tool_result']
+        assert {t['function']['name'] for t in request['tools']} == {
+            'mcp__agent_world_eval__inspect', 'Read', 'Grep', 'Glob'}
+        assert 'mcp__agent_world_eval__read_tool_result' not in {
+            t['function']['name'] for t in request['tools']}
         assert 'parallel_tool_calls' not in request
         assert request['temperature'] == 0.2
         assert request.get('max_tokens', request.get('max_completion_tokens')) == 1024
@@ -133,6 +135,14 @@ def test_kimi_rejects_builtin_preserves_public_contract_and_observation(tmp_path
     assert 'SPECIAL_PUBLIC_CONDITION' in visible
     assert 'observed-731' in json.dumps(requests[-1]['messages'])
     logs = tmp_path / 'state.agent'
+    file_access = [
+        json.loads(line)
+        for line in (logs / 'native_file_access.jsonl').read_text().splitlines()
+    ]
+    assert len(file_access) == 1
+    assert file_access[0]['tool'] == 'Read'
+    assert file_access[0]['allowed'] is False
+    assert file_access[0]['reason'] == 'path_outside_session_allowlist'
     result = json.loads((logs / 'result.json').read_text())
     assert result['usage']['total']['output'] == 30
     effective = json.loads((logs / 'effective_config.json').read_text())
@@ -164,7 +174,7 @@ def test_default_prompt_uses_official_template_with_restricted_tools(tmp_path, m
     assert 'HIDDEN_INITIAL_STATE' not in json.dumps(requests)
     assert [json.loads(line)['tool'] for line in trace.read_text().splitlines()] == ['inspect']
     assert {t['function']['name'] for t in requests[0]['tools']} == {
-        'mcp__agent_world_eval__inspect', 'mcp__agent_world_eval__read_tool_result'}
+        'mcp__agent_world_eval__inspect', 'Read', 'Grep', 'Glob'}
 
 
 def test_default_loop_uses_sdk_policy_without_inherited_timeout(tmp_path, model_server, monkeypatch):
@@ -210,7 +220,7 @@ def test_unknown_agent_backend_is_rejected(tmp_path):
 
 @pytest.mark.parametrize('setting,value', [('max_steps_per_turn', 0), ('parallel_tool_calls', 'false'),
                                          ('compaction_trigger_ratio', 2), ('system_prompt', ''), ('typo', 1),
-                                         ('tool_result_page_chars', 50000)])
+                                         ('obsolete_result_reader', 1)])
 def test_invalid_kimi_configuration_is_rejected(tmp_path, monkeypatch, setting, value):
     from task_gen.task_eval import _run_agent
     workspace, server, trace, options = setup_case(tmp_path, 'http://unused.invalid/v1')
@@ -327,8 +337,7 @@ def test_small_context_triggers_compaction_without_tool_allowlist_error(tmp_path
     url, requests, replies = model_server
     workspace, server, trace, options = setup_case(tmp_path, url)
     monkeypatch.setenv('KIMI_TEST_KEY', 'test-key')
-    options['kimi'].update(max_context_size=4096, reserved_context_size=1024, compaction_trigger_ratio=0.5,
-                           tool_result_page_chars=12000)
+    options['kimi'].update(max_context_size=4096, reserved_context_size=1024, compaction_trigger_ratio=0.5)
     config = json.loads(server.read_text())
     config['tools'][0]['internal']['code'] = "def run(arguments, context):\n return {'success': True, 'value': 'observed-731', 'details': 'evidence ' * 5000}"
     server.write_text(json.dumps(config))
@@ -374,7 +383,7 @@ def test_broken_response_preserves_received_bytes(tmp_path, model_server, monkey
     assert any('PARTIAL_RESPONSE_EVIDENCE' in record['body'] and record.get('error') for record in records)
 
 
-def test_long_result_read_is_scoped_and_does_not_spend_business_budget(tmp_path, model_server, monkeypatch):
+def test_long_result_uses_native_kimi_storage_without_custom_reader(tmp_path, model_server, monkeypatch):
     from task_gen.task_eval import _run_agent
     url, requests, replies = model_server
     workspace, server, trace, options = setup_case(tmp_path, url)
@@ -383,30 +392,16 @@ def test_long_result_read_is_scoped_and_does_not_spend_business_budget(tmp_path,
     config['tools'][0]['internal']['code'] = "def run(arguments, context):\n return {'success': True, 'data': 'x' * 300000 + 'MIDDLE_EVIDENCE_731' + 'y' * 300000}"
     server.write_text(json.dumps(config))
     options['kimi']['max_steps_per_turn'] = 8
-    def read_middle(request):
-        message = next(m for m in request['messages'] if m.get('tool_call_id') == 'inspect')
-        page = json.loads(message['content'])
-        assert page['has_more'] is True and page['total_chars'] > 600000
-        assert len(page['content']) <= 12000
-        assert 'MIDDLE_EVIDENCE_731' not in message['content']
-        return tool_call('mcp__agent_world_eval__read_tool_result',
-                         {'result_id': page['result_id'], 'offset': 300000, 'length': 100}, 'middle')
     replies.extend([
         tool_call('mcp__agent_world_eval__inspect', {}, 'inspect'),
-        read_middle,
-        tool_call('mcp__agent_world_eval__read_tool_result',
-                  {'result_id': str(workspace / 'hidden.txt'), 'offset': 0, 'length': 100}, 'forbidden'),
         {'content': 'MIDDLE_EVIDENCE_731'},
     ])
     assert _run_agent('Report the evidence in the middle of the sample.', workspace, server, trace, options) == 'MIDDLE_EVIDENCE_731'
     assert len(trace.read_text().splitlines()) == 1
     assert len(json.loads(trace.read_text())['result']['data']) > 600000
-    messages = requests[-1]['messages']
-    assert 'MIDDLE_EVIDENCE_731' in next(m['content'] for m in messages if m.get('tool_call_id') == 'middle')
-    assert 'Unknown result_id' in next(m['content'] for m in messages if m.get('tool_call_id') == 'forbidden')
     assert 'HIDDEN_INITIAL_STATE' not in json.dumps(requests)
-    reads = [json.loads(line) for line in (tmp_path / 'state.agent/result_reads.jsonl').read_text().splitlines()]
-    assert len(reads) == 2 and reads[0]['error'] is None and reads[1]['error']
+    assert 'read_tool_result' not in json.dumps(requests)
+    assert not (tmp_path / 'state.agent/result_reads.jsonl').exists()
 
 
 def test_kimi_binding_uses_task_state_and_public_delivery_tools(tmp_path, model_server, monkeypatch):

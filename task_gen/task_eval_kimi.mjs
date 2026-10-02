@@ -1,4 +1,5 @@
-// Thin bridge to the official SDK. Environment state is accessible only via MCP.
+// Thin bridge to the official SDK. Environment state is accessible only via MCP;
+// the Python adapter supplies a runtime-aware MCP command (host Profile or Docker).
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -82,6 +83,8 @@ try {
     }
     return originalFetch(resource, options);
   };
+  // External hooks are loaded while the Harness boots. setConfig() updates
+  // persisted config but does not reload that service in the pinned SDK.
   mkdirSync(input.home_dir, { recursive: true, mode: 0o700 });
   writeFileSync(join(input.home_dir, 'config.toml'),
     `[[hooks]]\nevent = "PreToolUse"\nmatcher = "^(Read|Grep|Glob)$"\ncommand = ${JSON.stringify(input.file_hook_command)}\ntimeout = 5\n`,
