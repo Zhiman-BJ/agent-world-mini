@@ -19,7 +19,7 @@ from .tool_graph.step_5_task_validate import _public_tool
 
 
 SYSTEM_PROMPT = """Complete the supplied task using only the available environment tools.
-You can see the task, public environment/tool descriptions, and results of your tool calls.
+You can see the task-specific context, public tool descriptions, and results of your tool calls.
 There is no shell, direct filesystem access, or access to hidden state or tool implementation.
 Choose one action at a time, then use its Observation to decide what to do next.
 Return one JSON object in either format:

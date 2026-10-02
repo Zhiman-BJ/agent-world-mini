@@ -1,8 +1,9 @@
-"""Program-form Solution 与独立求解会话共用的隔离环境 Runtime。
+"""Program-form Solution 与 clean replay 共用的 Harness Runtime。
 
-Runtime 每次从基线 ``state/``（v2）或 ``workspace/``（v1 兼容）复制一份
-独立状态，校验工具输入/输出 Schema，检查只读边界，并保证
-``success=false`` 时不留下任何状态变化。
+每次执行都通过 ``create_task_run_layout`` 分离 ``execution-state`` 与
+``model-workspace``，所有业务工具统一委托 ``call_environment_tool`` 完成
+Schema、资源 Scope、沙箱、状态提交和失败回滚。运行后端由 ToolGen
+``binding.json`` 对应的 ``runtime.json`` 决定。
 """
 
 from __future__ import annotations
@@ -15,10 +16,17 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
+from collections import OrderedDict
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
+
+from harness.resources import ResourceCatalog
+from harness.execution import call_environment_tool
+from harness.layout import create_task_run_layout
 
 from .schema import Draft202012Validator
 
@@ -163,6 +171,120 @@ def _snapshot_sqlite_metadata(database: Path) -> dict[str, Any]:
     return {"sha256": _sha256_bytes(_canonical_json(payload).encode("utf-8")), **payload}
 
 
+def _sqlite_state_signature(database: Path) -> tuple[tuple[str, bool, int, int], ...]:
+    """Return the filesystem facts that can change SQLite's visible state."""
+    paths = (
+        database,
+        database.with_name(database.name + "-wal"),
+        database.with_name(database.name + "-shm"),
+    )
+    signature: list[tuple[str, bool, int, int]] = []
+    for path in paths:
+        try:
+            status = path.stat()
+        except FileNotFoundError:
+            signature.append((str(path), False, 0, 0))
+        else:
+            signature.append((str(path), True, status.st_size, status.st_mtime_ns))
+    return tuple(signature)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sqlite_content_signature(database: Path) -> tuple[tuple[str, bool, int, str], ...]:
+    """Identify SQLite content across Harness transaction copies."""
+    paths = (
+        database,
+        database.with_name(database.name + "-wal"),
+        database.with_name(database.name + "-shm"),
+    )
+    signature: list[tuple[str, bool, int, str]] = []
+    for path in paths:
+        try:
+            size = path.stat().st_size
+        except FileNotFoundError:
+            signature.append((path.name, False, 0, ""))
+        else:
+            signature.append((path.name, True, size, _sha256_file(path)))
+    return tuple(signature)
+
+
+def _snapshot_database_state_by_content(
+    database: Path,
+    record_sets_json: str,
+    content_signature: tuple[tuple[str, bool, int, str], ...],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    key = (record_sets_json, content_signature)
+    with _DATABASE_CONTENT_CACHE_LOCK:
+        cached = _DATABASE_CONTENT_CACHE.get(key)
+        if cached is not None:
+            _DATABASE_CONTENT_CACHE.move_to_end(key)
+            return cached
+    record_sets = json.loads(record_sets_json)
+    result = (
+        _snapshot_record_sets(database, record_sets),
+        _snapshot_sqlite_metadata(database),
+    )
+    with _DATABASE_CONTENT_CACHE_LOCK:
+        _DATABASE_CONTENT_CACHE[key] = result
+        _DATABASE_CONTENT_CACHE.move_to_end(key)
+        while len(_DATABASE_CONTENT_CACHE) > 4:
+            _DATABASE_CONTENT_CACHE.popitem(last=False)
+    return result
+
+
+_DATABASE_CONTENT_CACHE: OrderedDict[
+    tuple[str, tuple[tuple[str, bool, int, str], ...]],
+    tuple[dict[str, dict[str, Any]], dict[str, Any]],
+] = OrderedDict()
+_DATABASE_CONTENT_CACHE_LOCK = threading.RLock()
+
+
+def _clear_snapshot_database_cache() -> None:
+    _snapshot_database_state_cached.cache_clear()
+    with _DATABASE_CONTENT_CACHE_LOCK:
+        _DATABASE_CONTENT_CACHE.clear()
+
+
+@lru_cache(maxsize=2)
+def _snapshot_database_state_cached(
+    database_path: str,
+    record_sets_json: str,
+    _state_signature: tuple[tuple[str, bool, int, int], ...],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Cache file checks, then reuse logical state across transaction copies."""
+    database = Path(database_path)
+    content_signature = _sqlite_content_signature(database)
+    # ``database_path`` cannot be part of the content-cache key: Harness
+    # intentionally gives every tool call a fresh transaction directory.
+    # The content digest and record-set declaration are the stable identity.
+    return _snapshot_database_state_by_content(
+        database,
+        record_sets_json,
+        content_signature,
+    )
+
+
+def _snapshot_database_state(
+    database: Path,
+    record_sets: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    cached = _snapshot_database_state_cached(
+        str(database.resolve()),
+        _canonical_json(record_sets),
+        _sqlite_state_signature(database),
+    )
+    # Callers may compact or otherwise transform snapshots. Never expose the
+    # cache-owned objects directly.
+    return deepcopy(cached)
+
+
 def snapshot_state(
     root: Path,
     environment: dict[str, Any] | None = None,
@@ -177,6 +299,14 @@ def snapshot_state(
     if package_format != "v2":
         return snapshot_workspace(root)
     environment = environment or {}
+    database = root / "records.sqlite"
+    record_sets = [
+        item for item in environment.get("record_sets", []) if isinstance(item, dict)
+    ]
+    database_record_sets, database_metadata = _snapshot_database_state(
+        database,
+        record_sets,
+    )
     scopes: dict[str, Any] = {}
     scopes_root = root / "filesystem_scopes"
     scope_ids: set[str] = set()
@@ -196,11 +326,8 @@ def snapshot_state(
         undeclared_files[relative] = {"sha256": _sha256_bytes(content), "size": len(content)}
     return {
         "format": "state-v2",
-        "record_sets": _snapshot_record_sets(
-            root / "records.sqlite",
-            [item for item in environment.get("record_sets", []) if isinstance(item, dict)],
-        ),
-        "database_metadata": _snapshot_sqlite_metadata(root / "records.sqlite"),
+        "record_sets": database_record_sets,
+        "database_metadata": database_metadata,
         "filesystem_scopes": scopes,
         "undeclared_files": undeclared_files,
     }
@@ -385,6 +512,17 @@ def execute_profile_tool(
             "software_root": str(software_root),
         }, ensure_ascii=False), encoding="utf-8")
         environment = os.environ.copy()
+        # Relocatable ToolGen profiles may retain an OpenSSL default path from
+        # their original build root. Give the worker a valid host CA bundle
+        # when the caller did not already provide one.
+        ssl_file = environment.get("SSL_CERT_FILE")
+        system_ssl_file = Path("/etc/ssl/certs/ca-certificates.crt")
+        if (not ssl_file or not Path(ssl_file).is_file()) and system_ssl_file.is_file():
+            environment["SSL_CERT_FILE"] = str(system_ssl_file)
+        ssl_dir = environment.get("SSL_CERT_DIR")
+        system_ssl_dir = Path("/etc/ssl/certs")
+        if (not ssl_dir or not Path(ssl_dir).is_dir()) and system_ssl_dir.is_dir():
+            environment["SSL_CERT_DIR"] = str(system_ssl_dir)
         project_root = str(Path(__file__).resolve().parents[3])
         current_pythonpath = environment.get("PYTHONPATH")
         environment["PYTHONPATH"] = (
@@ -424,32 +562,257 @@ def execute_profile_tool(
         return payload.get("result")
 
 
+def _docker_call_tool(
+    package: CompleteEnvironmentPackage,
+    code: str,
+    arguments: dict[str, Any],
+    state_root: Path,
+    timeout: int,
+    memory_limit: int,
+    write_limit: int,
+    environment: dict[str, Any] | None = None,
+    software_root: Path | None = None,
+) -> dict[str, Any]:
+    """Execute one Harness sandbox call inside the delivery's Docker image."""
+    from harness.delivery import load_delivery
+    from env_gen.tool_gen.runtime_launch import docker_stdio_launch
+
+    metadata = package.delivery or {}
+    binding = metadata.get("binding_path")
+    if not isinstance(binding, str) or not binding:
+        return {
+            "kind": "runtime_error",
+            "result": None,
+            "error": "Docker 环境缺少原始 binding_path，无法启动交付镜像",
+        }
+    delivery = load_delivery(Path(binding))
+    if delivery.runtime.get("backend") != "docker":
+        return {
+            "kind": "runtime_error",
+            "result": None,
+            "error": "冻结环境声明为 Docker，但原始 binding 未选择 Docker 后端",
+        }
+    with tempfile.TemporaryDirectory(prefix="agent-world-docker-call-") as temporary:
+        root = Path(temporary)
+        request = root / "request.json"
+        response = root / "response.json"
+        request_software_root = (
+            "/opt/tool-software"
+            if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1"
+            else (str(software_root) if software_root is not None else None)
+        )
+        request.write_text(json.dumps({
+            "code": code,
+            "arguments": arguments,
+            "timeout": timeout,
+            "memory_limit": memory_limit,
+            "write_limit": write_limit,
+            "environment": environment or {},
+            "software_root": request_software_root,
+            "compat_direct": os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1",
+        }, ensure_ascii=False), encoding="utf-8")
+        launch_delivery = delivery
+        if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1":
+            # Older Docker receipts contain host paths from a removed delivery
+            # batch. The image keeps its runtime under the command `python`,
+            # while the current source tree is mounted at /opt/agent-world.
+            from dataclasses import replace
+
+            runtime = dict(delivery.runtime)
+            runtime["python_command"] = "python"
+            runtime["software_root"] = "/opt/tool-software"
+            launch_delivery = replace(delivery, runtime=runtime)
+        launch = docker_stdio_launch(
+            launch_delivery,
+            server_path=Path(__file__),
+            project_root=Path(__file__).resolve().parents[3],
+            arguments=[
+                "-m",
+                "task_gen.program.utils.harness_docker_worker",
+                str(request),
+                str(response),
+                str(state_root),
+            ],
+            writable_paths=(request, response, state_root),
+        )
+        if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1":
+            launch_args = list(launch.arguments)
+            image = str(launch_delivery.runtime["image"])
+            image_index = launch_args.index(image)
+            launch_args[image_index:image_index] = [
+                "--env",
+                "PYTHONPATH=/opt/agent-world",
+            ]
+            launch = type(launch)(
+                command=launch.command,
+                arguments=tuple(launch_args),
+                environment=launch.environment,
+            )
+        completed = subprocess.run(
+            [str(launch.command), *launch.arguments],
+            cwd=state_root,
+            env={**os.environ, **launch.environment},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout + 60,
+            check=False,
+        )
+        if completed.returncode != 0 or not response.is_file():
+            detail = (completed.stderr or completed.stdout or "no Docker worker output")[-4000:]
+            return {
+                "kind": "runtime_error",
+                "result": None,
+                "error": f"Docker 工具进程失败({completed.returncode})：{detail}",
+            }
+        payload = json.loads(response.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return {
+                "kind": "runtime_error",
+                "result": None,
+                "error": "Docker 工具进程返回的不是 object",
+            }
+        return payload
+
+
+def _program_v2_sandbox_call_tool(
+    code: str,
+    arguments: dict[str, Any],
+    state_root: Path,
+    timeout: int,
+    memory_limit: int,
+    write_limit: int,
+    environment: dict[str, Any] | None = None,
+    software_root: Path | None = None,
+    *,
+    process_limit: int = 1024,
+    software: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Run one v2 sandbox inside ``call_environment_tool``'s transaction.
+
+    ``call_environment_tool`` already copies state and commits it atomically.
+    Calling Harness ``call_tool`` here would create a second transaction and
+    scan large SQLite tables twice more. This adapter retains the sandbox and
+    performs the same writable-resource check before the outer transaction can
+    commit.
+    """
+    from harness.sandbox import run_tool_in_sandbox
+
+    environment = environment or {}
+    try:
+        before = snapshot_state(state_root, environment, package_format="v2")
+        outcome = run_tool_in_sandbox(
+            code,
+            arguments,
+            state_root,
+            timeout,
+            memory_limit,
+            write_limit,
+            environment,
+            software_root,
+            process_limit=process_limit,
+            software=software,
+        )
+        # Some delivered Python profiles use an absolute symlink whose target
+        # is outside the profile tree. The host resolves it, but bwrap may not
+        # expose the symlink alias inside its mount namespace. Keep this
+        # authoring fallback opt-in; final evaluation must use the published
+        # sandbox runtime.
+        if (
+            outcome.get("error")
+            and os.environ.get("AGENT_WORLD_ALLOW_UNSANDBOXED_PROFILE_FALLBACK") == "1"
+            and software
+            and "bwrap" in str(outcome.get("error"))
+            and "execvp" in str(outcome.get("error"))
+        ):
+            fallback_python = Path(str(software["python"]))
+            fallback_root = Path(str(software["root"]))
+            result = execute_profile_tool(
+                profile_python=fallback_python,
+                software_root=fallback_root,
+                source=code,
+                tool_name="authoring_profile_fallback",
+                arguments=arguments,
+                state_root=state_root,
+                environment_contract=environment,
+                timeout_seconds=timeout,
+            )
+            outcome = {"kind": None, "result": result, "error": None}
+        result = outcome.get("result")
+        if outcome.get("error") or not isinstance(result, dict) or result.get("success") is not True:
+            return outcome
+        after = snapshot_state(state_root, environment, package_format="v2")
+        change = workspace_diff(before, after)
+        writable = {
+            str(item["record_set_id"])
+            for item in environment.get("record_sets", [])
+            if item.get("access") == "copy_on_write"
+        }
+        writable.update({
+            str(item["scope_id"])
+            for item in environment.get("filesystem_scopes", [])
+            if item.get("access") == "copy_on_write"
+        })
+        forbidden = set(change.get("changed_assets", [])) - writable
+        if forbidden:
+            raise PermissionError(
+                "工具修改了只读或未声明状态：" + ", ".join(sorted(forbidden))
+            )
+        return outcome
+    except Exception as error:
+        return {
+            "kind": "exception",
+            "result": None,
+            "error": f"{type(error).__name__}: {error}",
+        }
+
+
+def _with_harness_context_compatibility(tool: dict[str, Any]) -> dict[str, Any]:
+    """Adapt pre-Harness context attributes without bypassing the Harness sandbox."""
+    adapted = deepcopy(tool)
+    internal = adapted.get("internal")
+    if not isinstance(internal, dict) or not isinstance(internal.get("code"), str):
+        return adapted
+    internal["code"] = internal["code"] + r'''
+
+_agent_world_original_run = run
+def run(arguments, context):
+    if hasattr(context, "state_root"):
+        if not hasattr(context, "workspace_root"):
+            context.workspace_root = context.state_root
+        if not hasattr(context, "records_path"):
+            context.records_path = context.state_root / "records.sqlite"
+        if not hasattr(context, "filesystem_scopes_root"):
+            context.filesystem_scopes_root = context.state_root / "filesystem_scopes"
+    return _agent_world_original_run(arguments, context)
+'''
+    return adapted
+
+
 class CompleteEnvironmentRuntime:
     """在一份独立状态副本上执行完整环境的工具。"""
 
     def __init__(self, package: CompleteEnvironmentPackage):
         self.package = package
         self._temporary = tempfile.TemporaryDirectory(prefix="agent-world-program-runtime-")
-        self.state_root = Path(self._temporary.name) / "state"
-        shutil.copytree(package.state_root, self.state_root)
-        # workspace_root 作为工具契约 v1 的兼容别名；v2 工具应优先使用
-        # records_path 和 filesystem_scopes_root。
-        self.workspace_root = self.state_root
+        self.layout = create_task_run_layout(
+            package.state_root,
+            Path(self._temporary.name) / "task-run",
+        )
+        self.state_root = self.layout.execution_state
+        # 模型工作区与工具执行状态严格分离；业务工具只接触 state_root。
+        self.workspace_root = self.layout.model_workspace
         self.records_path = self.state_root / "records.sqlite"
         self.filesystem_scopes_root = self.state_root / "filesystem_scopes"
         self.software_root = package.software_root or package.package_root
-        self._tools = {str(tool["name"]): deepcopy(tool) for tool in package.tools}
-        # Profile-backed tools must be imported by the Profile interpreter.
-        # Compiling them here would execute their imports in TaskGen's Python
-        # before the Profile worker gets a chance to run.
-        self._handlers = (
-            {
-                name: self._compile_handler(name, str(tool["internal"]["code"]))
-                for name, tool in self._tools.items()
-            }
-            if package.profile_python is None
-            else {}
+        self.resources = ResourceCatalog(
+            package.environment,
+            lambda scope_id: self.filesystem_scopes_root / scope_id,
         )
+        self._tools = {
+            str(tool["name"]): _with_harness_context_compatibility(tool)
+            for tool in package.tools
+        }
         self.trace: list[ToolCallRecord] = []
 
     @staticmethod
@@ -543,40 +906,66 @@ class CompleteEnvironmentRuntime:
         arguments = _json_native(arguments, label=f"工具 {name} 的 arguments")
         if not isinstance(arguments, dict):
             raise TypeError("工具 arguments 必须是 object")
-        tool = self._tools[name]
-        input_errors = self._schema_errors(tool["inputSchema"], arguments)
-        if input_errors:
-            raise ValueError(f"工具 {name} 输入不符合 Schema：{' | '.join(input_errors)}")
-
         before = self.snapshot()
-        with tempfile.TemporaryDirectory(prefix="agent-world-call-backup-") as temporary:
-            backup = Path(temporary) / "state"
-            shutil.copytree(self.state_root, backup)
-            try:
-                result = self._run_in_profile(
-                    name,
-                    str(tool["internal"]["code"]),
-                    arguments,
-                )
-                result = _json_native(result, label=f"工具 {name} 的返回值")
-                output_errors = self._schema_errors(tool["outputSchema"], result)
-                if output_errors:
-                    raise ValueError(f"工具 {name} 输出不符合 Schema：{' | '.join(output_errors)}")
-                if not isinstance(result, dict) or type(result.get("success")) is not bool:
-                    raise ValueError(f"工具 {name} 未返回统一 success envelope")
-                after = self.snapshot()
-                change = workspace_diff(before, after)
-                read_only_changes = self._read_only_changes(change)
-                if read_only_changes:
-                    raise RuntimeError(
-                        f"non_writable_state: 工具 {name} 修改了只读或未声明状态："
-                        f"{', '.join(read_only_changes)}"
-                    )
-                if result["success"] is False and _has_changes(change):
-                    raise RuntimeError(f"工具 {name} 业务失败后仍修改了状态")
-            except Exception:
-                self._restore(backup)
-                raise
+        backend = str((self.package.runtime or {}).get("backend") or (
+            "python_profile" if self.package.profile_python is not None else "host_python"
+        ))
+        software: dict[str, str] | None = None
+        # Legacy Program tools always received a usable software_root, even
+        # when the environment was loaded directly instead of through a
+        # ToolGen binding.  Preserve that contract when Harness falls back to
+        # host_python; otherwise older tools fail before their business logic
+        # runs because Context has no software_root attribute.
+        software_root: Path | None = self.software_root
+        call_tool_fn: Callable[..., dict[str, Any]] | None = None
+        if backend == "python_profile":
+            if self.package.profile_python is None or self.package.software_root is None:
+                raise RuntimeError("python_profile 后端缺少 Python 或 software root")
+            software = {
+                "root": str(self.package.software_root),
+                "python": str(self.package.profile_python),
+            }
+        elif backend == "docker":
+            runtime_root = (self.package.runtime or {}).get("software_root", "/opt/tool-software")
+            software_root = Path(str(runtime_root))
+            call_tool_fn = lambda *args, **kwargs: _docker_call_tool(
+                self.package, *args, **kwargs
+            )
+        elif backend != "host_python":
+            raise RuntimeError(f"不支持的 ToolGen runtime backend：{backend}")
+        if self.package.package_format == "v2" and backend in {"host_python", "python_profile"}:
+            call_tool_fn = _program_v2_sandbox_call_tool
+
+        record = call_environment_tool(
+            name,
+            arguments,
+            self._tools,
+            self.state_root,
+            timeout=300,
+            memory_limit=2 * 1024 * 1024 * 1024,
+            write_limit=256 * 1024 * 1024,
+            process_limit=1024,
+            call_tool_fn=call_tool_fn,
+            environment=self.package.environment,
+            software=software,
+            software_root=software_root,
+        )
+        result = record.get("result")
+        is_business_failure = (
+            isinstance(result, dict)
+            and result.get("success") is False
+            and not record.get("failure_kind")
+        )
+        if record.get("error") and not is_business_failure:
+            raise RuntimeError(
+                f"工具 {name} 执行失败"
+                f"[{record.get('failure_kind') or 'validation'}]：{record['error']}"
+            )
+        if not isinstance(result, dict) or type(result.get("success")) is not bool:
+            raise RuntimeError(f"工具 {name} 未返回统一 success envelope")
+        arguments = deepcopy(record.get("arguments", arguments))
+        after = self.snapshot()
+        change = workspace_diff(before, after)
 
         record = ToolCallRecord(
             index=len(self.trace) + 1,

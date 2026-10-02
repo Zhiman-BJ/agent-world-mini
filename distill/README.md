@@ -7,11 +7,15 @@ This module runs the official Kimi Code CLI in streaming mode against one task-s
 The runner creates an isolated, temporary Kimi home for every task. Its agent profile uses the official `${base_prompt}` and exposes only:
 
 - the task's `mcp__agent_world_distill__*` tools;
-- `read_tool_result`, supplied by the same MCP server, which accepts only random result IDs created in the current session.
+- native Kimi `Read`, `Grep`, and `Glob` for the model workspace and Kimi-owned tool-result files.
 
-Official `Read`, `Write`, `Bash`, `Grep`, `Agent`, other MCP servers, and `select_tools` are unavailable. Long environment results are converted to an initial page before Kimi sees them. The original result is retained in the environment trace, and later pages are read by result ID rather than file path.
+Official `Write`, `Edit`, `Bash`, `Agent`, `AgentSwarm`, network tools, other MCP servers, and `select_tools` are unavailable. Environment MCP results are returned in full; Kimi Code owns any externalization into its session-local `tool-results` directory. Native file tools are not an environment Scope browser.
 
-The runner uses Kimi Code's official `kimi` provider with the K3 model metadata declared by Kimi Code 2.0.2: a 1,048,576-token context window, always-on thinking, and supported efforts `low/high/max`. Distillation runs default to `high`; select another supported level with `--reasoning-effort` (the public K3 API itself defaults to `max`). It does not override sampling, compaction thresholds, loop limits, or retry limits. Model calls use streaming Chat Completions; the local relay rejects non-streaming requests and normalizes Kimi Code's provider fields to the public K3 API contract (`reasoning_effort` and `max_completion_tokens`).
+Native file calls pass through a `PreToolUse` realpath allowlist. Only `model-workspace`, the current session's main-agent `tool-results` and `wire.jsonl`, and current-session `kimi-file://` attachments are allowed. Absolute paths into `execution-state`, raw evidence, another task/session, or any symlink escape are denied before the native tool runs. Decisions are retained in `raw/native_file_access.jsonl`.
+
+The runner uses the official Kimi Code `kimi` provider (the validated installation is `0.43.0`) with K3 metadata: a 1,048,576-token default context window, an optional 262,144-token experimental cap, always-on thinking, and supported efforts `low/high/max`. Distillation runs default to `high`; select another supported level with `--reasoning-effort` (the public K3 API itself defaults to `max`). It does not override sampling, compaction thresholds, or loop limits. Model calls use streaming Chat Completions; the local relay rejects non-streaming requests and normalizes Kimi Code's provider fields to the public K3 API contract (`reasoning_effort`, `max_completion_tokens`, and explicit `parallel_tool_calls=true`). It retries transient upstream responses with exponential backoff and jitter. A 400 is retryable only when its JSON message explicitly reports rejection by an internal MaaS component; ordinary request/schema 400s are returned immediately. Use `--max-upstream-retries 0` to disable retries.
+
+When a task has a ToolGen `binding_path`, the task MCP process uses that delivery's `runtime.json`: `host_python`, `python_profile`, and `docker` are selected through the same `stdio_launch()` path as the generic ToolGen MCP entry point. Docker images must include `bubblewrap`, because the task-local tool sandbox remains active inside the delivery container.
 
 ## Evidence
 
@@ -34,8 +38,7 @@ case/
     model_io/*.request.json
     model_io/*.response.sse
     environment_tool_calls.jsonl
-    result_reads.jsonl
-    result_index.jsonl
+    native_file_access.jsonl
     kimi_session.zip
     run_result.json
 ```
@@ -44,7 +47,7 @@ case/
 
 ## Run one case
 
-Install Kimi Code CLI 2.0.2 or later and expose the upstream credentials only through environment variables:
+Install the validated Kimi Code CLI `0.43.0` (or another version only after rerunning the compatibility tests) and expose the upstream credentials only through environment variables:
 
 ```bash
 export KIMI_CODE_BIN=/absolute/path/to/kimi

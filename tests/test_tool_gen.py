@@ -489,6 +489,19 @@ class ToolGenV2Tests(unittest.TestCase):
             self.assertEqual(reports[1]["status"], "passed")
             ToolPackage.load(package)
 
+    def test_python_inline_regex_flags_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent(), max_repairs=0).generate(package)
+            document = json.loads((package / "tools.json").read_text(encoding="utf-8"))
+            document["tools"][0]["inputSchema"]["properties"]["ticket_id"][
+                "pattern"
+            ] = r"(?i)\.json$"
+            (package / "tools.json").write_text(json.dumps(document), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "ECMA-262"):
+                ToolPackage.load(package)
+
     def test_repair_interruption_still_publishes_passed_tools(self) -> None:
         from utils.search_agent.codex import CodexTimeoutError
 

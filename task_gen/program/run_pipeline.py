@@ -98,7 +98,7 @@ def run_selected_steps(
     research_attempts: int = 3,
     candidates_path: Path | None = None,
     overwrite: bool = False,
-    agent_timeout_seconds: int = 2000,
+    agent_timeout_seconds: int = 3600,
 ) -> dict[int, Any]:
     """Run selected generation steps while preserving their file checkpoints."""
     policy.validate()
@@ -176,6 +176,11 @@ def _policy(arguments: argparse.Namespace) -> ProgramGenerationPolicy:
         require_state_change=arguments.require_state_change,
         max_repair_rounds=arguments.max_repair_rounds,
         execution_timeout_seconds=arguments.execution_timeout_seconds,
+        minimum_effective_tool_calls=(
+            arguments.minimum_effective_tool_calls
+            if arguments.minimum_effective_tool_calls > 0
+            else None
+        ),
     )
 
 
@@ -191,7 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--research-fixture", type=Path)
     parser.add_argument("--candidates", type=Path)
-    parser.add_argument("--model", default="gpt-5.6-sol")
+    parser.add_argument("--model", default="gpt-6-sol")
     parser.add_argument("--task-count", type=int, default=1)
     parser.add_argument(
         "--candidate-multiplier",
@@ -200,12 +205,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="兼容旧参数；当前 Step 2 每次 Agent 调用固定只生成 1 条任务",
     )
     parser.add_argument("--research-attempts", type=int, default=3)
-    parser.add_argument("--task-generation-attempts", type=int, default=3)
+    parser.add_argument("--task-generation-attempts", type=int, default=8)
     parser.add_argument("--clean-replays", type=int, default=2)
     parser.add_argument("--require-state-change", action="store_true")
-    parser.add_argument("--max-repair-rounds", type=int, default=10)
-    parser.add_argument("--execution-timeout-seconds", type=float, default=15.0)
-    parser.add_argument("--agent-timeout-seconds", type=int, default=2000)
+    parser.add_argument("--max-repair-rounds", type=int, default=6)
+    parser.add_argument(
+        "--execution-timeout-seconds",
+        type=float,
+        default=1000.0,
+        help="长链参考程序的单任务执行预算（秒）",
+    )
+    parser.add_argument(
+        "--minimum-effective-tool-calls",
+        type=int,
+        default=18,
+        help="生产任务至少需要的去重后有效工具调用数；设为 0 可关闭门槛",
+    )
+    parser.add_argument("--agent-timeout-seconds", type=int, default=3600)
     parser.add_argument("--fresh", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -226,6 +242,8 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
         raise ValueError("--max-repair-rounds 不能小于 0")
     if arguments.execution_timeout_seconds <= 0:
         raise ValueError("--execution-timeout-seconds 必须大于 0")
+    if arguments.minimum_effective_tool_calls < 0:
+        raise ValueError("--minimum-effective-tool-calls 不能小于 0")
 
     binding_mode = arguments.binding is not None or arguments.package_id is not None
     legacy_mode = arguments.environment_package is not None

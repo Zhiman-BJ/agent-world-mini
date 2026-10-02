@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from task_gen.program import (
     CompleteEnvironmentPackage,
@@ -19,6 +21,10 @@ from task_gen.program.step_1_task_research import (
     validate_task_research,
 )
 from task_gen.program.utils.io import read_json, read_records, write_json
+from task_gen.program.utils.tool_runtime import (
+    _clear_snapshot_database_cache,
+    snapshot_state,
+)
 
 
 def closed_object(properties: dict, required: list[str]) -> dict:
@@ -190,6 +196,68 @@ class RepairAgent:
 
 
 class ProgramFormV2Tests(unittest.TestCase):
+    def test_sqlite_snapshot_cache_reuses_and_invalidates_logical_state(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = root / "records.sqlite"
+            database.write_bytes(b"database-v1")
+            environment = {
+                "record_sets": [{"record_set_id": "items", "fields": {}}],
+                "filesystem_scopes": [],
+            }
+            record_snapshot = {
+                "items": {
+                    "row_count": 0,
+                    "sha256": "records",
+                    "key_fields": [],
+                    "record_hashes": {},
+                }
+            }
+            metadata_snapshot = {
+                "sha256": "metadata",
+                "objects": [],
+                "user_version": 0,
+                "application_id": 0,
+            }
+            _clear_snapshot_database_cache()
+            with (
+                patch(
+                    "task_gen.program.utils.tool_runtime._snapshot_record_sets",
+                    return_value=record_snapshot,
+                ) as snapshot_records,
+                patch(
+                    "task_gen.program.utils.tool_runtime._snapshot_sqlite_metadata",
+                    return_value=metadata_snapshot,
+                ) as snapshot_metadata,
+            ):
+                first = snapshot_state(root, environment, package_format="v2")
+                second = snapshot_state(root, environment, package_format="v2")
+                self.assertEqual(first, second)
+                self.assertEqual(snapshot_records.call_count, 1)
+                self.assertEqual(snapshot_metadata.call_count, 1)
+
+                # Harness transaction copies have different absolute paths but
+                # preserve the same SQLite bytes; they must reuse this result.
+                clone = root / "transaction-copy"
+                clone.mkdir()
+                shutil.copy2(database, clone / "records.sqlite")
+                snapshot_state(clone, environment, package_format="v2")
+                self.assertEqual(snapshot_records.call_count, 1)
+                self.assertEqual(snapshot_metadata.call_count, 1)
+
+                # The WAL is part of SQLite's logical state even when the main
+                # database file itself did not change.
+                (root / "records.sqlite-wal").write_bytes(b"wal-v1")
+                snapshot_state(root, environment, package_format="v2")
+                self.assertEqual(snapshot_records.call_count, 2)
+                self.assertEqual(snapshot_metadata.call_count, 2)
+
+                database.write_bytes(b"database-v2-is-different")
+                snapshot_state(root, environment, package_format="v2")
+                self.assertEqual(snapshot_records.call_count, 3)
+                self.assertEqual(snapshot_metadata.call_count, 3)
+            _clear_snapshot_database_cache()
+
     def make_package(self, root: Path, relative: str = "environment") -> Path:
         package = root / relative
         state = package / "state"
@@ -418,6 +486,23 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                 baseline = runtime.call("get_candidate", {"item_id": "c"})
             self.assertEqual(baseline["data"]["item"]["status"], "open")
 
+    def test_runtime_rejects_read_only_record_mutation_without_committing_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package_path = self.make_package(root)
+            environment_path = package_path / "environment.json"
+            environment = read_json(environment_path)
+            environment["record_sets"][0]["access"] = "read_only"
+            write_json(environment_path, environment)
+            package = CompleteEnvironmentPackage.load(package_path)
+
+            with CompleteEnvironmentRuntime(package) as runtime:
+                with self.assertRaisesRegex(RuntimeError, "只读或未声明状态"):
+                    runtime.call("select_candidate", {"item_id": "c"})
+                baseline = runtime.call("get_candidate", {"item_id": "c"})
+
+            self.assertEqual(baseline["data"]["item"]["status"], "open")
+
     def test_step0_accepts_complete_toolgen_binding(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -613,9 +698,14 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
 
             self.assertEqual(len(tasks), 1)
             self.assertEqual(
-                tasks[0]["task_resources"],
-                generated["task_resources"],
+                set(tasks[0]),
+                {
+                    "schema_version", "task_id", "environment_id", "task_text",
+                    "difficulty", "initial_state", "available_tools", "reference",
+                },
             )
+            self.assertIn(generated["workspace_brief"], tasks[0]["task_text"])
+            self.assertIsInstance(tasks[0]["reference"]["answer"], str)
             self.assertEqual(tasks[0]["reference"]["tool_calls"][0]["tool"], "list_candidates")
             self.assertNotIn("result", tasks[0]["reference"]["tool_calls"][0])
             self.assertTrue((output / tasks[0]["initial_state"]).is_dir())

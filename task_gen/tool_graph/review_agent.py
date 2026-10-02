@@ -69,7 +69,7 @@ def review_with_initial_state(prompts, *, llm_config, initial_workspace, environ
                     'environment': readonly_environment,
                     'software': software,
                     'tools': [t for t in declaration.get('tools', []) if not t.get('usageConditions', {}).get('sideEffects')],
-                    'workspace': str(workspace), 'trace': str(root / 'tool_calls.jsonl'),
+                    'state_root': str(workspace), 'trace': str(root / 'tool_calls.jsonl'),
                     'max_tool_calls': 100, 'timeout': 300, 'memory_limit': 2 * 1024**3,
                     'write_limit': 256 * 1024**2,
                     'review_choice_seed': llm_config.get('review_choice_seed', secrets.randbits(64)) + index,

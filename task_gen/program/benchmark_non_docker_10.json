@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "purpose": "固定用于验证 Program Step 0-2 非 Docker 任务生成成功率的代表性环境集，避免根据运行结果事后挑选样本。",
+  "selection_criteria": [
+    "ToolGen binding 声明了可用的 Python software_profile",
+    "tool_validation.json 中所有工具状态均为 passed",
+    "十个环境覆盖不同工程或科研工作类型",
+    "每个环境完整运行 Step 0、Step 1 和 Step 2，每次只生成一条任务"
+  ],
+  "acceptance": {
+    "minimum_published": 8,
+    "total_environments": 10,
+    "minimum_effective_tool_calls_per_task": 15,
+    "clean_replays": 2,
+    "max_repair_rounds": 6,
+    "excluded_from_quality_denominator": [
+      "blocked_infrastructure"
+    ]
+  },
+  "environments": [
+    {
+      "package_id": "semiconductor_calibration_deembedding_1",
+      "domain": "晶圆级 RF 校准、测量与去嵌入",
+      "software_profile": "py-69c28c575478",
+      "validated_tool_count": 35
+    },
+    {
+      "package_id": "semiconductor_circuit_level_s_matrix_1",
+      "domain": "PIC 电路级 S 参数设计与验证",
+      "software_profile": "py-823f90499f86",
+      "validated_tool_count": 29
+    },
+    {
+      "package_id": "semiconductor_diffusion_reaction_pde_1",
+      "domain": "微沟槽电沉积扩散与表面反应仿真",
+      "software_profile": "py-8a6317ee193c",
+      "validated_tool_count": 23
+    },
+    {
+      "package_id": "semiconductor_eigenmode_1",
+      "domain": "集成光子二维波导本征模分析",
+      "software_profile": "py-58090fecafe9",
+      "validated_tool_count": 30
+    },
+    {
+      "package_id": "semiconductor_eme_propagation_1",
+      "domain": "集成光子 EME 波导传播设计",
+      "software_profile": "py-1ee11954aa93",
+      "validated_tool_count": 22
+    },
+    {
+      "package_id": "semiconductor_heterostructure_quantum_device_1",
+      "domain": "异质结构量子器件设计与仿真",
+      "software_profile": "py-193b0ff9589c",
+      "validated_tool_count": 31
+    },
+    {
+      "package_id": "semiconductor_mobility_scattering_1",
+      "domain": "异质结迁移率与散射分析",
+      "software_profile": "py-e3da941babff",
+      "validated_tool_count": 36
+    },
+    {
+      "package_id": "semiconductor_parameter_sweep_monte_carlo_1",
+      "domain": "SPICE 参数扫描、Monte Carlo 与规格风险分析",
+      "software_profile": "py-65a12ec3d0b8",
+      "validated_tool_count": 18
+    },
+    {
+      "package_id": "semiconductor_plasma_etch_physics_1",
+      "domain": "半导体干法刻蚀等离子体建模",
+      "software_profile": "py-24280f67d740",
+      "validated_tool_count": 25
+    },
+    {
+      "package_id": "semiconductor_poisson_drift_diffusion_1",
+      "domain": "Poisson 漂移扩散 TCAD 器件仿真",
+      "software_profile": "py-2db90d40ba2c",
+      "validated_tool_count": 28
+    }
+  ]
+}

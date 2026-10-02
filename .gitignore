@@ -15,7 +15,9 @@ cross_audit*.json
 *_progress*.json
 
 # Local working documents
-docs/
+docs/*
+!docs/HARNESS阶段接入说明.md
+!docs/HARNESS使用案例.md
 task_gen/tool_graph/AGENTS.md
 
 # One-off server recovery and scheduling scripts

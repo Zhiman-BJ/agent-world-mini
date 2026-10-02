@@ -30,6 +30,7 @@ class ToolGenDelivery:
     software_mapping_path: Path
     software_profile_path: Path | None
     profile_python: Path | None
+    runtime: dict[str, Any]
 
     @classmethod
     def load(
@@ -73,6 +74,7 @@ class ToolGenDelivery:
             software_mapping_path,
             delivery.software_root,
             delivery.python_path,
+            dict(delivery.runtime),
         )
 
 
@@ -160,6 +162,7 @@ def run_step0(
     if delivery is not None:
         shutil.copy2(delivery.binding_path, baseline / "binding.json")
         shutil.copy2(delivery.tool_validation_path, baseline / "tool_validation.json")
+        write_json(baseline / "runtime.json", delivery.runtime)
         tool_runtime = delivery.environment_path / "tool_runtime.json"
         if tool_runtime.is_file():
             shutil.copy2(tool_runtime, baseline / "tool_runtime.json")
@@ -186,6 +189,7 @@ def run_step0(
                 if delivery.software_profile_path is not None
                 else None
             ),
+            "runtime": dict(delivery.runtime),
         }
         write_json(baseline / "delivery.json", delivery_receipt)
 

@@ -377,17 +377,11 @@ class KimiMcpTests(unittest.TestCase):
             listed = responses[1]["result"]["tools"]
             self.assertEqual(
                 [item["name"] for item in listed],
-                [
-                    "get_environment_overview",
-                    "list_environment_resources",
-                    "inspect_environment_resource",
-                    "get_ticket",
-                    "resolve_ticket",
-                ],
+                ["get_ticket", "resolve_ticket"],
             )
-            self.assertIn("Preconditions", listed[3]["description"])
-            self.assertNotIn("internal", listed[3])
-            self.assertEqual(listed[3]["outputSchema"]["type"], "object")
+            self.assertIn("Preconditions", listed[0]["description"])
+            self.assertNotIn("internal", listed[0])
+            self.assertEqual(listed[0]["outputSchema"]["type"], "object")
             self.assertEqual(
                 responses[3]["result"]["structuredContent"]["data"]["status"],
                 "resolved",
@@ -430,11 +424,10 @@ class KimiMcpTests(unittest.TestCase):
                 {
                     "jsonrpc": "2.0",
                     "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "inspect_environment_resource",
-                        "arguments": {"ref": "aw://reports/daily.json"},
-                    },
+                        "method": "resources/read",
+                        "params": {
+                        "uri": "aw://reports/daily.json",
+                        },
                 },
             ]
             stdout = io.StringIO()
@@ -450,11 +443,11 @@ class KimiMcpTests(unittest.TestCase):
             self.assertFalse(responses[0]["result"]["isError"])
             self.assertIn(
                 "done",
-                responses[1]["result"]["structuredContent"]["data"]["text_preview"],
+                responses[1]["result"]["contents"][0]["text"],
             )
             changes = [json.loads(line)["state_changes"] for line in trace.read_text().splitlines()]
             self.assertEqual(changes[0]["filesystem_scopes"], ["reports"])
-            self.assertEqual(changes[1]["filesystem_scopes"], [])
+            self.assertEqual(len(changes), 1)
 
             sandbox = root / "sandbox"
             saved_file = sandbox / "state/filesystem_scopes/reports/daily.json"
@@ -490,20 +483,16 @@ class KimiMcpTests(unittest.TestCase):
                 {
                     "jsonrpc": "2.0",
                     "id": 1,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "get_environment_overview",
-                        "arguments": {},
-                    },
+                        "method": "resources/list",
+                        "params": {},
                 },
                 {
                     "jsonrpc": "2.0",
                     "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "list_environment_resources",
-                        "arguments": {"scope_id": "reports", "query": "daily"},
-                    },
+                        "method": "resources/read",
+                        "params": {
+                        "uri": "aw://reports/daily.json",
+                        },
                 },
             ]
             stdout = io.StringIO()
@@ -513,11 +502,13 @@ class KimiMcpTests(unittest.TestCase):
                 stdout=stdout,
             )
             responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
-            overview = responses[0]["result"]["structuredContent"]["data"]
-            self.assertEqual(overview["filesystem_scopes"][0]["file_count"], 1)
-            resources = responses[1]["result"]["structuredContent"]["data"]["resources"]
-            self.assertEqual(resources[0]["ref"], "aw://reports/daily.json")
+            resources = responses[0]["result"]["resources"]
+            self.assertEqual(resources[0]["uri"], "aw://reports/daily.json")
             self.assertNotIn(str(root), json.dumps(resources))
+            self.assertEqual(
+                json.loads(responses[1]["result"]["contents"][0]["text"]),
+                {"status": "open"},
+            )
 
     def test_business_failure_is_returned_as_structured_mcp_error(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -597,7 +588,7 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual(Path(entry["env"]["PETSC_DIR"]), petsc_prefix)
             self.assertEqual(Path(entry["env"]["SLEPC_DIR"]), petsc_prefix)
 
-    def test_config_loads_docker_binding_through_host_mcp(self) -> None:
+    def test_config_uses_declared_docker_image_and_translates_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             binding = self._make_delivery(root)
@@ -626,12 +617,34 @@ class KimiMcpTests(unittest.TestCase):
             )
 
             entry = config["mcpServers"]["agent_world_kicad"]
-            self.assertEqual(Path(entry['command']), Path(sys.executable).absolute())
-            self.assertEqual(Path(entry['args'][1]), binding)
-            self.assertIn(str(root / 'traces/calls.jsonl'), entry['args'])
-            self.assertIn(str(root / 'traces/sandbox'), entry['args'])
-            self.assertEqual(delivery.runtime['backend'], 'docker')
-            self.assertEqual(delivery.runtime['image'], 'agentworld/kicad:9.0')
+            self.assertEqual(Path(entry["command"]).name, "docker")
+            self.assertEqual(entry["args"][:3], ["run", "--rm", "-i"])
+            self.assertIn("seccomp=unconfined", entry["args"])
+            self.assertIn("apparmor=unconfined", entry["args"])
+            self.assertNotIn("--privileged", entry["args"])
+            self.assertNotIn("--cap-add", entry["args"])
+            self.assertIn("agentworld/kicad:9.0", entry["args"])
+            self.assertIn(
+                "/delivery/environments/support/binding.json", entry["args"]
+            )
+            self.assertTrue(
+                any(
+                    item.endswith("/env_gen/tool_gen/kimi_mcp.py")
+                    and item.startswith("/opt/agent-world/")
+                    for item in entry["args"]
+                )
+            )
+            self.assertIn("/external/0/calls.jsonl", entry["args"])
+            self.assertIn("/external/0/sandbox", entry["args"])
+            external_mounts = [
+                item
+                for item in entry["args"]
+                if item.startswith("type=bind,source=")
+                and "target=/external/" in item
+            ]
+            self.assertEqual(len(external_mounts), 1)
+            self.assertIn("--user", entry["args"])
+            self.assertEqual(entry["env"], {})
 
 
 if __name__ == "__main__":

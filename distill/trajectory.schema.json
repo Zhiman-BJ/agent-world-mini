@@ -92,12 +92,11 @@
               "properties": {
                 "call_id": {"type": "string"},
                 "name": {"type": "string"},
-                "tool_kind": {"enum": ["environment_mcp", "harness_support"]},
+                "tool_kind": {"enum": ["environment_mcp", "native_file_tool"]},
                 "arguments": {},
                 "output": {},
                 "is_error": {"type": "boolean"},
-                "environment_record": {"type": ["object", "null"]},
-                "support_record": {"type": ["object", "null"]}
+                "environment_record": {"type": ["object", "null"]}
               }
             }
           },

@@ -70,6 +70,12 @@ def is_retryable_error(error: BaseException) -> bool:
         if id(current) in seen:
             continue
         seen.add(id(current))
+        # A Step 2 coverage gap is not a malformed Seed or schema failure:
+        # the Agent downloaded real data but did not discover enough source
+        # types in this attempt. Retry so the next attempt can supplement it.
+        detail = str(current)
+        if "Step 2 已完成主要下载" in detail and "collection_profile.gaps" in detail:
+            return True
         if getattr(current, "retryable", False) is True:
             return True
         if isinstance(current, (TimeoutError, ConnectionError)):

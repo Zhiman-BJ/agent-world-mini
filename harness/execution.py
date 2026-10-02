@@ -29,11 +29,11 @@ def _schema_error(schema: dict[str, Any], value: Any) -> str | None:
 
 
 def _sandbox_call_tool(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    # Kept lazy so the Harness API stays stable while the existing, exercised
-    # bubblewrap implementation moves behind it without creating import cycles.
-    from task_gen.tool_graph.step_3_chain_execute import _call_tool
+    # Kept lazy so the Harness API stays stable while the process implementation
+    # remains isolated from MCP and direct TaskGen callers.
+    from .sandbox import call_tool
 
-    return _call_tool(*args, **kwargs)
+    return call_tool(*args, **kwargs)
 
 
 def call_environment_tool(
@@ -58,7 +58,11 @@ def call_environment_tool(
         return {"tool": name, "arguments": arguments, "result": None, "error": "未知工具"}
     catalog: ResourceCatalog | None = None
     allowed_scopes: set[str] | None = None
-    if environment and environment.get("filesystem_scopes"):
+    # Keep the resource boundary active for every explicit environment, even
+    # when it declares no filesystem scopes. This prevents an opaque resource
+    # URI from silently becoming an ordinary business string in a scope-less
+    # tool invocation.
+    if environment is not None:
         catalog = ResourceCatalog(
             environment,
             lambda scope_id: state_root.resolve() / "filesystem_scopes" / scope_id,
@@ -72,12 +76,9 @@ def call_environment_tool(
             for item in tool.get("usageConditions", {}).get("targetResources", [])
         }
         allowed_scopes = known_scopes & declared
-        try:
-            arguments = catalog.normalize_arguments(
-                arguments, schema=tool['inputSchema'], allowed_scopes=allowed_scopes,
-            )
-        except (ValueError, OSError) as error:
-            return {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
+        arguments = catalog.normalize_arguments(
+            arguments, schema=tool['inputSchema'], allowed_scopes=allowed_scopes,
+        )
     schema_error = _schema_error(tool["inputSchema"], arguments)
     if schema_error:
         return {"tool": name, "arguments": arguments, "result": None, "error": schema_error}

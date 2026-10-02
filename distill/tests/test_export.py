@@ -55,7 +55,6 @@ def test_compaction_links_before_and_after_model_contexts(tmp_path):
         {"request_id": 2, "status": 200, "body_path": "raw/model_io/000002.response.sse"},
     ])
     _jsonl(raw / "environment_tool_calls.jsonl", [])
-    _jsonl(raw / "result_reads.jsonl", [])
     (raw / "kimi_session.zip").write_bytes(b"session")
     (raw / "run_result.json").write_text(json.dumps({
         "reason": "completed", "answer": "done", "usage": {},

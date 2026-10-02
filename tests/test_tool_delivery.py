@@ -6,33 +6,33 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from env_gen.tool_gen.delivery import _publish_software_profile, publish
+from env_gen.tool_gen.delivery import publish
+from env_gen.tool_gen.migrate_delivery import migrate_delivery
 
 
 class ToolDeliveryTests(unittest.TestCase):
-    def test_profile_relocates_petsc_and_slepc_configs(self) -> None:
+    def test_migrates_legacy_binding_to_explicit_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            source = root / "source"
-            destination = root / "delivery/profile"
-            for package, filename, key in (
-                ("petsc4py", "petsc.cfg", "PETSC_DIR"),
-                ("slepc4py", "slepc.cfg", "SLEPC_DIR"),
-            ):
-                config = source / f"python-3.11/lib/python3.11/site-packages/{package}/lib/{filename}"
-                config.parent.mkdir(parents=True, exist_ok=True)
-                config.write_text(f"{key} = {source}/python-3.11\n", encoding="utf-8")
-            entrypoint = source / "python-3.11/bin/yowasp-yosys"
-            entrypoint.parent.mkdir(parents=True, exist_ok=True)
-            entrypoint.write_text(f"#!/bin/sh\nexec {source}/python-3.11/bin/python -m yowasp_yosys\n")
-            _publish_software_profile(source, destination, root / "missing-requirements.txt")
-            for package, filename in (("petsc4py", "petsc.cfg"), ("slepc4py", "slepc.cfg")):
-                config = destination / f"python-3.11/lib/python3.11/site-packages/{package}/lib/{filename}"
-                self.assertIn(str(destination), config.read_text(encoding="utf-8"))
-                self.assertNotIn(str(source), config.read_text(encoding="utf-8"))
-            relocated = destination / "python-3.11/bin/yowasp-yosys"
-            self.assertIn(str(destination), relocated.read_text(encoding="utf-8"))
-            self.assertNotIn(str(source), relocated.read_text(encoding="utf-8"))
+            root = Path(temporary) / "delivery"
+            package = root / "environments/example"
+            package.mkdir(parents=True)
+            binding_path = package / "binding.json"
+            binding_path.write_text(
+                json.dumps({
+                    "schema_version": "1.0",
+                    "package_id": "example",
+                    "environment_id": "example_environment",
+                    "package_path": "environments/example",
+                    "software_profile": "py-example",
+                }),
+                encoding="utf-8",
+            )
+            reports = migrate_delivery(root)
+            self.assertEqual(reports[0]["backend"], "python_profile")
+            runtime_path = package / "runtime/runtime.json"
+            self.assertTrue(runtime_path.is_file())
+            binding = json.loads(binding_path.read_text(encoding="utf-8"))
+            self.assertEqual(binding["runtime_path"], "environments/example/runtime/runtime.json")
 
     def test_publishes_one_environment_as_a_self_contained_unit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

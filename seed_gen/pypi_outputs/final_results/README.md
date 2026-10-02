@@ -1,5 +1,28 @@
 # 半导体场景正式产物
 
+## 2026-09-29 逐场景调研 Seed
+
+`semiconductor_researched_scenarios_20260929.json` 来自仓库根目录
+`半导体场景调研 - Sheet1 (1).csv`，按“CSV 每条业务场景对应一个 Seed”生成，共 524 条：
+480 条 `accepted`、34 条 `needs_revision`、10 条 `rejected`。三种状态都保留原始场景、包边界、
+可合成任务和评语，防止静默丢失；批量生成环境前应优先选择 `accepted`，其余 44 条先补充或修正。
+
+新 Seed 复用下文 160 个 L3 Seed 已核实的包、源码版本、来源和 API 作为参考锚点。每个锚点包都保留，
+但每包最多选择 2 个顶层参考 API、每个类最多 6 个方法。CSV 提到而旧锚点尚未核实的包、外部软件、
+服务和仪器只保留在 `others.scenario_design.package_or_combination_raw` 中，不伪装成已验证工具。
+该文件不覆盖原来的 L3 汇总文件。
+
+CSV 末尾新增 `是否接受` 列：只有评审通过的 480 条写入 `√`，其余场景保留为空。批量生成使用
+`semiconductor_researched_scenarios_accepted_20260929.json`，它只包含这 480 条，不需要运行时再猜测
+评审状态。
+
+```bash
+python -m seed_gen.scripts.build_researched_scenario_seeds
+python -m seed_gen.scripts.build_researched_scenario_seeds --check
+python -m seed_gen.scripts.build_researched_scenario_seeds --accepted-only
+python -m seed_gen.scripts.build_researched_scenario_seeds --accepted-only --check
+```
+
 `semiconductor_scenario_collection.json`合并全部160个L3；`semiconductor_scenario_01.json`至`_08.json`提供8份L1分组；`l3/`集中保存160份单场景JSON。三个粒度用于不同读取方式，均来自同一组L1内容，不额外保留worker副本。
 
 01及03–08共138项沿用2026-09-18完成的来源/静态/固定任务验证；02共22项来自0916快照，没有重跑或提升验证口径。2026-09-18统一场景契约时，仅将全部记录规范为`schema_version=scenario-1.1`和`source=deep_research`，把02的index移至未占用的28–49，并统一其L1标签；包、工具、任务和计数不变。当前02分片SHA256为`ee7c16623a70e485d9e94f8cf7937c000da49804c8962bf6c13050a5065946fb`。

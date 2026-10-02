@@ -23,8 +23,16 @@ class ProgramPipelineStep(str, Enum):
 class Config:
     environment_package: Path | None = None
     output_root: Path = PROJECT_ROOT / "runs/program"
-    model: str = "gpt-5.6-sol"
-    policy: ProgramGenerationPolicy = field(default_factory=ProgramGenerationPolicy)
+    model: str = "gpt-6-sol"
+    # A normal production run targets long, useful workflows. Unit fixtures can
+    # still construct ProgramGenerationPolicy() explicitly when testing replay.
+    policy: ProgramGenerationPolicy = field(
+        default_factory=lambda: ProgramGenerationPolicy(
+            task_generation_attempts=8,
+            minimum_effective_tool_calls=18,
+            execution_timeout_seconds=1000.0,
+        )
+    )
     tools_path: Path | None = None
     delivery_root: Path | None = None
     binding_path: Path | None = None
@@ -32,7 +40,7 @@ class Config:
     scenario_research_path: Path | None = None
     research_fixture_path: Path | None = None
     candidates_path: Path | None = None
-    agent_timeout_seconds: int = 2000
+    agent_timeout_seconds: int = 3600
 
 
 @dataclass(frozen=True)

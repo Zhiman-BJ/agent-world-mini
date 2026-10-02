@@ -46,7 +46,7 @@ def _environment(summary: str, description: str) -> dict[str, object]:
             "record_set_id": "items",
             "name": "Catalog items",
             "description": "One record represents one real catalog item.",
-            "access": "read_only",
+            "access": "copy_on_write",
             "key_fields": ["item_id"],
             "fields": {
                 "item_id": {"type": "string", "description": "Stable item identifier.", "nullable": False},

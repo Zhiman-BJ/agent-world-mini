@@ -15,8 +15,11 @@ import threading
 import time
 from typing import Any
 
+from harness.kimi_file_policy import build_kimi_file_hook_command
+from harness.delivery import load_delivery
 from harness.layout import TaskRunLayout, create_task_run_layout
 from harness.mcp_tools import expected_mcp_tool_names
+from env_gen.tool_gen.runtime_launch import StdioLaunch, stdio_launch
 from task_gen.task_eval_mcp import bind_delivery
 from task_gen.tool_graph.step_3_chain_execute import _public_environment
 
@@ -26,9 +29,24 @@ from .relay import StreamingRelay
 
 
 KIMI_K3_CONTEXT_SIZE = 1_048_576
+# A smaller cap is useful for controlled reruns without changing the default
+# official K3 window. The CLI still receives the selected cap as its model
+# metadata and the relay preserves it in the recorded trajectory.
+KIMI_K3_CONTEXT_SIZES = (262_144, KIMI_K3_CONTEXT_SIZE)
 KIMI_K3_EFFORTS = ("low", "high", "max")
 KIMI_K3_DEFAULT_EFFORT = "high"
+KIMI_UPSTREAM_MAX_RETRIES = 4
+KIMI_UPSTREAM_RETRY_BASE_SECONDS = 1.0
+KIMI_UPSTREAM_RETRY_MAX_SECONDS = 30.0
+KIMI_UPSTREAM_RETRY_JITTER_SECONDS = 0.25
+KIMI_MCP_STARTUP_TIMEOUT_SECONDS = 40.0
+KIMI_DOCKER_MCP_STARTUP_CONCURRENCY = 4
 PROVIDER_TYPES = {"kimi"}
+
+
+_DOCKER_MCP_STARTUP_SEMAPHORE = threading.BoundedSemaphore(
+    KIMI_DOCKER_MCP_STARTUP_CONCURRENCY
+)
 
 
 class DistillRunError(RuntimeError):
@@ -76,9 +94,19 @@ def _write_kimi_config(
     model_id: str,
     max_context_size: int,
     provider_type: str,
+    file_hook_command: str,
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
 ) -> None:
+    if not isinstance(file_hook_command, str) or not file_hook_command.strip():
+        raise ValueError("file_hook_command must be non-empty")
     quote = lambda value: json.dumps(value, ensure_ascii=False)
+    hook = (
+        "\n[[hooks]]\n"
+        'event = "PreToolUse"\n'
+        'matcher = "^(Read|Grep|Glob)$"\n'
+        f"command = {quote(file_hook_command)}\n"
+        "timeout = 5\n"
+    )
     path.write_text(
         f"default_model = {quote(model_alias)}\n\n"
         "[providers.agent_world_distill]\n"
@@ -92,7 +120,8 @@ def _write_kimi_config(
         f"max_context_size = {max_context_size}\n"
         'capabilities = ["thinking", "always_thinking", "tool_use"]\n'
         f"support_efforts = {json.dumps(list(KIMI_K3_EFFORTS))}\n"
-        f"default_effort = {quote(reasoning_effort)}\n",
+        f"default_effort = {quote(reasoning_effort)}\n"
+        f"{hook}",
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -105,10 +134,28 @@ name: agent-world-distill
 description: Agent World Kimi K3 trajectory distillation
 tools:
   - mcp__agent_world_distill__*
+  - Read
+  - Grep
+  - Glob
 disallowedTools:
+  - Write
+  - Edit
+  - Bash
+  - Agent
+  - AgentSwarm
+  - WebSearch
+  - FetchURL
+  - AskUserQuestion
   - select_tools
 subagents: []
 ---
+
+Native `Read`, `Grep`, and `Glob` are only for files in the empty model workspace,
+the current session's saved long tool results, and the current session's wire log.
+Do not use them to search the environment Scope, `execution-state`, delivery
+directories, host paths, or another task. Use the environment MCP tools to inspect
+and modify business state; a long MCP result can be recovered from the path Kimi
+provides in the current session.
 
 ${base_prompt}
 """, encoding="utf-8")
@@ -128,13 +175,13 @@ await import(pathToFileURL(cliPath).href);
     path.chmod(0o700)
 
 
-def _write_mcp_config(path: Path, server_config: Path, workspace: Path, timeout: int) -> None:
-    repository = Path(__file__).resolve().parents[1]
+def _write_mcp_config(path: Path, launch: StdioLaunch, workspace: Path, timeout: int) -> None:
     payload = {
         "mcpServers": {
             "agent_world_distill": {
-                "command": sys.executable,
-                "args": [str(repository / "task_gen/task_eval_kimi_mcp.py"), str(server_config)],
+                "command": str(launch.command),
+                "args": list(launch.arguments),
+                "env": launch.environment,
                 "cwd": str(workspace),
                 "enabled": True,
                 "deferred": False,
@@ -145,6 +192,53 @@ def _write_mcp_config(path: Path, server_config: Path, workspace: Path, timeout:
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     path.chmod(0o600)
+
+
+def _task_mcp_launch(
+    config: dict[str, Any],
+    private_server: Path,
+    paths: DistillPaths,
+) -> StdioLaunch:
+    repository = Path(__file__).resolve().parents[1]
+    server_path = repository / "task_gen/task_eval_kimi_mcp.py"
+    binding_path = config.get("binding_path")
+    if not isinstance(binding_path, str) or not binding_path:
+        return StdioLaunch(
+            Path(sys.executable).resolve(),
+            (str(server_path), str(private_server)),
+            {},
+        )
+
+    delivery = load_delivery(Path(binding_path))
+    trace = paths.raw / "environment_tool_calls.jsonl"
+    arguments = [
+        str(server_path),
+        "--binding", str(delivery.binding_path),
+        "--state-root", str(paths.execution_state),
+        "--trace", str(trace),
+        "--max-tool-calls", str(config["max_tool_calls"]),
+        "--timeout", str(config["timeout"]),
+        "--memory-limit", str(config["memory_limit"]),
+        "--write-limit", str(config["write_limit"]),
+        "--process-limit", str(config["process_limit"]),
+    ]
+    writable_paths = [paths.execution_state, trace]
+    if "review_choice_seed" in config:
+        seed_path = private_server.with_name("review_choice_seed.json")
+        seed_path.write_text(
+            json.dumps(config["review_choice_seed"], ensure_ascii=False),
+            encoding="utf-8",
+        )
+        seed_path.chmod(0o600)
+        arguments.extend(["--review-choice-seed", str(seed_path)])
+        writable_paths.append(seed_path)
+    return stdio_launch(
+        delivery,
+        server_path=server_path,
+        arguments=arguments,
+        writable_paths=tuple(writable_paths),
+        project_root=repository,
+    )
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -379,6 +473,7 @@ def run_k3_distillation(
     model_alias: str = "evaluation",
     provider_type: str = "kimi",
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
+    max_upstream_retries: int = KIMI_UPSTREAM_MAX_RETRIES,
     max_environment_errors: int | None = None,
     task: dict[str, Any] | None = None,
     evaluation: dict[str, Any] | None = None,
@@ -396,49 +491,71 @@ def run_k3_distillation(
         raise ValueError(
             f"reasoning_effort must be one of: {', '.join(KIMI_K3_EFFORTS)}"
         )
+    if type(max_upstream_retries) is not int or max_upstream_retries < 0:
+        raise ValueError("max_upstream_retries must be a non-negative integer")
     if type(max_context_size) is not int or max_context_size < 1:
         raise ValueError("max_context_size must be a positive integer supported by the upstream model")
     if max_environment_errors is not None and (
         type(max_environment_errors) is not int or max_environment_errors < 1
     ):
         raise ValueError("max_environment_errors must be a positive integer")
-    if model_id == "kimi-k3" and max_context_size != KIMI_K3_CONTEXT_SIZE:
+    if model_id == "kimi-k3" and max_context_size not in KIMI_K3_CONTEXT_SIZES:
         raise ValueError(
-            f"kimi-k3 max_context_size must match the official {KIMI_K3_CONTEXT_SIZE}-token window"
+            "kimi-k3 max_context_size must be one of the supported caps: "
+            + ", ".join(str(value) for value in KIMI_K3_CONTEXT_SIZES)
         )
     executable = _resolve_kimi_bin(kimi_bin)
     paths = _prepare_paths(initial_state, output_dir)
     config = _server_config(server_config)
     environment_trace = paths.raw / "environment_tool_calls.jsonl"
-    result_reads = paths.raw / "result_reads.jsonl"
     environment_trace.touch()
-    result_reads.touch()
     config.update({
         "state_root": str(paths.execution_state),
         "workspace": str(paths.execution_state),
         "trace": str(environment_trace),
-        "tool_result_page_chars": 6000,
-        "result_read_trace": str(result_reads),
     })
     tool_names = [tool["name"] for tool in config["tools"]]
-    if "read_tool_result" in tool_names:
-        raise ValueError("environment tool name conflicts with read_tool_result")
     expected_names = expected_mcp_tool_names(
         config["tools"],
         config.get("environment"),
         server_name="agent_world_distill",
-        support_tools=("read_tool_result",),
-    )
+    ) | {"Read", "Grep", "Glob"}
+    if "review_choice_seed" in config:
+        from task_gen.tool_graph.review_choices import TOOL
+        expected_names.add(f"mcp__agent_world_distill__{TOOL['name']}")
     (paths.raw / "harness_policy.json").write_text(json.dumps({
         "harness": "official_kimi_code_cli",
         "streaming_required": True,
         "system_prompt": "kimi_code_default",
-        "tools_enabled": ["mcp__agent_world_distill__*"],
-        "tools_disabled": ["select_tools", "Read", "Write", "Bash", "Grep", "Agent"],
-        "result_reader": "session_scoped_result_id_only",
+        "tools_enabled": ["mcp__agent_world_distill__*", "Read", "Grep", "Glob"],
+        "file_tools": ["Read", "Grep", "Glob"],
+        "file_access_policy": "pre_tool_use_realpath_allowlist",
+        "file_access_allowed": [
+            "model-workspace/**",
+            "current-session/agents/main/tool-results/**",
+            "current-session/agents/main/wire.jsonl",
+            "current-session kimi-file:// attachments",
+        ],
+        "tools_disabled": ["Write", "Edit", "Bash", "Agent", "AgentSwarm", "WebSearch", "FetchURL", "AskUserQuestion", "select_tools"],
+        "result_reader": "native_kimi_tool_results",
+        "mcp_runtime_backend": config.get("delivery_runtime", {}).get(
+            "backend", "host_python"
+        ),
         "provider_type": provider_type,
         "declared_model_context_size": max_context_size,
         "reasoning_effort": reasoning_effort,
+        "relay_normalizations": [
+            "thinking.effort -> reasoning_effort",
+            "max_tokens -> max_completion_tokens",
+            "parallel_tool_calls=true when omitted",
+        ],
+        "upstream_retry": {
+            "max_retries": max_upstream_retries,
+            "base_seconds": KIMI_UPSTREAM_RETRY_BASE_SECONDS,
+            "max_seconds": KIMI_UPSTREAM_RETRY_MAX_SECONDS,
+            "jitter_seconds": KIMI_UPSTREAM_RETRY_JITTER_SECONDS,
+            "retryable_400": "internal MaaS component rejection only",
+        },
         "model_parameters_overridden": ["reasoning_effort"],
     }, indent=2) + "\n", encoding="utf-8")
 
@@ -450,6 +567,7 @@ def run_k3_distillation(
         private_server = kimi_home / "server.json"
         private_server.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         private_server.chmod(0o600)
+        mcp_launch = _task_mcp_launch(config, private_server, paths)
         agent_file = kimi_home / "agent.md"
         _write_agent(agent_file)
         prompt_file = kimi_home / "prompt.txt"
@@ -459,17 +577,50 @@ def run_k3_distillation(
         _write_kimi_launcher(launcher)
         skills_dir = kimi_home / "skills"
         skills_dir.mkdir()
+        native_file_audit = paths.raw / "native_file_access.jsonl"
+        native_file_audit.touch(mode=0o600)
+        file_hook_command = build_kimi_file_hook_command(
+            paths.model_workspace,
+            kimi_home,
+            native_file_audit,
+        )
 
-        with StreamingRelay(base_url, api_key, paths.raw) as relay:
+        with StreamingRelay(
+            base_url,
+            api_key,
+            paths.raw,
+            max_retries=max_upstream_retries,
+            retry_base_seconds=KIMI_UPSTREAM_RETRY_BASE_SECONDS,
+            retry_max_seconds=KIMI_UPSTREAM_RETRY_MAX_SECONDS,
+            retry_jitter_seconds=KIMI_UPSTREAM_RETRY_JITTER_SECONDS,
+            first_request_tool_validator=lambda names: _tool_names_match(
+                names, expected_names
+            ),
+            expected_tool_names=expected_names,
+        ) as relay:
             _write_kimi_config(
                 kimi_home / "config.toml", relay.base_url, model_alias, model_id,
-                max_context_size, provider_type, reasoning_effort,
+                max_context_size, provider_type, file_hook_command, reasoning_effort,
             )
+            mcp_config_path = kimi_home / "mcp.json"
             _write_mcp_config(
-                kimi_home / "mcp.json",
-                private_server,
+                mcp_config_path,
+                mcp_launch,
                 paths.model_workspace,
                 int(config["timeout"]),
+            )
+            shutil.copy2(mcp_config_path, paths.raw / "mcp.json")
+            (paths.raw / "mcp_launch.json").write_text(
+                json.dumps({
+                    "command": str(mcp_launch.command),
+                    "arguments": list(mcp_launch.arguments),
+                    "environment": mcp_launch.environment,
+                    "cwd": str(paths.model_workspace),
+                    "runtime_backend": config.get("delivery_runtime", {}).get(
+                        "backend", "host_python"
+                    ),
+                }, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
             )
             child_env = dict(os.environ)
             for name, value in list(child_env.items()):
@@ -487,32 +638,69 @@ def run_k3_distillation(
                 "--skills-dir", str(skills_dir),
                 "--model", model_alias,
             ]
-            process = subprocess.Popen(
-                command,
-                cwd=paths.model_workspace,
-                env=child_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=os.name == "posix",
+            docker_startup_slot = (
+                _DOCKER_MCP_STARTUP_SEMAPHORE
+                if config.get("delivery_runtime", {}).get("backend") == "docker"
+                else None
             )
-            assert process.stdout is not None and process.stderr is not None
-            stderr_thread = threading.Thread(
-                target=_drain, args=(process.stderr, paths.raw / "cli_stderr.txt"), daemon=True,
-            )
-            stderr_thread.start()
-            monitor_thread = None
-            if max_environment_errors is not None:
-                monitor_thread = threading.Thread(
-                    target=_monitor_environment_errors,
-                    args=(
-                        process,
-                        environment_trace,
-                        max_environment_errors,
-                        paths.raw / "environment_stop.json",
-                    ),
+            if docker_startup_slot is not None:
+                docker_startup_slot.acquire()
+            try:
+                process = subprocess.Popen(
+                    command,
+                    cwd=paths.model_workspace,
+                    env=child_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=os.name == "posix",
+                )
+                assert process.stdout is not None and process.stderr is not None
+                stderr_thread = threading.Thread(
+                    target=_drain,
+                    args=(process.stderr, paths.raw / "cli_stderr.txt"),
                     daemon=True,
                 )
-                monitor_thread.start()
+                stderr_thread.start()
+                monitor_thread = None
+                if max_environment_errors is not None:
+                    monitor_thread = threading.Thread(
+                        target=_monitor_environment_errors,
+                        args=(
+                            process,
+                            environment_trace,
+                            max_environment_errors,
+                            paths.raw / "environment_stop.json",
+                        ),
+                        daemon=True,
+                    )
+                    monitor_thread.start()
+                startup_deadline = time.monotonic() + KIMI_MCP_STARTUP_TIMEOUT_SECONDS
+                while (
+                    process.poll() is None
+                    and not relay.first_model_request_event.wait(0.1)
+                    and time.monotonic() < startup_deadline
+                ):
+                    pass
+                if relay.first_request_tool_failure is not None:
+                    errors.append("Kimi first model request omitted environment MCP tools")
+                    _stop_process_group(process, signal.SIGTERM)
+                elif not relay.first_model_request_event.is_set():
+                    startup_failure = {
+                        "reason": "first_model_request_startup_timeout",
+                        "timeout_seconds": KIMI_MCP_STARTUP_TIMEOUT_SECONDS,
+                        "runtime_backend": config.get("delivery_runtime", {}).get(
+                            "backend", "host_python"
+                        ),
+                    }
+                    (paths.raw / "mcp_startup_failure.json").write_text(
+                        json.dumps(startup_failure, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                    errors.append("Kimi made no model request before MCP startup deadline")
+                    _stop_process_group(process, signal.SIGTERM)
+            finally:
+                if docker_startup_slot is not None:
+                    docker_startup_slot.release()
             _drain(process.stdout, paths.raw / "cli_stream.jsonl")
             process_returncode = process.wait()
             stderr_thread.join()
@@ -611,7 +799,7 @@ def make_server_config(
 
     runtime = runtime or {}
     return {
-        "workspace": ".",
+        "state_root": ".",
         "trace": "calls.jsonl",
         "max_tool_calls": max_tool_calls,
         "timeout": timeout,

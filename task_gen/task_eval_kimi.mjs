@@ -1,5 +1,6 @@
-// Thin bridge to the official SDK. Environment state is accessible only via MCP.
-import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+// Thin bridge to the official SDK. Environment state is accessible only via MCP;
+// the Python adapter supplies a runtime-aware MCP command (host Profile or Docker).
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { responseEvents } from './responses_events.mjs';
@@ -49,7 +50,9 @@ try {
         ? (input.provider_type === 'openai_responses' ? tool.name : tool.function?.name) : undefined);
       // Compaction requests may intentionally omit tools. Any offered tool must
       // still be from our MCP server; a nonempty task tool table must be complete.
-      if ((names.length > 0 && names.length !== input.tool_count) || names.some((name) => !name?.startsWith('mcp__agent_world_eval__'))) {
+      const native = new Set(['Read', 'Grep', 'Glob']);
+      if ((names.length > 0 && names.length !== input.tool_count) ||
+          names.some((name) => !name || (!name.startsWith('mcp__agent_world_eval__') && !native.has(name)))) {
         throw new Error('Kimi tool allowlist mismatch; refusing model request');
       }
       request.temperature = input.temperature;
@@ -80,6 +83,12 @@ try {
     }
     return originalFetch(resource, options);
   };
+  // External hooks are loaded while the Harness boots. setConfig() updates
+  // persisted config but does not reload that service in the pinned SDK.
+  mkdirSync(input.home_dir, { recursive: true, mode: 0o700 });
+  writeFileSync(join(input.home_dir, 'config.toml'),
+    `[[hooks]]\nevent = "PreToolUse"\nmatcher = "^(Read|Grep|Glob)$"\ncommand = ${JSON.stringify(input.file_hook_command)}\ntimeout = 5\n`,
+    { mode: 0o600 });
   harness = createKimiHarness({
     homeDir: input.home_dir, uiCapabilities: [],
     identity: { productName: 'agent-world-eval', version: '0.1.0', platform: 'agent_world_eval' },
@@ -90,9 +99,14 @@ try {
       maxContextSize: input.max_context_size, maxOutputSize: input.max_output_size } },
     defaultModel: 'evaluation', loopControl: input.loop_control,
     telemetry: false,
+    hooks: [{ event: 'PreToolUse', matcher: '^(Read|Grep|Glob)$',
+      command: input.file_hook_command, timeout: 5 }],
     // SDK v0.20's createSession currently ignores agentProfile/agentFiles.
     extraAgentDirs: [dirname(input.profile)],
-    tools: { enabled: ['mcp__agent_world_eval__*'], disabled: ['select_tools'] },
+    tools: {
+      enabled: ['mcp__agent_world_eval__*', 'Read', 'Grep', 'Glob'],
+      disabled: ['Write', 'Edit', 'Bash', 'Agent', 'AgentSwarm', 'WebSearch', 'FetchURL', 'AskUserQuestion', 'select_tools'],
+    },
   });
   save('effective_config.json', { ...await harness.getConfig(),
     adapter: { temperature: input.temperature, tool_count: input.tool_count } });
@@ -105,7 +119,7 @@ try {
   await session.getMcpStartupMetrics();
   const connected = (await session.listMcpServers()).find((server) => server.name === input.mcp.name);
   if (connected?.status !== 'connected') throw new Error(`MCP startup failed: ${connected?.error ?? connected?.status}`);
-  if (connected.toolCount !== input.tool_count) throw new Error('MCP tool count mismatch');
+  if (connected.toolCount !== input.mcp_tool_count) throw new Error('MCP tool count mismatch');
   let resolveDone;
   const done = new Promise((resolve) => { resolveDone = resolve; });
   const errors = [];

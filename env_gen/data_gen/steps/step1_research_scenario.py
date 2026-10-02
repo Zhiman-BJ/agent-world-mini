@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 import math
 from pathlib import Path
 import time
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from env_gen.data_gen.analysis.scenario_research import (
     validate_scenario_research_payload,
@@ -253,6 +255,86 @@ def _verify_research_inputs(expected: dict[str, str]) -> None:
         raise RuntimeError("；".join(issues[:8]))
 
 
+def _normalize_research_source_registry(
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], int]:
+    """Register valid cited HTTP(S) URLs that the Agent omitted from sources.
+
+    This only repairs the redundant source index. It deliberately does not create
+    missing research sections or accept malformed URLs; the normal schema and
+    semantic validators remain responsible for those failures.
+    """
+
+    normalized = deepcopy(payload)
+    notes = normalized.get("research_notes")
+    if not isinstance(notes, dict):
+        return normalized, 0
+    raw_sources = notes.get("sources")
+    if not isinstance(raw_sources, list):
+        return normalized, 0
+
+    sources: list[Any] = []
+    registered_urls: set[str] = set()
+    for item in raw_sources:
+        if not isinstance(item, dict):
+            sources.append(item)
+            continue
+        url = str(item.get("url") or "").strip()
+        if not url:
+            sources.append(item)
+            continue
+        if url in registered_urls:
+            continue
+        source = dict(item)
+        source["url"] = url
+        sources.append(source)
+        registered_urls.add(url)
+
+    referenced_items: list[tuple[str, Any]] = [
+        ("环境说明", normalized.get("environment")),
+    ]
+    for collection, label in (
+        ("entities", "实体"),
+        ("tools", "工具"),
+        ("tasks", "任务"),
+    ):
+        items = normalized.get(collection)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            name = str(item.get("name") or "").strip() if isinstance(item, dict) else ""
+            referenced_items.append((f"{label}“{name}”" if name else label, item))
+
+    added = 0
+    for location, item in referenced_items:
+        if not isinstance(item, dict):
+            continue
+        urls = item.get("source_urls")
+        if not isinstance(urls, list):
+            continue
+        for raw_url in urls:
+            if not isinstance(raw_url, str):
+                continue
+            url = raw_url.strip()
+            parsed = urlparse(url)
+            if (
+                not url
+                or parsed.scheme not in {"http", "https"}
+                or not parsed.netloc
+                or url in registered_urls
+            ):
+                continue
+            sources.append({
+                "url": url,
+                "description": f"Agent 在{location}的调研结论中引用，保存时自动补充登记。",
+            })
+            registered_urls.add(url)
+            added += 1
+
+    notes["sources"] = sources
+    return normalized, added
+
+
 def save_scenario_research(
     run_dir: Path,
     payload: dict[str, Any],
@@ -263,12 +345,12 @@ def save_scenario_research(
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
     seed = read_json(control_path(run_dir, CONTROL_SELECTED_SEED), "选中 Seed")
     schema = read_json(Path(config["scenario_research_schema_path"]), "场景研究 Schema")
-    research = {
+    research, auto_registered_source_count = _normalize_research_source_registry({
         **payload,
         "schema_version": "3.0",
         "seed_global_id": str(config["seed_global_id"]),
         "seed_sha256": str(config["seed_sha256"]),
-    }
+    })
     issues = validate_scenario_research_payload(
         research,
         schema=schema,
@@ -297,6 +379,7 @@ def save_scenario_research(
             "tool_count": len(research.get("tools", [])),
             "task_count": len(research.get("tasks", [])),
             "source_count": len(research.get("research_notes", {}).get("sources", [])),
+            "auto_registered_source_count": auto_registered_source_count,
         },
     )
     return research

@@ -15,7 +15,7 @@ if __package__ in {None, ""}:
 from harness.delivery import DeliveryPackage, load_delivery  # noqa: E402
 from env_gen.tool_gen.mcp_protocol import serve_jsonrpc  # noqa: E402
 from env_gen.tool_gen.mcp_server import ToolMcpServer  # noqa: E402
-from env_gen.tool_gen.runtime_launch import local_stdio_launch  # noqa: E402
+from env_gen.tool_gen.runtime_launch import stdio_launch  # noqa: E402
 
 
 # Existing callers may keep this name while the implementation lives in the
@@ -77,7 +77,7 @@ def kimi_config(
         arguments.extend(["--session-root", str(resolved_session)])
         writable_paths.append(resolved_session)
     arguments.extend(["--max-tool-calls", str(max_tool_calls)])
-    launch = local_stdio_launch(
+    launch = stdio_launch(
         delivery,
         server_path=server_path,
         arguments=arguments,

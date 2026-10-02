@@ -95,10 +95,21 @@ def _expected_global_id(seed: dict[str, Any]) -> str | None:
     if seed.get("schema_version") == SCENARIO_SEED_SCHEMA_VERSION:
         domain = seed.get("environment", {}).get("domain", {})
         level3 = domain.get("level3") if isinstance(domain, dict) else None
-        match = re.match(r"^(\d{2}\.\d{2}\.\d{2})(?:\s|$)", level3 or "")
+        match = re.match(r"^(\d{2}\.\d{2}\.(?:\d{2}|W\d+))(?:\s|$)", level3 or "")
         if not match:
             return None
-        return f"semiconductor_scenario_{match.group(1).replace('.', '_')}"
+        base = f"semiconductor_scenario_{match.group(1).lower().replace('.', '_')}"
+        others = seed.get("others", {})
+        scenario_design = others.get("scenario_design", {}) if isinstance(others, dict) else {}
+        if (
+            isinstance(scenario_design, dict)
+            and scenario_design.get("seed_granularity") == "one_researched_scenario_per_seed"
+        ):
+            source_row = scenario_design.get("source_row")
+            if not isinstance(source_row, int) or source_row < 1 or source_row > 9999:
+                return None
+            return f"{base}_{source_row:04d}"
+        return base
 
     basic = seed.get("environment", {}).get("basic_info", {})
     if not isinstance(basic, dict):

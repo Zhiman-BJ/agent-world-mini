@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from pathlib import Path
 import sys
 from typing import Any, TextIO
@@ -11,12 +10,12 @@ from typing import Any, TextIO
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from task_gen.tool_graph.step_3_chain_execute import (  # noqa: E402
-    _schema_error,
-)
 from harness.delivery import load_delivery  # noqa: E402
-from harness.execution import CallToolFn, call_environment_tool  # noqa: E402, F401
-from harness.mcp_tools import RESOURCE_TOOLS  # noqa: E402
+from harness.execution import (  # noqa: E402, F401
+    CallToolFn,
+    _schema_error,
+    call_environment_tool,
+)
 from harness.resources import ResourceCatalog  # noqa: E402
 from env_gen.tool_gen.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
@@ -43,10 +42,22 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
     if 'environment' in config and any(config['environment'].get(k) != v
                                       for k, v in delivery.package.environment.items()):
         raise ValueError('任务环境与 binding 交付环境不一致')
-    return {**config, 'tools': list(delivery.package.tools), 'environment': delivery.package.environment,
-            'runtime': delivery.runtime,
-            'software': {'root': str(delivery.software_root), 'python': str(delivery.python_path)}
-                        if delivery.software_root else None}
+    bound = {
+        **config,
+        'tools': list(delivery.package.tools),
+        'environment': delivery.package.environment,
+        'delivery_runtime': dict(delivery.runtime),
+    }
+    if delivery.runtime.get('backend') == 'docker':
+        bound['software'] = None
+        bound['software_root'] = str(delivery.runtime['software_root'])
+    else:
+        bound['software'] = (
+            {'root': str(delivery.software_root), 'python': str(delivery.python_path)}
+            if delivery.software_root else None
+        )
+        bound.pop('software_root', None)
+    return bound
 
 
 class TaskEvalMcpServer:
@@ -90,21 +101,32 @@ class TaskEvalMcpServer:
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
         method = request.get("method")
         if method == "initialize":
-            result = {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {"listChanged": False}},
+            result = {"protocolVersion": PROTOCOL_VERSION, "capabilities": {
+                          "tools": {"listChanged": False},
+                          "resources": {"listChanged": False, "subscribe": False},
+                      },
                       "serverInfo": {"name": "agent-world-task-eval", "version": SERVER_VERSION}}
             if self.resources is not None:
                 result["instructions"] = (
-                    "Use get_environment_overview and list_environment_resources to find files. "
-                    "Pass aw:// references to business tools instead of guessing workspace paths."
+                    "Use resources/list and resources/read to find files. "
+                    "For business tools, pass the returned Scope-relative path with its "
+                    "scope_id; do not pass the resource URI as a business argument."
                 )
             return result
         if method == "tools/list":
             tools = public_tools(self.tools.values())
-            if self.resources is not None:
-                tools = [*deepcopy(RESOURCE_TOOLS), *tools]
             if self.choice_tool:
                 tools.append(self.choice_tool)
             return {"tools": tools}
+        if method == "resources/list":
+            return {"resources": self._resource_list(request.get("params"))}
+        if method == "resources/read":
+            params = request.get("params")
+            if not isinstance(params, dict) or not isinstance(params.get("uri"), str):
+                raise RpcError(-32602, "resources/read 需要 uri")
+            return {"contents": [self._resource_read(params["uri"])]}
+        if method == "resources/templates/list":
+            return {"resourceTemplates": []}
         if method == "tools/call":
             return self._call(request.get("params"))
         if method == "ping":
@@ -118,10 +140,8 @@ class TaskEvalMcpServer:
             raise RpcError(-32602, "tools/call 缺少 params")
         name, arguments = params.get("name"), params.get("arguments", {})
         is_choice = self.choice_tool is not None and name == self.choice_tool['name']
-        resource_names = {tool["name"] for tool in RESOURCE_TOOLS} if self.resources else set()
-        is_resource = name in resource_names
         if not isinstance(name, str) or (
-            name not in self.tools and not is_choice and not is_resource
+            name not in self.tools and not is_choice
         ):
             raise RpcError(-32602, f"未知工具：{name}")
         if not isinstance(arguments, dict):
@@ -129,25 +149,7 @@ class TaskEvalMcpServer:
         if self.calls >= int(self.config["max_tool_calls"]):
             raise RpcError(-32000, "工具调用次数已达到上限")
         self.calls += 1
-        if is_resource:
-            try:
-                if name == "get_environment_overview":
-                    data = self.resources.overview()
-                elif name == "list_environment_resources":
-                    data = {"resources": self.resources.list(
-                        scope_id=arguments.get("scope_id"), query=arguments.get("query"),
-                        limit=arguments.get("limit", 100), offset=arguments.get("offset", 0))}
-                else:
-                    data = self.resources.inspect(
-                        str(arguments.get("ref", "")),
-                        preview_chars=arguments.get("preview_chars", 4000),
-                    )
-                record = {"tool": name, "arguments": arguments,
-                          "result": {"success": True, "data": data}, "error": None}
-            except Exception as error:
-                record = {"tool": name, "arguments": arguments, "result": None,
-                          "error": f"{type(error).__name__}: {error}"}
-        elif is_choice:
+        if is_choice:
             try:
                 error = _schema_error(self.choice_tool['inputSchema'], arguments)
                 if error:
@@ -162,7 +164,6 @@ class TaskEvalMcpServer:
                 write_limit=int(self.config["write_limit"]),
                 process_limit=int(self.config.get("process_limit", 1024)),
                 environment=self.config.get("environment", {}),
-                runtime=self.config.get("runtime"),
                 **({'software': self.config['software']} if self.config.get('software') else {}),
                 **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )
@@ -173,7 +174,7 @@ class TaskEvalMcpServer:
         # Business failures retain their schema-defined shape; the trace keeps
         # the existing error semantics used by evaluators and ReAct.
         business_failure = (
-            not is_choice and not is_resource and isinstance(payload, dict) and payload.get("success") is False
+            name in self.tools and not is_choice and isinstance(payload, dict) and payload.get("success") is False
             and _schema_error(self.tools[name]["outputSchema"], payload) is None
         )
         if record["error"] is not None and not business_failure:
@@ -185,6 +186,44 @@ class TaskEvalMcpServer:
                 "retryable": timeout,
             }, "tool_result": payload}
         return tool_call_result(payload, is_error=record["error"] is not None or business_failure)
+
+    def _resource_list(self, params: Any) -> list[dict[str, Any]]:
+        if self.resources is None:
+            return []
+        if params not in (None, {}) and not isinstance(params, dict):
+            raise RpcError(-32602, "resources/list params 必须是 object")
+        return [
+            {
+                "uri": item["ref"],
+                "name": item["name"],
+                "description": item.get("description", ""),
+                "mimeType": item.get("media_type") or "application/octet-stream",
+                "scope_id": item["scope_id"],
+                "relative_path": item["relative_path"],
+            }
+            for item in self.resources.list(limit=500)
+        ]
+
+    def _resource_read(self, uri: str) -> dict[str, Any]:
+        import base64
+        if self.resources is None:
+            raise RpcError(-32602, "当前环境没有 Filesystem Scope")
+        resource = self.resources.inspect(uri, preview_chars=0)
+        path = self.resources.resolve(uri, must_exist=True)
+        if path.is_dir():
+            raise RpcError(-32602, "resources/read 只能读取文件")
+        raw = path.read_bytes()
+        if len(raw) > 50 * 1024 * 1024:
+            raise RpcError(-32000, "资源读取超过 50 MiB 限制，请使用业务工具处理该资源")
+        payload: dict[str, Any] = {
+            "uri": uri,
+            "mimeType": resource.get("media_type") or "application/octet-stream",
+        }
+        try:
+            payload["text"] = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            payload["blob"] = base64.b64encode(raw).decode("ascii")
+        return payload
 
 
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:

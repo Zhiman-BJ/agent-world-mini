@@ -19,6 +19,7 @@ class TaskEvalTest(unittest.TestCase):
 
             self.assertIn("7", prompt["role"])
             self.assertIn("tool calls", prompt["role"])
+            self.assertNotIn("environment", prompt)
 
     def test_task_evaluation_uses_backend_budget_and_explicit_override(self) -> None:
         for backend, override, expected in [('react', None, 50), ('kimi', None, 100), ('kimi', 7, 7)]:

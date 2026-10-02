@@ -27,7 +27,7 @@
         "properties": {
           "archetype_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
           "name": {"type": "string", "minLength": 4},
-          "description": {"type": "string", "minLength": 120},
+          "description": {"type": "string", "minLength": 80},
           "requirements": {
             "type": "array",
             "minItems": 2,

@@ -13,12 +13,59 @@ import tempfile
 import time
 from typing import Any
 
+from harness.kimi_file_policy import build_kimi_file_hook_command
+from env_gen.tool_gen.delivery_contract import load_delivery
+from env_gen.tool_gen.runtime_launch import StdioLaunch, stdio_launch
+
 from .tool_graph.llm import _client
-from .tool_result_reader import ResultReader
 from .task_eval_mcp import bind_delivery
 
 
 SYSTEM_PROMPT = '${base_prompt}'
+
+
+def _mcp_launch(
+    config: dict[str, Any],
+    private_server: Path,
+    workspace: Path,
+    trace: Path,
+    repository: Path,
+) -> StdioLaunch:
+    """Select the same delivery runtime as the distillation runner.
+
+    The positional server-config mode remains available for old callers.  A
+    binding-backed run uses the published runtime contract and passes only
+    task-scoped paths to the MCP adapter, so Docker receives translated mount
+    paths instead of host paths embedded in a config file.
+    """
+    server_path = repository / "task_gen/task_eval_kimi_mcp.py"
+    binding_value = config.get("binding_path")
+    if not isinstance(binding_value, str) or not binding_value:
+        return StdioLaunch(
+            Path(sys.executable).resolve(),
+            (str(server_path), str(private_server)),
+            {},
+        )
+
+    delivery = load_delivery(Path(binding_value))
+    arguments = [
+        str(server_path),
+        "--binding", str(delivery.binding_path),
+        "--state-root", str(workspace.resolve()),
+        "--trace", str(trace.resolve()),
+        "--max-tool-calls", str(config["max_tool_calls"]),
+        "--timeout", str(config["timeout"]),
+        "--memory-limit", str(config["memory_limit"]),
+        "--write-limit", str(config["write_limit"]),
+        "--process-limit", str(config.get("process_limit", 1024)),
+    ]
+    return stdio_launch(
+        delivery,
+        server_path=server_path,
+        arguments=arguments,
+        writable_paths=(workspace.resolve(), trace.resolve()),
+        project_root=repository,
+    )
 
 
 def run_kimi_agent(
@@ -30,7 +77,7 @@ def run_kimi_agent(
         'sdk_path', 'node', 'provider_type', 'max_context_size', 'max_output_size',
         'timeout_seconds', 'max_steps_per_turn', 'max_attempts_per_step',
         'reserved_context_size', 'compaction_trigger_ratio', 'compaction_max_attempts',
-        'system_prompt', 'tool_result_page_chars', 'binding_path', 'responses_stream',
+        'system_prompt', 'binding_path', 'responses_stream',
     }
     if unknown:
         raise ValueError('未知 llm.kimi 配置：' + ', '.join(sorted(unknown)))
@@ -46,10 +93,6 @@ def run_kimi_agent(
     if options.get('binding_path'):
         config['binding_path'] = str(Path(options['binding_path']).expanduser().resolve())
     config = bind_delivery(config)
-    page_chars = options.get('tool_result_page_chars', 6000)
-    reader = ResultReader(page_chars)  # Validate before starting the SDK.
-    if any(tool['name'] == reader.name for tool in config['tools']):
-        raise ValueError('read_tool_result 工具名称冲突')
     budget = config["max_tool_calls"]
     if type(budget) is not int or budget < 1:
         raise ValueError("max_tool_calls 必须是正整数")
@@ -93,25 +136,27 @@ def run_kimi_agent(
         root = Path(temporary)
         work_dir = root / "work"
         work_dir.mkdir()
-        result_read_trace = log_dir / 'result_reads.jsonl'
-        result_read_trace.touch()
-        config.update(workspace=str(workspace.resolve()), trace=str(trace),
-                      tool_result_page_chars=page_chars, result_read_trace=str(result_read_trace.resolve()))
+        config.update(state_root=str(workspace.resolve()), trace=str(trace))
         private_server = root / "server.json"
         private_server.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         profile = root / "agent.md"
         profile_text = (
             '---\nname: agent\noverride: true\ndescription: Environment task solver\n'
-            'tools: ["mcp__agent_world_eval__*"]\ndisallowedTools: ["select_tools"]\n'
+            'tools: ["mcp__agent_world_eval__*", "Read", "Grep", "Glob"]\n'
+            'disallowedTools: ["Write", "Edit", "Bash", "Agent", "AgentSwarm", "WebSearch", "FetchURL", "AskUserQuestion", "select_tools"]\n'
             'subagents: []\n---\n' + system_prompt.strip() + '\n'
         )
         profile.write_text(profile_text, encoding="utf-8")
         (log_dir / "agent.md").write_text(profile_text, encoding="utf-8")
+        native_file_audit = log_dir / "native_file_access.jsonl"
+        native_file_audit.touch(mode=0o600)
+        mcp_launch = _mcp_launch(config, private_server, workspace, trace, repository)
         payload = {
             "sdk_path": str(Path(sdk_value).expanduser().resolve()),
             "home_dir": str(root / "home"), "work_dir": str(work_dir),
             "profile": str(profile), "log_dir": str(log_dir.resolve()), "prompt": prompt,
-            "tool_count": len(config["tools"]) + 1,
+            "tool_count": len(config["tools"]) + (1 if "review_choice_seed" in config else 0) + 3,
+            "mcp_tool_count": len(config["tools"]) + (1 if "review_choice_seed" in config else 0),
             "model": client.model, "base_url": client.base_url, "api_key": client.api_key,
             "provider_type": options.get("provider_type", "openai"),
             "responses_stream": options.get("responses_stream", True),
@@ -119,6 +164,11 @@ def run_kimi_agent(
             **({'max_output_size': integer_options['max_output_size']}
                if 'max_output_size' in integer_options else {}),
             "temperature": temperature,
+            "file_hook_command": build_kimi_file_hook_command(
+                work_dir,
+                root / "home",
+                native_file_audit,
+            ),
             "loop_control": {
                 **({'maxStepsPerTurn': integer_options['max_steps_per_turn']}
                    if 'max_steps_per_turn' in integer_options else {}),
@@ -130,9 +180,9 @@ def run_kimi_agent(
                 **({'compactionMaxAttempts': integer_options['compaction_max_attempts']}
                    if 'compaction_max_attempts' in integer_options else {}),
             },
-            "mcp": {"name": "agent_world_eval", "transport": "stdio", "command": sys.executable,
-                    "args": [str(repository / "task_gen/task_eval_kimi_mcp.py"), str(private_server)],
-                    "cwd": str(work_dir), "deferred": False,
+            "mcp": {"name": "agent_world_eval", "transport": "stdio",
+                    "command": str(mcp_launch.command), "args": list(mcp_launch.arguments),
+                    "env": mcp_launch.environment, "cwd": str(work_dir), "deferred": False,
                     "toolTimeoutMs": int(config.get("timeout", 300)) * 1000},
         }
         # Do not inherit another Kimi session's settings or model credentials.

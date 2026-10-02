@@ -75,6 +75,26 @@ def _validation_issues(
     return [item.to_dict() for item in report.errors], report.statistics
 
 
+def _writable_asset_issues(environment: dict[str, Any]) -> list[dict[str, str]]:
+    """Require task-facing business state to support isolated writes."""
+
+    issues: list[dict[str, str]] = []
+    for collection, id_field in (
+        ("record_sets", "record_set_id"),
+        ("filesystem_scopes", "scope_id"),
+    ):
+        for index, item in enumerate(environment.get(collection, [])):
+            if not isinstance(item, dict) or item.get("access") == "copy_on_write":
+                continue
+            asset_id = str(item.get(id_field) or f"index {index}")
+            issues.append(_issue(
+                "business_asset_not_writable",
+                f"environment.json.{collection}[{index}].access",
+                f"业务资源 {asset_id} 必须使用 copy_on_write，供后续任务读写独立副本",
+            ))
+    return issues
+
+
 def _coverage_issues(run_dir: Path) -> tuple[list[dict[str, str]], dict[str, Any]]:
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
     path = run_dir / COLLECTION_PROFILE_PATH
@@ -157,6 +177,7 @@ def assess_environment(run_dir: Path) -> dict[str, Any]:
                         f"environment.json.{field}",
                         f"{field} 必须沿用 Step 1 已确认的环境语义",
                     ))
+            issues.extend(_writable_asset_issues(environment))
             validation_issues, statistics = _validation_issues(
                 run_dir, schema_path=Path(config["environment_schema_path"]),
             )

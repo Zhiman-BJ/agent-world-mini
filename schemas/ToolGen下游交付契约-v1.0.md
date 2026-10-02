@@ -137,7 +137,8 @@ tools[]
 `success=false` 表示一次有效的业务失败。`retryable=true` 表示同一参数在临时性故障恢复后可重试；
 参数、对象状态或业务规则导致的失败使用 `retryable=false`。
 
-文件和目录参数使用逻辑资源引用，不传服务器、沙箱或容器的绝对路径。例如：
+文件和目录参数使用所属 Filesystem Scope 内的相对路径，不传服务器、沙箱或容器的绝对路径。
+Schema 用扩展注解声明这个相对路径属于哪个 Scope，例如：
 
 ```json
 {
@@ -150,11 +151,15 @@ tools[]
 }
 ```
 
-Agent 先通过资源查询工具获得 `aw://design_files/main.kicad_sch`，再把该引用传给业务工具。
-文件返回值采用同一格式，例如 `aw://reports/main.svg`。`x-resource-scope` 和
-`x-resource-kind` 同时适用于 inputSchema 与 outputSchema，分别声明资源所属 Scope 以及文件或
-目录类型。Runtime 在调用工具前把输入引用转成 Scope 内相对路径，在返回模型前把标注过的相对
-路径转回 `aw://` 引用。工具和模型都不依赖 Kimi 工作区、MCP 启动目录或容器挂载点。
+如果这个字段属于 `design_files`，业务工具参数传 `main.kicad_sch`；如果工具在 `reports`
+Scope 中生成文件，返回 `main.svg`。不要增加 `design_files/`、`reports/`、
+`filesystem_scopes/` 等物理或逻辑根前缀。
+
+`x-resource-scope` 和 `x-resource-kind` 同时适用于 inputSchema 与 outputSchema，分别声明资源所属
+Scope 以及文件或目录类型。Runtime 根据这两个注解拒绝绝对路径、`..` 越界、错误 Scope 和错误
+资源类型，并把相对路径交给工具代码。MCP `resources/list` 返回的 Resource URI 只用于
+`resources/read`；它是 opaque 协议标识，不能作为业务工具参数或返回值。这样工具和模型都不依赖
+Kimi 工作区、MCP 启动目录或容器挂载点。
 
 ## 5. Runtime 会话
 

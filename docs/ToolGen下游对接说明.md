@@ -1,6 +1,9 @@
-# ToolGen 下游对接
+# ToolGen 下游怎么用
 
-## 临时环境的运行流程
+各阶段接入 Harness 的统一方法、Python API、任务目录、资源引用和验收清单，见
+[Harness 阶段接入说明](HARNESS阶段接入说明.md)。本文保留交付包和 Kimi/MCP 的快速说明；新接入方应优先遵循 Harness 文档中的入口和目录边界。
+
+## 临时环境怎么运行
 
 以使用 Docker 的专业环境为例：
 
@@ -11,38 +14,34 @@
             ↓
 自动把原始环境复制到 sandbox/
             ↓
-每次调用工具时，启动临时 Docker 容器并挂载任务数据
+启动一个临时 Docker 容器
             ↓
 同一任务的多次工具调用共用 sandbox/ 中的数据
             ↓
-调用结束：容器自动删除，成功的修改保存到 sandbox/
-            ↓
-MCP 结束：最终数据和工具调用记录留在运行目录
+MCP 结束：容器自动删除，最终数据和工具调用记录留在运行目录
 ```
 
 下一条任务重新创建运行目录，从原始环境开始。使用 Python 软件环境的工具也是这个流程，只是直接使用已装好依赖的 Python，不启动 Docker 容器。
 
-MCP 服务在服务器上负责接收调用，业务工具由统一执行器运行。Docker 工具在镜像中执行；Python 工具在隔离进程中执行。同一任务始终使用同一份 `sandbox/` 数据，重启 MCP 也会继续使用这份数据。调用超时、执行异常或返回的文件不存在时，保留调用前的数据。
-
-## 交付内容
+## 我们交付什么
 
 每个环境都有一个 `binding.json`。它指向三样东西：原始环境、可以调用的工具、运行工具所需的软件。下游选定这个文件，就能找到该环境的完整交付内容。
 
 170 上的一个例子：
 
 ```text
-/data1/agent_world/toolgen_environments/delivery/environments/semiconductor_circuit_level_s_matrix_1/binding.json
+/data1/agent_world/toolgen_semiconductor_160_20260918/delivery/environments/semiconductor_circuit_level_s_matrix_1/binding.json
 ```
 
-## TaskGen 对接
+## 继续合成任务数据：TaskGen 怎么接
 
 TaskGen 从 `binding.json` 加载原始环境和工具，生成任务、参考解等数据。需要执行工具时，使用同一文件指定的 Python 软件环境或 Docker 镜像。
 
-TaskGen 的环境加载入口从 `binding.json` 取得路径和运行方式。单独编写调用程序时，也使用同一个加载函数：
+具体要改的是 TaskGen 的 `task_gen/program/step_0_environment_load.py`：它目前自己拼软件路径，和真实交付包的目录不一致。改为调用 ToolGen 已有的加载函数，让路径和运行方式都从 `binding.json` 取得：
 
 ```python
 from pathlib import Path
-from harness.delivery import load_delivery
+from env_gen.tool_gen.delivery_contract import load_delivery
 
 delivery = load_delivery(Path(binding_path))
 environment = delivery.package.package_root  # 原始环境
@@ -52,7 +51,7 @@ python = delivery.python_path                # Python 环境使用的解释器
 software = delivery.software_root            # 已安装的专业软件
 ```
 
-工具执行使用 `harness.execution.call_environment_tool`，传入加载得到的 `runtime`、环境声明、工具集合和任务数据目录。当前 TaskGen 代码需要安装好项目依赖的 Python 3.11+。
+随后用一个真实环境跑通 TaskGen 的环境加载和一次工具调用。当前 TaskGen 代码需要安装好依赖的 Python 3.11+；Docker 环境的任务级执行还需由 TaskGen 按 `runtime` 接通。
 
 ## 通过 Kimi/MCP 调用工具
 
@@ -60,18 +59,16 @@ software = delivery.software_root            # 已安装的专业软件
 
 ```bash
 cd /data1/agent_world/toolgen
-BINDING=/data1/agent_world/toolgen_environments/delivery/environments/semiconductor_circuit_level_s_matrix_1/binding.json
+BINDING=/data1/agent_world/toolgen_semiconductor_160_20260918/delivery/environments/semiconductor_circuit_level_s_matrix_1/binding.json
 RUN_DIR=/data1/agent_world/toolgen_runs/task_001
 mkdir -p "$RUN_DIR"
-.venv-312/bin/python -m env_gen.tool_gen.kimi_mcp "$BINDING" \
+.venv/bin/python -m env_gen.tool_gen.kimi_mcp "$BINDING" \
   --trace "$RUN_DIR/tool_calls.jsonl" \
   --session-root "$RUN_DIR/sandbox" \
   --print-kimi-config > "$RUN_DIR/mcp.json"
 ```
 
 把 `mcp.json` 交给 Kimi Code 或 Kimi SDK。Kimi 开始任务时会按配置启动 MCP；工具运行所需的 Python 环境或 Docker 镜像由交付包决定。运行器需要能访问上述交付包路径，因此最方便的是也在 170 上运行。
-
-本版生成的 MCP 配置启动服务器上的接入服务，再由执行器调用 Docker。已有的容器启动配置继续使用镜像中的 Python 执行工具。环境的 `binding.json`、工具名称、业务参数和命令行参数沿用现有格式。
 
 任务结束后，在 `RUN_DIR` 里看三样东西：`tool_calls.jsonl` 是工具调用记录，`sandbox/state/` 是工具执行后的数据，`sandbox/session.json` 是本次运行的摘要。做蒸馏时，Kimi 的任务输入和模型回答也要由下游一并保存。
 

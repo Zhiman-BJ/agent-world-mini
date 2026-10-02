@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import codecs
 import mimetypes
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -87,27 +86,20 @@ class ResourceCatalog:
         scope_id: str | None = None,
         query: str | None = None,
         limit: int = 100,
-        offset: int = 0,
     ) -> list[dict[str, Any]]:
         if not 1 <= limit <= 500:
             raise ValueError("limit 必须在 1..500")
-        if type(offset) is not int or offset < 0:
-            raise ValueError("offset 必须是非负整数")
         selected = [scope_id] if scope_id is not None else list(self._scopes)
         unknown = [item for item in selected if item not in self._scopes]
         if unknown:
             raise ValueError("未知 Filesystem Scope：" + ", ".join(unknown))
         needle = (query or "").casefold()
         resources: list[dict[str, Any]] = []
-        skipped = 0
         for current_scope in selected:
             root = self._scope_root(current_scope)
             for path in sorted(root.rglob("*")):
                 relative = path.relative_to(root).as_posix()
                 if needle and needle not in relative.casefold():
-                    continue
-                if skipped < offset:
-                    skipped += 1
                     continue
                 resources.append(self._describe(current_scope, path))
                 if len(resources) >= limit:
@@ -121,13 +113,10 @@ class ResourceCatalog:
         path = self.resolve(ref, must_exist=True)
         result = self._describe(scope_id, path)
         if path.is_file() and preview_chars:
-            with path.open('rb') as stream:
-                sample = stream.read(preview_chars * 4 + 4)
+            sample = path.read_bytes()[: min(preview_chars * 4, 80000)]
             try:
-                size = path.stat().st_size
-                text = codecs.getincrementaldecoder('utf-8')().decode(sample, final=size <= len(sample))
-                result["text_preview"] = text[:preview_chars]
-                result["preview_truncated"] = size > len(sample) or len(text) > preview_chars
+                result["text_preview"] = sample.decode("utf-8")[:preview_chars]
+                result["preview_truncated"] = path.stat().st_size > len(sample)
             except UnicodeDecodeError:
                 result["text_preview"] = None
                 result["preview_truncated"] = False
@@ -136,14 +125,33 @@ class ResourceCatalog:
 
     def resolve(self, ref: str, *, must_exist: bool = False) -> Path:
         scope_id, relative = parse_resource_ref(ref)
-        if scope_id not in self._scopes:
-            raise ValueError(f"未知 Filesystem Scope：{scope_id}")
-        root = self._scope_root(scope_id).resolve()
-        target = (root / Path(*relative.parts)).resolve()
-        if not target.is_relative_to(root):
-            raise ValueError(f"资源引用越出 Scope：{ref}")
+        target = self.resolve_relative(scope_id, relative)
         if must_exist and not target.exists():
             raise FileNotFoundError(f"资源不存在：{ref}")
+        return target
+
+    def resolve_relative(
+        self,
+        scope_id: str,
+        relative: str | PurePosixPath,
+        *,
+        must_exist: bool = False,
+    ) -> Path:
+        """Resolve a Scope-relative path without exposing the physical root."""
+        scope_id = str(scope_id)
+        if scope_id not in self._scopes:
+            raise ValueError(f"未知 Filesystem Scope：{scope_id}")
+        relative_path = (
+            relative if isinstance(relative, PurePosixPath) else _relative_path(relative)
+        )
+        root = self._scope_root(scope_id).resolve()
+        target = (root / Path(*relative_path.parts)).resolve()
+        if not target.is_relative_to(root):
+            raise ValueError(f"资源路径越出 Scope：{scope_id}/{relative_path}")
+        if must_exist and not target.exists():
+            raise FileNotFoundError(
+                f"资源不存在：{scope_id}/{relative_path.as_posix()}"
+            )
         return target
 
     def normalize_arguments(
@@ -154,23 +162,25 @@ class ResourceCatalog:
         allowed_scopes: set[str] | None = None,
     ) -> Any:
         """Validate logical resource references and pass relative paths to tool code."""
+        resource_scope = (
+            schema.get("x-resource-scope")
+            if isinstance(schema, dict)
+            else None
+        )
         if isinstance(value, str) and value.startswith(f"{RESOURCE_SCHEME}://"):
-            scope_id, relative = parse_resource_ref(value)
-            if scope_id not in self._scopes:
-                raise ValueError(f"未知 Filesystem Scope：{scope_id}")
-            declared_scope = (
-                schema.get("x-resource-scope") if isinstance(schema, dict) else None
-            )
-            if declared_scope is not None and scope_id != declared_scope:
+            if resource_scope is not None:
                 raise ValueError(
-                    f"资源参数要求 Filesystem Scope {declared_scope}，实际为 {scope_id}"
+                    "业务工具资源参数必须使用 Scope 内相对路径；"
+                    "URI 仅用于 MCP Resources"
                 )
+            raise ValueError("未标注资源字段不能接收资源 URI")
+        if resource_scope is not None and isinstance(value, str):
+            relative = _relative_path(value)
+            scope_id = str(resource_scope)
             if allowed_scopes is not None and scope_id not in allowed_scopes:
                 raise ValueError(f"工具未声明使用 Filesystem Scope：{scope_id}")
-            declared_kind = (
-                schema.get("x-resource-kind") if isinstance(schema, dict) else None
-            )
-            target = self.resolve(value)
+            declared_kind = schema.get("x-resource-kind") if isinstance(schema, dict) else None
+            target = self.resolve_relative(scope_id, relative)
             if target.exists() and declared_kind == "file" and not target.is_file():
                 raise ValueError(f"资源参数要求文件，实际为目录：{value}")
             if target.exists() and declared_kind == "directory" and not target.is_dir():
@@ -205,7 +215,7 @@ class ResourceCatalog:
         schema: Any = None,
         allowed_scopes: set[str] | None = None,
     ) -> Any:
-        """Turn annotated scope-relative result paths into stable aw:// references."""
+        """Validate annotated Scope-relative result paths for the public API."""
 
         def matches_shape(candidate: Any, current: Any) -> bool:
             if not isinstance(candidate, dict):
@@ -254,6 +264,8 @@ class ResourceCatalog:
                 if item.get("x-resource-scope") is not None
                 or item.get("x-resource-kind") is not None
             }
+            if isinstance(current, str) and current.startswith(f"{RESOURCE_SCHEME}://"):
+                raise ValueError("业务工具结果不能返回资源 URI；请返回 Scope 内相对路径")
             if isinstance(current, str) and annotations:
                 if len(annotations) != 1:
                     raise ValueError("输出资源字段包含互相冲突的 Scope 标注")
@@ -262,22 +274,13 @@ class ResourceCatalog:
                     raise ValueError(f"未知 Filesystem Scope：{scope_id}")
                 if allowed_scopes is not None and scope_id not in allowed_scopes:
                     raise ValueError(f"工具未声明使用 Filesystem Scope：{scope_id}")
-                if current.startswith(f"{RESOURCE_SCHEME}://"):
-                    actual_scope, relative = parse_resource_ref(current)
-                    if actual_scope != scope_id:
-                        raise ValueError(
-                            f"输出资源要求 Filesystem Scope {scope_id}，实际为 {actual_scope}"
-                        )
-                else:
-                    relative = _relative_path(current)
-                target = self._scope_root(str(scope_id)) / Path(*relative.parts)
-                if declared_kind in {'file', 'directory'} and not target.exists():
-                    raise FileNotFoundError(f'输出资源不存在：{current}')
+                relative = _relative_path(current)
+                target = self.resolve_relative(str(scope_id), relative)
                 if target.exists() and declared_kind == "file" and not target.is_file():
                     raise ValueError(f"输出资源要求文件，实际为目录：{current}")
                 if target.exists() and declared_kind == "directory" and not target.is_dir():
                     raise ValueError(f"输出资源要求目录，实际为文件：{current}")
-                return resource_ref(str(scope_id), relative.as_posix())
+                return relative.as_posix()
             if isinstance(current, list):
                 item_schemas = [
                     item["items"]
@@ -311,6 +314,7 @@ class ResourceCatalog:
             "scope_id": scope_id,
             "relative_path": relative,
             "name": path.name,
+            "description": self._scopes.get(scope_id, {}).get("description", ""),
             "kind": "directory" if path.is_dir() else "file",
         }
         if path.is_file():

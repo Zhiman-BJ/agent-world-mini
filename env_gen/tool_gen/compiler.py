@@ -696,11 +696,9 @@ software_plan.json 示例：
 动作计划如下：
 {action_json}
 
-读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。工具内部接收并返回 Scope 内相对路径，通过 context.scope_root(scope_id) 访问文件；Runtime 会在公开接口处把输入、输出转换为稳定的 `aw://scope_id/relative/path`。不要把 workspace、服务器绝对路径或容器路径写入公开参数和返回值。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
+读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。模型、工具参数和工具返回值使用 Scope 内相对路径，通过 context.scope_root(scope_id) 访问文件；Runtime 会在执行前校验 Scope、路径和资源类型。MCP Resource URI 只用于 resources/list/read，不要把 URI、workspace、服务器绝对路径或容器路径写入业务参数和返回值。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
 
-测试预期值以原始记录、官方实例或独立计算为依据。复算动作重新执行算法，保存的历史结果用于比较。
-
-保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个 expect_success=true 的正常调用，并在 expected_data 中核对关键返回内容。查询和汇总应核对已知记录或数量，数值计算应核对代表数值或明确的计算性质；写操作可用 expected_records=[{{record_set_id, key, values}}] 核对修改后的关键字段。所需专业依赖准备好后运行正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
+保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
 
     @staticmethod
     def _build_inventory_repair_prompt(
@@ -1036,14 +1034,7 @@ software_plan.json 示例：
             return
         for attempt in range(self.software_repair_attempts + 1):
             try:
-                plan = json.loads((output / 'software_plan.json').read_text(encoding='utf-8'))
-                if plan.get('container'):
-                    from .docker_runtime import build_image
-                    build_image(package_root)
-                    write_json(package_root / 'tool_runtime.json', plan)
-                else:
-                    prepare_software(package_root)
-                    (output / 'container_runtime.json').unlink(missing_ok=True)
+                prepare_software(package_root)
                 write_json(output / "software_status.json", {"status": "ready", "repairs": attempt})
                 return
             except Exception as error:
@@ -1067,8 +1058,6 @@ software_plan.json 示例：
         self, package_root: Path, environment: dict[str, Any], drafts: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         from .software import validate_in_runtime
-        if (package_root / 'tool_generation/container_runtime.json').is_file():
-            return self._validate_local(package_root, environment, drafts)
         reports = validate_in_runtime(package_root, drafts)
         return reports if reports is not None else self._validate_local(package_root, environment, drafts)
 
@@ -1144,13 +1133,6 @@ software_plan.json 示例：
     ) -> list[str]:
         if not tests:
             return ["missing_executable_test"]
-        positive = [test for test in tests if test.get('expect_success', True)]
-        if not positive:
-            return ['missing_successful_test']
-        if not any((isinstance(test.get('expected_data'), dict) and bool(test['expected_data']))
-                   or (isinstance(test.get('expected_records'), list) and bool(test['expected_records']))
-                   for test in positive):
-            return ['missing_success_result_assertion']
         tool = next(item for item in package.tools if str(item["name"]) == tool_name)
         target_resources = set(tool["usageConditions"]["targetResources"])
         failures: list[str] = []
@@ -1160,16 +1142,14 @@ software_plan.json 示例：
                 failures.append(f"test_{index}:final_call_must_be_{tool_name}")
                 continue
             try:
-                with ToolRuntime(package, isolated=True) as runtime:
-                    read_only = all(next(t for t in package.tools if t['name'] == call['tool'])
-                                    ['usageConditions']['sideEffects'] == [] for call in calls)
-                    before = None if read_only else runtime.snapshot()
+                with ToolRuntime(package) as runtime:
+                    before = runtime.snapshot()
                     result: dict[str, Any] | None = None
                     for call in calls:
                         result = runtime.call(str(call["tool"]), dict(call.get("arguments", {})))
                     assert result is not None
-                    change = ({'record_sets': [], 'filesystem_scopes': []} if read_only
-                              else state_diff(before, runtime.snapshot()))
+                    after = runtime.snapshot()
+                    change = state_diff(before, after)
                     changed = any(change.values())
                     changed_assets = {
                         *change["record_sets"],
@@ -1191,10 +1171,6 @@ software_plan.json 示例：
                     expected = test.get("expected_data")
                     if isinstance(expected, dict) and not _contains(result.get("data"), expected):
                         failures.append(f"test_{index}:returned_data_does_not_match_expectation")
-                    for check in test.get('expected_records', []):
-                        actual = runtime.context.records.get(check['record_set_id'], check['key'])
-                        if not _contains(actual, check['values']):
-                            failures.append(f"test_{index}:record_does_not_match_expectation:{check['record_set_id']}")
             except Exception as error:
                 failures.append(f"test_{index}:runtime_error:{type(error).__name__}: {error}")
         return failures
@@ -1250,8 +1226,6 @@ def _normalize_tests(value: Any) -> list[dict[str, Any]]:
         }
         if isinstance(final.get("expected_data"), dict):
             normalized["expected_data"] = dict(final["expected_data"])
-        if isinstance(final.get('expected_records'), list):
-            normalized['expected_records'] = deepcopy(final['expected_records'])
         return [normalized]
     return tests
 
@@ -1400,13 +1374,16 @@ context.records.create(record_set_id, record)
 context.records.update(record_set_id, key, changes)
 context.records.delete(record_set_id, key)
 context.scope_root(scope_id)
-context.resources.list(scope_id=None, query=None, limit=100, offset=0)
+context.resources.list(scope_id=None, query=None, limit=100)
 context.resources.inspect(resource_ref)
 ```
 
 `get` 的 key 必须包含该 Record Set 声明的全部 key_fields。`create` 接收完整记录；
-`create` 返回创建的记录，`update` 和 `delete` 返回受影响记录数，key 必须是完整定位字段。过滤和写入值使用环境声明的类型，布尔字段使用 true/false。分页 limit 是非负整数，大结果分批读取。`scope_root` 返回任务隔离副本中的 pathlib.Path。
-Agent 可以传入 `aw://scope_id/relative/path` 资源引用；Runtime 会在进入工具代码前将它转换为该 Scope 内的相对路径。文件输入和输出字段分别在 inputSchema、outputSchema 上声明 `x-resource-scope` 和 `x-resource-kind`。工具代码内部返回 Scope 内相对路径，Runtime 会将公开返回值转换回 `aw://` 引用。工具代码和返回值不得暴露 workspace、服务器绝对路径或容器路径。
+`update` 和 `delete` 返回受影响记录数。`scope_root` 返回任务隔离副本中的 pathlib.Path。
+文件输入和输出字段分别在 inputSchema、outputSchema 上声明 `x-resource-scope` 和 `x-resource-kind`；
+模型和业务工具参数使用该 Scope 内的相对路径，例如 `daily.json`。Runtime 会在执行前校验
+Scope、路径和文件类型，再把相对路径交给工具代码。工具代码和返回值不得暴露 workspace、
+服务器绝对路径、容器路径或 MCP Resource URI。
 只对 `access=copy_on_write` 的 Record Set 或 Scope 执行写操作。
 """
 

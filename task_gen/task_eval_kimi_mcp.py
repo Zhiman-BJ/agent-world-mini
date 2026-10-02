@@ -1,4 +1,5 @@
 """Kimi presentation adapter around the unchanged public environment MCP API."""
+import argparse
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -7,9 +8,8 @@ import sys
 if __package__ in {None, ''}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from env_gen.tool_gen.mcp_protocol import serve_jsonrpc, tool_call_result
+from env_gen.tool_gen.mcp_protocol import serve_jsonrpc
 from task_gen.task_eval_mcp import TaskEvalMcpServer
-from task_gen.tool_result_reader import ResultReader
 
 
 _SCHEMA_MAP_CHILDREN = (
@@ -96,58 +96,100 @@ def _normalize_kimi_tool_schema(schema):
     return normalized
 
 
-class KimiResultAdapter:
-    def __init__(self, server, config):
+class KimiMcpAdapter:
+    """Adapt schemas for Kimi without changing MCP tool semantics.
+
+    Long results are returned unchanged. Kimi Code owns externalization into
+    its session-local ``tool-results`` files and can recover them with native
+    Read/Grep.
+    """
+
+    def __init__(self, server):
         self.server = server
-        self.reader = ResultReader(config['tool_result_page_chars'])
-        self.trace = Path(config['result_read_trace'])
-        self.result_index = self.trace.with_name('result_index.jsonl')
-        if any(t['name'] == self.reader.name for t in server.handle({'method': 'tools/list'})['tools']):
-            raise ValueError('read_tool_result 工具名称冲突')
 
     def handle(self, request):
         method = request.get('method')
-        params = request.get('params')
-        if method == 'tools/call' and isinstance(params, dict) and params.get('name') == self.reader.name:
-            arguments = params.get('arguments', {})
-            try:
-                if not isinstance(arguments, dict):
-                    raise ValueError('工具 arguments 必须是 object')
-                payload, error = self.reader.read(arguments), None
-            except ValueError as caught:
-                payload, error = None, str(caught)
-            with self.trace.open('a', encoding='utf-8') as stream:
-                stream.write(json.dumps({'tool': self.reader.name, 'arguments': arguments,
-                                         'result': payload, 'error': error}, ensure_ascii=False) + '\n')
-            return tool_call_result(payload if error is None else {'error': error}, is_error=error is not None)
         result = self.server.handle(request)
         if method == 'tools/list':
-            # Only the Kimi-facing presentation has page envelopes. The public
-            # environment server and task definitions keep their original schema.
-            # Execution validates original outputSchema before this adapter runs.
             result = {'tools': [dict(tool) for tool in result['tools']]}
             for tool in result['tools']:
                 tool['inputSchema'] = _normalize_kimi_tool_schema(tool['inputSchema'])
                 schema = tool.pop('outputSchema', None)
                 if schema is not None:
                     tool['description'] += '\nOutput contract: ' + json.dumps(schema, ensure_ascii=False)
-            result['tools'].append(self.reader.tool)
-        elif method == 'tools/call':
-            payload = result['structuredContent']
-            raw = json.dumps(payload, ensure_ascii=False, allow_nan=False)
-            if len(raw) > self.reader.page_chars:
-                page = self.reader.preview(raw)
-                with self.result_index.open('a', encoding='utf-8') as stream:
-                    stream.write(json.dumps({'result_id': page['result_id'], 'tool': params['name'],
-                                             'sequence': self.server.calls,
-                                             'total_chars': len(raw)}) + '\n')
-                result = tool_call_result(page, is_error=result.get('isError', False))
         return result
 
 
-def main():
-    config = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
-    adapter = KimiResultAdapter(TaskEvalMcpServer(config), config)
+def _arguments(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', type=Path, nargs='?')
+    parser.add_argument('--binding', type=Path)
+    parser.add_argument('--state-root', type=Path)
+    parser.add_argument('--trace', type=Path)
+    parser.add_argument('--max-tool-calls', type=int)
+    parser.add_argument('--timeout', type=int)
+    parser.add_argument('--memory-limit', type=int)
+    parser.add_argument('--write-limit', type=int)
+    parser.add_argument('--process-limit', type=int, default=1024)
+    parser.add_argument('--review-choice-seed', type=Path)
+    options = parser.parse_args(argv)
+    if options.config is not None:
+        if any(
+            value is not None
+            for value in (
+                options.binding,
+                options.state_root,
+                options.trace,
+                options.max_tool_calls,
+                options.timeout,
+                options.memory_limit,
+                options.write_limit,
+                options.review_choice_seed,
+            )
+        ):
+            parser.error('config positional argument cannot be combined with binding options')
+        return options
+    required = {
+        '--binding': options.binding,
+        '--state-root': options.state_root,
+        '--trace': options.trace,
+        '--max-tool-calls': options.max_tool_calls,
+        '--timeout': options.timeout,
+        '--memory-limit': options.memory_limit,
+        '--write-limit': options.write_limit,
+    }
+    missing = [name for name, value in required.items() if value is None]
+    if missing:
+        parser.error('missing required arguments: ' + ', '.join(missing))
+    for name in ('max_tool_calls', 'timeout', 'memory_limit', 'write_limit', 'process_limit'):
+        if getattr(options, name) < 1:
+            parser.error('--' + name.replace('_', '-') + ' must be positive')
+    return options
+
+
+def _server_config(options):
+    if options.config is not None:
+        return json.loads(options.config.read_text(encoding='utf-8'))
+    config = {
+        'binding_path': str(options.binding),
+        'state_root': str(options.state_root),
+        'trace': str(options.trace),
+        'max_tool_calls': options.max_tool_calls,
+        'timeout': options.timeout,
+        'memory_limit': options.memory_limit,
+        'write_limit': options.write_limit,
+        'process_limit': options.process_limit,
+    }
+    if options.review_choice_seed is not None:
+        config['review_choice_seed'] = json.loads(
+            options.review_choice_seed.read_text(encoding='utf-8')
+        )
+    return config
+
+
+def main(argv=None):
+    config = _server_config(_arguments(argv))
+    adapter = KimiMcpAdapter(TaskEvalMcpServer(config))
     serve_jsonrpc(adapter.handle)
 
 

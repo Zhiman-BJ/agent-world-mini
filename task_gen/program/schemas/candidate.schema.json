@@ -33,7 +33,8 @@
             "minLength": 40
           },
           "output_schema": {
-            "type": "object"
+            "type": "object",
+            "description": "旧中间候选兼容字段；不会进入正式任务或评测上下文。"
           },
           "task_resources": {
             "type": "object",
@@ -87,7 +88,6 @@
           "workspace_brief",
           "task_summary",
           "task_public",
-          "output_schema",
           "task_resources",
           "solution_code"
         ],

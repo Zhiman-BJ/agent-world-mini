@@ -18,6 +18,7 @@ from env_gen.data_gen.steps.step1_research_scenario import (
     _build_research_guide,
     _build_research_prompt,
     run_scenario_research,
+    save_scenario_research,
 )
 from env_gen.data_gen.steps.common.constants import (
     CONTROL_RUN_CONFIG,
@@ -253,6 +254,53 @@ class ScenarioResearchTests(unittest.TestCase):
             seed_sha256=self.digest,
         )
         self.assertIn("unregistered_research_source", {item.code for item in issues})
+
+    def test_step1_save_auto_registers_valid_cited_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_step0(run_dir)
+            payload = scenario_payload(self.seed, self.digest)
+            discovered = "https://other.example/tool"
+            payload["tools"][0]["source_urls"] = [discovered]
+
+            saved = save_scenario_research(run_dir, payload)
+
+            matching = [
+                item for item in saved["research_notes"]["sources"]
+                if item.get("url") == discovered
+            ]
+            self.assertEqual(len(matching), 1)
+            self.assertIn("自动补充登记", matching[0]["description"])
+            receipt = json.loads(
+                (run_dir / ".datagen/scenario_research_receipt.json").read_text()
+            )
+            self.assertEqual(receipt["auto_registered_source_count"], 1)
+
+    def test_step1_save_deduplicates_registered_sources_without_overwriting_description(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_step0(run_dir)
+            payload = scenario_payload(self.seed, self.digest)
+            original = dict(payload["research_notes"]["sources"][0])
+            payload["research_notes"]["sources"].append(dict(original))
+
+            saved = save_scenario_research(run_dir, payload)
+
+            matching = [
+                item for item in saved["research_notes"]["sources"]
+                if item.get("url") == original["url"]
+            ]
+            self.assertEqual(matching, [original])
+
+    def test_step1_save_does_not_auto_register_invalid_url(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            prepare_step0(run_dir)
+            payload = scenario_payload(self.seed, self.digest)
+            payload["tools"][0]["source_urls"] = ["not-a-valid-url"]
+
+            with self.assertRaisesRegex(RuntimeError, "scenario_research 不符合要求"):
+                save_scenario_research(run_dir, payload)
 
     def test_entity_attributes_are_not_part_of_scenario_research(self) -> None:
         payload = scenario_payload(self.seed, self.digest)

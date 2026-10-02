@@ -11,6 +11,8 @@ from env_gen.tool_gen.compiler import (
     ToolGenerationError,
     _validate_resource_annotations,
 )
+from task_gen.program.utils.environment import CompleteEnvironmentPackage
+from task_gen.program.utils.tool_runtime import CompleteEnvironmentRuntime
 
 
 class ResourceCatalogTests(unittest.TestCase):
@@ -57,24 +59,83 @@ class ResourceCatalogTests(unittest.TestCase):
         self.assertEqual(resource["relative_path"], "daily.json")
         self.assertIn('"status"', resource["text_preview"])
 
-    def test_normalizes_refs_for_existing_relative_path_tools(self) -> None:
+    def test_validates_scope_relative_paths_for_resource_fields(self) -> None:
         arguments = {
-            "source": "aw://designs/main.kicad_sch",
-            "outputs": ["aw://designs/render/main.svg"],
+            "source": "main.kicad_sch",
+            "outputs": ["render/main.svg"],
         }
         normalized = self.catalog.normalize_arguments(
-            arguments, allowed_scopes={"designs"}
+            arguments,
+            schema={
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "x-resource-scope": "designs",
+                        "x-resource-kind": "file",
+                    },
+                    "outputs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "x-resource-scope": "designs",
+                            "x-resource-kind": "file",
+                        },
+                    },
+                },
+            },
+            allowed_scopes={"designs"},
         )
         self.assertEqual(normalized["source"], "main.kicad_sch")
         self.assertEqual(normalized["outputs"], ["render/main.svg"])
 
-    def test_rejects_scope_mismatch_and_parent_traversal(self) -> None:
+    def test_rejects_undeclared_scope_and_parent_traversal(self) -> None:
         with self.assertRaisesRegex(ValueError, "未声明"):
             self.catalog.normalize_arguments(
-                "aw://reports/daily.json", allowed_scopes={"designs"}
+                "daily.json",
+                schema={
+                    "type": "string",
+                    "x-resource-scope": "reports",
+                    "x-resource-kind": "file",
+                },
+                allowed_scopes={"designs"},
             )
         with self.assertRaises(ValueError):
             parse_resource_ref("aw://reports/../secret.txt")
+
+    def test_rejects_resource_uri_in_unannotated_string(self) -> None:
+        with self.assertRaisesRegex(ValueError, "未标注"):
+            self.catalog.normalize_arguments(
+                {"ticket_id": "aw://reports/daily.json"},
+                schema={
+                    "type": "object",
+                    "properties": {"ticket_id": {"type": "string"}},
+                },
+            )
+        with self.assertRaisesRegex(ValueError, "相对路径"):
+            self.catalog.normalize_arguments(
+                {"path": "aw://reports/daily.json"},
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "x-resource-scope": "reports",
+                            "x-resource-kind": "file",
+                        }
+                    },
+                },
+            )
+
+    def test_rejects_unannotated_resource_uri_output(self) -> None:
+        with self.assertRaisesRegex(ValueError, "业务工具结果"):
+            self.catalog.externalize_result(
+                {"value": "aw://reports/daily.json"},
+                schema={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                },
+            )
 
     def test_schema_metadata_checks_scope_and_existing_resource_kind(self) -> None:
         schema = {
@@ -88,20 +149,20 @@ class ResourceCatalogTests(unittest.TestCase):
             },
         }
         normalized = self.catalog.normalize_arguments(
-            {"source": "aw://designs/main.kicad_sch"},
+            {"source": "main.kicad_sch"},
             schema=schema,
             allowed_scopes={"designs", "reports"},
         )
         self.assertEqual(normalized, {"source": "main.kicad_sch"})
-        with self.assertRaisesRegex(ValueError, "要求 Filesystem Scope designs"):
+        with self.assertRaisesRegex(ValueError, "未声明"):
             self.catalog.normalize_arguments(
-                {"source": "aw://reports/daily.json"},
+                {"source": "main.kicad_sch"},
                 schema=schema,
-                allowed_scopes={"designs", "reports"},
+                allowed_scopes={"reports"},
             )
         with self.assertRaisesRegex(ValueError, "要求文件"):
             self.catalog.normalize_arguments(
-                {"source": "aw://designs/subdirectory"},
+                {"source": "subdirectory"},
                 schema=schema,
                 allowed_scopes={"designs", "reports"},
             )
@@ -111,7 +172,7 @@ class ResourceCatalogTests(unittest.TestCase):
         self.assertEqual(ref, "aw://reports/daily%20report.json")
         self.assertEqual(parse_resource_ref(ref)[1].as_posix(), "daily report.json")
 
-    def test_externalizes_annotated_output_path_inside_success_branch(self) -> None:
+    def test_validates_annotated_output_path_inside_success_branch(self) -> None:
         schema = {
             "oneOf": [
                 {
@@ -146,7 +207,7 @@ class ResourceCatalogTests(unittest.TestCase):
             schema=schema,
             allowed_scopes={"reports"},
         )
-        self.assertEqual(result["data"]["report"], "aw://reports/daily.json")
+        self.assertEqual(result["data"]["report"], "daily.json")
 
     def test_toolgen_checks_resource_annotations_against_environment(self) -> None:
         schema = {
@@ -184,7 +245,7 @@ class ResourceCatalogTests(unittest.TestCase):
                 schema_name="outputSchema",
             )
 
-    def test_runtime_accepts_resource_ref_for_existing_relative_path_tool(self) -> None:
+    def test_runtime_accepts_scope_relative_path_for_resource_tool(self) -> None:
         package_root = self.root / "package"
         scope_root = package_root / "state/filesystem_scopes/reports"
         scope_root.mkdir(parents=True)
@@ -204,7 +265,13 @@ class ResourceCatalogTests(unittest.TestCase):
             "usageConditions": {"targetResources": ["reports"]},
             "inputSchema": {
                 "type": "object",
-                "properties": {"path": {"type": "string"}},
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "x-resource-scope": "reports",
+                        "x-resource-kind": "file",
+                    }
+                },
                 "required": ["path"],
                 "additionalProperties": False,
             },
@@ -228,11 +295,11 @@ class ResourceCatalogTests(unittest.TestCase):
         package = ToolPackage(package_root, environment, (tool,))
         with ToolRuntime(package) as runtime:
             result = runtime.call(
-                "read_report", {"path": "aw://reports/daily.json"}
+                "read_report", {"path": "daily.json"}
             )
         self.assertEqual(result["data"]["text"], '{"status":"ok"}')
 
-    def test_runtime_returns_annotated_paths_as_logical_references(self) -> None:
+    def test_runtime_returns_annotated_paths_as_scope_relative_paths(self) -> None:
         package_root = self.root / "output-package"
         scope_root = package_root / "state/filesystem_scopes/reports"
         scope_root.mkdir(parents=True)
@@ -265,7 +332,6 @@ class ResourceCatalogTests(unittest.TestCase):
                         "properties": {
                             "report": {
                                 "type": "string",
-                                "pattern": "^aw://",
                                 "x-resource-scope": "reports",
                                 "x-resource-kind": "file",
                             }
@@ -287,7 +353,84 @@ class ResourceCatalogTests(unittest.TestCase):
         package = ToolPackage(package_root, environment, (tool,))
         with ToolRuntime(package) as runtime:
             result = runtime.call("locate_report", {})
-        self.assertEqual(result["data"]["report"], "aw://reports/daily.json")
+        self.assertEqual(result["data"]["report"], "daily.json")
+
+    def test_program_runtime_uses_the_same_scope_relative_path_contract(self) -> None:
+        package_root = self.root / "program-package"
+        scope_root = package_root / "state/filesystem_scopes/reports"
+        scope_root.mkdir(parents=True)
+        (scope_root / "daily.json").write_text('{"status":"ok"}', encoding="utf-8")
+        environment = {
+            "schema_version": "2.0",
+            "environment_id": "program_resource_runtime",
+            "record_sets": [],
+            "filesystem_scopes": [
+                {"scope_id": "reports", "access": "read_only"}
+            ],
+        }
+        tool = {
+            "name": "read_report",
+            "usageConditions": {"targetResources": ["reports"]},
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "x-resource-scope": "reports",
+                        "x-resource-kind": "file",
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "const": True},
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "source": {
+                                "type": "string",
+                                "x-resource-scope": "reports",
+                                "x-resource-kind": "file",
+                            },
+                            "text": {"type": "string"},
+                        },
+                        "required": ["source", "text"],
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["success", "data"],
+                "additionalProperties": False,
+            },
+            "internal": {
+                "code": (
+                    "def run(arguments, context):\n"
+                    "    path = context.scope_root('reports') / arguments['path']\n"
+                    "    return {'success': True, 'data': "
+                    "{'source': arguments['path'], 'text': path.read_text()}}\n"
+                )
+            },
+        }
+        package = CompleteEnvironmentPackage(
+            package_root=package_root,
+            environment_path=package_root / "environment.json",
+            state_root=package_root / "state",
+            environment=environment,
+            tools=(tool,),
+            tools_path=None,
+            package_format="v2",
+        )
+
+        with CompleteEnvironmentRuntime(package) as runtime:
+            result = runtime.call("read_report", {"path": "daily.json"})
+            self.assertEqual(result["data"]["source"], "daily.json")
+            self.assertEqual(result["data"]["text"], '{"status":"ok"}')
+            with self.assertRaisesRegex(ValueError, "相对路径"):
+                runtime.call("read_report", {"path": str(scope_root / "daily.json")})
+            with self.assertRaisesRegex(ValueError, "相对路径"):
+                runtime.call("read_report", {"path": "aw://reports/daily.json"})
 
 
 if __name__ == "__main__":

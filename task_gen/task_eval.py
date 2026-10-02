@@ -40,11 +40,25 @@ class EvalCase:
     runtime: dict[str, Any] = field(default_factory=dict)
 
 
-def load_cases(input_root: Path) -> list[EvalCase]:
+def load_cases(
+    input_root: Path,
+    *,
+    selected_case_names: set[str] | None = None,
+) -> list[EvalCase]:
     """Read tasks from the latest complete run for each environment."""
+    selected_by_run: dict[str, set[str]] | None = None
+    if selected_case_names is not None:
+        selected_by_run = {}
+        for name in selected_case_names:
+            source_name, separator, task_id = name.rpartition("__")
+            if not separator or not source_name or not task_id:
+                raise ValueError(f"invalid selected case name: {name}")
+            selected_by_run.setdefault(source_name, set()).add(task_id)
     latest: dict[str, tuple[Path, Path, dict[str, Any], dict[str, Any]]] = {}
     for tasks_path in sorted(input_root.expanduser().resolve().glob("*/tasks.json")):
         source_run = tasks_path.parent
+        if selected_by_run is not None and source_run.name not in selected_by_run:
+            continue
         bundle_path = source_run / "intermediate/step_5_bundle.json"
         if not bundle_path.is_file():
             continue
@@ -70,6 +84,11 @@ def load_cases(input_root: Path) -> list[EvalCase]:
             if isinstance(candidate, dict) and isinstance(candidate.get("task_id"), str)
         }
         for task in tasks:
+            if (
+                selected_by_run is not None
+                and task.get("task_id") not in selected_by_run[source_run.name]
+            ):
+                continue
             if not isinstance(task, dict) or not isinstance(task.get("initial_state"), str):
                 raise ValueError(f"无效任务：{source_run}")
             task_id = task.get("task_id")
@@ -154,7 +173,7 @@ def evaluate_case(
             server_config = Path(temporary) / "server.json"
             trace = Path(temporary) / "calls.jsonl"
             server_config.write_text(json.dumps({
-                "workspace": str(workspace),
+                "state_root": str(workspace),
                 "trace": str(trace),
                 "max_tool_calls": max_tool_calls,
                 "timeout": tool_timeout_seconds,
@@ -244,8 +263,11 @@ def _agent_prompt(case: EvalCase, max_tool_calls: int) -> str:
             f"final user-facing answer. You may make at most {max_tool_calls} environment tool calls, so reserve "
             "calls for required state changes and verification."
         ),
+        # The solver receives the task-specific natural-language context and
+        # the public tool contracts. Runtime still keeps the complete
+        # environment for tool execution; its database/file schema is not
+        # injected into the solver prompt.
         "task": case.task.get("task_text"),
-        "environment": _public_environment(case.environment),
     }, ensure_ascii=False)
 
 

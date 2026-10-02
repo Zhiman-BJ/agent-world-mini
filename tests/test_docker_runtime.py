@@ -224,11 +224,10 @@ class DockerRuntimeTests(unittest.TestCase):
                 {
                     "jsonrpc": "2.0",
                     "id": 4,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "inspect_environment_resource",
-                        "arguments": {"ref": "aw://reports/daily.json"},
-                    },
+                        "method": "resources/read",
+                        "params": {
+                            "uri": "aw://reports/daily.json",
+                        },
                 },
             ]
             before = set(
@@ -249,9 +248,9 @@ class DockerRuntimeTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             responses = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(len(responses), 4)
-            self.assertTrue(all(not item["result"]["isError"] for item in responses))
+            self.assertTrue(all(not item["result"]["isError"] for item in responses[:3]))
             self.assertEqual(responses[1]["result"]["structuredContent"]["data"]["status"], "resolved")
-            self.assertIn("done", responses[3]["result"]["structuredContent"]["data"]["text_preview"])
+            self.assertIn("done", responses[3]["result"]["contents"][0]["text"])
             sandbox = root / "run/sandbox"
             with sqlite3.connect(sandbox / "state/records.sqlite") as connection:
                 self.assertEqual(
@@ -259,7 +258,7 @@ class DockerRuntimeTests(unittest.TestCase):
                     "resolved",
                 )
             receipt = json.loads((sandbox / "session.json").read_text())
-            self.assertEqual(receipt["tool_calls"], 4)
+            self.assertEqual(receipt["tool_calls"], 3)
             contents = (sandbox / "state/filesystem_scopes/reports/daily.json").read_bytes()
             self.assertEqual(json.loads(contents)["status"], "done")
             self.assertEqual(

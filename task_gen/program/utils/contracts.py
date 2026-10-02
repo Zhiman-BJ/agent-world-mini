@@ -32,8 +32,11 @@ class ProgramGenerationPolicy:
     task_generation_attempts: int = 3
     clean_replays: int = 2
     require_state_change: bool = False
-    max_repair_rounds: int = 10
+    max_repair_rounds: int = 6
     execution_timeout_seconds: float = 15.0
+    # None keeps fixture/candidate replay permissive. Production orchestration
+    # supplies 15 so generated tasks must contain a genuinely long workflow.
+    minimum_effective_tool_calls: int | None = None
 
     def validate(self) -> None:
         if self.task_count < 1:
@@ -48,9 +51,14 @@ class ProgramGenerationPolicy:
             raise ValueError("max_repair_rounds 不能小于 0")
         if self.execution_timeout_seconds <= 0:
             raise ValueError("execution_timeout_seconds 必须大于 0")
+        if (
+            self.minimum_effective_tool_calls is not None
+            and self.minimum_effective_tool_calls < 1
+        ):
+            raise ValueError("minimum_effective_tool_calls 必须为正整数或 None")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        values = {
             "task_count": self.task_count,
             "candidate_count": 1,
             "single_task_generation": True,
@@ -60,3 +68,6 @@ class ProgramGenerationPolicy:
             "max_repair_rounds": self.max_repair_rounds,
             "execution_timeout_seconds": self.execution_timeout_seconds,
         }
+        if self.minimum_effective_tool_calls is not None:
+            values["minimum_effective_tool_calls"] = self.minimum_effective_tool_calls
+        return values

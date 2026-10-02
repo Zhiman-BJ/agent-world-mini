@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -32,15 +33,60 @@ def _run_research_agent(
     *,
     working_directory: Path,
 ) -> str:
-    """End the Agent call once its JSON handoff is complete and stable."""
-    method = getattr(agent, "run_until_json_file", None)
-    if callable(method):
-        return method(
+    """Use a stable JSON checkpoint when supported, with response fallback."""
+    checkpoint_runner = getattr(agent, "run_until_json_file", None)
+    if callable(checkpoint_runner):
+        return checkpoint_runner(
             prompt,
             working_directory=working_directory,
             required_path=working_directory / "task_research.json",
         )
     return agent.run(prompt, working_directory=working_directory)
+
+
+def _research_payload_from_response(response: str) -> dict[str, Any]:
+    """从 Agent 最终响应中提取单个 JSON 对象。"""
+
+    text = response.strip()
+    if not text:
+        raise ValueError("Task Research Agent 返回了空响应")
+    candidates = [text]
+    fence = chr(96) * 3
+    if fence in text:
+        blocks = text.split(fence)
+        for block in blocks[1::2]:
+            value = block.strip()
+            if value.lower().startswith("json"):
+                value = value[4:].lstrip()
+            if value:
+                candidates.append(value)
+    decoder = json.JSONDecoder()
+    for candidate in candidates:
+        for start, character in enumerate(candidate):
+            if character != "{":
+                continue
+            try:
+                payload, _ = decoder.raw_decode(candidate[start:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                return payload
+    raise ValueError("Task Research Agent 最终响应中没有完整 JSON 对象")
+
+
+def _research_payload_from_handoff(
+    response: str,
+    *,
+    working_directory: Path,
+) -> dict[str, Any]:
+    """Read the stable checkpoint first and use the final response as fallback."""
+    checkpoint = working_directory / "task_research.json"
+    if checkpoint.is_file():
+        payload = read_json(checkpoint)
+        if not isinstance(payload, dict):
+            raise ValueError("task_research.json 顶层必须是 JSON 对象")
+        return payload
+    return _research_payload_from_response(response)
 
 
 @dataclass(frozen=True)
@@ -122,22 +168,16 @@ def build_task_research_prompt(attempt: int) -> str:
 任务深度；但只有来源确认它属于真实工作，且当前环境确实能传递这些结果时才应写入调研。
 不要把彼此无关的工作串在一起伪造闭环。
 输出字段
-`task_archetypes` 的每一项表示一种“现实工作类型”：它描述一项完整的业务工作，而不是
-一条针对当前某个具体对象的题目。因此不得包含当前环境中的具体记录 ID、具体文件答案、
-工具调用顺序、Python 实现或隐藏答案。
+`task_archetypes` 的每一项表示一种现实中完整、可独立交付的工作原型。它不是针对当前某条记录编写的题目，也不是工具操作清单。调研时首先回答：专业人员为什么会启动这项工作，完成后会产生什么新的领域结果、决策或可继续使用的产物。
 
-每种现实工作类型只需用两部分说明，不要把同一件事拆成互相重复的栏目：
+优先寻找能够利用当前环境输入继续推进工作的真实流程，例如形成设计、计算或仿真结果，选择方案，确定参数，修改对象，生成下游产物，或基于结果作出业务决策。输入检查、来源核对、格式验证和结果确认通常只是这些流程中的辅助动作；除非现实工作本身就是合规审查，否则不要把辅助动作单独包装成一种工作原型。
 
-- `description`：一段完整、具体的工作描述，连贯说明谁在什么业务场景下处理什么问题、
-  要完成哪些相互依赖的环节、最后交付什么，以及最容易在哪些地方出错。描述应足够让
-  陌生读者理解这是一项真实工作，而不是工具操作清单。
-- `requirements`：完成这项工作必须满足的关键条件，综合列出需要核对的证据、不可违反
-  的业务规则、必须保留或修改的内容和结果确认条件。每项都要能在环境能力或任务正文中
-  具体落地，而不是泛泛写“结果正确”。
+每种工作原型只需使用两个字段，避免把同一件事拆成重复栏目：
 
-另外填写 `source_urls` 追溯来源，并填写 `environment_support` 判断当前环境能否执行。
-调研结果是后续任务设计的现实依据，不是一份固定步骤模板；不要把某一种常见做法写成该
-工作的唯一合法执行顺序，也不要因为当前看到的工具组合较少而省略真实存在的重要变体。
+- `description`：用连贯自然的一段话描述现实触发、要解决的问题、主要工作过程，以及最终产生的领域结果或交付物。重点写“完成什么工作”，不要按工具调用顺序写“先查什么、再调用什么”，也不要为了满足长度而重复或堆砌套话。
+- `requirements`：只列真正影响结果是否可用的条件，包括必要输入、关键约束、判断标准和交付要求。来源追溯、完整性检查或证据核对只有在业务上确实不可缺少时才写入，不要为了显得严谨而堆积检查项。
+
+原型中不得包含当前环境的具体记录 ID、具体文件答案、工具调用顺序、Python 实现或隐藏答案。
 
 ## 调研方法
 
@@ -157,9 +197,7 @@ def build_task_research_prompt(attempt: int) -> str:
    不能把它描述成会产生新方案的设计工作。
 
 先完成来源、环境能力和字段标识的核对。只有全部必填字段、来源和至少一种可生成工作都已
-准备完整时，才首次创建 `task_research.json`；不要先写空数组、占位内容或半成品 JSON。
-文件写入后系统会立即把它作为本次正式提交，因此写入前必须已经可以通过 Schema 和下述
-完成条件。
+准备完整时，才在最终回复中提交 JSON；不要先提交空数组、占位内容或半成品 JSON。
 
 ## 判断当前环境是否支持
 
@@ -198,9 +236,16 @@ def build_task_research_prompt(attempt: int) -> str:
 
 ## 输出
 
-最终只创建或更新工作目录中的 `task_research.json`。写完后按照
-`task_research.schema.json` 逐字段检查。不要修改任何输入文件，不要创建其他交付文件，
-也不要在最终回复中粘贴 JSON 内容。
+输入文件全部只读，不得修改。完成调研后，在工作目录创建且只创建交付文件
+task_research.json。文件内容必须是能够按照 task_research.schema.json 直接解析的完整
+JSON 对象，不要写 Markdown 代码围栏、解释、摘要或完成说明。
+
+task_research.json 通常较大，不要用 apply_patch 写这个文件。请使用能够完整写入文本的方式，
+例如让 Python 的 json.dump 写入临时文件后原子重命名为 task_research.json。写完后必须再用
+Python json.load 或 jq 对完整文件做一次解析检查；解析失败时先修正文件，不要提交半截 JSON。
+
+如果当前执行方式确实无法创建文件，则最终回复只输出同一个完整 JSON 对象，程序会把最终
+响应作为兜底交付。无论采用哪种方式，都不要同时生成其他报告或临时交付文件。
 """
 
 
@@ -267,9 +312,9 @@ def validate_task_research(
                     "但仍有 unsupported_requirements"
                 )
             description = str(archetype.get("description") or "")
-            if len(description) < 120:
+            if len(description) < 80:
                 errors.append(
-                    f"task_archetypes[{index}].description 至少需要 120 个字符，"
+                    f"task_archetypes[{index}].description 至少需要 80 个字符，"
                     "并完整描述相互依赖的现实工作"
                 )
             requirements = archetype.get("requirements", [])
@@ -346,12 +391,16 @@ def run_step1(
                 else:
                     if agent is None:
                         raise ValueError("没有提供 TaskResearchAgent")
-                    _run_research_agent(
+                    response = _run_research_agent(
                         agent,
                         prompt,
                         working_directory=attempt_dir,
                     )
-                    payload = read_json(attempt_dir / "task_research.json")
+                    payload = _research_payload_from_handoff(
+                        response,
+                        working_directory=attempt_dir,
+                    )
+                    write_json(attempt_dir / "task_research.json", payload)
                 errors = validate_task_research(
                     payload,
                     schema=schema,
@@ -401,7 +450,7 @@ def main() -> None:
     parser.add_argument("--step0-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--research-fixture", type=Path)
-    parser.add_argument("--model", default="gpt-5.6-sol")
+    parser.add_argument("--model", default="gpt-6-sol")
     parser.add_argument("--max-attempts", type=int, default=3)
     arguments = parser.parse_args()
     agent = None

@@ -86,6 +86,7 @@ class CompleteEnvironmentPackage:
     software_profile_path: Path | None = None
     profile_python: Path | None = None
     software_root: Path | None = None
+    runtime: dict[str, Any] | None = None
 
     @classmethod
     def load(cls, value: Path, *, tools_path: Path | None = None) -> "CompleteEnvironmentPackage":
@@ -130,10 +131,12 @@ class CompleteEnvironmentPackage:
         software_profile_path: Path | None = None
         profile_python: Path | None = None
         software_root: Path | None = None
+        runtime: dict[str, Any] | None = None
         if delivery is not None:
             raw_profile = delivery.get("software_profile_path")
             raw_python = delivery.get("profile_python")
             raw_software_root = delivery.get("software_root")
+            raw_runtime = delivery.get("runtime")
             if isinstance(raw_profile, str) and raw_profile:
                 software_profile_path = Path(raw_profile).expanduser().resolve()
             if isinstance(raw_python, str) and raw_python:
@@ -142,6 +145,8 @@ class CompleteEnvironmentPackage:
                 profile_python = Path(raw_python).expanduser()
             if isinstance(raw_software_root, str) and raw_software_root:
                 software_root = Path(raw_software_root).expanduser().resolve()
+            if isinstance(raw_runtime, dict):
+                runtime = deepcopy(raw_runtime)
         if software_root is None:
             legacy_software = package_root / "tool_generation" / "software"
             software_root = legacy_software if legacy_software.exists() else None
@@ -157,6 +162,7 @@ class CompleteEnvironmentPackage:
             software_profile_path=software_profile_path,
             profile_python=profile_python,
             software_root=software_root,
+            runtime=runtime,
         )
 
     @staticmethod

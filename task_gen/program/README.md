@@ -159,7 +159,8 @@ Step 2 选择一个 `generatable=true` 的任务原型作为主要现实依据�
 
 每个候选还必须提供两个任务描述字段：`workspace_brief` 是当前环境固定的短说明，
 同一环境内所有任务相同；`task_summary` 是本题业务目标的一到两句摘要，用于批量生成时
-记录和排重。两者都会保存到最终 `tasks.json`，但 `task_summary` 不应写工具调用或隐藏答案。
+记录和排重。两者保存在 Step 2 的中间产物和任务目录中，不进入正式 `tasks.json`。
+发布时 `workspace_brief` 会自然地合并到 `task_text` 前面。
 
 文件位置使用 `scope_id + Scope 内相对路径`，不得写内部物理前缀
 `filesystem_scopes/`。能预先确定的输出文件必须给出精确路径；只有工具会自行生成多个、
@@ -176,12 +177,18 @@ Step 2 选择一个 `generatable=true` 的任务原型作为主要现实依据�
 5. 使用独立 Agent 审查任务、Solution 和资源范围；
 6. 最后再执行一次发布重放，并保存完整初态和参考终态目录。
 
-难度不设置固定工具调用次数、工具种类、串行依赖、分支或循环门槛。先保证任务忠于 Step 1
+除生产长链门槛外，不设置固定工具种类、串行依赖、分支或循环形态。先保证任务忠于 Step 1
 调研的现实工作，再保留环境能自然支撑的分析、比较和判断。在多个方向同样真实、可执行时，优先选择
 需要更多必要工具交互才能完成的实例，以扩大工具选择、参数传递、多对象处理和结果汇总的训练覆盖。同一
 工具可以因不同对象或条件被多次必要调用；不用重复查询、无关动作或额外审计要求伪造次数。前序工具
 结果只有在业务上真的决定后续对象或参数时才形成串行依赖；并列收集独立证据时无需人为串行化。最终答案
 始终必须由真实工具结果及任务明确要求的计算推导。
+
+生产运行默认要求每条任务至少有 15 次去重后的有效工具交互，并把原始调用数和有效调用数都写入
+`tasks.json.difficulty`。有效交互指不同状态变化，或不同工具/参数组合产生的独立观察；重复相同只读
+查询不会计数。这个门槛只控制交付质量，不规定任务正文必须采用某种固定流程。生成 Agent 会根据现实工作
+需要的对象、证据、计算和产物自行扩展闭环；如果环境确实无法自然支撑这么多交互，候选会被拒绝，而不是
+靠无关检查或重复调用凑数。命令行可用 `--minimum-effective-tool-calls 0` 关闭该生产门槛。
 任务选择先看领域价值，再看必要调用数：如果环境能够实际运行仿真或分析、生成新结果、比较候选、优化参数或支持
 具体决策，这些任务优先于配置就绪、来源追溯、文件完整性和历史结果复核。后者仍可以生成，但不能仅因为容易拆成
 更多查询而获得优先级。
@@ -193,8 +200,14 @@ Step 2 选择一个 `generatable=true` 的任务原型作为主要现实依据�
 常识不能单独成为取值来源。审查还会检查任务正文的每项要求能否在工具结果、最终状态或
 结构化答案中找到直接证据。
 
-binding 声明软件 Profile 时，每次工具调用都由该 Profile 的 Python 工作进程执行。
-上下文提供契约规定的 `environment`、`records`、`scope_root()` 和 `software_root`。
+Step 2 不再自行解释工具代码或拼接软件路径。每次 Solution 执行和 clean replay 都先通过
+`harness.layout.create_task_run_layout()` 创建相互隔离的 `execution-state/` 与
+`model-workspace/`，再统一调用 `harness.execution.call_environment_tool()`。Harness 负责输入输出
+Schema、资源 Scope、bubblewrap 沙箱、只读边界、成功提交和失败回滚。
+
+实际运行后端完全服从 ToolGen `binding.json` 指向的 `runtime.json`：`host_python` 使用当前
+Harness Python，`python_profile` 使用交付的软件 Profile，`docker` 使用交付声明的镜像和容器内
+软件目录。TaskGen 不再根据目录名称猜测依赖，也不会把 `execution-state` 当作 Agent 工作目录。
 
 ## 6. Step 2 输出
 
@@ -211,18 +224,18 @@ tasks/<task_id>/initial/
 tasks/<task_id>/final/
 ```
 
-`tasks.json` 每项包含：
+`tasks.json` 每项严格遵循任务契约 v1.0，只包含：
 
 ```text
-schema_version / task_id / environment_id / workspace_brief / task_summary / task_text
-output_schema / task_resources
-difficulty.tool_calls
+schema_version / task_id / environment_id / task_text / difficulty.tool_calls
 initial_state
 available_tools[]
 reference.answer / reference.tool_calls / reference.final_state
 ```
 
-这些文件是 Step 2 的生成结果和可重放依据。本模块不会继续生成评分规则或运行求解评测。
+`output_schema`、`task_resources`、有效调用统计、Solution 和审查结果只保存在中间产物，
+不作为求解 Agent 的隐藏答案约束。正式答案以 `task_text` 的业务要求为准。本模块不会继续
+生成评分规则或运行求解评测。
 
 ## 7. 完整运行
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import replace
 from datetime import datetime
 import json
 import os
@@ -18,6 +19,7 @@ from .runner import (
     KIMI_K3_CONTEXT_SIZE,
     KIMI_K3_DEFAULT_EFFORT,
     KIMI_K3_EFFORTS,
+    KIMI_UPSTREAM_MAX_RETRIES,
     DistillRunError,
     make_server_config,
     run_k3_distillation,
@@ -51,6 +53,7 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "model_alias": arguments.model_alias,
         "provider_type": arguments.provider_type,
         "reasoning_effort": arguments.reasoning_effort,
+        "max_upstream_retries": arguments.max_upstream_retries,
         "max_environment_errors": arguments.max_environment_errors_per_task,
     }
 
@@ -105,6 +108,57 @@ def _select_summary_case_names(path: Path) -> list[str]:
     return names
 
 
+def _override_case_deliveries(cases: list[Any], delivery_root: Path) -> list[Any]:
+    """Bind selected task cases to repaired deliveries without changing task state or text."""
+    from harness.delivery import load_delivery
+
+    root = delivery_root.expanduser().resolve()
+    # Delivery directory names identify packages, while binding.json may expose
+    # the environment/tool identity used by task metadata.  They are not
+    # required to be identical (for example, a scenario package can provide a
+    # shared stem-analysis environment), so index both forms before loading.
+    bindings_by_environment: dict[str, Path] = {}
+    for candidate in sorted((root / "environments").glob("*/binding.json")):
+        try:
+            metadata = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"invalid delivery binding: {candidate}") from exc
+        aliases = {candidate.parent.name}
+        if isinstance(metadata, dict) and isinstance(metadata.get("environment_id"), str):
+            aliases.add(metadata["environment_id"])
+        for alias in aliases:
+            previous = bindings_by_environment.get(alias)
+            if previous is not None and previous != candidate:
+                raise ValueError(f"duplicate delivery binding for environment {alias!r}")
+            bindings_by_environment[alias] = candidate
+    overridden = []
+    cache: dict[str, Any] = {}
+    for case in cases:
+        environment_id = case.task.get("environment_id")
+        if not isinstance(environment_id, str) or not environment_id:
+            raise ValueError("task is missing environment_id")
+        binding = bindings_by_environment.get(environment_id)
+        if binding is None:
+            expected = root / "environments" / environment_id / "binding.json"
+            raise ValueError(f"delivery override is missing binding: {expected}")
+        delivery = cache.setdefault(environment_id, load_delivery(binding))
+        if delivery.package.environment.get("environment_id") != environment_id:
+            raise ValueError(f"delivery override environment mismatch: {binding}")
+        environment = dict(delivery.package.environment)
+        environment["tools"] = list(delivery.package.tools)
+        runtime = {
+            "binding_path": str(delivery.binding_path),
+            "initial_state": str(delivery.package.package_root / "state"),
+        }
+        if delivery.software_root is not None and delivery.python_path is not None:
+            runtime["software"] = {
+                "root": str(delivery.software_root),
+                "python": str(delivery.python_path),
+            }
+        overridden.append(replace(case, environment=environment, runtime=runtime))
+    return overridden
+
+
 def _bounded_results(
     cases: list[Any], run: Any, *, max_workers: int, max_environment_errors: int | None,
     on_progress: Any | None = None,
@@ -156,16 +210,21 @@ def _run_taskgen(arguments: argparse.Namespace) -> None:
     from task_gen.task_eval import _agent_prompt, load_cases
 
     input_root = arguments.input_root.expanduser().resolve()
-    cases = load_cases(input_root)
+    selected_names = (
+        _select_summary_case_names(arguments.select_summary)
+        if arguments.select_summary
+        else None
+    )
+    selected_case_names = set(selected_names) if selected_names is not None else None
+    cases = load_cases(input_root, selected_case_names=selected_case_names)
     if not cases:
         for child in sorted(path for path in input_root.iterdir() if path.is_dir()):
-            cases.extend(load_cases(child))
+            cases.extend(load_cases(child, selected_case_names=selected_case_names))
     if arguments.environment_id:
         cases = [case for case in cases if case.task.get("environment_id") == arguments.environment_id]
     if arguments.task_id:
         cases = [case for case in cases if case.task.get("task_id") == arguments.task_id]
     if arguments.select_summary:
-        selected_names = _select_summary_case_names(arguments.select_summary)
         cases_by_name = {
             _safe_name(f"{case.source_run.name}__{case.task['task_id']}"): case
             for case in cases
@@ -176,6 +235,8 @@ def _run_taskgen(arguments: argparse.Namespace) -> None:
             suffix = " ..." if len(missing) > 5 else ""
             raise ValueError(f"selection summary cases not found: {preview}{suffix}")
         cases = [cases_by_name[name] for name in selected_names]
+    if arguments.delivery_root:
+        cases = _override_case_deliveries(cases, arguments.delivery_root)
     selected_count = len(cases)
     completed_names = _completed_case_names(arguments.skip_summary)
     if completed_names:
@@ -332,7 +393,10 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         "--max-context-size",
         type=int,
         default=int(os.environ.get("KIMI_MAX_CONTEXT_SIZE", KIMI_K3_CONTEXT_SIZE)),
-        help="K3 context size used by Kimi CLI; defaults to the official 1048576-token window",
+        help=(
+            "K3 context cap used by Kimi CLI; 262144 and 1048576 are supported, "
+            "defaulting to the official 1048576-token window"
+        ),
     )
     parser.add_argument("--model-id", default="kimi-k3")
     parser.add_argument("--model-alias", default="evaluation")
@@ -352,6 +416,12 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         "--max-environment-errors-per-task",
         type=int,
         help="stop only the affected task after this many execution-layer environment errors",
+    )
+    parser.add_argument(
+        "--max-upstream-retries",
+        type=int,
+        default=int(os.environ.get("KIMI_MAX_UPSTREAM_RETRIES", KIMI_UPSTREAM_MAX_RETRIES)),
+        help="retry transient Kimi/MaaS responses per model request; internal MaaS 400 is narrowly classified",
     )
 
 
@@ -376,6 +446,14 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--output-root", type=Path, default=Path("distill/.runs"))
     batch.add_argument("--environment-id")
     batch.add_argument("--task-id")
+    batch.add_argument(
+        "--delivery-root",
+        type=Path,
+        help=(
+            "override selected cases with binding.json files from "
+            "<root>/environments/<environment_id>; task text and task initial state are unchanged"
+        ),
+    )
     batch.add_argument(
         "--select-summary",
         type=Path,
@@ -434,6 +512,8 @@ def main() -> None:
         value = getattr(arguments, name, None)
         if value is not None and value < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
+    if arguments.max_upstream_retries < 0:
+        parser.error("--max-upstream-retries must be non-negative")
     try:
         if hasattr(arguments, "base_url") and not arguments.base_url:
             raise ValueError("set --base-url or KIMI_BASE_URL")

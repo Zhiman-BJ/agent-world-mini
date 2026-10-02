@@ -11,8 +11,8 @@ agent.md 由 YAML 配置头和 system prompt 正文两部分组成。下面是�
 name: agent
 override: true
 description: Environment task solver
-tools: ["mcp__agent_world_eval__*"]
-disallowedTools: ["select_tools"]
+tools: ["mcp__agent_world_eval__*", "Read", "Grep", "Glob"]
+disallowedTools: ["Write", "Edit", "Bash", "Agent", "AgentSwarm", "WebSearch", "FetchURL", "AskUserQuestion", "select_tools"]
 subagents: []
 ---
 You are ${product_name}, an interactive general AI agent running on a user's computer.
@@ -103,12 +103,14 @@ ${skills_section}${plugin_sections}
 ## 2. 工具
 
 - `override: true`：替换官方同名 agent 配置。
-- `tools: ["mcp__agent_world_eval__*"]`：只允许我们这个 MCP 服务提供的工具。
-- `disallowedTools: ["select_tools"]`：单独禁用工具选择器。官方对它有特殊处理，可能不受配置头的白名单限制，因此显式关闭。
+- `tools: ["mcp__agent_world_eval__*", "Read", "Grep", "Glob"]`：环境业务工具由 MCP 提供，文件读取使用 Kimi 原生工具。
+- `disallowedTools`：显式禁用写文件、Shell、网络、子代理和工具选择器。
 
-开放的工具是环境业务工具和 `read_tool_result`；后者只能读取本次会话已有的工具结果。官方 Read、Bash 等工具和其他 MCP 服务的工具均未开放。`subagents: []` 表示不配置子代理。
+开放的工具是环境业务工具和原生 `Read/Grep/Glob`。`resources/list/read` 是 MCP 协议方法，不会出现在 function tool 表；`subagents: []` 表示不配置子代理。
 
 已确认执行时也会检查工具权限，相关两项测试通过。同一 MCP 服务以后新增的工具也会进入白名单。
+
+原生 `Read/Grep/Glob` 另有执行前路径边界：SDK 的 `PreToolUse` hook 调用 `harness.kimi_file_policy`，对目标做 `realpath` 规范化，只允许临时 model workspace、当前 session 主 Agent 的 `tool-results`/`wire.jsonl` 和当前 session attachment。`execution-state`、其他 session、宿主目录及符号链接逃逸会以退出码 2 拒绝，允许/拒绝记录写入 `native_file_access.jsonl`。工具启用白名单本身不能限制路径，不能用它代替这个 hook。
 
 ## 3. 思考内容处理
 
@@ -116,13 +118,11 @@ ${skills_section}${plugin_sections}
 
 模型返回的 `<think>` 或 reasoning 内容要完整留档，用于后续蒸馏；但不能放入后续模型请求的历史。后续请求只保留正常回答、工具调用和工具结果。
 
-当前代码尚未实现这项过滤：`task_eval_kimi.mjs` 直接使用官方 SDK 组装后续请求，只记录请求和响应日志，没有移除历史思考内容。因此现在只能确认思考内容会被记录，不能确认它不会进入下一次请求。后续需要在请求历史组装处加入过滤，并用测试验证。
+当前正式蒸馏入口是 `distill.runner` 调用官方 Kimi Code CLI；它不重写官方 session/wire 历史，由 Kimi Code 自己负责上下文和 compaction。旧的 `task_eval_kimi.mjs` SDK 入口仍是兼容路径，仍保留历史思考字段，不能把它的旧行为与官方 CLI 链路混为一谈；正式蒸馏不要使用该旧入口。
 
 ## 4. 长工具结果处理
 
-两种方案都先提供预览，再让模型按需读取更多内容。恒辉的方案沿用 Kimi 落盘和截断，用官方 Read/Grep 读取或搜索；我们的方案保存完整结果，用新增的 read_tool_result 按结果编号分页读取，只能访问本次会话的结果，不支持任意文件读取或搜索。
-
-当前代码仍使用我们的版本，暂不替换。
+MCP 适配层直接返回完整结果。Kimi Code 超过原生阈值后把结果保存到当前 session 的 `tool-results`，模型使用原生 `Read/Grep` 恢复；不再维护自定义结果编号或第二套读取协议。
 
 ## 5. 循环、重试与运行限制
 

@@ -68,9 +68,11 @@ def _integration_guide(
 ## 两种落地方式
 
 - 某类内容需要按字段或 ID 查询、关联、创建、更新时，把它整理成 `state/records.sqlite` 中的业务表，
-  并在 `environment.json.record_sets` 中声明。
+  并在 `environment.json.record_sets` 中声明。为了让后续任务既能读取也能修改业务状态，最终 Record Set
+  统一声明为 `copy_on_write`。
 - 某类内容需要保留文件内容、文件名或目录结构，供工具整份读取、校验、比较或修改时，把实际可操作文件
-  放入 `state/filesystem_scopes/<scope_id>/`，并在 `environment.json.filesystem_scopes` 中声明。
+  放入 `state/filesystem_scopes/<scope_id>/`，并在 `environment.json.filesystem_scopes` 中声明。最终 Scope
+  同样统一声明为 `copy_on_write`；这允许任务修改独立副本，不允许修改采集原件或共享基线。
 - 同一个原件可以同时贡献数据库记录和文件工作区。不要根据扩展名机械分类：JSON、XML、代码或压缩包
   最终放在哪里，只由后续如何使用决定。
 - ZIP、TAR、GZIP 通常只是下载容器。先检查内部成员；除非业务本身就是操作压缩包，否则应解析其中的

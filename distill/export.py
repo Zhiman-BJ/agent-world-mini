@@ -84,7 +84,9 @@ def _new_step(index: int, event: dict[str, Any], wire_line: int) -> dict[str, An
 
 
 def _tool_kind(name: str) -> str:
-    return "harness_support" if name.endswith("__read_tool_result") else "environment_mcp"
+    if name in {"Read", "Grep", "Glob"}:
+        return "native_file_tool"
+    return "environment_mcp"
 
 
 def _short_tool_name(name: str) -> str:
@@ -95,23 +97,21 @@ def _short_tool_name(name: str) -> str:
 def _attach_tool_records(
     steps: Iterable[dict[str, Any]],
     environment_records: list[dict[str, Any]],
-    support_records: list[dict[str, Any]],
 ) -> None:
     unused_environment = list(environment_records)
-    unused_support = list(support_records)
     for step in steps:
         for call in step["tool_calls"]:
+            if call["tool_kind"] != "environment_mcp":
+                call["environment_record"] = None
+                continue
             short_name = _short_tool_name(call["name"])
-            records = unused_support if call["tool_kind"] == "harness_support" else unused_environment
             match = next((
-                index for index, record in enumerate(records)
+                index for index, record in enumerate(unused_environment)
                 if record.get("tool") == short_name and record.get("arguments") == call.get("arguments")
             ), None)
-            record = records.pop(match) if match is not None else None
+            record = unused_environment.pop(match) if match is not None else None
             clean = {key: value for key, value in record.items() if key != "_line"} if record else None
-            call["support_record" if call["tool_kind"] == "harness_support" else "environment_record"] = clean
-            call.setdefault("environment_record", None)
-            call.setdefault("support_record", None)
+            call["environment_record"] = clean
 
 
 def _parse_sse(path: Path) -> tuple[str, str]:
@@ -179,7 +179,6 @@ def export_trajectory(
     request_records = _load_jsonl(raw_dir / "model_requests.jsonl")
     response_records = _load_jsonl(raw_dir / "model_responses.jsonl")
     environment_records = _load_jsonl(raw_dir / "environment_tool_calls.jsonl")
-    support_records = _load_jsonl(raw_dir / "result_reads.jsonl")
     run_result = _load_json(raw_dir / "run_result.json", {})
 
     steps: list[dict[str, Any]] = []
@@ -317,7 +316,7 @@ def export_trajectory(
                 last_compaction["after_context"] = exchange["request"]
                 last_compaction = None
 
-    _attach_tool_records(steps, environment_records, support_records)
+    _attach_tool_records(steps, environment_records)
     model = run_result.get("model", {})
     tool_names = environment.get("tool_names")
     if not isinstance(tool_names, list):
