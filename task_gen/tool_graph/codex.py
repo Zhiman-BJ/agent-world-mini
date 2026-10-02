@@ -293,6 +293,11 @@ class CodexAgentClient:
                 command.append("--ephemeral")
             elif "--json" not in command:
                 command.append("--json")
+            # Persistent sessions need Codex to retain thread state. The shared
+            # task-eval config disables response storage for ordinary one-shot
+            # calls, which makes `resume` fail with `list_turns is not supported`.
+            if self.persistent_session:
+                command.extend(["--config", "disable_response_storage=false"])
             if self.bypass_approvals_and_sandbox:
                 command.append("--dangerously-bypass-approvals-and-sandbox")
             else:

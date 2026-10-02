@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
 
-from harness.mcp_tools import RESOURCE_TOOLS
+from harness.runtime import ToolRuntime, state_diff
+from harness.execution import call_environment_tool
 
 from .delivery_contract import DeliveryPackage
 from .mcp_protocol import PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, tool_call_result
-from .runtime import ToolRuntime, state_diff
 
 
 class ToolMcpServer:
@@ -24,12 +23,20 @@ class ToolMcpServer:
         max_tool_calls: int = 100,
         temp_root: Path | None = None,
         session_root: Path | None = None,
+        timeout: int = 300,
+        memory_limit: int = 2 * 1024 * 1024 * 1024,
+        write_limit: int = 256 * 1024 * 1024,
+        process_limit: int = 1024,
     ) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls 必须大于 0")
         self.delivery = delivery
         self.trace_path = trace_path.expanduser().resolve() if trace_path else None
         self.max_tool_calls = max_tool_calls
+        self.timeout = timeout
+        self.memory_limit = memory_limit
+        self.write_limit = write_limit
+        self.process_limit = process_limit
         self.calls = 0
         self._closed = False
         software_root = (
@@ -42,30 +49,8 @@ class ToolMcpServer:
             software_root=software_root,
             temp_root=temp_root,
             session_root=session_root,
-            isolated=not (
-                delivery.runtime.get('backend') == 'docker'
-                and Path('/.dockerenv').is_file()
-            ),
-            execution_runtime=delivery.runtime,
         )
-        if self.runtime.resumed:
-            saved = self.runtime.root / 'session.json'
-            if saved.is_file():
-                self.calls = int(json.loads(saved.read_text(encoding='utf-8')).get('tool_calls', 0))
-            if self.trace_path and self.trace_path.is_file():
-                for line in self.trace_path.read_text(encoding='utf-8').splitlines():
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if record.get('package_id') == delivery.binding['package_id']:
-                        self.calls = max(self.calls, int(record.get('sequence', 0)))
         self._tools = {str(tool["name"]): tool for tool in delivery.package.tools}
-        reserved = {tool["name"] for tool in RESOURCE_TOOLS}
-        conflicts = sorted(reserved & set(self._tools))
-        if conflicts:
-            self.runtime.close()
-            raise ValueError("业务工具名与环境资源工具冲突：" + ", ".join(conflicts))
 
     def close(self) -> None:
         if self._closed:
@@ -99,27 +84,6 @@ class ToolMcpServer:
         with self.trace_path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
 
-    def _resource_call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        if name == "get_environment_overview":
-            data = self.runtime.resources.overview()
-        elif name == "list_environment_resources":
-            data = {
-                "resources": self.runtime.resources.list(
-                    scope_id=arguments.get("scope_id"),
-                    query=arguments.get("query"),
-                    limit=arguments.get("limit", 100),
-                    offset=arguments.get("offset", 0),
-                )
-            }
-        elif name == "inspect_environment_resource":
-            data = self.runtime.resources.inspect(
-                str(arguments.get("ref", "")),
-                preview_chars=arguments.get("preview_chars", 4000),
-            )
-        else:
-            raise RpcError(-32602, f"未知环境资源工具：{name}")
-        return {"success": True, "data": data}
-
     def _call_tool(self, params: Any) -> dict[str, Any]:
         if self.calls >= self.max_tool_calls:
             raise RpcError(-32000, "工具调用次数已达上限")
@@ -127,24 +91,62 @@ class ToolMcpServer:
             raise RpcError(-32602, "tools/call 缺少 params")
         name = params.get("name")
         arguments = params.get("arguments", {})
-        resource_names = {tool["name"] for tool in RESOURCE_TOOLS}
-        if not isinstance(name, str) or (
-            name not in self._tools and name not in resource_names
-        ):
+        if not isinstance(name, str) or name not in self._tools:
             raise RpcError(-32602, f"未知工具：{name}")
         if not isinstance(arguments, dict):
             raise RpcError(-32602, "工具 arguments 必须是 object")
 
         self.calls += 1
-        read_only = name in resource_names or self._tools[name]['usageConditions']['sideEffects'] == []
-        before = None if read_only else self.runtime.snapshot()
+        before = self.runtime.snapshot()
         runtime_error: str | None = None
         try:
-            result = (
-                self._resource_call(name, arguments)
-                if name in resource_names
-                else self.runtime.call(name, arguments)
+            software = None
+            software_root = None
+            if self.delivery.runtime.get("backend") == "docker":
+                software_root = Path(str(self.delivery.runtime.get("software_root", "/opt/tool-software")))
+            elif self.delivery.software_root is not None and self.delivery.python_path is not None:
+                software_root = self.delivery.software_root
+                software = {
+                    "root": str(self.delivery.software_root),
+                    "python": str(self.delivery.python_path),
+                }
+            record = call_environment_tool(
+                name,
+                arguments,
+                self._tools,
+                self.runtime.root / "state",
+                timeout=self.timeout,
+                memory_limit=self.memory_limit,
+                write_limit=self.write_limit,
+                process_limit=self.process_limit,
+                environment=self.delivery.package.environment,
+                software=software,
+                software_root=software_root,
             )
+            result = record.get("result")
+            # Harness reports schema/transaction failures in ``error`` but
+            # keeps a valid business ``success=false`` result as normal
+            # tool output. Preserve that distinction on the MCP wire.
+            runtime_error = (
+                record.get("error")
+                if not (
+                    isinstance(result, dict)
+                    and result.get("success") is False
+                    and not record.get("failure_kind")
+                )
+                else None
+            )
+            if not isinstance(result, dict):
+                runtime_error = runtime_error or "工具返回值必须是 object"
+                result = {
+                    "success": False,
+                    "error": {
+                        "code": "runtime_error",
+                        "path": "$",
+                        "message": runtime_error,
+                        "retryable": False,
+                    },
+                }
         except Exception as error:
             runtime_error = f"{type(error).__name__}: {error}"
             result = {
@@ -156,8 +158,8 @@ class ToolMcpServer:
                     "retryable": False,
                 },
             }
-        changes = ({'record_sets': [], 'filesystem_scopes': []} if read_only
-                   else state_diff(before, self.runtime.snapshot()))
+        after = self.runtime.snapshot()
+        changes = state_diff(before, after)
         is_error = runtime_error is not None or result.get("success") is False
         self._trace(
             {
@@ -180,19 +182,31 @@ class ToolMcpServer:
         if method == "initialize":
             return {
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {"listChanged": False, "subscribe": False},
+                },
                 "serverInfo": {
                     "name": "agent-world-toolgen",
                     "version": SERVER_VERSION,
                 },
                 "instructions": (
-                    "Use get_environment_overview and list_environment_resources to find files. "
-                    "Pass the returned aw:// references to business tools instead of guessing "
-                    "workspace paths."
+                    "Use resources/list and resources/read to discover or inspect files. "
+                    "For business tools, pass the returned Scope-relative path with its "
+                    "scope_id; do not pass the resource URI as a business argument."
                 ),
             }
         if method == "tools/list":
-            return {"tools": [*deepcopy(RESOURCE_TOOLS), *public_tools(self.delivery.package.tools)]}
+            return {"tools": public_tools(self.delivery.package.tools)}
+        if method == "resources/list":
+            return {"resources": self._resource_list(request.get("params"))}
+        if method == "resources/read":
+            params = request.get("params")
+            if not isinstance(params, dict) or not isinstance(params.get("uri"), str):
+                raise RpcError(-32602, "resources/read 需要 uri")
+            return {"contents": [self._resource_read(params["uri"])]}
+        if method == "resources/templates/list":
+            return {"resourceTemplates": []}
         if method == "tools/call":
             return self._call_tool(request.get("params"))
         if method == "ping":
@@ -200,3 +214,35 @@ class ToolMcpServer:
         if request_id is None:
             return None
         raise RpcError(-32601, f"不支持的 MCP 方法：{method}")
+
+    def _resource_list(self, params: Any) -> list[dict[str, Any]]:
+        if params not in (None, {}) and not isinstance(params, dict):
+            raise RpcError(-32602, "resources/list params 必须是 object")
+        values = self.runtime.resources.list(limit=500)
+        return [
+            {
+                "uri": item["ref"],
+                "name": item["name"],
+                "description": item.get("description", ""),
+                "mimeType": item.get("media_type") or "application/octet-stream",
+                "scope_id": item["scope_id"],
+                "relative_path": item["relative_path"],
+            }
+            for item in values
+        ]
+
+    def _resource_read(self, uri: str) -> dict[str, Any]:
+        import base64
+        resource = self.runtime.resources.inspect(uri, preview_chars=0)
+        path = self.runtime.resources.resolve(uri, must_exist=True)
+        payload: dict[str, Any] = {"uri": uri, "mimeType": resource.get("media_type") or "application/octet-stream"}
+        if path.is_dir():
+            raise RpcError(-32602, "resources/read 只能读取文件")
+        raw = path.read_bytes()
+        if len(raw) > 50 * 1024 * 1024:
+            raise RpcError(-32000, "资源读取超过 50 MiB 限制，请使用业务工具处理该资源")
+        try:
+            payload["text"] = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            payload["blob"] = base64.b64encode(raw).decode("ascii")
+        return payload

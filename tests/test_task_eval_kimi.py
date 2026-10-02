@@ -251,8 +251,8 @@ def test_multiple_calls_return_both_results_before_next_model_step(tmp_path, mod
     assert len(requests) == 2
     messages = [m for m in requests[1]['messages'] if m['role'] == 'tool']
     assert [m['tool_call_id'] for m in messages] == ['first', 'second']
-    assert '"tag": 1' in messages[0]['content']
-    assert '"tag": 2' in messages[1]['content']
+    assert '"tag":1' in messages[0]['content'].replace(' ', '')
+    assert '"tag":2' in messages[1]['content'].replace(' ', '')
     assert len(trace.read_text().splitlines()) == 2
     assert 'parallel_tool_calls' not in requests[0]
 
@@ -384,6 +384,7 @@ def test_broken_response_preserves_received_bytes(tmp_path, model_server, monkey
 
 
 def test_long_result_uses_native_kimi_storage_without_custom_reader(tmp_path, model_server, monkeypatch):
+    import re
     from task_gen.task_eval import _run_agent
     url, requests, replies = model_server
     workspace, server, trace, options = setup_case(tmp_path, url)
@@ -392,8 +393,15 @@ def test_long_result_uses_native_kimi_storage_without_custom_reader(tmp_path, mo
     config['tools'][0]['internal']['code'] = "def run(arguments, context):\n return {'success': True, 'data': 'x' * 300000 + 'MIDDLE_EVIDENCE_731' + 'y' * 300000}"
     server.write_text(json.dumps(config))
     options['kimi']['max_steps_per_turn'] = 8
+    def read_saved_result(request):
+        message = next(m['content'] for m in reversed(request['messages']) if m['role'] == 'tool')
+        path = re.search(r'output_path: ([^\n]+)', message).group(1)
+        return tool_call('Read', {'path': path, 'line_offset': 3,
+                                 'column_offset': 299900, 'max_chars': 2000}, 'recover-long-result')
+
     replies.extend([
         tool_call('mcp__agent_world_eval__inspect', {}, 'inspect'),
+        read_saved_result,
         {'content': 'MIDDLE_EVIDENCE_731'},
     ])
     assert _run_agent('Report the evidence in the middle of the sample.', workspace, server, trace, options) == 'MIDDLE_EVIDENCE_731'
@@ -402,6 +410,11 @@ def test_long_result_uses_native_kimi_storage_without_custom_reader(tmp_path, mo
     assert 'HIDDEN_INITIAL_STATE' not in json.dumps(requests)
     assert 'read_tool_result' not in json.dumps(requests)
     assert not (tmp_path / 'state.agent/result_reads.jsonl').exists()
+    recovered = next(m['content'] for m in requests[-1]['messages']
+                     if m.get('tool_call_id') == 'recover-long-result' and m['role'] == 'tool')
+    assert 'MIDDLE_EVIDENCE_731' in recovered
+    audit = [json.loads(line) for line in (tmp_path / 'state.agent/native_file_access.jsonl').read_text().splitlines()]
+    assert any(r['allowed'] and r['reason'] == 'session_tool_results' for r in audit)
 
 
 def test_kimi_binding_uses_task_state_and_public_delivery_tools(tmp_path, model_server, monkeypatch):
