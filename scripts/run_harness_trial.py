@@ -38,11 +38,20 @@ def main():
             run_dir = existing[-1].parent
             meta = json.loads(existing[-1].read_text())
             if meta.get('status') == 'completed':
-                return
+                tasks_path = run_dir / 'tasks.json'
+                try:
+                    task_count = len(json.loads(tasks_path.read_text())) if tasks_path.exists() else 0
+                except (OSError, json.JSONDecodeError, TypeError):
+                    task_count = 0
+                if task_count:
+                    return
+                # A completed run with no tasks is a failed terminal artifact;
+                # start a clean attempt so a fixed implementation can be tested.
+                existing = []
             # Fixed-seed sampling with no eligible chains cannot improve on retry.
             if meta.get('failed_step') == 'step_2_chain_sample' and '不使用越界链兜底' in str(meta.get('error')):
                 return
-        else:
+        if not existing:
             cfg = run_io.load_config(config, {'environment_dir': source / args.worker,
                                                'output_root': directory})
             run_dir = run_io.create_run_dir(cfg)
