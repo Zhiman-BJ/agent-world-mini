@@ -484,7 +484,7 @@ def _bounded_results(
 
 
 def _run_taskgen(arguments: argparse.Namespace) -> None:
-    from task_gen.task_eval import load_cases
+    from task_gen.eval_cases import load_cases
 
     input_root = arguments.input_root.expanduser().resolve()
     selected_names = (

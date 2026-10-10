@@ -25,6 +25,10 @@ Seed → DataGen → ToolGen 交付包 → TaskGen → 模型执行与 Verifier 
 Program 和 Tool-graph 是两种任务生成策略，各自保留正式入口，使用同一份工具交付与执行契约。
 工具包已交付表示包内工具通过验收；计划中的 `rejected/skipped` 能力仍见报告，不计为已实现。
 
+任务评测和训练轨迹采集按用途分工：`task_gen.task_eval` 提供 ReAct/SDK 独立评测，
+`distill` 使用官方 Kimi CLI 采集训练轨迹。二者由 `task_gen/eval_cases.py` 加载同一任务契约，
+共享 Harness 与任务 Verifier。
+
 ## 安装与运行
 
 需要 Python 3.10+。隔离执行使用 Linux bubblewrap 或交付绑定的 Docker 镜像；生成与评测需各自的模型配置。

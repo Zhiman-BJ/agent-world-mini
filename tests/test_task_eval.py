@@ -6,6 +6,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from task_gen.task_eval import DEFAULT_INPUT_ROOT, _agent_prompt, _result_counts, evaluate_case, load_cases, main, run_evaluation
+from task_gen import eval_cases, task_eval
+
+
+def test_case_loader_is_shared_with_distillation():
+    assert task_eval.load_cases is eval_cases.load_cases
+    assert task_eval.EvalCase is eval_cases.EvalCase
 from task_gen.task_eval_mcp import call_environment_tool, serve
 ROOT = Path(__file__).resolve().parents[1]
 

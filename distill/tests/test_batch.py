@@ -566,7 +566,7 @@ def test_environment_setup_error_recognizes_invalid_mcp_schema():
 
 
 def test_delivery_override_rebinds_tools_without_changing_task_state(tmp_path, monkeypatch):
-    from task_gen.task_eval import EvalCase
+    from task_gen.eval_cases import EvalCase
     from distill.__main__ import _override_case_deliveries
 
     binding = tmp_path / "environments" / "example" / "binding.json"
@@ -617,7 +617,7 @@ def test_delivery_override_rebinds_tools_without_changing_task_state(tmp_path, m
 
 
 def test_delivery_override_resolves_binding_environment_id_alias(tmp_path, monkeypatch):
-    from task_gen.task_eval import EvalCase
+    from task_gen.eval_cases import EvalCase
     from distill.__main__ import _override_case_deliveries
 
     binding = tmp_path / "environments" / "scenario-package" / "binding.json"
@@ -653,7 +653,7 @@ def test_delivery_override_resolves_binding_environment_id_alias(tmp_path, monke
 
 
 def test_load_cases_skips_unselected_bundle_before_reading_it(tmp_path):
-    from task_gen.task_eval import load_cases
+    from task_gen.eval_cases import load_cases
 
     ignored = tmp_path / "ignored" / "intermediate"
     ignored.mkdir(parents=True)
