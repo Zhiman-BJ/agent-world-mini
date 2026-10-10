@@ -1,8 +1,0 @@
-{
-  "23324f2f07c44123a4dbb6a787beba38": {
-    "source": "runs/cost_optimized_ten_20260921/semiconductor_scenario_03_02_02/20260921_164941_782714_semiconductor_scenario_03_02_02_gpt-5.6-sol/tasks/task20/rounds/01/logs/run_01/stdout.log",
-    "event": "turn.completed",
-    "note": "First turn returned empty final text but emitted usage. Later retry logged only the delta: 111549 input, 111232 cached, 648 output. Recover this first turn separately; do not add cumulative run_02 usage again.",
-    "usage": {"input_tokens": 3008836, "cached_input_tokens": 2896000, "output_tokens": 6709, "reasoning_output_tokens": 2227}
-  }
-}

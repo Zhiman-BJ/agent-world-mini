@@ -14,6 +14,7 @@ llm:
     node: node
     provider_type: openai
     # Kimi 接入层的长返回兜底；不修改环境 MCP 的正式定义，辅助读取不计入环境工具预算。
+    tool_result_page_chars: 6000
     # 接入方声明的上下文预算，不代表服务端承诺支持更长输入。
     max_context_size: 1000000
     # 压缩策略及输出上限不额外覆盖，沿用官方 SDK/模型服务默认。

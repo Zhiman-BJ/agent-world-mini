@@ -50,9 +50,7 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
               'max_tool_calls': 3, 'timeout': 10, 'memory_limit': 2147483648, 'write_limit': 268435456}
     server = TaskEvalMcpServer(config)
     with KimiMcpServer(delivery) as original:
-        task_names = {tool['name'] for tool in server.handle({'method': 'tools/list'})['tools']}
-        original_names = {tool['name'] for tool in original.handle({'method': 'tools/list'})['tools']}
-        assert original_names <= task_names
+        assert server.handle({'method': 'tools/list'}) == original.handle({'method': 'tools/list'})
     response = server.handle({'method': 'tools/call', 'params': {
         'name': 'resolve_ticket', 'arguments': {'ticket_id': 'task-only'}}})
     assert response['structuredContent']['data']['status'] == 'resolved'
@@ -143,7 +141,8 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
     from task_gen.tool_graph.execution_agent import execute_candidates
     from task_gen.task_eval_mcp import TaskEvalMcpServer
     binding = KimiMcpTests()._make_delivery(tmp_path)
-    config = Config(environment_dir=binding.parent)
+    config = Config(environment_dir=binding.parent,
+                    execution={'min_tool_calls': 1, 'target_tool_calls': 1})
     bundle = load_environment({'config': config})
     software = tmp_path / 'software'
     launcher = software / 'venv/bin/python'
@@ -163,20 +162,22 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
         "assert (context.software_root / 'marker').read_text() == 'correct profile'\n    record = context.records.get")
     bundle['tasks'] = [{'task_id': 'task1', 'chain': ['get_ticket'], 'objective': 'Read ticket', 'score': 1}]
 
+    preparation_calls = 0
+
     def run(client, prompt, working_directory):
-        client.session_id = 'test-persistent-session'
-        if 'call_indices' in prompt:
-            return json.dumps({'reason': 'Read actual ticket', 'objective': 'Read ticket',
-                               'completed': True, 'answer': 'open', 'score': 4,
-                               'call_indices': list(range(1, 21)),
-                               'chain_changes': 'Fixture retains all calls', 'restart': False})
+        nonlocal preparation_calls
+        client.session_id = client.session_id or f'test-{Path(client.server_config).parent.name}'
+        if 'preparation' in Path(client.server_config).parts:
+            preparation_calls += 1
+            action = 'execute' if preparation_calls == 1 else 'accept'
+            return json.dumps({'action': action, 'objective': 'Read ticket',
+                               'reason': 'Use the delivery state and profile.',
+                               'feedback': '', 'score': 0 if action == 'execute' else 4})
         server = TaskEvalMcpServer(json.loads(client.server_config.read_text()))
-        for _ in range(20):
-            response = server.handle({'method': 'tools/call', 'params': {
-                'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
-            assert response['structuredContent']['data']['status'] == 'open', response
-        return json.dumps({'reason': 'Read actual ticket', 'objective': 'Read ticket',
-                           'completed': True, 'answer': 'open', 'score': 4})
+        response = server.handle({'method': 'tools/call', 'params': {
+            'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+        assert response['structuredContent']['data']['status'] == 'open', response
+        return json.dumps({'reason': 'Read actual ticket', 'completed': True, 'answer': 'open'})
 
     monkeypatch.setattr('task_gen.tool_graph.execution_agent._ReviewClient.run', run)
     result = execute_candidates(to_execute_chains_input(bundle, config, tmp_path / 'run'))
