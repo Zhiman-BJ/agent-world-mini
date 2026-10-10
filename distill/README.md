@@ -11,11 +11,21 @@ The runner creates an isolated, temporary Kimi home for every task. Its agent pr
 
 Official `Write`, `Edit`, `Bash`, `Agent`, `AgentSwarm`, network tools, other MCP servers, and `select_tools` are unavailable. Environment MCP results are returned in full; Kimi Code owns any externalization into its session-local `tool-results` directory. Native file tools are not an environment Scope browser.
 
-Native file calls pass through a `PreToolUse` realpath allowlist. Only `model-workspace`, the current session's main-agent `tool-results` and `wire.jsonl`, and current-session `kimi-file://` attachments are allowed. Absolute paths into `execution-state`, raw evidence, another task/session, or any symlink escape are denied before the native tool runs. Decisions are retained in `raw/native_file_access.jsonl`.
+Native file calls pass through a `PreToolUse` realpath allowlist. Only the task's model workspace, the current session's main-agent `tool-results` and `wire.jsonl`, and current-session `kimi-file://` attachments are allowed. Absolute paths into `private-state`, raw evidence, another task/session, or any symlink escape are denied before the native tool runs. Decisions are retained in `raw/native_file_access.jsonl`.
 
-The runner uses the official Kimi Code `kimi` provider (the validated installation is `0.43.0`) with K3 metadata: a 1,048,576-token default context window, an optional 262,144-token experimental cap, always-on thinking, and supported efforts `low/high/max`. Distillation runs default to `high`; select another supported level with `--reasoning-effort` (the public K3 API itself defaults to `max`). It does not override sampling, compaction thresholds, or loop limits. Model calls use streaming Chat Completions; the local relay rejects non-streaming requests and normalizes Kimi Code's provider fields to the public K3 API contract (`reasoning_effort`, `max_completion_tokens`, and explicit `parallel_tool_calls=true`). It retries transient upstream responses with exponential backoff and jitter. A 400 is retryable only when its JSON message explicitly reports rejection by an internal MaaS component; ordinary request/schema 400s are returned immediately. Use `--max-upstream-retries 0` to disable retries.
+The runner uses the official Kimi Code `kimi` provider (the validated installation is `0.43.0`) with K3 metadata: a 1,048,576-token default context window, an optional 262,144-token experimental cap, a separate 131,072-token output cap, always-on thinking, and supported efforts `low/high/max`. The separate output cap prevents the prompt plus `max_completion_tokens` from exceeding the upstream context window. Distillation runs default to `max`; select another supported level with `--reasoning-effort`. It does not override sampling, compaction thresholds, or loop limits. Model calls use streaming Chat Completions; the local relay rejects non-streaming requests and normalizes Kimi Code's provider fields to the public K3 API contract (`reasoning_effort`, `max_completion_tokens`, and explicit `parallel_tool_calls=true`). It retries transient upstream responses with exponential backoff and jitter. A 400 is retryable only when its JSON message explicitly reports rejection by an internal MaaS component; ordinary request/schema 400s are returned immediately. Use `--max-upstream-retries 0` to disable retries.
 
-When a task has a ToolGen `binding_path`, the task MCP process uses that delivery's `runtime.json`: `host_python`, `python_profile`, and `docker` are selected through the same `stdio_launch()` path as the generic ToolGen MCP entry point. Docker images must include `bubblewrap`, because the task-local tool sandbox remains active inside the delivery container.
+When a task has a ToolGen `binding_path`, the task MCP process uses that delivery's `runtime.json`: `host_python`, `python_profile`, and `docker` are selected through the same `stdio_launch()` path as the generic ToolGen MCP entry point. Task workspaces execute validated delivery code in a child process without a nested bubblewrap layer; path authorization and transaction rollback remain in the task MCP gateway.
+
+Before Kimi starts, the runner launches that exact MCP command and performs
+`initialize`, `notifications/initialized`, and `tools/list`. It requires the
+returned tool names to match the task contract and records the result in
+`raw/mcp_preflight.json` plus the unmodified stdout/stderr. A failed preflight
+ends the task before any model request. Docker-backed MCP tasks additionally
+share a four-slot session limit that covers preflight and the complete Kimi
+process lifetime; `--max-concurrency` still applies normally to non-Docker
+tasks. Kimi's own MCP startup timeout is 120 seconds, and the relay continues to
+reject a first model request that omits any expected MCP tool.
 
 ## Evidence
 
@@ -26,8 +36,8 @@ Each case contains:
 ```text
 case/
   trajectory.json
-  execution-state/          # MCP backend state; not the model cwd
-  model-workspace/          # empty Kimi cwd; environment state is not exposed here
+  <environment-id>_<task-id>/ # Kimi cwd and mounted Filesystem Scopes
+  private-state/            # records.sqlite and path-map.json; model-invisible
   raw/
     cli_stream.jsonl
     cli_stderr.txt
@@ -38,12 +48,15 @@ case/
     model_io/*.request.json
     model_io/*.response.sse
     environment_tool_calls.jsonl
+    mcp_preflight.json
+    mcp_preflight.stdout.jsonl
+    mcp_preflight.stderr.txt
     native_file_access.jsonl
     kimi_session.zip
     run_result.json
 ```
 
-`model_requests.jsonl` contains the exact context and tool definitions sent on every model call. `model_io` retains exact request bytes and raw streamed SSE. `wire.jsonl` is the official Kimi Session Wire, including tool events and compaction boundaries. `trajectory.json` links these artifacts without discarding the originals.
+`model_requests.jsonl` contains the exact context and tool definitions sent on every model call, including compaction calls and the first inference call after each compaction. `model_io` retains exact request bytes, the pre-normalization Kimi Code request, and raw streamed SSE. `wire.jsonl` is the official Kimi Session Wire, including tool events, compaction boundaries, before/after token counts, compacted message counts, and recovery summaries. `trajectory.json` links the exact pre-compaction request and post-compaction inference context while retaining all originals.
 
 ## Run one case
 
@@ -63,7 +76,7 @@ python -m distill run \
   --output distill/.runs/example
 ```
 
-The server configuration uses the task-scoped `task_gen.task_eval_mcp` format: tools, environment, tool budget, timeout, memory limit, process limit, write limit, and optional ToolGen `binding_path`. TaskGen batch runs default to a 128 GiB virtual-address limit and sets the tool subprocess's `RLIMIT_NPROC` ceiling to 1024; override them with `--tool-memory-limit` and `--tool-process-limit` when a delivery needs a different budget. The address-space value is a ceiling on virtual mappings, not reserved physical RAM; the default is sized for the tested JAX/XLA and Torch runtimes. Linux accounts `RLIMIT_NPROC` across the real user, so it is not a per-sandbox quota.
+The server configuration uses the task-scoped `task_gen.task_eval_mcp` format: tools, environment, tool budget, timeout, memory limit, process limit, write limit, and optional ToolGen `binding_path`. TaskGen batch runs default to a 128 GiB virtual-address limit. The address-space value is a ceiling on virtual mappings, not reserved physical RAM; the default is sized for the tested JAX/XLA and Torch runtimes. Direct task-workspace execution deliberately does not apply `RLIMIT_NPROC`: Linux accounts it across the real user rather than per task, so a nominal per-tool ceiling can reject thread creation solely because unrelated jobs share the UID. `--tool-process-limit` remains for legacy isolated-tool execution only.
 
 ## Run TaskGen bundles
 
@@ -73,13 +86,15 @@ python -m distill taskgen \
   --output-root distill/.runs \
   --task-id task4 \
   --provider-type kimi \
-  --reasoning-effort high \
+  --reasoning-effort max \
   --max-concurrency 1
 ```
 
 Every task gets a separate workspace, Kimi home, MCP process, result-ID namespace, session ZIP, and evidence directory. A failed task retains partial evidence and does not stop later tasks; the batch command exits nonzero after all cases finish if any failed.
 
-To resume after a completed batch without rerunning its successful cases, pass its summary with `--skip-summary`. Use `--select-summary` to restrict a run to the exact ordered case list from an earlier batch, which is useful when resuming a prefix without selecting later cases from the input root. `--max-environment-errors-per-task N` stops only the affected task as soon as it reaches `N` non-recoverable execution-layer errors, records it as `environment_stopped`, and continues dispatching other cases. `--max-environment-errors N` instead stops all new batch dispatch after the aggregate count reaches the threshold. Execution-layer errors include `backend_unavailable`, `runtime_error`, sandbox startup/exit failures, and resource failures; business failures and invalid task arguments do not count. Tool deadlines are returned separately as `timeout` with `retryable=true`, leave task state unchanged, and are recorded without consuming either environment-error threshold.
+For TaskGen batches, the original published `task_text` remains in trajectory metadata while the actual Kimi user prompt removes an initial paragraph only when it exactly equals `environment.summary`. MCP tool calls expose the complete business result once through `structuredContent`; the backwards-compatible `content` array is empty because every public tool has an `outputSchema`.
+
+To resume after a completed batch without rerunning its successful cases, pass its summary with `--skip-summary`. Use `--select-summary` to restrict a run to the exact ordered case list from an earlier batch, which is useful when resuming a prefix without selecting later cases from the input root. Both environment-error thresholds default to 2. `--max-environment-errors-per-task N` stops the affected task as soon as it reaches `N` non-recoverable execution-layer errors. `--max-environment-errors N` is a live batch circuit breaker: after the aggregate reaches the threshold, it terminates all active Kimi sessions, preserves their evidence, and stops new dispatch. Execution-layer errors include `backend_unavailable`, `runtime_error`, process/thread resource failures, and startup/exit failures; business failures and invalid task arguments do not count. Tool deadlines are returned separately as `timeout` with `retryable=true`, leave task state unchanged, and are recorded without consuming either environment-error threshold.
 
 `--input-root` accepts either one environment directory containing run directories or the parent directory containing multiple environment directories.
 

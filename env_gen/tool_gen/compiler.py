@@ -696,7 +696,7 @@ software_plan.json 示例：
 动作计划如下：
 {action_json}
 
-读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。模型、工具参数和工具返回值使用 Scope 内相对路径，通过 context.scope_root(scope_id) 访问文件；Runtime 会在执行前校验 Scope、路径和资源类型。MCP Resource URI 只用于 resources/list/read，不要把 URI、workspace、服务器绝对路径或容器路径写入业务参数和返回值。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
+读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。对外 Schema 描述必须说明路径相对于 Agent 当前工作目录；多个 Filesystem Scope 时公开路径包含 Scope 挂载目录。Harness 会校验 workspace 和 Scope 归属，再把路径归一化为 Scope 内相对路径交给 run(arguments, context)；工具代码通过 context.scope_root(scope_id) 访问文件，返回资源字段也使用 Scope 内相对路径，由 Harness 转换成 workspace 路径。不要把 MCP Resource URI、服务器绝对路径或容器路径写入业务参数、返回值或描述。工具代码通过 context.records 访问 Record Set，不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
 
 保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
 

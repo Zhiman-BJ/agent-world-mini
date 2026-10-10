@@ -314,7 +314,7 @@ class DockerRuntimeTests(unittest.TestCase):
             state = root / "task_state"
             shutil.copytree(delivery.package.package_root / "state", state)
             config = _server_config({
-                "binding_path": str(binding), "state_root": str(state),
+                "binding_path": str(binding), "workspace_root": str(state),
                 "trace": str(root / "task_calls.jsonl"), "max_tool_calls": 3,
                 "timeout": 30, "memory_limit": 2 * 1024**3,
                 "write_limit": 256 * 1024**2,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import subprocess
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -10,20 +12,364 @@ from harness.execution import call_environment_tool
 from harness.kimi_file_policy import KimiFileAccessPolicy, build_kimi_file_hook_command
 from harness.layout import create_task_run_layout
 from harness.mcp_tools import expected_mcp_tool_names
+from harness.resources import ResourceCatalog
 
 
-def test_task_layout_separates_execution_state_from_model_workspace(tmp_path):
+def test_task_layout_requires_the_workspace_contract(tmp_path):
     initial = tmp_path / "initial"
-    initial.mkdir()
-    (initial / "private.txt").write_text("STATE_ONLY", encoding="utf-8")
+    (initial / "filesystem_scopes/reports").mkdir(parents=True)
+    (initial / "filesystem_scopes/reports/public.txt").write_text(
+        "VISIBLE", encoding="utf-8"
+    )
+    sqlite3.connect(initial / "records.sqlite").close()
+    environment = {
+        "environment_id": "reports",
+        "record_sets": [],
+        "filesystem_scopes": [{"scope_id": "reports", "access": "read_only"}],
+    }
 
-    layout = create_task_run_layout(initial, tmp_path / "run")
+    layout = create_task_run_layout(
+        initial, tmp_path / "run", environment=environment,
+    )
 
-    assert (layout.execution_state / "private.txt").read_text() == "STATE_ONLY"
-    assert list(layout.model_workspace.iterdir()) == []
-    assert layout.execution_state != layout.model_workspace
-    assert not layout.execution_state.is_symlink()
+    assert (layout.model_workspace / "public.txt").read_text() == "VISIBLE"
+    assert layout.record_database.parent == layout.private_state
+    assert not (layout.model_workspace / "records.sqlite").exists()
     assert not layout.model_workspace.is_symlink()
+
+
+def test_distill_layout_exposes_business_files_but_keeps_records_private(tmp_path):
+    initial = tmp_path / "initial"
+    scope = initial / "filesystem_scopes/reports"
+    scope.mkdir(parents=True)
+    (scope / "daily.txt").write_text("ready", encoding="utf-8")
+    sqlite3.connect(initial / "records.sqlite").close()
+    environment = {
+        "environment_id": "report_review",
+        "record_sets": [],
+        "filesystem_scopes": [{"scope_id": "reports", "access": "read_only"}],
+    }
+
+    layout = create_task_run_layout(
+        initial,
+        tmp_path / "case",
+        environment=environment,
+        workspace_name="report_review_task7",
+    )
+
+    assert layout.model_workspace.name == "report_review_task7"
+    assert (layout.model_workspace / "daily.txt").read_text() == "ready"
+    assert not (layout.model_workspace / "records.sqlite").exists()
+    assert not (layout.model_workspace / "filesystem_scopes").exists()
+    assert layout.record_database == layout.private_state / "records.sqlite"
+    assert layout.record_database.is_file()
+    assert json.loads(layout.path_map.read_text())["scope_mounts"] == {"reports": "."}
+
+
+def test_workspace_tool_accepts_cwd_relative_and_absolute_paths(tmp_path):
+    initial = tmp_path / "initial"
+    scope = initial / "filesystem_scopes/reports"
+    scope.mkdir(parents=True)
+    (scope / "daily.txt").write_text("ready", encoding="utf-8")
+    sqlite3.connect(initial / "records.sqlite").close()
+    environment = {
+        "schema_version": "2.0",
+        "environment_id": "report_review",
+        "record_sets": [],
+        "filesystem_scopes": [{"scope_id": "reports", "access": "read_only"}],
+    }
+    layout = create_task_run_layout(
+        initial, tmp_path / "case", environment=environment,
+        workspace_name="report_review_task7",
+    )
+    schema = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string", "x-resource-scope": "reports",
+                "x-resource-kind": "file",
+            }
+        },
+        "required": ["path"],
+        "additionalProperties": False,
+    }
+    tool = {
+        "name": "read_report",
+        "usageConditions": {"targetResources": ["reports"], "sideEffects": []},
+        "inputSchema": schema,
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean", "const": True},
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string", "x-resource-scope": "reports",
+                            "x-resource-kind": "file",
+                        },
+                        "text": {"type": "string"},
+                    },
+                    "required": ["path", "text"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["success", "data"],
+            "additionalProperties": False,
+        },
+        "internal": {"code": (
+            "def run(arguments, context):\n"
+            "    path = context.scope_root('reports') / arguments['path']\n"
+            "    return {'success': True, 'data': {'path': str(path), 'text': path.read_text()}}\n"
+        )},
+    }
+    tools = {"read_report": tool}
+
+    for value in ("daily.txt", str(layout.model_workspace / "daily.txt")):
+        record = call_environment_tool(
+            "read_report", {"path": value}, tools, layout.model_workspace,
+            timeout=10, memory_limit=1024**3, write_limit=1024**2,
+            environment=environment, record_database=layout.record_database,
+            scope_mounts=layout.scope_mounts,
+        )
+        assert record["error"] is None
+        assert record["result"]["data"] == {"path": "daily.txt", "text": "ready"}
+
+    with pytest.raises(ValueError, match="越出当前工作目录"):
+        call_environment_tool(
+            "read_report", {"path": str(layout.private_state / "records.sqlite")},
+            tools, layout.model_workspace, timeout=10, memory_limit=1024**3,
+            write_limit=1024**2, environment=environment,
+            record_database=layout.record_database, scope_mounts=layout.scope_mounts,
+        )
+
+
+def test_multi_scope_paths_are_always_workspace_relative(tmp_path):
+    workspace = tmp_path / "workspace"
+    reports = workspace / "reports"
+    reports.mkdir(parents=True)
+    (reports / "daily.txt").write_text("ready", encoding="utf-8")
+    environment = {
+        "filesystem_scopes": [
+            {"scope_id": "reports"},
+            {"scope_id": "attachments"},
+        ]
+    }
+    catalog = ResourceCatalog(
+        environment,
+        lambda scope_id: workspace / scope_id,
+        workspace_root=workspace,
+        scope_mounts={"reports": "reports", "attachments": "attachments"},
+    )
+    schema = {
+        "type": "string",
+        "x-resource-scope": "reports",
+        "x-resource-kind": "file",
+    }
+
+    assert catalog.normalize_arguments(
+        "reports/daily.txt", schema=schema, allowed_scopes={"reports"},
+    ) == "daily.txt"
+    assert catalog.externalize_result(
+        "daily.txt", schema=schema, allowed_scopes={"reports"},
+    ) == "reports/daily.txt"
+    assert catalog.externalize_result(
+        str(reports / "daily.txt"), schema=schema, allowed_scopes={"reports"},
+    ) == "reports/daily.txt"
+    with pytest.raises(ValueError, match="当前工作目录"):
+        catalog.normalize_arguments(
+            "daily.txt", schema=schema, allowed_scopes={"reports"},
+        )
+
+
+def test_container_runtime_maps_model_visible_absolute_workspace_path(tmp_path):
+    public_workspace = tmp_path / "host/task-workspace"
+    runtime_workspace = tmp_path / "container/external/0/task-workspace"
+    reports = runtime_workspace / "reports"
+    reports.mkdir(parents=True)
+    (reports / "daily.txt").write_text("ready", encoding="utf-8")
+    environment = {"filesystem_scopes": [{"scope_id": "reports"}]}
+    catalog = ResourceCatalog(
+        environment,
+        lambda _scope_id: reports,
+        workspace_root=runtime_workspace,
+        public_workspace_root=public_workspace,
+        scope_mounts={"reports": "reports"},
+    )
+    schema = {
+        "type": "string",
+        "x-resource-scope": "reports",
+        "x-resource-kind": "file",
+    }
+
+    assert catalog.normalize_arguments(
+        str(public_workspace / "reports/daily.txt"),
+        schema=schema,
+        allowed_scopes={"reports"},
+    ) == "daily.txt"
+
+
+def test_workspace_direct_tool_does_not_apply_uid_wide_process_limit(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    database = tmp_path / "private-state/records.sqlite"
+    database.parent.mkdir()
+    sqlite3.connect(database).close()
+    environment = {
+        "schema_version": "2.0",
+        "environment_id": "threaded_tool",
+        "record_sets": [],
+        "filesystem_scopes": [],
+    }
+    tool = {
+        "name": "run_thread",
+        "usageConditions": {"targetResources": [], "sideEffects": []},
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean", "const": True},
+                "thread_completed": {"type": "boolean", "const": True},
+            },
+            "required": ["success", "thread_completed"],
+            "additionalProperties": False,
+        },
+        "internal": {"code": (
+            "def run(arguments, context):\n"
+            "    import threading\n"
+            "    completed = []\n"
+            "    worker = threading.Thread(target=lambda: completed.append(True))\n"
+            "    worker.start()\n"
+            "    worker.join()\n"
+            "    return {'success': True, 'thread_completed': completed == [True]}\n"
+        )},
+    }
+
+    record = call_environment_tool(
+        "run_thread", {}, {"run_thread": tool}, workspace,
+        timeout=10, memory_limit=1024**3, write_limit=1024**2,
+        process_limit=1, environment=environment, record_database=database,
+        scope_mounts={},
+    )
+
+    assert record["error"] is None
+    assert record["result"] == {"success": True, "thread_completed": True}
+
+
+def test_workspace_direct_tool_injects_profile_software_root(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    database = tmp_path / "private-state/records.sqlite"
+    database.parent.mkdir()
+    sqlite3.connect(database).close()
+    software_root = tmp_path / "software-profile"
+    software_root.mkdir()
+    (software_root / "marker.txt").write_text("profile-ready", encoding="utf-8")
+    environment = {
+        "schema_version": "2.0",
+        "environment_id": "profile_tool",
+        "record_sets": [],
+        "filesystem_scopes": [],
+    }
+    tool = {
+        "name": "inspect_profile",
+        "usageConditions": {"targetResources": [], "sideEffects": []},
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean", "const": True},
+                "value": {"type": "string"},
+            },
+            "required": ["success", "value"],
+            "additionalProperties": False,
+        },
+        "internal": {"code": (
+            "def run(arguments, context):\n"
+            "    value = (context.software_root / 'marker.txt').read_text()\n"
+            "    return {'success': True, 'value': value}\n"
+        )},
+    }
+
+    record = call_environment_tool(
+        "inspect_profile", {}, {"inspect_profile": tool}, workspace,
+        timeout=10, memory_limit=1024**3, write_limit=1024**2,
+        environment=environment, record_database=database, scope_mounts={},
+        software={"root": str(software_root), "python": sys.executable},
+    )
+
+    assert record["error"] is None
+    assert record["result"] == {"success": True, "value": "profile-ready"}
+
+
+def test_workspace_direct_read_only_tool_uses_landlock_without_copy(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    marker = workspace / "marker.txt"
+    marker.write_text("original", encoding="utf-8")
+    database = tmp_path / "private-state/records.sqlite"
+    database.parent.mkdir()
+    sqlite3.connect(database).close()
+    environment = {
+        "schema_version": "2.0",
+        "environment_id": "read_only_direct_tool",
+        "record_sets": [],
+        "filesystem_scopes": [
+            {"scope_id": "reports", "access": "read_only"},
+        ],
+    }
+    tool = {
+        "name": "attempt_write",
+        "usageConditions": {"targetResources": ["reports"], "sideEffects": []},
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean", "const": True},
+                "write_blocked": {"type": "boolean", "const": True},
+                "temporary_write": {"type": "boolean", "const": True},
+            },
+            "required": ["success", "write_blocked", "temporary_write"],
+            "additionalProperties": False,
+        },
+        "internal": {"code": (
+            "def run(arguments, context):\n"
+            "    import tempfile\n"
+            "    blocked = False\n"
+            "    try:\n"
+            "        (context.workspace_root / 'marker.txt').write_text('changed')\n"
+            "    except OSError:\n"
+            "        blocked = True\n"
+            "    with tempfile.NamedTemporaryFile() as stream:\n"
+            "        stream.write(b'ok')\n"
+            "        stream.flush()\n"
+            "    return {'success': True, 'write_blocked': blocked, 'temporary_write': True}\n"
+        )},
+    }
+
+    with patch("harness.execution.shutil.copytree", side_effect=AssertionError("copied")):
+        record = call_environment_tool(
+            "attempt_write", {}, {"attempt_write": tool}, workspace,
+            timeout=10, memory_limit=1024**3, write_limit=1024**2,
+            environment=environment, record_database=database,
+            scope_mounts={"reports": "."},
+        )
+
+    assert record["error"] is None, record
+    assert record["result"] == {
+        "success": True,
+        "write_blocked": True,
+        "temporary_write": True,
+    }
+    assert marker.read_text(encoding="utf-8") == "original"
 
 
 def test_task_layout_rejects_symlinked_initial_state(tmp_path):
@@ -34,7 +380,7 @@ def test_task_layout_rejects_symlinked_initial_state(tmp_path):
     (initial / "link").symlink_to(outside)
 
     with pytest.raises(ValueError, match="symbolic links"):
-        create_task_run_layout(initial, tmp_path / "run")
+        create_task_run_layout(initial, tmp_path / "run", environment={})
 
 
 def test_task_layout_rejects_symlink_as_initial_state(tmp_path):
@@ -44,7 +390,7 @@ def test_task_layout_rejects_symlink_as_initial_state(tmp_path):
     initial.symlink_to(actual, target_is_directory=True)
 
     with pytest.raises(ValueError, match="symbolic links"):
-        create_task_run_layout(initial, tmp_path / "run")
+        create_task_run_layout(initial, tmp_path / "run", environment={})
 
 
 def test_expected_tool_names_exclude_protocol_resources_and_native_tools():
@@ -101,7 +447,10 @@ def test_task_call_keeps_annotated_output_as_scope_relative_path(tmp_path):
         "internal": {"code": "unused by fixture"},
     }
 
-    def fixture_call(*_args, **_kwargs):
+    def fixture_call(_code, _arguments, candidate, *_args, **_kwargs):
+        (candidate / "filesystem_scopes/reports/daily.json").write_text(
+            "ready", encoding="utf-8"
+        )
         return {
             "kind": None,
             "result": {"success": True, "data": {"report": "daily.json"}},
@@ -233,25 +582,24 @@ def test_kimi_native_file_hook_exits_two_and_audits_denial(tmp_path):
     assert record["requested_path"] == str(secret)
 
 
-def test_resource_protocol_uses_standard_list_and_read_methods(tmp_path):
+def test_task_mcp_exposes_tools_without_resource_uri_protocol(tmp_path):
+    from harness.mcp_protocol import RpcError
     from task_gen.task_eval_mcp import TaskEvalMcpServer
 
-    state = tmp_path / "state/filesystem_scopes/reports"
-    state.mkdir(parents=True)
-    (state / "daily.txt").write_text("ready", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
     server = TaskEvalMcpServer({
-        "state_root": str(tmp_path / "state"),
+        "workspace_root": str(workspace),
         "trace": str(tmp_path / "trace.jsonl"),
         "max_tool_calls": 10,
         "timeout": 10,
         "memory_limit": 1024 * 1024,
         "write_limit": 1024 * 1024,
         "tools": [],
-        "environment": {"filesystem_scopes": [{"scope_id": "reports", "access": "read_only"}]},
+        "environment": {"filesystem_scopes": []},
     })
-    listed = server.handle({"method": "resources/list", "params": {}})
-    assert listed["resources"][0]["uri"] == "aw://reports/daily.txt"
-    assert listed["resources"][0]["scope_id"] == "reports"
-    assert listed["resources"][0]["relative_path"] == "daily.txt"
-    read = server.handle({"method": "resources/read", "params": {"uri": "aw://reports/daily.txt"}})
-    assert read["contents"][0]["text"] == "ready"
+    initialized = server.handle({"method": "initialize", "id": 1})
+    assert initialized["capabilities"] == {"tools": {"listChanged": False}}
+    assert "instructions" not in initialized
+    with pytest.raises(RpcError, match="不支持"):
+        server.handle({"method": "resources/list", "params": {}, "id": 2})

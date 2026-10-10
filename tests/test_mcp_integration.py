@@ -6,7 +6,17 @@ from pathlib import Path
 import pytest
 
 from task_gen.task_eval_mcp import serve
+from task_gen.task_eval_mcp import TaskEvalMcpServer
 from task_gen.tool_graph.step_5_task_validate import _public_tool
+
+
+def test_task_mcp_rejects_removed_state_root_alias(tmp_path):
+    with pytest.raises(ValueError, match="workspace_root"):
+        TaskEvalMcpServer({
+            "tools": [],
+            "state_root": str(tmp_path),
+            "trace": str(tmp_path / "calls.jsonl"),
+        })
 
 
 def test_task_and_mcp_share_public_contract_and_business_failure(tmp_path):
@@ -18,7 +28,7 @@ def test_task_and_mcp_share_public_contract_and_business_failure(tmp_path):
     state = tmp_path / 'state'
     state.mkdir()
     config = tmp_path / 'server.json'
-    config.write_text(json.dumps({'workspace': str(state), 'trace': str(tmp_path / 'calls'),
+    config.write_text(json.dumps({'workspace_root': str(state), 'trace': str(tmp_path / 'calls'),
         'tools': [tool], 'max_tool_calls': 1, 'timeout': 10,
         'memory_limit': 2147483648, 'write_limit': 268435456}))
     requests = [{'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'},
@@ -29,7 +39,7 @@ def test_task_and_mcp_share_public_contract_and_business_failure(tmp_path):
     listed, called = [json.loads(line)['result'] for line in output.getvalue().splitlines()]
     assert listed['tools'] == [_public_tool(tool)]
     assert set(listed['tools'][0]) == {'name', 'description', 'inputSchema', 'outputSchema'}
-    assert 'Must exist' in listed['tools'][0]['description']
+    assert listed['tools'][0]['description'] == 'Inspect.'
     assert listed['tools'][0]['outputSchema']['type'] == 'object'
     assert called['isError'] is True
     assert called['structuredContent'] == {'success': False, 'error': {'code': 'not_found'}}
@@ -40,13 +50,13 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
     from env_gen.tool_gen.kimi_mcp import load_delivery, KimiMcpServer
     from task_gen.task_eval_mcp import TaskEvalMcpServer
     import shutil
-    binding = KimiMcpTests()._make_delivery(tmp_path)
+    binding = KimiMcpTests()._make_delivery(tmp_path, with_report_tool=True)
     delivery = load_delivery(binding)
     state = tmp_path / 'task_state'
     shutil.copytree(delivery.package.package_root / 'state', state)
     with sqlite3.connect(state / 'records.sqlite') as db:
         db.execute("UPDATE tickets SET ticket_id='task-only'")
-    config = {'binding_path': str(binding), 'workspace': str(state), 'trace': str(tmp_path / 'calls'),
+    config = {'binding_path': str(binding), 'workspace_root': str(state), 'trace': str(tmp_path / 'calls'),
               'max_tool_calls': 3, 'timeout': 10, 'memory_limit': 2147483648, 'write_limit': 268435456}
     server = TaskEvalMcpServer(config)
     with KimiMcpServer(delivery) as original:
@@ -64,7 +74,7 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
 
 def test_bound_software_is_readable_but_not_writable_in_task_sandbox(tmp_path):
     import sys
-    from task_gen.task_eval_mcp import call_environment_tool
+    from harness.execution import call_environment_tool
     root = tmp_path / 'software'
     root.mkdir()
     (root / 'asset.txt').write_text('PROFILE_ASSET')
@@ -84,7 +94,7 @@ def test_bound_software_is_readable_but_not_writable_in_task_sandbox(tmp_path):
 def test_copied_venv_runs_with_its_own_import_paths(tmp_path):
     import subprocess
     import sys
-    from task_gen.task_eval_mcp import call_environment_tool
+    from harness.execution import call_environment_tool
     root = tmp_path / 'software'
     launcher = root / 'venv/bin/python'
     subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip',

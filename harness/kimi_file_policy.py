@@ -10,6 +10,11 @@ import shlex
 import sys
 from typing import Any
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from harness.tool_budget import claim_tool_call
+
 
 _FILE_TOOLS = {"Read", "Grep", "Glob"}
 
@@ -20,15 +25,30 @@ def build_kimi_file_hook_command(
     audit_log: Path,
     *,
     python: str | Path = sys.executable,
+    budget_counter: Path | None = None,
+    budget_stop_marker: Path | None = None,
+    max_tool_calls: int | None = None,
 ) -> str:
     """Return the shell command used by Kimi's external hook runner."""
-    return shlex.join([
+    budget_values = (budget_counter, budget_stop_marker, max_tool_calls)
+    if any(value is not None for value in budget_values) and not all(
+        value is not None for value in budget_values
+    ):
+        raise ValueError("native file tool budget requires counter, marker, and limit")
+    command = [
         str(Path(python).expanduser().resolve()),
         str(Path(__file__).resolve()),
         "--workspace", str(workspace.expanduser().resolve()),
         "--home", str(home.expanduser().resolve()),
         "--audit-log", str(audit_log.expanduser().resolve()),
-    ])
+    ]
+    if budget_counter is not None:
+        command.extend([
+            "--budget-counter", str(budget_counter.expanduser().resolve()),
+            "--budget-stop-marker", str(budget_stop_marker.expanduser().resolve()),
+            "--max-tool-calls", str(max_tool_calls),
+        ])
+    return shlex.join(command)
 
 
 class KimiFileAccessPolicy:
@@ -145,15 +165,39 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--workspace", type=Path, required=True)
     parser.add_argument("--home", type=Path, required=True)
     parser.add_argument("--audit-log", type=Path, required=True)
+    parser.add_argument("--budget-counter", type=Path)
+    parser.add_argument("--budget-stop-marker", type=Path)
+    parser.add_argument("--max-tool-calls", type=int)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     options = _arguments(argv)
+    budget_values = (
+        options.budget_counter,
+        options.budget_stop_marker,
+        options.max_tool_calls,
+    )
+    if any(value is not None for value in budget_values) and not all(
+        value is not None for value in budget_values
+    ):
+        raise SystemExit("native file tool budget requires counter, marker, and limit")
     policy = KimiFileAccessPolicy(options.workspace, options.home, options.audit_log)
     try:
         payload = json.load(sys.stdin)
         decision = policy.check(payload)
+        if decision["allowed"] and options.budget_counter is not None:
+            budget = claim_tool_call(
+                options.budget_counter,
+                options.budget_stop_marker,
+                options.max_tool_calls,
+                str(decision.get("tool") or "native_file_tool"),
+            )
+            decision["tool_budget_count"] = budget["observed_count"]
+            decision["tool_budget_limit"] = budget["limit"]
+            if not budget["allowed"]:
+                decision["allowed"] = False
+                decision["reason"] = budget["reason"]
     except BaseException as error:
         decision = {
             "allowed": False,

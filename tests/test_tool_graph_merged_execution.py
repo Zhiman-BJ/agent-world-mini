@@ -47,11 +47,12 @@ class MergedExecutionTest(unittest.TestCase):
                     return json.dumps({'action': action, 'objective': 'Find suitable object' if client.turns <= 2 else 'Find another suitable object',
                         'reason': 'Checked actual results.', 'feedback': 'Verify result again' if action == 'repair' else '',
                         'score': 4 if action == 'accept' else 0})
-                self.assertEqual((Path(server['workspace']) / 'data').read_text(), 'original' if client.turns == 1 else 'changed')
+                workspace = Path(server['workspace_root'])
+                self.assertEqual((workspace / 'data').read_text(), 'original' if client.turns == 1 else 'changed')
                 self.assertNotIn('Checked actual results.', prompt)
                 with Path(server['trace']).open('a') as stream:
                     stream.write('\n'.join(json.dumps(r) for r in records) + '\n')
-                (Path(server['workspace']) / 'data').write_text('changed')
+                (workspace / 'data').write_text('changed')
                 return json.dumps({'reason': 'Unavailable object, found another.',
                                    'completed': working_directory.parents[2].name != 'failed', 'answer': 'Found'})
             config = Config(environment_dir=root / 'env', planning={'keep_top_count': 1},

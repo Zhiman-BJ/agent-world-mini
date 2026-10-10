@@ -365,7 +365,8 @@ def run_step1(
         if audit_dir.exists():
             shutil.rmtree(audit_dir)
         with tempfile.TemporaryDirectory(
-            prefix="agent-world-program-step1-"
+            prefix="agent-world-program-step1-",
+            ignore_cleanup_errors=True,
         ) as temporary:
             attempt_dir = Path(temporary)
             write_json(attempt_dir / "environment.public.json", public_environment)
@@ -410,7 +411,14 @@ def run_step1(
             except Exception as error:
                 errors = [f"{type(error).__name__}: {error}"]
                 payload = None
-            shutil.copytree(attempt_dir, audit_dir)
+            # Codex may create and remove its own transient control directories
+            # while returning. They are not task-research evidence and racing
+            # their cleanup must not fail the whole environment.
+            shutil.copytree(
+                attempt_dir,
+                audit_dir,
+                ignore=shutil.ignore_patterns(".agents", ".codex", ".git"),
+            )
         if errors:
             failures.append({"attempt": attempt, "errors": errors})
             continue
@@ -450,7 +458,7 @@ def main() -> None:
     parser.add_argument("--step0-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--research-fixture", type=Path)
-    parser.add_argument("--model", default="gpt-6-sol")
+    parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--max-attempts", type=int, default=3)
     arguments = parser.parse_args()
     agent = None

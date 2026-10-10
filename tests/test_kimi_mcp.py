@@ -379,7 +379,7 @@ class KimiMcpTests(unittest.TestCase):
                 [item["name"] for item in listed],
                 ["get_ticket", "resolve_ticket"],
             )
-            self.assertIn("Preconditions", listed[0]["description"])
+            self.assertEqual(listed[0]["description"], "Read one support ticket.")
             self.assertNotIn("internal", listed[0])
             self.assertEqual(listed[0]["outputSchema"]["type"], "object")
             self.assertEqual(
@@ -619,8 +619,8 @@ class KimiMcpTests(unittest.TestCase):
             entry = config["mcpServers"]["agent_world_kicad"]
             self.assertEqual(Path(entry["command"]).name, "docker")
             self.assertEqual(entry["args"][:3], ["run", "--rm", "-i"])
-            self.assertIn("seccomp=unconfined", entry["args"])
-            self.assertIn("apparmor=unconfined", entry["args"])
+            self.assertNotIn("seccomp=unconfined", entry["args"])
+            self.assertNotIn("apparmor=unconfined", entry["args"])
             self.assertNotIn("--privileged", entry["args"])
             self.assertNotIn("--cap-add", entry["args"])
             self.assertIn("agentworld/kicad:9.0", entry["args"])

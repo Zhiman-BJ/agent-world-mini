@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 from jsonschema import Draft202012Validator
 
-from .resources import ResourceCatalog
+from harness.resources import ResourceCatalog
 
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas"
 MAX_CAPTURED_TOOL_STDOUT = 16 * 1024 * 1024
@@ -421,10 +421,28 @@ class ToolRuntime:
     ) -> None:
         self.package = package
         self._temporary: tempfile.TemporaryDirectory[str] | None = None
+        initialize_state = True
         if session_root is not None:
             self.root = Path(session_root).expanduser().resolve()
             self.root.parent.mkdir(parents=True, exist_ok=True)
-            self.root.mkdir()
+            if self.root.exists():
+                if not self.root.is_dir():
+                    raise ValueError(f"持久会话路径不是目录：{self.root}")
+                environment_path = self.root / "environment.json"
+                state_path = self.root / "state"
+                if not environment_path.is_file() or not state_path.is_dir():
+                    raise ValueError("已有持久会话缺少 environment.json 或 state")
+                try:
+                    existing_environment = json.loads(
+                        environment_path.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError) as error:
+                    raise ValueError(f"已有持久会话环境无效：{error}") from error
+                if existing_environment != package.environment:
+                    raise ValueError("已有持久会话属于不同的环境")
+                initialize_state = False
+            else:
+                self.root.mkdir()
         else:
             temporary_parent = None
             if temp_root is not None:
@@ -435,8 +453,10 @@ class ToolRuntime:
                 dir=str(temporary_parent) if temporary_parent is not None else None,
             )
             self.root = Path(self._temporary.name)
-        shutil.copy2(package.package_root / "environment.json", self.root / "environment.json")
-        shutil.copytree(package.package_root / "state", self.root / "state")
+        if initialize_state:
+            shutil.copy2(package.package_root / "environment.json", self.root / "environment.json")
+            shutil.copytree(package.package_root / "state", self.root / "state")
+        self.resumed = not initialize_state
         self._software_root_path = self._software_root(software_root)
         self._software_environment = self._software_environment_for(self._software_root_path)
         self._tools = {str(tool["name"]): deepcopy(tool) for tool in package.tools}

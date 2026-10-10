@@ -106,8 +106,13 @@ baseline_environment/
 ├── validation.json
 ├── tools.json
 ├── tool_validation.json         # binding 模式存在
-└── state/
+└── state_reference.json         # binding 模式下指向 ToolGen 冻结初态
 ```
+
+binding 模式不会把完整环境状态长期复制进 TaskGen 运行目录。生成和审查只通过
+`state_reference.json` 读取冻结初态；真正调用工具或 clean replay 时，Harness 才创建独立的
+临时可写副本，并在该次执行结束后释放。旧版 `--environment-package` 输入没有冻结交付保证，
+仍会保存本地 `state/` 或 `workspace/` 副本。
 
 为了兼容历史测试，也可以直接使用 `--environment-package` 和 `--tools-path`；正式生产应
 优先使用 binding，避免错误组合环境、工具和软件 Profile。
@@ -162,8 +167,9 @@ Step 2 选择一个 `generatable=true` 的任务原型作为主要现实依据�
 记录和排重。两者保存在 Step 2 的中间产物和任务目录中，不进入正式 `tasks.json`。
 发布时 `workspace_brief` 会自然地合并到 `task_text` 前面。
 
-文件位置使用 `scope_id + Scope 内相对路径`，不得写内部物理前缀
-`filesystem_scopes/`。能预先确定的输出文件必须给出精确路径；只有工具会自行生成多个、
+文件位置使用 `scope_id + workspace 相对路径`，不得写内部物理前缀
+`filesystem_scopes/`。单 Scope 的路径直接位于 workspace 根，多 Scope 路径包含 Scope mount。
+能预先确定的输出文件必须给出精确路径；只有工具会自行生成多个、
 运行前无法得知文件名的产物时，才可以用以 `/` 结尾的目录路径和 `path_is_exact=false`
 声明输出边界。任务正文也必须自然地告诉求解 Agent
 输入和输出位于哪里。
@@ -200,14 +206,17 @@ Step 2 选择一个 `generatable=true` 的任务原型作为主要现实依据�
 常识不能单独成为取值来源。审查还会检查任务正文的每项要求能否在工具结果、最终状态或
 结构化答案中找到直接证据。
 
-Step 2 不再自行解释工具代码或拼接软件路径。每次 Solution 执行和 clean replay 都先通过
-`harness.layout.create_task_run_layout()` 创建相互隔离的 `execution-state/` 与
-`model-workspace/`，再统一调用 `harness.execution.call_environment_tool()`。Harness 负责输入输出
-Schema、资源 Scope、bubblewrap 沙箱、只读边界、成功提交和失败回滚。
+Step 2 不再自行拼接软件路径。Solution 和 clean replay 在内部完整状态副本上运行，并统一
+调用 `harness.execution.call_environment_tool()`；该内部状态不暴露给 Agent。正式 Kimi 蒸馏
+单独使用 `harness.layout.create_task_run_layout()` 创建 workspace、私有数据库和 Scope mount。
+Harness 负责输入输出 Schema、资源 Scope、事务状态副本、只读边界、成功提交和失败回滚。
+这里的 clean replay 是重新执行已经生成的 Solution，不是再让一个 Agent 重新解题。
 
 实际运行后端完全服从 ToolGen `binding.json` 指向的 `runtime.json`：`host_python` 使用当前
 Harness Python，`python_profile` 使用交付的软件 Profile，`docker` 使用交付声明的镜像和容器内
-软件目录。TaskGen 不再根据目录名称猜测依赖，也不会把 `execution-state` 当作 Agent 工作目录。
+软件目录。Python Profile 和 Docker 路径不再嵌套 bubblewrap；`host_python` 仍使用
+Harness 内部执行后端。TaskGen 不再根据目录名称猜测依赖；Kimi 的 Agent 工作目录始终是
+`TaskRunLayout.model_workspace`。
 
 ## 6. Step 2 输出
 

@@ -239,6 +239,7 @@
       "type": "object",
       "properties": {
         "type": {"const": "object"},
+        "description": {"type": "string", "minLength": 1},
         "properties": {
           "type": "object",
           "properties": {

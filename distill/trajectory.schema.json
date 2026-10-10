@@ -92,7 +92,7 @@
               "properties": {
                 "call_id": {"type": "string"},
                 "name": {"type": "string"},
-                "tool_kind": {"enum": ["environment_mcp", "native_file_tool"]},
+                "tool_kind": {"enum": ["environment_mcp", "native_file_tool", "harness_support"]},
                 "arguments": {},
                 "output": {},
                 "is_error": {"type": "boolean"},
@@ -123,6 +123,17 @@
           "tokens_before": {"type": ["integer", "null"], "minimum": 0},
           "tokens_after": {"type": ["integer", "null"], "minimum": 0},
           "compacted_count": {"type": ["integer", "null"], "minimum": 0},
+          "summary_output_tokens": {"type": ["integer", "null"], "minimum": 0},
+          "kept_user_message_count": {"type": ["integer", "null"], "minimum": 0},
+          "wire_lines": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["start", "end"],
+            "properties": {
+              "start": {"type": "integer", "minimum": 1},
+              "end": {"type": "integer", "minimum": 1}
+            }
+          },
           "before_context": {"anyOf": [{"$ref": "#/$defs/artifactRef"}, {"type": "null"}]},
           "after_context": {"anyOf": [{"$ref": "#/$defs/artifactRef"}, {"type": "null"}]},
           "model_exchanges": {"type": "array", "items": {"$ref": "#/$defs/modelExchange"}}

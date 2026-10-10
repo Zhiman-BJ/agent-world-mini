@@ -1,7 +1,5 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 from env_gen.tool_gen.delivery_contract import load_delivery
@@ -19,10 +17,11 @@ def test_mcp_restart_preserves_task_changes(tmp_path):
             'name': 'resolve_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
         assert not response['isError']
     with ToolMcpServer(delivery, trace_path=trace, session_root=session) as server:
-        with patch.object(server.runtime, 'snapshot', side_effect=AssertionError('read snapshot')):
-            response = server.handle({'method': 'tools/call', 'params': {
-                'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+        before = server.runtime.snapshot()
+        response = server.handle({'method': 'tools/call', 'params': {
+            'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
         assert response['structuredContent']['data']['status'] == 'resolved'
+        assert server.runtime.snapshot() == before
         assert server.calls == 2
     assert json.loads((session / 'session.json').read_text())['tool_calls'] == 2
     assert [json.loads(line)['sequence'] for line in trace.read_text().splitlines()] == [1, 2]

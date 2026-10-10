@@ -9,7 +9,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from env_gen.tool_gen.kimi_mcp import load_delivery
-from task_gen.task_eval_mcp import call_environment_tool
+from harness.execution import call_environment_tool
 from task_gen.tool_graph.step_3_chain_execute import _workspace_signature
 
 

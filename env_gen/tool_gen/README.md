@@ -151,13 +151,12 @@ python3 -m env_gen.tool_gen.software exec <环境包> -- <下游脚本.py> <参�
 
 ## 环境资源与运行边界
 
-`workspace` 是 Runtime 内部保存任务状态副本的物理目录，本地运行、沙箱和容器中的位置可以
-不同，不进入公开工具参数。`Filesystem Scope` 是 `environment.json` 声明的逻辑资源分区，
-说明一组文件的用途和读写权限。业务工具的文件参数使用 Scope 内相对路径，
-例如 `daily.json`；Schema 中的 `x-resource-scope` 负责说明该路径属于哪个 Scope，
-不需要知道服务器目录或容器挂载点。
+`Filesystem Scope` 是 `environment.json` 声明的逻辑资源分区，说明一组文件的用途和读写权限。
+发布给 Agent 的业务工具文件参数使用当前工作目录路径：单 Scope 例如 `daily.json`，多 Scope
+例如 `reports/daily.json`。Schema 中的 `x-resource-scope` 负责校验该路径属于哪个 Scope；
+Harness 校验 workspace 后，把它归一化为 Scope 内相对路径交给工具代码。
 
-MCP 执行器通过标准 Resources 方法提供资源：
+独立 ToolGen MCP 可以通过标准 Resources 方法提供资源：
 
 - `resources/list`：列出当前 session 的资源 URI、名称、Scope 和相对路径；
 - `resources/read`：读取一个资源 URI 的文本或二进制内容。
@@ -167,21 +166,21 @@ opaque 值，只用于 `resources/read`；业务工具不接收这个 URI。Runt
 `x-resource-scope` 核对 Scope、相对路径和资源类型，工具代码始终通过
 `context.scope_root("design_files")` 找到当前任务副本。新生成工具的文件输入和输出字段都使用
 `x-resource-scope` 标明它属于哪个 Scope，使用 `x-resource-kind` 标明它应当是文件还是目录。
-工具代码和业务工具返回值都使用 Scope 内相对路径，因此一个工具返回的文件路径可以直接作为下一个
-工具的参数。
+工具代码内部使用 Scope 内相对路径；Harness 对外返回 workspace 路径，因此一个工具返回的
+文件路径可以直接作为下一个工具的参数。正式任务蒸馏 MCP 不发布 Resources capability，Kimi
+使用原生 `Read/Grep/Glob` 浏览同一个 workspace。
 
-Kimi Code 的工作区只决定它自己的文件工具从哪里读取相对路径；MCP 配置中的 `cwd` 只决定
-MCP 子进程从哪里启动。ToolGen 在生成 Kimi 配置时会明确设置该 `cwd`，但环境资源始终由
-`binding.json` 和 Filesystem Scope 解析，不把 Kimi 工作区当作环境资源根目录。
+正式蒸馏中 Kimi Code 的 `cwd`、原生文件工具根和任务 MCP 的 `workspace_root` 是同一目录。
+`binding.json` 和 `x-resource-scope` 仍负责权限归属，物理容器路径不进入公开参数。
 
 代码职责保持独立：`resources.py` 负责资源目录与引用解析，`runtime.py` 负责工具执行，
 `mcp_server.py` 提供与客户端无关的 MCP 能力，`kimi_mcp.py` 只负责 Kimi Code 的启动适配，
 软件 Profile 与 Docker 的进程环境由 `runtime_launch.py` 组织，镜像配方和构建由
 `docker_runtime.py` 负责；这些运行后端不进入 ToolGen 的能力盘点、工具规划和工具代码生成逻辑。
 
-业务工具的 MCP 返回保留完整的 `structuredContent` 供 Kimi Code 做 output schema 校验；`content`
-只携带成功/失败状态摘要，不再把同一份完整 JSON 再序列化一次。这样不改变业务结果，却避免长结果
-在 MCP wire 和客户端日志中重复占用空间。
+业务工具的 MCP 返回保留完整的 `structuredContent` 供 Kimi Code 做 output schema 校验；兼容字段
+`content` 保留为空数组，不再把同一份完整 JSON 再序列化一次。这样不改变业务结果，却避免长结果
+在 MCP wire、模型上下文和客户端日志中重复占用空间。
 
 每条任务使用一个独立运行会话。启动时从交付包复制基线 `state/` 到任务目录的 `sandbox/`，
 同一 MCP 会话中的多次工具调用共用这份状态。Docker 后端通过 `docker run --rm` 启动一个临时

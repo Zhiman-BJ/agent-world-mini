@@ -26,6 +26,27 @@ def prepare(tmp_path):
     return root
 
 
+def test_verifier_evidence_uses_same_volume_hard_links(tmp_path):
+    initial = tmp_path / "initial"
+    initial.mkdir()
+    source = initial / "large-result.bin"
+    source.write_bytes(b"result")
+
+    root = prepare_verification_workspace(
+        tmp_path / "audit-links",
+        task={"task_id": "t1", "task_text": "Return value."},
+        environment={},
+        initial_state=initial,
+        actual_state=initial,
+        calls=[],
+        answer="result",
+        execution={},
+    )
+
+    assert (root / "evidence/initial/large-result.bin").stat().st_ino == source.stat().st_ino
+    assert (root / "evidence/actual/final/large-result.bin").stat().st_ino == source.stat().st_ino
+
+
 def verdict():
     return {"task_id": "t1", "requirements": [{"id": "R1", "task_quote": "Return value.",
         "requirement": "Return the recorded value", "analysis": "Record and answer both show 8",
@@ -93,41 +114,11 @@ def test_retries_invalid_result_and_preserves_failure(tmp_path):
             run_verification_agent(root, {"codex_home": str(home), "attempts": 1})
 
 
-def test_interrupted_solver_still_supplies_real_trace_to_verifier(tmp_path):
-    from task_gen.task_eval import EvalCase, evaluate_case
+def test_verifier_rejects_missing_initial_state(tmp_path):
     initial = tmp_path / "initial"
     initial.mkdir()
-    case = EvalCase(tmp_path, {"task_id": "t1", "task_text": "Write result.", "available_tools": [PUBLIC_TOOL]},
-                    ENVIRONMENT, initial, None, [])
-    def solver(prompt, state, config, trace):
-        (state / "partial.txt").write_text("partial work")
-        trace.write_text(json.dumps({"tool": "write", "result": {"success": True}}) + "\n")
-        raise RuntimeError("context exhausted")
-    def verifier(**kwargs):
-        assert len(kwargs["calls"]) == 1
-        assert "context exhausted" in kwargs["execution"]["error"]
-        assert (kwargs["actual_state"] / "partial.txt").read_text() == "partial work"
-        assert kwargs["config"] == {}  # Solver model must not select the verifier model.
-        return {"outcome": "fail", "requirements": [], "summary": "Incomplete"}
-    result = evaluate_case(case, tmp_path / "state", {"model": "qwen"},
-                           agent_run_fn=solver, verifier_run_fn=verifier)
-    assert result["outcome"] == "fail"
-    assert result["tool_calls"] and "context exhausted" in result["agent_error"]
-
-
-def test_verifier_outage_is_not_a_task_failure(tmp_path):
-    from task_gen.task_eval import EvalCase, evaluate_case
-    initial = tmp_path / "initial"
-    initial.mkdir()
-    case = EvalCase(tmp_path, {"task_id": "t1", "task_text": "Return 8.", "available_tools": [PUBLIC_TOOL]},
-                    ENVIRONMENT, initial, None, [])
-    def unavailable(**kwargs):
-        raise VerificationError("API unavailable")
-    result = evaluate_case(case, tmp_path / "state", {}, agent_run_fn=lambda *args: "8",
-                           verifier_run_fn=unavailable)
-    assert result["outcome"] == "verification_error"
-    assert result["agent_answer"] == "8"
     with pytest.raises(VerificationError, match="Missing state"):
-        verify_execution(run_dir=tmp_path / "missing-evidence", task=case.task,
+        verify_execution(run_dir=tmp_path / "missing-evidence",
+                         task={"task_id": "t1", "task_text": "Return 8."},
                          environment=ENVIRONMENT, initial_state=tmp_path / "absent",
                          actual_state=initial, calls=[], answer="8", execution={})

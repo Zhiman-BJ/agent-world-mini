@@ -83,7 +83,7 @@ class _Session:
             declaration = {**environment, **{key: [{**item, 'access': 'read_only'} for item in environment.get(key, [])]
                                            for key in ('record_sets', 'filesystem_scopes')}}
         server = {'environment': declaration, 'tools': list(tools.values()),
-                  'workspace': str(root / 'final'), 'trace': str(root / 'tool_calls.jsonl'), 'resume_trace': True,
+                  'workspace_root': str(root / 'final'), 'trace': str(root / 'tool_calls.jsonl'), 'resume_trace': True,
                   'max_tool_calls': config.execution.get('agent_max_tool_calls', 100),
                   'timeout': config.execution.get('tool_timeout_seconds', 300),
                   'memory_limit': config.execution.get('tool_max_memory_bytes', 2 * 1024**3),

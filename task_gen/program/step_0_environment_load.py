@@ -3,16 +3,76 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import math
 import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .utils.environment import CompleteEnvironmentPackage
+from .utils.environment import CompleteEnvironmentPackage, STATE_REFERENCE_FILENAME
 from .utils.io import read_json, write_json
 from .utils.schema import Draft202012Validator
 from .utils.tool_runtime import compact_state_snapshot, snapshot_state
+
+
+INITIAL_STATE_FILE_SAMPLE_LIMIT = 500
+
+
+def _json_safe_summary(value: Any) -> Any:
+    """Preserve non-finite database facts without emitting invalid JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        if math.isnan(value):
+            return "NaN"
+        return "Infinity" if value > 0 else "-Infinity"
+    if isinstance(value, dict):
+        return {str(key): _json_safe_summary(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_summary(item) for item in value]
+    return value
+
+
+def _compact_initial_state_for_research(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Keep discovery facts without embedding every file entry in Step 0."""
+    compact = compact_state_snapshot(snapshot)
+    if compact.get("format") != "state-v2":
+        return _json_safe_summary(compact)
+
+    def summarize_files(container: dict[str, Any]) -> None:
+        files = container.get("files")
+        if not isinstance(files, dict):
+            return
+        ordered = sorted(files.items())
+        digest = hashlib.sha256()
+        total_bytes = 0
+        samples: dict[str, Any] = {}
+        for index, (path, facts) in enumerate(ordered):
+            encoded = json.dumps(
+                [path, facts], ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            digest.update(encoded)
+            if isinstance(facts, dict):
+                total_bytes += int(facts.get("size", 0) or 0)
+            if index < INITIAL_STATE_FILE_SAMPLE_LIMIT:
+                samples[path] = facts
+        container["file_count"] = len(ordered)
+        container["total_bytes"] = total_bytes
+        container["sha256"] = digest.hexdigest()
+        container["files"] = samples
+        container["files_truncated"] = len(ordered) > len(samples)
+
+    for scope in compact.get("filesystem_scopes", {}).values():
+        if isinstance(scope, dict):
+            summarize_files(scope)
+    undeclared = compact.get("undeclared_files")
+    if isinstance(undeclared, dict):
+        wrapper = {"files": undeclared}
+        summarize_files(wrapper)
+        compact["undeclared_files"] = wrapper
+    return _json_safe_summary(compact)
 
 
 @dataclass(frozen=True)
@@ -46,7 +106,21 @@ class ToolGenDelivery:
         from harness.delivery import load_delivery
 
         binding_path = binding_path.expanduser().resolve()
-        delivery = load_delivery(binding_path)
+        try:
+            delivery = load_delivery(binding_path)
+        except ValueError as error:
+            # Early ToolGen deliveries used Python's leading ``(?i)`` regex
+            # flag in a handful of path patterns. The Program runtime and its
+            # JSON Schema validator can still consume those packages, but the
+            # newer delivery loader rejects them before TaskGen sees the
+            # environment. Resolve the already-frozen receipt paths directly;
+            # do not mutate the ToolGen delivery on disk.
+            if "使用了 Python 内联正则标志" not in str(error):
+                raise
+            return cls._load_legacy_regex_binding(
+                binding_path,
+                delivery_root=delivery_root,
+            )
         if delivery_root is not None and delivery.delivery_root != delivery_root.expanduser().resolve():
             raise ValueError(
                 "binding 解析出的 delivery_root 与显式 --delivery-root 不一致："
@@ -75,6 +149,79 @@ class ToolGenDelivery:
             delivery.software_root,
             delivery.python_path,
             dict(delivery.runtime),
+        )
+
+    @classmethod
+    def _load_legacy_regex_binding(
+        cls,
+        binding_path: Path,
+        *,
+        delivery_root: Path | None,
+    ) -> "ToolGenDelivery":
+        binding = read_json(binding_path)
+        if not isinstance(binding, dict):
+            raise ValueError("ToolGen binding 必须是 object")
+        if delivery_root is None:
+            relative_package = Path(str(binding.get("package_path") or ""))
+            roots = [
+                parent
+                for parent in binding_path.parents
+                if relative_package.parts
+                and (parent / relative_package).resolve() == binding_path.parent.resolve()
+            ]
+            if not roots:
+                raise ValueError(f"无法从 binding 推导 delivery_root：{binding_path}")
+            delivery_root = roots[0]
+        delivery_root = delivery_root.expanduser().resolve()
+
+        def required_path(field: str) -> Path:
+            value = binding.get(field)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"旧 ToolGen binding 缺少 {field}")
+            path = (delivery_root / value).resolve()
+            if not path.exists():
+                raise FileNotFoundError(f"旧 ToolGen binding 的 {field} 不存在：{path}")
+            return path
+
+        package_path = required_path("package_path")
+        environment_path = required_path("environment_path")
+        environment_validation_path = required_path("environment_validation_path")
+        tools_path = required_path("tools_path")
+        tool_validation_path = required_path("tool_validation_path")
+        software_mapping_path = required_path("software_mapping_path")
+        runtime_path = required_path("runtime_path")
+        software_mapping = read_json(software_mapping_path)
+        runtime = read_json(runtime_path)
+        if not isinstance(software_mapping, dict) or not isinstance(runtime, dict):
+            raise ValueError("旧 ToolGen software/profile 或 runtime 回执不是 object")
+        profile_value = (
+            binding.get("software_profile_path")
+            or software_mapping.get("profile_path")
+        )
+        python_value = software_mapping.get("python_path")
+        software_profile_path = (
+            (delivery_root / str(profile_value)).resolve()
+            if isinstance(profile_value, str) and profile_value
+            else None
+        )
+        profile_python = (
+            delivery_root / str(python_value)
+            if isinstance(python_value, str) and python_value
+            else None
+        )
+        return cls(
+            delivery_root=delivery_root,
+            binding_path=binding_path,
+            binding=binding,
+            package_path=package_path,
+            environment_path=environment_path,
+            environment_validation_path=environment_validation_path,
+            tools_path=tools_path,
+            tool_validation_path=tool_validation_path,
+            software_mapping_path=software_mapping_path,
+            software_profile_path=software_profile_path,
+            profile_python=profile_python,
+            runtime=runtime,
         )
 
 
@@ -151,7 +298,18 @@ def run_step0(
     else:
         write_json(baseline / "validation.json", {"valid": True, "legacy": True})
     state_name = "state" if source.package_format == "v2" else "workspace"
-    shutil.copytree(source.state_root, baseline / state_name)
+    if delivery is not None:
+        # ToolGen delivery packages are frozen inputs. Keep an indexed, read-only
+        # baseline here; every actual tool execution still receives its own
+        # writable copy through CompleteEnvironmentRuntime.
+        write_json(baseline / STATE_REFERENCE_FILENAME, {
+            "schema_version": "1.0",
+            "state_name": state_name,
+            "path": str(source.state_root.resolve()),
+        })
+    else:
+        # Legacy direct packages have no delivery immutability contract.
+        shutil.copytree(source.state_root, baseline / state_name)
     write_json(baseline / "tools.json", {
         "schema_version": "1.0",
         "environment_id": source.environment["environment_id"],
@@ -208,7 +366,7 @@ def run_step0(
         raise FileNotFoundError(f"找不到指定的场景调研文件：{source_research}")
 
     frozen = CompleteEnvironmentPackage.load(baseline)
-    initial_state = compact_state_snapshot(snapshot_state(
+    initial_state = _compact_initial_state_for_research(snapshot_state(
         frozen.state_root,
         frozen.environment,
         package_format=frozen.package_format,

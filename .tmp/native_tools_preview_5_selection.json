@@ -1,0 +1,9 @@
+{
+  "samples": [
+    {"case": "semiconductor_scenario_07_03_01__task2"},
+    {"case": "semiconductor_scenario_07_04_03__task10"},
+    {"case": "semiconductor_scenario_04_01_03__task12"},
+    {"case": "semiconductor_scenario_03_01_02__task18"},
+    {"case": "semiconductor_scenario_04_01_01__task24"}
+  ]
+}

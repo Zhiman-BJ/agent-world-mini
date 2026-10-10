@@ -19,13 +19,24 @@ def render_trajectory_html(trajectory_path: Path, output_path: Path) -> Path:
     trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
     if not isinstance(trajectory, dict) or not isinstance(trajectory.get("steps"), list):
         raise ValueError("trajectory must be a JSON object containing steps")
-    initial_request = _initial_model_request(trajectory_path.parent / "raw" / "model_requests.jsonl")
+    initial_request = _cleaned_initial_request(trajectory_path.parent / "input.json")
+    if initial_request is None:
+        initial_request = _initial_model_request(trajectory_path.parent / "raw" / "model_requests.jsonl")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         _template(_embedded_json(trajectory), _embedded_json(initial_request)),
         encoding="utf-8",
     )
     return output_path
+
+
+def _cleaned_initial_request(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or not isinstance(value.get("request"), dict):
+        raise ValueError(f"cleaned input must contain a request object: {path}")
+    return value
 
 
 def _initial_model_request(path: Path) -> dict[str, Any] | None:
@@ -341,6 +352,12 @@ function messageContent(content) {{
 function toolName(tool, index) {{
   return tool?.function?.name || tool?.name || `tool_${{index + 1}}`;
 }}
+function toolDefinitionCallHtml(tool, index) {{
+  const fn = tool?.function || tool || {{}};
+  const description = fn.description || '没有工具说明';
+  const parameters = fn.parameters || fn.inputSchema || {{}};
+  return `<div class="call"><div class="call-line"><span class="tag">TOOL</span><span class="call-name">${{esc(toolName(tool, index))}}</span></div><div class="assistant">${{esc(description)}}</div><details><summary>输入参数 Schema</summary><pre>${{json(parameters)}}</pre></details></div>`;
+}}
 const contextNode = document.getElementById('initialContext');
 const contextMetrics = document.getElementById('contextMetrics');
 if (initialRequest) {{
@@ -386,7 +403,9 @@ function stepHtml(step) {{
   return `<article class="step" data-search="${{esc(searchable)}}"><div class="step-index">${{step.index + 1}}</div><div class="step-body"><div class="step-head"><div class="step-title"><h3>Step ${{step.step}}</h3><small>Turn ${{step.turn_id}} · ${{step.step_id || '无 step id'}}</small></div><div class="step-meta">${{step.tool_calls.length}} 次工具调用${{duration != null ? ` · ${{fmt(duration)}} ms stream` : ''}}</div></div><div class="step-content"><p class="reasoning">${{esc(step.reasoning?.text || '本步骤没有记录 reasoning 文本。')}}</p>${{step.assistant_text ? `<div class="assistant">${{esc(step.assistant_text)}}</div>` : ''}}${{step.tool_calls.length ? `<div class="call-list">${{step.tool_calls.map(callHtml).join('')}}</div>` : ''}}</div></div></article>`;
 }}
 const timeline = document.getElementById('timelineList');
-timeline.innerHTML = data.steps.map(stepHtml).join('') || '<div class="empty">没有步骤记录</div>';
+const availableTools = Array.isArray(initialRequest?.tools) ? initialRequest.tools : [];
+const toolContextStep = availableTools.length ? `<article class="step" data-search="${{esc(availableTools.map((tool, index) => toolName(tool, index)).join(' ').toLowerCase())}}"><div class="step-index">T</div><div class="step-body"><div class="step-head"><div class="step-title"><h3>模型可用工具</h3><small>首次请求中实际发送的工具定义</small></div><div class="step-meta">${{availableTools.length}} 个工具</div></div><div class="step-content"><div class="call-list">${{availableTools.map(toolDefinitionCallHtml).join('')}}</div></div></div></article>` : '';
+timeline.innerHTML = toolContextStep + (data.steps.map(stepHtml).join('') || '<div class="empty">没有步骤记录</div>');
 document.getElementById('stepSearch').addEventListener('input', event => {{
   const query = event.target.value.trim().toLowerCase();
   timeline.querySelectorAll('.step').forEach(node => node.hidden = query && !node.dataset.search.includes(query));

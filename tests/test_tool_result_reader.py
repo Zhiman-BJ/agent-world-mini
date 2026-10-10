@@ -1,6 +1,6 @@
 import json
 
-from env_gen.tool_gen.mcp_protocol import tool_call_result
+from harness.mcp_protocol import tool_call_result
 
 
 def test_kimi_adapter_keeps_long_result_and_does_not_register_reader():
@@ -24,16 +24,27 @@ def test_kimi_adapter_keeps_long_result_and_does_not_register_reader():
             }
 
     adapter = KimiMcpAdapter(Server())
-    assert [tool["name"] for tool in adapter.handle({"method": "tools/list"})["tools"]] == ["inspect"]
+    listed = adapter.handle({"method": "tools/list"})["tools"]
+    assert [tool["name"] for tool in listed] == ["inspect"]
+    assert listed[0]["description"] == "Inspect"
+    assert listed[0]["outputSchema"] == {"type": "object"}
     result = adapter.handle({"method": "tools/call", "params": {"name": "inspect", "arguments": {}}})
     assert result["structuredContent"] == payload
 
 
-def test_tool_result_does_not_repeat_full_structured_content_in_text():
+def test_tool_result_uses_only_structured_content_for_kimi():
     payload = {"success": True, "data": "x" * 10_000}
     result = tool_call_result(payload, is_error=False)
-    text = result["content"][0]["text"]
-    assert text.startswith("Tool result: success.")
-    assert len(text) < 500
-    assert "x" * 1000 not in text
+    assert result["content"] == []
     assert result["structuredContent"] == payload
+    assert result["isError"] is False
+
+
+def test_error_tool_result_uses_only_structured_content_for_kimi():
+    payload = {"success": False, "error": {"code": "not_found"}}
+    result = tool_call_result(payload, is_error=True)
+    assert result == {
+        "content": [],
+        "structuredContent": payload,
+        "isError": True,
+    }

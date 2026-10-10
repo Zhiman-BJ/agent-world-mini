@@ -238,10 +238,10 @@ def export_trajectory(
                         if key not in {"type", "uuid", "turnId", "step", "stepUuid"}
                     }
                     step["completed_event_sequence"] = wire_line
-        elif record_type == "compaction.started":
+        elif record_type in {"compaction.started", "full_compaction.begin"}:
             active_compaction = {
                 "index": len(compactions),
-                "trigger": record.get("trigger", "auto"),
+                "trigger": record.get("trigger") or record.get("source") or "auto",
                 "started_event_sequence": wire_line,
                 "completed_event_sequence": None,
                 "status": "started",
@@ -255,22 +255,39 @@ def export_trajectory(
                 "model_exchanges": [],
             }
             compactions.append(active_compaction)
-        elif record_type in {"compaction.completed", "compaction.cancelled"} and active_compaction is not None:
+        elif record_type in {
+            "compaction.completed", "compaction.cancelled",
+            "full_compaction.complete", "full_compaction.cancelled",
+        } and active_compaction is not None:
             result = record.get("result", {})
             active_compaction.update({
                 "completed_event_sequence": wire_line,
-                "status": "completed" if record_type.endswith("completed") else "cancelled",
-                "summary": result.get("summary"),
-                "context_summary": result.get("contextSummary"),
-                "tokens_before": result.get("tokensBefore"),
-                "tokens_after": result.get("tokensAfter"),
-                "compacted_count": result.get("compactedCount"),
+                "status": "cancelled" if record_type.endswith("cancelled") else "completed",
             })
+            for source, target in (
+                ("summary", "summary"),
+                ("contextSummary", "context_summary"),
+                ("tokensBefore", "tokens_before"),
+                ("tokensAfter", "tokens_after"),
+                ("compactedCount", "compacted_count"),
+            ):
+                if result.get(source) is not None:
+                    active_compaction[target] = result[source]
             active_compaction = None
         elif record_type == "context.apply_compaction" and compactions:
             compaction = compactions[-1]
-            compaction["summary"] = record.get("summary", compaction.get("summary"))
-            compaction["compacted_count"] = record.get("compactedCount", compaction.get("compacted_count"))
+            for source, target in (
+                ("summary", "summary"),
+                ("contextSummary", "context_summary"),
+                ("tokensBefore", "tokens_before"),
+                ("tokensAfter", "tokens_after"),
+                ("compactedCount", "compacted_count"),
+                ("summaryOutputTokens", "summary_output_tokens"),
+                ("keptUserMessageCount", "kept_user_message_count"),
+                ("wireLines", "wire_lines"),
+            ):
+                if record.get(source) is not None:
+                    compaction[target] = record[source]
 
     response_by_id = {
         record["request_id"]: record for record in response_records

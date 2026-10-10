@@ -9,23 +9,53 @@ import io
 from pathlib import Path
 import sys
 import traceback
+from types import SimpleNamespace
 
-from harness.sandbox import call_tool
+
+def _scope_root(state_root: Path, environment: dict, scope_id: str) -> Path:
+    if (
+        not isinstance(scope_id, str)
+        or not scope_id
+        or "/" in scope_id
+        or "\\" in scope_id
+    ):
+        raise ValueError("invalid scope")
+    declared = {
+        str(item.get("scope_id"))
+        for item in environment.get("filesystem_scopes", [])
+    }
+    if scope_id not in declared:
+        raise KeyError("unknown scope")
+    base = (state_root / "filesystem_scopes").resolve()
+    path = (base / scope_id).resolve()
+    if path.parent != base:
+        raise ValueError("scope escape")
+    return path
 
 
-def _direct_compat_call(request: dict, state_root: Path) -> dict:
-    """Temporary Docker compatibility path when the image lacks bwrap.
+def _direct_call(request: dict, state_root: Path) -> dict:
+    """Execute a delivered tool directly inside its Docker container.
 
     The outer TaskGen runtime still owns the transaction and output-schema
-    checks. This inner fallback only replaces the unavailable second sandbox
-    and is enabled by an explicit request flag.
+    checks. Docker supplies the process and dependency boundary, so this worker
+    does not create a second bubblewrap namespace inside the container.
     """
-    from task_gen.tool_graph.state_runtime import Context
+    # Keep this compatibility worker standard-library-only. Several legacy
+    # domain images contain their scientific stack but not the host Harness'
+    # jsonschema dependency. Importing the full Harness Context here would
+    # fail before the delivered tool is even entered.
+    from task_gen.program.utils.profile_tool_worker import RecordStore
 
-    context = Context(state_root, request.get("environment") or {})
-    context.workspace_root = state_root
-    context.records_path = state_root / "records.sqlite"
-    context.filesystem_scopes_root = state_root / "filesystem_scopes"
+    environment = request.get("environment") or {}
+    context = SimpleNamespace(
+        state_root=state_root,
+        workspace_root=state_root,
+        records_path=state_root / "records.sqlite",
+        filesystem_scopes_root=state_root / "filesystem_scopes",
+        environment=environment,
+        records=RecordStore(state_root / "records.sqlite", environment),
+        scope_root=lambda scope_id: _scope_root(state_root, environment, scope_id),
+    )
     if request.get("software_root"):
         context.software_root = Path(request["software_root"])
     namespace: dict[str, object] = {"json": json, "sqlite3": __import__("sqlite3")}
@@ -54,8 +84,10 @@ def main() -> None:
     state_root = Path(sys.argv[3])
     request = json.loads(request_path.read_text(encoding="utf-8"))
     if request.get("compat_direct") is True:
-        outcome = _direct_compat_call(request, state_root)
+        outcome = _direct_call(request, state_root)
     else:
+        from harness.sandbox import call_tool
+
         outcome = call_tool(
             request["code"],
             request["arguments"],

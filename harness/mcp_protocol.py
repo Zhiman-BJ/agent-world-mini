@@ -19,33 +19,7 @@ class RpcError(Exception):
 
 
 def _usage_description(tool: dict[str, Any]) -> str:
-    description = str(tool.get("description", "")).strip()
-    usage = tool.get("usageConditions")
-    if not isinstance(usage, dict):
-        return description
-    lines: list[str] = []
-    for label, key in (
-        ("Target resources", "targetResources"),
-        ("Target objects", "targetObjects"),
-        ("Preconditions", "preconditions"),
-        ("Side effects", "sideEffects"),
-    ):
-        values = usage.get(key)
-        if isinstance(values, list) and values:
-            rendered = [
-                json.dumps(item, ensure_ascii=False, sort_keys=True)
-                if isinstance(item, dict)
-                else str(item)
-                for item in values
-            ]
-            lines.append(f"{label}: " + "; ".join(rendered))
-    if usage is not None:
-        lines.append(
-            "Filesystem Scope paths are relative to the named scope root. "
-            "Pass paths returned by one tool unchanged to the next tool; never prepend "
-            "/workspace, filesystem_scopes/<scope_id>, or a host absolute path."
-        )
-    return "\n".join([description, *lines])
+    return str(tool.get("description", "")).strip()
 
 
 def mcp_output_schema(schema: dict[str, Any]) -> dict[str, Any]:
@@ -69,43 +43,16 @@ def public_tools(tools: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [public_tool(tool) for tool in tools]
 
 
-def _tool_content_summary(payload: dict[str, Any], *, is_error: bool) -> str:
-    """Keep MCP ``content`` useful without duplicating structuredContent.
-
-    Kimi Code validates and preserves ``structuredContent`` separately.  Sending
-    the complete JSON object in both fields doubles the wire/log footprint and
-    makes long results look duplicated to downstream consumers.  The text part
-    therefore carries only a stable status summary; the complete object remains
-    available in ``structuredContent``.
-    """
-    success = payload.get("success")
-    status = "error" if is_error else "success"
-    fields = ", ".join(sorted(str(key) for key in payload)) or "(none)"
-    parts = [f"Tool result: {status}."]
-    if success is not None:
-        parts.append(f"success={str(success).lower()}.")
-    parts.append(f"structuredContent fields: {fields}.")
-    error = payload.get("error")
-    if isinstance(error, dict):
-        code = error.get("code")
-        message = error.get("message")
-        if code is not None:
-            parts.append(f"error_code={code}.")
-        if isinstance(message, str) and message:
-            if len(message) > 500:
-                message = message[:497] + "..."
-            parts.append(f"error_message={message}.")
-    return " ".join(parts)
-
-
 def tool_call_result(payload: dict[str, Any], *, is_error: bool) -> dict[str, Any]:
+    """Return one canonical business payload through structured MCP output.
+
+    Every public tool has an ``outputSchema``, so Kimi Code requires
+    ``structuredContent`` on successful calls. MCP keeps ``content`` for
+    backwards compatibility but explicitly permits an empty array. Leaving it
+    empty prevents the same JSON object from entering the model context twice.
+    """
     return {
-        "content": [
-            {
-                "type": "text",
-                "text": _tool_content_summary(payload, is_error=is_error),
-            }
-        ],
+        "content": [],
         "structuredContent": payload,
         "isError": is_error,
     }

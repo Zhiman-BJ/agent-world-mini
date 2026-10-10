@@ -28,7 +28,11 @@ from typing import Any, Protocol
 from .utils.schema import Draft202012Validator
 
 from .utils.contracts import ProgramGenerationPolicy, TaskFields
-from .utils.environment import CompleteEnvironmentPackage, load_frozen_package
+from .utils.environment import (
+    CompleteEnvironmentPackage,
+    STATE_REFERENCE_FILENAME,
+    load_frozen_package,
+)
 from .utils.io import read_json, read_records, write_json, write_jsonl
 from .utils.schema_docs import STEP2_SCHEMA_DOCS, copy_schema_docs
 from .utils.tool_runtime import (
@@ -51,8 +55,14 @@ class _AuthoringInfrastructureFailure(RuntimeError):
     """The author Agent proved that the environment runtime cannot execute tools."""
 
 
-SEMANTIC_REVIEW_MAX_ATTEMPTS = 3
+SEMANTIC_REVIEW_MAX_ATTEMPTS = 2
 QUALITY_SERVICE_STOP_TIMEOUT_SECONDS = 30.0
+REVIEW_LIST_SAMPLE_SIZE = 3
+REVIEW_STRING_LIMIT = 4000
+REVIEW_DICT_KEY_LIMIT = 50
+REVIEW_INLINE_LIST_LIMIT = 20
+REVIEW_MAX_DEPTH = 8
+REVIEW_REQUEST_MAX_BYTES = 2_000_000
 
 
 def _terminal_quality_infrastructure_reason(report: Any) -> str | None:
@@ -109,7 +119,17 @@ def _write_generation_tool_access(
     eventual reference-program execution and are not part of the task output.
     """
     probe_package = working_directory / "probe_package"
-    shutil.copytree(package.package_root, probe_package)
+    state_name = "state" if package.package_format == "v2" else "workspace"
+
+    def ignore_state(directory: str, _names: list[str]) -> set[str]:
+        return {state_name} if Path(directory).resolve() == package.package_root.resolve() else set()
+
+    shutil.copytree(package.package_root, probe_package, ignore=ignore_state)
+    write_json(probe_package / STATE_REFERENCE_FILENAME, {
+        "schema_version": "1.0",
+        "state_name": state_name,
+        "path": str(package.state_root.resolve()),
+    })
     visible_tools = [
         deepcopy(tool)
         for tool in package.tools
@@ -146,6 +166,7 @@ def main():
     parser.add_argument("--show-code")
     parser.add_argument("--tool")
     parser.add_argument("--arguments-json", default="{{}}")
+    parser.add_argument("--timeout-seconds", type=float, default=300.0)
     args = parser.parse_args()
     document = json.loads(TOOLS_PATH.read_text(encoding="utf-8"))
     tools = {{str(item["name"]): item for item in document["tools"]}}
@@ -169,7 +190,14 @@ def main():
     if not isinstance(arguments, dict):
         raise SystemExit("--arguments-json must encode a JSON object")
     package = CompleteEnvironmentPackage.load(PACKAGE_PATH)
-    with CompleteEnvironmentRuntime(package) as runtime:
+    # A single tool call must not outlive the whole reference-program budget.
+    # The line tracer enforces the aggregate deadline between calls; this cap
+    # bounds a currently-running external tool so the checker can terminate.
+    tool_timeout_seconds = max(1, min(300, int(args.timeout_seconds)))
+    with CompleteEnvironmentRuntime(
+        package,
+        tool_timeout_seconds=tool_timeout_seconds,
+    ) as runtime:
         try:
             result = runtime.call(args.tool, arguments)
             state_diff = runtime.trace[-1].state_diff if runtime.trace else {{}}
@@ -1189,7 +1217,7 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
         "--candidate candidate.draft.json",
         f"--clean-replays {policy.clean_replays}",
         f"--execution-timeout-seconds {policy.execution_timeout_seconds}",
-        "--quality-timeout-seconds 2400",
+        f"--quality-timeout-seconds {policy.quality_timeout_seconds}",
     ]
     if policy.minimum_effective_tool_calls is not None:
         preflight_parts.append(
@@ -1222,7 +1250,9 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
 
 - `task_research.json`：本轮已经根据环境支持范围选定的现实工作原型，文件中只保留这一项；
 - `generation_request.json`：其中的 `selected_archetype_id` 是本轮必须使用的原型，
-  `effective_tool_call_target` 是隐藏参考程序的内部复杂度目标，二者都不能写进任务正文；
+  `effective_tool_call_target` 是隐藏参考程序的内部复杂度目标；若其中存在
+  `quarantined_tools`，这些工具已在本环境的真实执行中确认超时或不可用，本轮不得再使用。
+  这些内部信息都不能写进任务正文；
 - `environment.public.json`：公开的记录集合、关系、文件区域和工具契约；
 - `state/`：当前环境真实初始数据，只读。用它确认真实存在的记录、文件和可用条件；
 - `tools.internal.json`：公开工具的实现代码、输入 Schema、输出 Schema 和使用条件；
@@ -1275,7 +1305,9 @@ tool_probe.py 是运行在生成 Agent 自身沙箱里的辅助探测。如果�
 bwrap、Operation not permitted、嵌套沙箱或类似宿主权限问题退出，这不能证明冻结环境中的工具
 不可用，也不要因此放弃候选。此时继续根据真实状态、公开契约和工具代码编写草稿，并提交给
 candidate_check.py；父进程写出的 candidate_check_result.json 才是运行能力的权威结果。只有
-该结果返回 tool_runtime_unavailable 且 terminal=true 时，才立即停止当前候选。
+该结果返回 tool_runtime_unavailable 且 terminal=true 时，才立即停止当前候选。如果返回
+tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：淘汰该工具，根据反馈改用
+其他已经真实探测成功的工具或更换任务方案，不得把它扩大解释为整个环境不可用。
 
 探测时不仅要看调用是否成功，还要看每个返回字段的确切含义。不得用名称相似但语义不同的字段
 回答任务，例如不能把“扫描首末点变化”当成“末点相对于指定基线的变化”。如果工具没有直接返回
@@ -1433,8 +1465,11 @@ def build_task_solution_review_prompt() -> str:
 打开 `review_request.json`。把 `task_public` 当作用户发来的完整原始要求，不要把它当作内部字段；只根据下面这些真实证据判断：
 
 - `used_tool_contracts`：本次实际使用工具的公开用途、输入和输出定义；
-- `solution_trace`：程序实际调用了什么、每次得到什么结果；
-- `state_diff`、`final_state`：记录或文件实际发生了什么变化；
+- `solution_code`：已经真实执行过的参考程序，用于理解工具结果如何形成最终答案；
+- `solution_trace`：程序实际调用了什么、每次得到什么结果；超大数组或文本会表示为
+  `_review_summary`，其中保留类型、长度、首尾样本和完整内容哈希，不要把摘要标记误判为工具输出；
+- `state_diff`、`final_state`：记录或文件实际发生了什么变化；其中的超大内容也会使用
+  `_review_summary`，完整结果已经由 Python 执行和重放检查；
 - `candidate_answer`：程序最后返回了什么；
 
 逐句检查任务中的对象、文件、筛选/比较规则、修改动作、复查动作和最终结果。每一项都要
@@ -1904,7 +1939,9 @@ def _repair_solution(
     audit_dir = repair_root / candidate.archetype_id / f"round_{round_index:02d}"
     if audit_dir.exists():
         shutil.rmtree(audit_dir)
-    with tempfile.TemporaryDirectory(prefix="agent-world-program-repair-") as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix="agent-world-program-repair-", ignore_cleanup_errors=True,
+    ) as temporary:
         repair_dir = Path(temporary)
         write_json(repair_dir / "environment.public.json", package.public_environment())
         write_json(repair_dir / "repair_request.json", {
@@ -1978,6 +2015,23 @@ def _is_infrastructure_execution_failure(execution: ProgramExecutionResult) -> b
     )
 
 
+def _failed_tool_name(execution: ProgramExecutionResult) -> str | None:
+    """Extract a concrete failing tool so one broken tool does not kill an environment."""
+    match = re.search(
+        r"工具\s+([A-Za-z][A-Za-z0-9_.-]*)\s+执行失败",
+        str(execution.error or ""),
+    )
+    return match.group(1) if match else None
+
+
+def _execution_timed_out(execution: ProgramExecutionResult) -> bool:
+    text = f"{execution.error_type or ''}\n{execution.error or ''}".casefold()
+    return any(
+        marker in text
+        for marker in ("timeoutexpired", "timeout", "超时", "timed out")
+    )
+
+
 def _execute_with_repairs(
     *,
     package: CompleteEnvironmentPackage,
@@ -2032,35 +2086,86 @@ def _execute_with_repairs(
     return code, execution, history
 
 
-def _replay_comparable_state(value: Any, *, layout_file: bool = False) -> Any:
-    """Ignore container timestamps embedded by GDSII/OASIS writers.
+def _replay_comparable_state(value: Any, *, container_file: bool = False) -> Any:
+    """Ignore non-semantic hashes from timestamp-bearing binary containers.
 
     Semantic equivalence is still established by the reference program's
-    independent round-trip/diff calls and stable answer. All paths, sizes,
-    non-layout files, database records and other state remain exact.
+    exact tool arguments/results, independent round-trip checks and stable
+    answer. All paths, sizes, ordinary files, database records and other state
+    remain exact. GDSII/OASIS and HDF5-backed HSPY files can encode creation or
+    object metadata differently while preserving the same business content.
     """
     if isinstance(value, dict):
         result: dict[str, Any] = {}
         for key, child in value.items():
-            child_is_layout = layout_file or (
+            child_is_container = container_file or (
                 isinstance(key, str)
                 and Path(key).suffix.casefold() in {
-                    ".gds", ".gdsii", ".oas", ".oasis"
+                    ".gds", ".gdsii", ".h5", ".hdf5", ".hspy", ".oas", ".oasis"
                 }
             )
-            if layout_file and key == "sha256":
+            if container_file and key == "sha256":
                 continue
             result[key] = _replay_comparable_state(
                 child,
-                layout_file=child_is_layout,
+                container_file=child_is_container,
             )
         return result
     if isinstance(value, list):
         return [
-            _replay_comparable_state(item, layout_file=layout_file)
+            _replay_comparable_state(item, container_file=container_file)
             for item in value
         ]
     return value
+
+
+def _is_runtime_cache_path(path: str) -> bool:
+    """Return whether a state path is an interpreter-generated cache file."""
+    normalized = path.replace("\\", "/").strip("/")
+    parts = normalized.split("/")
+    return "__pycache__" in parts or Path(normalized).suffix.casefold() in {
+        ".pyc",
+        ".pyo",
+    }
+
+
+def _without_runtime_cache_files(value: dict[str, Any]) -> dict[str, Any]:
+    """Remove Python runtime caches from filesystem replay comparisons.
+
+    Importing the same module can regenerate bytecode with a different hash
+    while leaving every business input and output unchanged. These files are
+    execution infrastructure and are never task deliverables.
+    """
+    normalized = deepcopy(value)
+    scopes = normalized.get("filesystem_scopes")
+    if not isinstance(scopes, dict):
+        return normalized
+    for scope in scopes.values():
+        if not isinstance(scope, dict):
+            continue
+        files = scope.get("files")
+        if isinstance(files, dict):
+            scope["files"] = {
+                path: metadata
+                for path, metadata in files.items()
+                if not _is_runtime_cache_path(str(path))
+            }
+        for field in ("created", "modified", "deleted"):
+            paths = scope.get(field)
+            if isinstance(paths, list):
+                scope[field] = [
+                    path
+                    for path in paths
+                    if not _is_runtime_cache_path(str(path))
+                ]
+        changes = scope.get("changes")
+        if isinstance(changes, dict):
+            scope["changes"] = {
+                path: change
+                for path, change in changes.items()
+                if not _is_runtime_cache_path(str(path))
+            }
+    return normalized
 
 
 def _dynamic_output_prefixes(
@@ -2162,10 +2267,63 @@ def _dynamic_output_errors(
     return errors
 
 
+_REPLAY_VOLATILE_RESULT_KEYS = frozenset({
+    "cpu_time_seconds",
+    "duration_seconds",
+    "elapsed_seconds",
+    "runtime_seconds",
+    "total_seconds",
+    "wall_elapsed_s",
+    "wall_time_seconds",
+})
+
+
+def _replay_comparable_tool_result(value: Any) -> Any:
+    """Remove runtime measurements that cannot be deterministic across runs.
+
+    These fields describe how long a tool happened to take, not what it
+    computed. Arguments, business results, final answers and state changes
+    remain exact. If a task exposes one of these measurements in its final
+    answer, the separate final-answer comparison still detects any change.
+    """
+    if isinstance(value, dict):
+        artifact_metadata = (
+            "size_bytes" in value
+            and any(
+                key in value
+                for key in (
+                    "artifact",
+                    "filename",
+                    "name",
+                    "path",
+                    "relative_path",
+                    "uri",
+                )
+            )
+        )
+        return {
+            key: _replay_comparable_tool_result(child)
+            for key, child in value.items()
+            if key not in _REPLAY_VOLATILE_RESULT_KEYS
+            and not (artifact_metadata and key == "size_bytes")
+        }
+    if isinstance(value, list):
+        return [_replay_comparable_tool_result(item) for item in value]
+    return deepcopy(value)
+
+
 def _replay_comparable_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Compare public calls and results, excluding per-call filesystem diffs."""
+    """Compare calls/results without filesystem diffs or runtime measurements."""
     return [
-        {key: deepcopy(value) for key, value in item.items() if key != "state_diff"}
+        {
+            key: (
+                _replay_comparable_tool_result(value)
+                if key == "result"
+                else deepcopy(value)
+            )
+            for key, value in item.items()
+            if key != "state_diff"
+        }
         for item in trace
     ]
 
@@ -2245,6 +2403,65 @@ def _replay_instability_error(
     )
 
 
+def _publication_mismatch_errors(
+    *,
+    reference: ProgramExecutionResult,
+    published: ProgramExecutionResult,
+    candidate: ProgramTaskCandidate,
+) -> list[str]:
+    """Explain exactly why the final publication replay is not equivalent."""
+    if not published.success:
+        return [
+            "发布重放执行失败："
+            f"{published.error_type}: {published.error}"
+        ]
+
+    comparisons: list[tuple[str, Any, Any]] = [
+        ("final_answer", reference.answer, published.answer),
+        (
+            "工具返回结果",
+            _replay_comparable_trace(reference.trace),
+            _replay_comparable_trace(published.trace),
+        ),
+    ]
+    dynamic_prefixes = _dynamic_output_prefixes(candidate)
+    reference_final = _without_runtime_cache_files(
+        _without_dynamic_output_files(reference.final_state, dynamic_prefixes)
+    )
+    published_final = _without_runtime_cache_files(
+        _without_dynamic_output_files(published.final_state, dynamic_prefixes)
+    )
+    reference_diff = _without_runtime_cache_files(
+        _without_dynamic_output_files(reference.state_diff, dynamic_prefixes)
+    )
+    published_diff = _without_runtime_cache_files(
+        _without_dynamic_output_files(published.state_diff, dynamic_prefixes)
+    )
+    comparisons.extend([
+        (
+            "final_state",
+            _replay_comparable_state(reference_final),
+            _replay_comparable_state(published_final),
+        ),
+        (
+            "state_diff",
+            _replay_comparable_state(reference_diff),
+            _replay_comparable_state(published_diff),
+        ),
+    ])
+
+    errors = []
+    for label, expected, actual in comparisons:
+        if expected != actual:
+            errors.append(_replay_instability_error(
+                index=0,
+                label=f"发布重放 {label}",
+                reference=expected,
+                replay=actual,
+            ))
+    return errors
+
+
 def _replay_solution(
     *,
     package: CompleteEnvironmentPackage,
@@ -2285,11 +2502,13 @@ def _replay_solution(
                     reference=reference_trace,
                     replay=run_trace,
                 ))
-            run_final = _without_dynamic_output_files(
-                run.final_state, dynamic_prefixes
+            run_final = _without_runtime_cache_files(
+                _without_dynamic_output_files(run.final_state, dynamic_prefixes)
             )
-            reference_final = _without_dynamic_output_files(
-                reference.final_state, dynamic_prefixes
+            reference_final = _without_runtime_cache_files(
+                _without_dynamic_output_files(
+                    reference.final_state, dynamic_prefixes
+                )
             )
             if _replay_comparable_state(run_final) != _replay_comparable_state(
                 reference_final
@@ -2300,11 +2519,13 @@ def _replay_solution(
                     reference=_replay_comparable_state(reference_final),
                     replay=_replay_comparable_state(run_final),
                 ))
-            run_diff = _without_dynamic_output_files(
-                run.state_diff, dynamic_prefixes
+            run_diff = _without_runtime_cache_files(
+                _without_dynamic_output_files(run.state_diff, dynamic_prefixes)
             )
-            reference_diff = _without_dynamic_output_files(
-                reference.state_diff, dynamic_prefixes
+            reference_diff = _without_runtime_cache_files(
+                _without_dynamic_output_files(
+                    reference.state_diff, dynamic_prefixes
+                )
             )
             if _replay_comparable_state(run_diff) != _replay_comparable_state(
                 reference_diff
@@ -2347,6 +2568,150 @@ def _review_issue_messages(raw_issues: Any) -> list[str] | None:
     return messages
 
 
+def _review_value_summary(value: Any, *, value_type: str) -> dict[str, Any]:
+    """Describe bulky runtime evidence without copying it into the review prompt."""
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return {
+        "_review_summary": {
+            "type": value_type,
+            "json_bytes": len(encoded),
+            "sha256": hashlib.sha256(encoded).hexdigest(),
+        },
+    }
+
+
+def _compact_review_value(value: Any, *, depth: int = 0) -> Any:
+    """Keep review evidence bounded while preserving useful structure and samples."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        if len(value) <= REVIEW_STRING_LIMIT:
+            return value
+        summary = _review_value_summary(value, value_type="string")
+        summary["_review_summary"].update({
+            "characters": len(value),
+            "prefix": value[:REVIEW_STRING_LIMIT // 2],
+            "suffix": value[-REVIEW_STRING_LIMIT // 2:],
+        })
+        return summary
+    if depth >= REVIEW_MAX_DEPTH:
+        return _review_value_summary(value, value_type=type(value).__name__)
+    if isinstance(value, list):
+        if len(value) <= REVIEW_INLINE_LIST_LIMIT:
+            return [
+                _compact_review_value(item, depth=depth + 1)
+                for item in value
+            ]
+        summary = _review_value_summary(value, value_type="list")
+        summary["_review_summary"].update({
+            "length": len(value),
+            "head": [
+                _compact_review_value(item, depth=depth + 1)
+                for item in value[:REVIEW_LIST_SAMPLE_SIZE]
+            ],
+            "tail": [
+                _compact_review_value(item, depth=depth + 1)
+                for item in value[-REVIEW_LIST_SAMPLE_SIZE:]
+            ],
+        })
+        return summary
+    if isinstance(value, dict):
+        items = list(value.items())
+        if len(items) <= REVIEW_DICT_KEY_LIMIT:
+            return {
+                str(key): _compact_review_value(child, depth=depth + 1)
+                for key, child in items
+            }
+        summary = _review_value_summary(value, value_type="object")
+        sampled = [
+            *items[:REVIEW_LIST_SAMPLE_SIZE],
+            *items[-REVIEW_LIST_SAMPLE_SIZE:],
+        ]
+        summary["_review_summary"].update({
+            "key_count": len(items),
+            "sampled_values": {
+                str(key): _compact_review_value(child, depth=depth + 1)
+                for key, child in sampled
+            },
+        })
+        return summary
+    return _review_value_summary(str(value), value_type=type(value).__name__)
+
+
+def _review_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Preserve call structure while compacting bulky arguments and results."""
+    return [
+        {
+            "index": item.get("index", index),
+            "tool": item.get("tool"),
+            "arguments": _compact_review_value(item.get("arguments", {})),
+            "result": _compact_review_value(item.get("result")),
+            "state_diff": _compact_review_value(item.get("state_diff", {})),
+        }
+        for index, item in enumerate(trace)
+    ]
+
+
+def _review_request_bytes(request: dict[str, Any]) -> int:
+    return len(json.dumps(
+        request,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8"))
+
+
+def _bound_review_request(
+    request: dict[str, Any],
+    execution: ProgramExecutionResult,
+) -> dict[str, Any]:
+    """Apply a strict final cap so one runtime payload cannot swamp the reviewer."""
+    if _review_request_bytes(request) <= REVIEW_REQUEST_MAX_BYTES:
+        return request
+
+    bounded = deepcopy(request)
+    bounded["solution_trace"] = [
+        {
+            "index": item.get("index", index),
+            "tool": item.get("tool"),
+            "arguments": _compact_review_value(item.get("arguments", {})),
+            "result": _review_value_summary(
+                item.get("result"), value_type="tool_result",
+            ),
+            "state_diff": _review_value_summary(
+                item.get("state_diff", {}), value_type="tool_state_diff",
+            ),
+        }
+        for index, item in enumerate(execution.trace)
+    ]
+    bounded["final_state"] = _review_value_summary(
+        execution.final_state, value_type="final_state",
+    )
+    bounded["state_diff"] = _review_value_summary(
+        execution.state_diff, value_type="state_diff",
+    )
+    bounded["candidate_answer"] = _compact_review_value(execution.answer)
+    bounded["evidence_compaction"] = {
+        "strict": True,
+        "maximum_json_bytes": REVIEW_REQUEST_MAX_BYTES,
+        "note": (
+            "大型工具参数和结果只保留结构摘要及完整内容哈希；"
+            "参考程序已经由 Python 真实执行。"
+        ),
+    }
+    size = _review_request_bytes(bounded)
+    if size > REVIEW_REQUEST_MAX_BYTES:
+        raise ValueError(
+            "压缩后的语义审阅请求仍然过大："
+            f"{size} > {REVIEW_REQUEST_MAX_BYTES} bytes"
+        )
+    return bounded
+
+
 def _review_task_solution(
     *,
     agent: TaskSolutionReviewAgent | None,
@@ -2362,24 +2727,26 @@ def _review_task_solution(
         shutil.rmtree(audit_dir)
     audit_dir.mkdir(parents=True)
     used_tool_names = {str(item.get("tool")) for item in execution.trace}
-    request = {
+    request = _bound_review_request({
         "task_public": candidate.task_public,
         "used_tool_contracts": [
             deepcopy(tool)
             for tool in public_tools
             if str(tool.get("name")) in used_tool_names
         ],
-        "solution_trace": execution.trace,
-        "final_state": execution.final_state,
-        "state_diff": execution.state_diff,
+        "solution_code": candidate.solution_code,
+        "solution_trace": _review_trace(execution.trace),
+        "final_state": _compact_review_value(execution.final_state),
+        "state_diff": _compact_review_value(execution.state_diff),
         "candidate_answer": execution.answer,
-    }
+    }, execution)
     previous_errors: list[str] = []
     review_names = {"accepted", "reason", "parameter_audit", "issues"}
 
     for attempt_index in range(1, SEMANTIC_REVIEW_MAX_ATTEMPTS + 1):
         with tempfile.TemporaryDirectory(
-            prefix="agent-world-program-review-"
+            prefix="agent-world-program-review-",
+            ignore_cleanup_errors=True,
         ) as temporary:
             attempt_dir = Path(temporary)
             write_json(attempt_dir / "review_request.json", request)
@@ -2574,6 +2941,8 @@ def _preflight_candidate_payload(
     })
     if not execution.success:
         unavailable = _is_infrastructure_execution_failure(execution)
+        timed_out = _execution_timed_out(execution)
+        failed_tool = _failed_tool_name(execution) if unavailable or timed_out else None
         execution_errors = [_preflight_error(
             "solution_execution",
             "$.candidates[0].solution_code",
@@ -2581,11 +2950,22 @@ def _preflight_candidate_payload(
         )]
         if unavailable:
             execution_errors.append(_preflight_error(
-                "tool_runtime_unavailable",
+                "tool_unavailable" if failed_tool else "tool_runtime_unavailable",
                 "$.candidates[0].solution_code",
-                "必要工具在当前运行环境中不可用，修改 Python 逻辑无法修复。"
-                "不要重试该调用或用 assert 掩盖；停止当前候选，下一次生成改用"
-                "已经真实探测成功的工具路径。",
+                (
+                    f"工具 {failed_tool} 当前不可用；淘汰该工具并改用已经真实探测成功的"
+                    "其他工具路径。不要用 assert、伪造结果或捕获异常掩盖失败。"
+                    if failed_tool
+                    else
+                    "环境运行基础设施不可用，修改候选 Python 逻辑无法修复。"
+                ),
+            ))
+        elif timed_out and failed_tool:
+            execution_errors.append(_preflight_error(
+                "tool_timed_out",
+                "$.candidates[0].solution_code",
+                f"工具 {failed_tool} 执行超时；本环境后续候选必须淘汰该工具，"
+                "改用其他已经真实执行成功的工具路径。",
             ))
         return {
             "passed": False,
@@ -2593,7 +2973,8 @@ def _preflight_candidate_payload(
             "errors": execution_errors,
             "metrics": metrics,
             "trace_tail": execution.trace[-3:],
-            "terminal": unavailable,
+            "terminal": unavailable and failed_tool is None,
+            "unavailable_tool": failed_tool,
         }
 
     errors = []
@@ -2688,6 +3069,13 @@ def _quality_error_signature(report: dict[str, Any]) -> tuple[tuple[str, str, st
 
 
 def _quality_report_is_infrastructure_failure(report: dict[str, Any]) -> bool:
+    codes = {
+        str(item.get("code") or "")
+        for item in report.get("errors", [])
+        if isinstance(item, dict)
+    }
+    if "tool_unavailable" in codes:
+        return False
     markers = (
         "backend_unavailable",
         "dependency_unavailable",
@@ -2840,6 +3228,7 @@ class _CandidateQualityService:
         schema: dict[str, Any],
         review_agent: TaskSolutionReviewAgent | None,
         max_repair_rounds: int,
+        stop_timeout_seconds: float = QUALITY_SERVICE_STOP_TIMEOUT_SECONDS,
     ) -> None:
         self.authoring = authoring
         self.package = package
@@ -2847,6 +3236,10 @@ class _CandidateQualityService:
         self.schema = schema
         self.review_agent = review_agent
         self.max_checks = max_repair_rounds + 1
+        self.stop_timeout_seconds = max(
+            QUALITY_SERVICE_STOP_TIMEOUT_SECONDS,
+            float(stop_timeout_seconds),
+        )
         self.request_path = authoring / "candidate_check_request.json"
         self.result_path = authoring / "candidate_check_result.json"
         self.review_root = authoring / "candidate_reviews"
@@ -2864,7 +3257,11 @@ class _CandidateQualityService:
 
     def stop(self) -> None:
         self.stop_event.set()
-        self.thread.join(timeout=QUALITY_SERVICE_STOP_TIMEOUT_SECONDS)
+        self.thread.join(timeout=getattr(
+            self,
+            "stop_timeout_seconds",
+            QUALITY_SERVICE_STOP_TIMEOUT_SECONDS,
+        ))
         if self.thread.is_alive():
             raise TimeoutError(
                 "候选质检服务在停止请求后仍未结束；"
@@ -3030,6 +3427,58 @@ def _authoring_failure_reasons(error: Exception, authoring: Path) -> list[str]:
     return reasons
 
 
+def _is_terminal_agent_configuration_failure(error: Exception) -> bool:
+    """Stop outer retries for errors that another candidate cannot repair."""
+    message = str(error)
+    return (
+        "Model \"" in message
+        and "is not supported by any configured account in this group" in message
+    )
+
+
+def _retry_context(output_dir: Path) -> dict[str, Any]:
+    path = output_dir / "retry_context.json"
+    if not path.is_file():
+        return {}
+    value = read_json(path)
+    return value if isinstance(value, dict) else {}
+
+
+def _quarantined_tool_names(
+    *,
+    known_tools: set[str],
+    retry_context: dict[str, Any],
+    rejections: list[dict[str, Any]],
+) -> set[str]:
+    """Persist concrete slow/broken tools across Agent attempts and retries."""
+    quarantined = {
+        str(name)
+        for name in retry_context.get("avoid_tools", [])
+        if str(name) in known_tools
+    }
+    markers = (
+        "tool_unavailable",
+        "tool_timed_out",
+        "当前不可用",
+        "执行超时",
+        "timeoutexpired",
+        "cannot open shared object file",
+        "no module named",
+        "工具沙箱异常退出",
+        "threadpoolbuilderror",
+        "pthread_create",
+    )
+    for rejection in rejections:
+        text = json.dumps(rejection.get("reasons", []), ensure_ascii=False)
+        folded = text.casefold()
+        if not any(marker in folded for marker in markers):
+            continue
+        for name in known_tools:
+            if re.search(rf"(?<![A-Za-z0-9_.-]){re.escape(name)}(?![A-Za-z0-9_.-])", text):
+                quarantined.add(name)
+    return quarantined
+
+
 
 def run_step2(
     *,
@@ -3065,6 +3514,12 @@ def run_step2(
     )
     schema = read_json(Path(__file__).resolve().parent / "schemas" / "candidate.schema.json")
     output_dir = output_dir.resolve()
+    retry_context = _retry_context(output_dir)
+    prior_rejections = [
+        item
+        for item in retry_context.get("previous_rejections", [])
+        if isinstance(item, dict)
+    ][-12:]
     output_path = output_dir / "step2_task_solution.jsonl"
     validation_path = output_dir / "step2_validation.json"
     tasks_path = output_dir / "tasks.json"
@@ -3092,16 +3547,46 @@ def run_step2(
                 break
             attempts_for_current_task += 1
         accepted_before_round = len(accepted)
-        archetype_offset = (
+        initial_archetype_offset = (
             len(accepted) + (attempts_for_current_task - 1) // 3
         ) % len(ranked_archetype_ids)
-        selected_archetype_id = ranked_archetype_ids[archetype_offset]
-        selected_archetype = archetypes[selected_archetype_id]
-        selected_tool_names = {
-            str(value)
-            for value in selected_archetype.get("environment_support", {}).get("tools", [])
-            if value
-        }
+        quarantined_tools = _quarantined_tool_names(
+            known_tools=set(tool_side_effects),
+            retry_context=retry_context,
+            rejections=rejections,
+        )
+        selected_archetype_id: str | None = None
+        selected_archetype: dict[str, Any] | None = None
+        selected_tool_names: set[str] = set()
+        for offset_delta in range(len(ranked_archetype_ids)):
+            archetype_offset = (
+                initial_archetype_offset + offset_delta
+            ) % len(ranked_archetype_ids)
+            possible_id = ranked_archetype_ids[archetype_offset]
+            possible = archetypes[possible_id]
+            possible_tools = {
+                str(value)
+                for value in possible.get("environment_support", {}).get("tools", [])
+                if str(value) in tool_side_effects
+                and str(value) not in quarantined_tools
+            }
+            if possible_tools:
+                selected_archetype_id = possible_id
+                selected_archetype = possible
+                selected_tool_names = possible_tools
+                break
+        if selected_archetype_id is None or selected_archetype is None:
+            rejections.append({
+                "round": round_index,
+                "candidate": None,
+                "stage": "tool_quarantine",
+                "reasons": [
+                    "上一轮已确认的超时或不可用工具覆盖了所有可生成任务原型；"
+                    "停止盲目调用这些工具",
+                    "隔离工具：" + ", ".join(sorted(quarantined_tools)),
+                ],
+            })
+            break
         authoring_call_target = _authoring_call_target(
             policy,
             str(package.environment["environment_id"]),
@@ -3113,14 +3598,16 @@ def run_step2(
         else:
             if generation_agent is None:
                 raise ValueError("没有提供 TaskSolutionAgent")
-            with tempfile.TemporaryDirectory(prefix="agent-world-program-step2-") as temporary:
+            with tempfile.TemporaryDirectory(
+                prefix="agent-world-program-step2-",
+                ignore_cleanup_errors=True,
+            ) as temporary:
                 authoring = Path(temporary)
-                shutil.copytree(package.state_root, authoring / "state")
                 _write_generation_tool_access(
                     authoring, package, selected_tool_names
                 )
                 before = snapshot_state(
-                    authoring / "state", package.environment,
+                    package.state_root, package.environment,
                     package_format=package.package_format,
                 )
                 write_json(
@@ -3137,6 +3624,7 @@ def run_step2(
                     **{key: value for key, value in policy.to_dict().items() if key != "minimum_effective_tool_calls"},
                     "workspace_brief": _environment_workspace_brief(package.environment),
                     "selected_archetype_id": selected_archetype_id,
+                    "quarantined_tools": sorted(quarantined_tools),
                     "effective_tool_call_target": authoring_call_target,
                     "remaining_tasks": 1,
                     "candidate_count": 1,
@@ -3146,7 +3634,11 @@ def run_step2(
                     "accepted_task_summaries": [
                         item[TaskFields.TASK_SUMMARY] for item in accepted
                     ],
-                    "previous_rejections": rejections[-12:],
+                    "quarantined_tools": sorted(quarantined_tools),
+                    "previous_rejections": [
+                        *prior_rejections,
+                        *rejections,
+                    ][-12:],
                 })
                 prompt = build_task_solution_prompt(round_index, policy)
                 (authoring / "prompt.txt").write_text(prompt, encoding="utf-8")
@@ -3157,6 +3649,7 @@ def run_step2(
                     schema=schema,
                     review_agent=review_agent,
                     max_repair_rounds=policy.max_repair_rounds,
+                    stop_timeout_seconds=policy.quality_timeout_seconds,
                 )
                 try:
                     quality_service.start()
@@ -3216,8 +3709,9 @@ def run_step2(
                         payload,
                     )
                 except Exception as error:
-                    terminal_infrastructure = isinstance(
-                        error, _AuthoringInfrastructureFailure
+                    terminal_infrastructure = (
+                        isinstance(error, _AuthoringInfrastructureFailure)
+                        or _is_terminal_agent_configuration_failure(error)
                     )
                     reasons = _authoring_failure_reasons(error, authoring)
                     rejections.append({
@@ -3236,7 +3730,7 @@ def run_step2(
                         break
                     continue
                 after = snapshot_state(
-                    authoring / "state", package.environment,
+                    package.state_root, package.environment,
                     package_format=package.package_format,
                 )
                 if after != before:
@@ -3397,30 +3891,12 @@ def run_step2(
                 timeout_seconds=policy.execution_timeout_seconds,
                 final_state_output=task_root / "final",
             )
-            dynamic_prefixes = _dynamic_output_prefixes(candidate)
-            published_final = _without_dynamic_output_files(
-                published_execution.final_state, dynamic_prefixes
+            publication_errors = _publication_mismatch_errors(
+                reference=execution,
+                published=published_execution,
+                candidate=candidate,
             )
-            reference_final = _without_dynamic_output_files(
-                execution.final_state, dynamic_prefixes
-            )
-            published_diff = _without_dynamic_output_files(
-                published_execution.state_diff, dynamic_prefixes
-            )
-            reference_diff = _without_dynamic_output_files(
-                execution.state_diff, dynamic_prefixes
-            )
-            publication_mismatch = (
-                not published_execution.success
-                or published_execution.answer != execution.answer
-                or _replay_comparable_trace(published_execution.trace)
-                != _replay_comparable_trace(execution.trace)
-                or _replay_comparable_state(published_final)
-                != _replay_comparable_state(reference_final)
-                or _replay_comparable_state(published_diff)
-                != _replay_comparable_state(reference_diff)
-            )
-            if publication_mismatch:
+            if publication_errors:
                 if task_root.exists():
                     shutil.rmtree(task_root)
                 rejections.append({
@@ -3428,7 +3904,7 @@ def run_step2(
                     "candidate": candidate_index,
                     "archetype_id": candidate.archetype_id,
                     "task_public": candidate.task_public,
-                    "reasons": ["发布重放与已验证 Ground Truth 不一致"],
+                    "reasons": publication_errors,
                     "debug_history": debug_history,
                 })
                 continue
@@ -3602,7 +4078,7 @@ def main() -> None:
     parser.add_argument("--step1-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--candidates", type=Path)
-    parser.add_argument("--model", default="gpt-6-sol")
+    parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--task-count", type=int, default=1)
     parser.add_argument("--generation-attempts", type=int, default=8)
     parser.add_argument("--max-repair-rounds", type=int, default=6)
@@ -3613,7 +4089,11 @@ def main() -> None:
 
     agent = CodexAgentClient(
         model=arguments.model,
-        sandbox="workspace-write",
+        # Step 2 may launch ToolGen runtimes and its reviewer inspects a
+        # disposable handoff directory.  A nested bubblewrap sandbox can hang
+        # while spawning even read-only commands, so use the runtime-compatible
+        # mode here as the main pipeline does.
+        sandbox="danger-full-access",
         network_access=False,
         reasoning_effort="high",
     )

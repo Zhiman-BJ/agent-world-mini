@@ -7,15 +7,26 @@ from pathlib import Path
 
 
 from utils.record_store import RecordStore, _validate, _json, _quote
-from env_gen.tool_gen.resources import ResourceCatalog
+from harness.resources import ResourceCatalog
 
 class Context:
-    def __init__(self, root, environment, read_only=False):
+    def __init__(
+        self, root, environment, read_only=False, *, record_database=None,
+        scope_roots=None,
+    ):
         self.state_root = Path(root).resolve()
+        self.workspace_root = self.state_root
         self.environment = environment or {}
         self.read_only = read_only
-        self.records = RecordStore(self.state_root / 'records.sqlite', self.environment, read_only)
-        self.resources = ResourceCatalog(self.environment, self.scope_root)
+        self.records_path = Path(record_database).resolve() if record_database else self.state_root / 'records.sqlite'
+        self._scope_roots = {
+            str(key): Path(value).resolve()
+            for key, value in (scope_roots or {}).items()
+        }
+        self.records = RecordStore(self.records_path, self.environment, read_only)
+        self.resources = ResourceCatalog(
+            self.environment, self.scope_root, workspace_root=self.workspace_root,
+        )
 
     def resolve_resource(self, ref, must_exist=False):
         return self.resources.resolve(ref, must_exist=must_exist)
@@ -33,6 +44,11 @@ class Context:
         }
         if scope_id not in declared:
             raise KeyError("unknown scope")
+        if self._scope_roots:
+            p = self._scope_roots[scope_id]
+            if not (p == self.workspace_root or p.is_relative_to(self.workspace_root)):
+                raise ValueError("scope escape")
+            return p
         base = (self.state_root / "filesystem_scopes").resolve()
         p = (base / scope_id).resolve()
         if p.parent != base:

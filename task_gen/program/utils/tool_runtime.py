@@ -1,9 +1,9 @@
 """Program-form Solution 与 clean replay 共用的 Harness Runtime。
 
-每次执行都通过 ``create_task_run_layout`` 分离 ``execution-state`` 与
-``model-workspace``，所有业务工具统一委托 ``call_environment_tool`` 完成
-Schema、资源 Scope、沙箱、状态提交和失败回滚。运行后端由 ToolGen
-``binding.json`` 对应的 ``runtime.json`` 决定。
+参考程序在内部完整状态副本上执行，所有业务工具统一委托
+``call_environment_tool`` 完成 Schema、资源 Scope、执行限制、状态提交和
+失败回滚。这个完整状态目录不暴露给模型；Kimi 蒸馏使用独立的
+``TaskRunLayout`` workspace 契约。
 """
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ from typing import Any, Callable
 
 from harness.resources import ResourceCatalog
 from harness.execution import call_environment_tool
-from harness.layout import create_task_run_layout
 
 from .schema import Draft202012Validator
 
@@ -34,6 +33,24 @@ from .environment import CompleteEnvironmentPackage
 
 
 MAX_INLINE_STATE_BYTES = 128 * 1024
+
+
+_STATE_LOCKS: dict[str, threading.RLock] = {}
+_STATE_LOCKS_GUARD = threading.Lock()
+
+
+def _serialize_state_method(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Serialize transactions/snapshots sharing one task-local state root."""
+    def wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
+        key = str(getattr(self, "state_root", ""))
+        with _STATE_LOCKS_GUARD:
+            lock = _STATE_LOCKS.setdefault(key, threading.RLock())
+        with lock:
+            return method(self, *args, **kwargs)
+
+    wrapped.__name__ = getattr(method, "__name__", "wrapped")
+    wrapped.__doc__ = method.__doc__
+    return wrapped
 
 
 def _canonical_json(value: Any) -> str:
@@ -499,7 +516,9 @@ def execute_profile_tool(
     """Run one tool in the bound Profile Python against the supplied state copy."""
     if not profile_python.is_file() or not os.access(profile_python, os.X_OK):
         raise RuntimeError(f"ToolGen Profile Python 不可执行：{profile_python}")
-    with tempfile.TemporaryDirectory(prefix="agent-world-profile-call-") as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix="agent-world-profile-call-", ignore_cleanup_errors=True,
+    ) as temporary:
         root = Path(temporary)
         request = root / "request.json"
         response = root / "response.json"
@@ -592,12 +611,14 @@ def _docker_call_tool(
             "result": None,
             "error": "冻结环境声明为 Docker，但原始 binding 未选择 Docker 后端",
         }
-    with tempfile.TemporaryDirectory(prefix="agent-world-docker-call-") as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix="agent-world-docker-call-", ignore_cleanup_errors=True,
+    ) as temporary:
         root = Path(temporary)
         request = root / "request.json"
         response = root / "response.json"
         request_software_root = (
-            "/opt/tool-software"
+            str(delivery.runtime.get("software_root") or "/opt/tool-software")
             if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1"
             else (str(software_root) if software_root is not None else None)
         )
@@ -609,18 +630,20 @@ def _docker_call_tool(
             "write_limit": write_limit,
             "environment": environment or {},
             "software_root": request_software_root,
-            "compat_direct": os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1",
+            # Docker itself is the process/dependency boundary. Running a
+            # second bubblewrap sandbox inside the container is redundant and
+            # fails in images that do not grant nested namespace privileges.
+            "compat_direct": True,
         }, ensure_ascii=False), encoding="utf-8")
         launch_delivery = delivery
         if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1":
-            # Older Docker receipts contain host paths from a removed delivery
-            # batch. The image keeps its runtime under the command `python`,
-            # while the current source tree is mounted at /opt/agent-world.
+            # Older Docker receipts contain paths that no longer exist on the
+            # host, but those exact Profile paths are baked into the image and
+            # carry its scientific dependencies. Preserve python_command and
+            # software_root; only redirect the mounted TaskGen source below.
             from dataclasses import replace
 
             runtime = dict(delivery.runtime)
-            runtime["python_command"] = "python"
-            runtime["software_root"] = "/opt/tool-software"
             launch_delivery = replace(delivery, runtime=runtime)
         launch = docker_stdio_launch(
             launch_delivery,
@@ -639,9 +662,23 @@ def _docker_call_tool(
             launch_args = list(launch.arguments)
             image = str(launch_delivery.runtime["image"])
             image_index = launch_args.index(image)
+            runtime_environment = {
+                "PYTHONPATH": "/opt/agent-world",
+                "OMP_NUM_THREADS": os.environ.get("OMP_NUM_THREADS", "1"),
+                "OPENBLAS_NUM_THREADS": os.environ.get("OPENBLAS_NUM_THREADS", "1"),
+                "MKL_NUM_THREADS": os.environ.get("MKL_NUM_THREADS", "1"),
+                "NUMEXPR_NUM_THREADS": os.environ.get("NUMEXPR_NUM_THREADS", "1"),
+                "TF_NUM_INTRAOP_THREADS": os.environ.get("TF_NUM_INTRAOP_THREADS", "1"),
+                "TF_NUM_INTEROP_THREADS": os.environ.get("TF_NUM_INTEROP_THREADS", "1"),
+                "XLA_FLAGS": os.environ.get(
+                    "XLA_FLAGS",
+                    "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
+                ),
+            }
             launch_args[image_index:image_index] = [
-                "--env",
-                "PYTHONPATH=/opt/agent-world",
+                argument
+                for key, value in runtime_environment.items()
+                for argument in ("--env", f"{key}={value}")
             ]
             launch = type(launch)(
                 command=launch.command,
@@ -675,7 +712,7 @@ def _docker_call_tool(
         return payload
 
 
-def _program_v2_sandbox_call_tool(
+def _program_v2_call_tool(
     code: str,
     arguments: dict[str, Any],
     state_root: Path,
@@ -688,56 +725,43 @@ def _program_v2_sandbox_call_tool(
     process_limit: int = 1024,
     software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Run one v2 sandbox inside ``call_environment_tool``'s transaction.
+    """Run one v2 tool inside ``call_environment_tool``'s transaction.
 
     ``call_environment_tool`` already copies state and commits it atomically.
-    Calling Harness ``call_tool`` here would create a second transaction and
-    scan large SQLite tables twice more. This adapter retains the sandbox and
-    performs the same writable-resource check before the outer transaction can
-    commit.
+    Python-profile tools run in their delivered interpreter without a nested
+    bubblewrap namespace. Host-Python tools retain the Harness sandbox. Both
+    paths perform the same writable-resource check before the outer transaction
+    can commit.
     """
     from harness.sandbox import run_tool_in_sandbox
 
     environment = environment or {}
     try:
         before = snapshot_state(state_root, environment, package_format="v2")
-        outcome = run_tool_in_sandbox(
-            code,
-            arguments,
-            state_root,
-            timeout,
-            memory_limit,
-            write_limit,
-            environment,
-            software_root,
-            process_limit=process_limit,
-            software=software,
-        )
-        # Some delivered Python profiles use an absolute symlink whose target
-        # is outside the profile tree. The host resolves it, but bwrap may not
-        # expose the symlink alias inside its mount namespace. Keep this
-        # authoring fallback opt-in; final evaluation must use the published
-        # sandbox runtime.
-        if (
-            outcome.get("error")
-            and os.environ.get("AGENT_WORLD_ALLOW_UNSANDBOXED_PROFILE_FALLBACK") == "1"
-            and software
-            and "bwrap" in str(outcome.get("error"))
-            and "execvp" in str(outcome.get("error"))
-        ):
-            fallback_python = Path(str(software["python"]))
-            fallback_root = Path(str(software["root"]))
+        if software:
             result = execute_profile_tool(
-                profile_python=fallback_python,
-                software_root=fallback_root,
+                profile_python=Path(str(software["python"])),
+                software_root=Path(str(software["root"])),
                 source=code,
-                tool_name="authoring_profile_fallback",
+                tool_name="python_profile_tool",
                 arguments=arguments,
                 state_root=state_root,
                 environment_contract=environment,
                 timeout_seconds=timeout,
             )
             outcome = {"kind": None, "result": result, "error": None}
+        else:
+            outcome = run_tool_in_sandbox(
+                code,
+                arguments,
+                state_root,
+                timeout,
+                memory_limit,
+                write_limit,
+                environment,
+                software_root,
+                process_limit=process_limit,
+            )
         result = outcome.get("result")
         if outcome.get("error") or not isinstance(result, dict) or result.get("success") is not True:
             return outcome
@@ -792,16 +816,23 @@ def run(arguments, context):
 class CompleteEnvironmentRuntime:
     """在一份独立状态副本上执行完整环境的工具。"""
 
-    def __init__(self, package: CompleteEnvironmentPackage):
+    def __init__(
+        self,
+        package: CompleteEnvironmentPackage,
+        *,
+        tool_timeout_seconds: int = 300,
+    ):
         self.package = package
-        self._temporary = tempfile.TemporaryDirectory(prefix="agent-world-program-runtime-")
-        self.layout = create_task_run_layout(
-            package.state_root,
-            Path(self._temporary.name) / "task-run",
+        self.tool_timeout_seconds = max(1, int(tool_timeout_seconds))
+        self._temporary = tempfile.TemporaryDirectory(
+            prefix="agent-world-program-runtime-", ignore_cleanup_errors=True,
         )
-        self.state_root = self.layout.execution_state
-        # 模型工作区与工具执行状态严格分离；业务工具只接触 state_root。
-        self.workspace_root = self.layout.model_workspace
+        self.state_root = Path(self._temporary.name) / "state"
+        shutil.copytree(package.state_root, self.state_root)
+        # Program-form reference execution has no model-visible cwd. Keep its
+        # complete state as an internal backend detail instead of manufacturing
+        # the removed execution-state/model-workspace compatibility layout.
+        self.workspace_root = self.state_root
         self.records_path = self.state_root / "records.sqlite"
         self.filesystem_scopes_root = self.state_root / "filesystem_scopes"
         self.software_root = package.software_root or package.package_root
@@ -835,6 +866,20 @@ class CompleteEnvironmentRuntime:
     def _restore(self, backup: Path) -> None:
         shutil.rmtree(self.state_root)
         shutil.copytree(backup, self.state_root)
+
+    def _recover_missing_state(self) -> None:
+        """Recreate a task-local state root if a transaction removed it.
+
+        A Docker/Harness directory transaction should atomically leave
+        ``execution-state`` in place. Under heavy concurrent Docker startup,
+        a failed rename can nevertheless leave the temporary root absent. The
+        immutable package state is a safe recovery source; the caller retries
+        the current tool call so no partial result is accepted.
+        """
+        if self.state_root.exists():
+            return
+        self.state_root.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(self.package.state_root, self.state_root)
 
     def _context(self) -> ToolContext:
         from env_gen.tool_gen.runtime import RecordStore
@@ -900,6 +945,7 @@ class CompleteEnvironmentRuntime:
                 rejected.append(path)
         return rejected
 
+    @_serialize_state_method
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self._tools:
             raise KeyError(f"未知工具：{name}")
@@ -934,22 +980,32 @@ class CompleteEnvironmentRuntime:
         elif backend != "host_python":
             raise RuntimeError(f"不支持的 ToolGen runtime backend：{backend}")
         if self.package.package_format == "v2" and backend in {"host_python", "python_profile"}:
-            call_tool_fn = _program_v2_sandbox_call_tool
+            call_tool_fn = _program_v2_call_tool
 
-        record = call_environment_tool(
-            name,
-            arguments,
-            self._tools,
-            self.state_root,
-            timeout=300,
-            memory_limit=2 * 1024 * 1024 * 1024,
-            write_limit=256 * 1024 * 1024,
-            process_limit=1024,
-            call_tool_fn=call_tool_fn,
-            environment=self.package.environment,
-            software=software,
-            software_root=software_root,
-        )
+        for recovery_attempt in range(2):
+            self._recover_missing_state()
+            try:
+                record = call_environment_tool(
+                    name,
+                    arguments,
+                    self._tools,
+                    self.state_root,
+                    timeout=self.tool_timeout_seconds,
+                    memory_limit=2 * 1024 * 1024 * 1024,
+                    write_limit=256 * 1024 * 1024,
+                    process_limit=1024,
+                    call_tool_fn=call_tool_fn,
+                    environment=self.package.environment,
+                    software=software,
+                    software_root=software_root,
+                )
+            except (FileNotFoundError, OSError):
+                if recovery_attempt == 0 and not self.state_root.exists():
+                    continue
+                raise
+            if recovery_attempt == 0 and not self.state_root.exists():
+                continue
+            break
         result = record.get("result")
         is_business_failure = (
             isinstance(result, dict)
@@ -977,7 +1033,9 @@ class CompleteEnvironmentRuntime:
         self.trace.append(record)
         return deepcopy(result)
 
+    @_serialize_state_method
     def snapshot(self) -> dict[str, Any]:
+        self._recover_missing_state()
         return snapshot_state(
             self.state_root,
             self.package.environment,

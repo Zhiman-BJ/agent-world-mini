@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from env_gen.tool_gen.resources import ResourceCatalog
+from harness.resources import ResourceCatalog
 
 
 def catalog(root):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from task_gen.program.run_pipeline import (
     build_parser,
@@ -67,6 +68,35 @@ class ProgramFormRunnerTests(unittest.TestCase):
                     policy=ProgramGenerationPolicy(),
                     model="test",
                 )
+
+    def test_step2_review_agent_does_not_use_bubblewrap(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "out"
+            output.mkdir()
+            (output / "step0_environment.json").write_text("{}", encoding="utf-8")
+            (output / "step1_task_research.json").write_text("{}", encoding="utf-8")
+            agent_calls: list[dict[str, object]] = []
+
+            def fake_agent(model, timeout, **kwargs):
+                agent_calls.append({"model": model, "timeout": timeout, **kwargs})
+                return object()
+
+            with (
+                patch("task_gen.program.run_pipeline._agent", side_effect=fake_agent),
+                patch("task_gen.program.run_pipeline._step2_generation_sandbox", return_value="danger-full-access"),
+                patch("task_gen.program.run_pipeline.run_step2", return_value=output / "step2_task_solution.jsonl"),
+            ):
+                run_selected_steps(
+                    steps=[2],
+                    output_dir=output,
+                    policy=ProgramGenerationPolicy(),
+                    model="test",
+                )
+
+            self.assertEqual(len(agent_calls), 2)
+            self.assertEqual(agent_calls[0]["sandbox"], "danger-full-access")
+            self.assertEqual(agent_calls[1]["sandbox"], "danger-full-access")
 
 
 if __name__ == "__main__":

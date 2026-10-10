@@ -37,6 +37,81 @@ from types import SimpleNamespace
 _WIRE_FD = os.dup(1)
 _ORIGINAL_REPLACE = os.replace
 
+
+def _restrict_writes_with_landlock(writable_roots):
+    # Deny filesystem mutation except below explicitly disposable roots.
+    # This project runs on x86_64 Linux.  These syscall numbers are shared by
+    # the generic and x86_64 syscall tables; failing to install the ruleset is
+    # fatal so a read-only tool never silently runs writable.
+    landlock_create_ruleset = 444
+    landlock_add_rule = 445
+    landlock_restrict_self = 446
+    landlock_rule_path_beneath = 1
+    landlock_access_fs_write_file = 1 << 1
+    landlock_access_fs_remove_dir = 1 << 4
+    landlock_access_fs_remove_file = 1 << 5
+    landlock_access_fs_make_char = 1 << 6
+    landlock_access_fs_make_dir = 1 << 7
+    landlock_access_fs_make_reg = 1 << 8
+    landlock_access_fs_make_sock = 1 << 9
+    landlock_access_fs_make_fifo = 1 << 10
+    landlock_access_fs_make_block = 1 << 11
+    landlock_access_fs_make_sym = 1 << 12
+    handled = (
+        landlock_access_fs_write_file
+        | landlock_access_fs_remove_dir
+        | landlock_access_fs_remove_file
+        | landlock_access_fs_make_char
+        | landlock_access_fs_make_dir
+        | landlock_access_fs_make_reg
+        | landlock_access_fs_make_sock
+        | landlock_access_fs_make_fifo
+        | landlock_access_fs_make_block
+        | landlock_access_fs_make_sym
+    )
+
+    class PathBeneath(ctypes.Structure):
+        _pack_ = 1
+        _fields_ = [("allowed_access", ctypes.c_uint64), ("parent_fd", ctypes.c_int32)]
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    ruleset_attributes = ctypes.c_uint64(handled)
+    ruleset_fd = libc.syscall(
+        landlock_create_ruleset,
+        ctypes.byref(ruleset_attributes),
+        ctypes.sizeof(ruleset_attributes),
+        0,
+    )
+    if ruleset_fd < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, "Landlock ruleset creation failed")
+    try:
+        for root in writable_roots:
+            parent_fd = os.open(root, os.O_PATH | os.O_CLOEXEC)
+            try:
+                rule = PathBeneath(handled, parent_fd)
+                if libc.syscall(
+                    landlock_add_rule,
+                    ruleset_fd,
+                    landlock_rule_path_beneath,
+                    ctypes.byref(rule),
+                    0,
+                ) < 0:
+                    error = ctypes.get_errno()
+                    raise OSError(error, "Landlock path rule creation failed")
+            finally:
+                os.close(parent_fd)
+        # Landlock requires no_new_privs before attaching an unprivileged
+        # ruleset to the current process and all of its future children.
+        if libc.prctl(38, 1, 0, 0, 0) < 0:
+            error = ctypes.get_errno()
+            raise OSError(error, "PR_SET_NO_NEW_PRIVS failed")
+        if libc.syscall(landlock_restrict_self, ruleset_fd, 0) < 0:
+            error = ctypes.get_errno()
+            raise OSError(error, "Landlock restriction failed")
+    finally:
+        os.close(ruleset_fd)
+
 def _same_filesystem_replace(source, destination, *args, **kwargs):
     try:
         return _ORIGINAL_REPLACE(source, destination, *args, **kwargs)
@@ -96,19 +171,28 @@ try:
     write_limit = int(payload["write_limit"])
     resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write_limit, write_limit))
-    process_limit = int(payload["process_limit"])
-    resource.setrlimit(resource.RLIMIT_NPROC, (process_limit, process_limit))
+    process_limit = payload.get("process_limit")
+    if process_limit is not None:
+        process_limit = int(process_limit)
+        resource.setrlimit(resource.RLIMIT_NPROC, (process_limit, process_limit))
     runtime = {}
     exec(payload["context_source"], runtime)
     namespace = {"json": json, "sqlite3": sqlite3}
     with quiet_native_stdout(), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        if payload.get("direct_path_guard") and payload.get("read_only"):
+            _restrict_writes_with_landlock(payload.get("writable_roots", []))
         exec(payload["code"], namespace)
         run = namespace.get("run")
         if not callable(run):
             raise ValueError("internal.code 没有定义 run(arguments, context)")
-        context = (runtime["Context"](Path("/workspace"), payload['environment'])
+        workspace_root = Path(payload.get("workspace_root", "/workspace"))
+        context = (runtime["Context"](
+                workspace_root, payload['environment'], payload.get("read_only", False),
+                record_database=payload.get("record_database"),
+                scope_roots=payload.get("scope_roots"),
+            )
             if payload.get('environment', {}).get('schema_version') == '2.0'
-            else SimpleNamespace(workspace_root=Path('/workspace')))
+            else SimpleNamespace(workspace_root=workspace_root))
         if payload.get('software_root'):
             context.software_root = Path(payload['software_root'])
         result = run(deepcopy(payload["arguments"]), context)
@@ -119,6 +203,10 @@ except BaseException as error:
 wire = json.dumps(response, ensure_ascii=False, allow_nan=False).encode('utf-8') + b'\n'
 os.write(_WIRE_FD, wire)
 os.close(_WIRE_FD)
+# Exit handlers from native libraries may still write to fd 1 after the Python
+# result has been emitted. Redirect them to the already-open diagnostic stream;
+# opening /dev/null here would be rejected by a read-only Landlock ruleset.
+os.dup2(2, 1)
 """
 _MAX_SANDBOX_OUTPUT_BYTES = 16 * 1024 * 1024
 
@@ -127,14 +215,14 @@ def _context_source() -> str:
     """Inline the runtime context so isolated Python needs no project imports."""
     project = Path(__file__).resolve().parents[1]
     shared = project / "utils/record_store.py"
-    resources = (project / "env_gen/tool_gen/resources.py").read_text(
+    resources = (project / "harness/resources.py").read_text(
         encoding="utf-8"
     ).replace("from __future__ import annotations", "")
     context = (project / "task_gen/tool_graph/state_runtime.py").read_text(
         encoding="utf-8"
     )
     context = context.replace(
-        "from env_gen.tool_gen.resources import ResourceCatalog", ""
+        "from harness.resources import ResourceCatalog", ""
     )
     context = context.replace(
         "from utils.record_store import RecordStore, _validate, _json, _quote", ""
@@ -294,6 +382,7 @@ def run_tool_in_sandbox(
         "--ro-bind-try", "/lib64", "/lib64",
         *proc_mount,
         "--dev", "/dev",
+        "--dir", "/etc",
         "--dir", "/tmp",
         "--dir", "/workspace",
         "--ro-bind" if read_only else "--bind", str(workspace), "/workspace",
@@ -316,6 +405,11 @@ def run_tool_in_sandbox(
         "--setenv", "TF_NUM_INTEROP_THREADS", "1",
         "--setenv", "XLA_FLAGS", "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
     ]
+    # A minimal identity database lets standard libraries resolve the sandbox
+    # UID without exposing the rest of the host's /etc tree.
+    for identity_file in ("/etc/passwd", "/etc/group"):
+        if Path(identity_file).is_file():
+            command.extend(["--ro-bind", identity_file, identity_file])
     # Bind a disposable directory from the workspace filesystem as /tmp.
     # This keeps standard-library tempfile + os.replace operations on one
     # device while still isolating caches from the business workspace.
@@ -338,9 +432,16 @@ def run_tool_in_sandbox(
         command.extend(['--ro-bind', str(ca_bundle.resolve()), '/ca-certificates.crt',
                         '--setenv', 'SSL_CERT_FILE', '/ca-certificates.crt'])
     if software:
+        from env_gen.tool_gen.software import runtime_environment
+
         for path in runtime_mounts:
             command.extend(['--ro-bind', str(path), str(path)])
         command.extend(['--ro-bind', str(Path(software['root']).resolve()), '/software'])
+        profile_environment = runtime_environment(Path(software['root']), {})
+        for name in ('PATH', 'LD_LIBRARY_PATH', 'PETSC_DIR', 'SLEPC_DIR'):
+            value = profile_environment.get(name)
+            if value:
+                command.extend(['--setenv', name, value])
         # CPU libraries otherwise size thread pools from the host CPU count,
         # which can exhaust this tool's memory/process limits on import alone.
         for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'OMP_THREAD_LIMIT', 'MKL_NUM_THREADS'):
@@ -407,6 +508,146 @@ def run_tool_in_sandbox(
     return {"kind": None, "result": message["result"], "error": None}
 
 
+def run_tool_direct(
+    code, arguments, workspace, timeout, memory_limit, write_limit,
+    environment=None, software_root=None, *, process_limit=1024,
+    software=None, read_only=False, record_database=None, scope_roots=None,
+):
+    """Run validated delivery code in its runtime without nested bubblewrap.
+
+    The caller owns transaction rollback and path authorization. This process
+    boundary supplies time/resource limits and keeps tool stdout off MCP stdio.
+    """
+    workspace = Path(workspace).resolve()
+    if not workspace.is_dir():
+        return {"kind": "exception", "result": None, "error": "工具工作目录不存在"}
+    before_bytes, before_entries, workspace_error = _workspace_usage(workspace)
+    if workspace_error:
+        return {"kind": "exception", "result": None, "error": workspace_error}
+    database = Path(record_database).resolve() if record_database else None
+    before_database_bytes = database.stat().st_size if database and database.is_file() else 0
+    roots = {
+        str(key): str(Path(value).resolve())
+        for key, value in (scope_roots or {}).items()
+    }
+    effective_software_root = (
+        Path(software_root).expanduser().resolve()
+        if software_root is not None
+        else (
+            Path(str(software["root"])).expanduser().resolve()
+            if software and software.get("root")
+            else None
+        )
+    )
+    # Use the exact import environment of the already-isolated MCP server. The
+    # delivery interpreter may rely on its configured user site for harness
+    # dependencies such as jsonschema; ``-I`` would incorrectly hide those.
+    # Do not resolve the executable symlink: resolving a venv/profile launcher
+    # to its base interpreter drops that profile's site-packages.
+    executable = (
+        Path(str(software["python"])).expanduser().absolute()
+        if software and software.get("python")
+        else Path(sys.executable).absolute()
+    )
+    if not executable.is_file():
+        return {
+            "kind": "exception",
+            "result": None,
+            "error": f"工具 Python 不存在：{executable}",
+        }
+    command = [str(executable), "-c", _TOOL_WORKER]
+    with tempfile.TemporaryDirectory(prefix="agent-world-tool-") as temporary:
+        payload = json.dumps({
+            "code": code,
+            "arguments": arguments,
+            "environment": environment or {},
+            "context_source": _context_source(),
+            "workspace_root": str(workspace),
+            "record_database": str(database) if database else None,
+            "scope_roots": roots,
+            "read_only": read_only,
+            "direct_path_guard": True,
+            "writable_roots": [temporary],
+            "memory_limit": memory_limit,
+            "write_limit": write_limit,
+            # RLIMIT_NPROC is counted across the real UID, not this tool process.
+            # Applying a per-call value here makes thread creation fail whenever
+            # unrelated processes for the same user already exceed that value.
+            # Direct task execution relies on path authorization, transaction
+            # rollback, timeout, memory, and write limits instead.
+            "process_limit": None,
+            "software_root": (
+                str(effective_software_root) if effective_software_root else None
+            ),
+            "software_prefix": None,
+            "software_import_paths": [],
+        }, ensure_ascii=False)
+        if software and software.get("root"):
+            from env_gen.tool_gen.software import runtime_environment
+
+            environment_variables = runtime_environment(Path(str(software["root"])), os.environ)
+        else:
+            environment_variables = dict(os.environ)
+        environment_variables.update({
+            "HOME": temporary,
+            "TMPDIR": temporary,
+            "XDG_CACHE_HOME": str(Path(temporary) / "cache"),
+            "XDG_CONFIG_HOME": str(Path(temporary) / "config"),
+            "OPENBLAS_NUM_THREADS": "1",
+            "OMP_NUM_THREADS": "1",
+            "OMP_THREAD_LIMIT": "1",
+            "MKL_NUM_THREADS": "1",
+            "NUMEXPR_NUM_THREADS": "1",
+            "JAX_NUM_THREADS": "1",
+            "TF_NUM_INTRAOP_THREADS": "1",
+            "TF_NUM_INTEROP_THREADS": "1",
+            "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
+        })
+        try:
+            with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+                try:
+                    completed = subprocess.run(
+                        command,
+                        input=payload.encode("utf-8"),
+                        stdout=stdout,
+                        stderr=stderr,
+                        timeout=timeout,
+                        check=False,
+                        cwd=workspace,
+                        env=environment_variables,
+                    )
+                except subprocess.TimeoutExpired:
+                    return {"kind": "timeout", "result": None, "error": f"工具调用超过 {timeout} 秒"}
+                except OSError as error:
+                    return {"kind": "exception", "result": None, "error": f"启动工具进程失败：{error}"}
+                stdout_value = _read_limited(stdout)
+                stderr_value = _read_limited(stderr, 2000)
+        except OSError as error:
+            return {"kind": "exception", "result": None, "error": f"工具进程 I/O 失败：{error}"}
+    if completed.returncode != 0:
+        detail = (stderr_value or stdout_value).decode("utf-8", errors="replace").strip()[-2000:]
+        return {"kind": "exception", "result": None, "error": f"工具进程异常退出：{detail}"}
+    if len(stdout_value) > _MAX_SANDBOX_OUTPUT_BYTES:
+        return {"kind": "exception", "result": None, "error": "工具进程输出超过 16 MiB"}
+    after_bytes, after_entries, workspace_error = _workspace_usage(workspace)
+    if workspace_error:
+        return {"kind": "exception", "result": None, "error": workspace_error}
+    after_database_bytes = database.stat().st_size if database and database.is_file() else 0
+    if after_bytes + after_database_bytes > before_bytes + before_database_bytes + write_limit:
+        return {"kind": "exception", "result": None, "error": f"任务状态总增长超过 {write_limit} 字节"}
+    if after_entries > before_entries + max(1024, write_limit // 4096):
+        return {"kind": "exception", "result": None, "error": "工作目录新增条目数量超过限制"}
+    try:
+        message = json.loads(stdout_value)
+    except json.JSONDecodeError as error:
+        return {"kind": "exception", "result": None, "error": f"工具进程返回无效 JSON：{error}"}
+    if not isinstance(message, dict) or set(message) != {"result", "error"}:
+        return {"kind": "exception", "result": None, "error": "工具进程返回结构非法"}
+    if message["error"] is not None:
+        return {"kind": "exception", "result": None, "error": message["error"]}
+    return {"kind": None, "result": message["result"], "error": None}
+
+
 _call_tool = call_tool
 run_tool = run_tool_in_sandbox
 workspace_usage = _workspace_usage
@@ -414,4 +655,4 @@ _run_tool = run_tool_in_sandbox
 _workspace_usage = _workspace_usage
 _read_limited = _read_limited
 
-__all__ = ["call_tool", "run_tool", "workspace_usage", "_call_tool", "_run_tool", "_workspace_usage", "_read_limited"]
+__all__ = ["call_tool", "run_tool", "run_tool_direct", "workspace_usage", "_call_tool", "_run_tool", "_workspace_usage", "_read_limited"]
