@@ -17,7 +17,9 @@ from harness.execution import (  # noqa: E402, F401
 )
 from task_gen.tool_runtime import call_environment_tool
 from harness.resources import ResourceCatalog  # noqa: E402
-from env_gen.tool_gen.mcp_protocol import (  # noqa: E402
+from harness.mcp_resources import list_mcp_resources, read_mcp_resource  # noqa: E402
+from harness.tool_budget import claim_tool_call  # noqa: E402
+from harness.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
 )
 
@@ -27,6 +29,26 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
     if not config.get('binding_path'):
         return config
     delivery = load_delivery(Path(config['binding_path']))
+    selected_tools = list(delivery.package.tools)
+    if config.get("tools_path"):
+        tools_path = Path(str(config["tools_path"])).expanduser().resolve()
+        package_root = delivery.binding_path.parent.resolve()
+        if tools_path.name != "tools_repaired.json" or not tools_path.is_relative_to(package_root):
+            raise ValueError("修复工具文件必须是当前交付包内的 tools/tools_repaired.json")
+        try:
+            tool_document = json.loads(tools_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"无法读取 tools_repaired.json：{tools_path}: {error}") from error
+        if not isinstance(tool_document, dict) or not isinstance(tool_document.get("tools"), list):
+            raise ValueError(f"tools_repaired.json 缺少 tools 数组：{tools_path}")
+        if tool_document.get("environment_id") != delivery.binding.get("environment_id"):
+            raise ValueError("tools_repaired.json environment_id 与 binding 不一致")
+        selected_tools = tool_document["tools"]
+        names = [tool.get("name") for tool in selected_tools if isinstance(tool, dict)]
+        if len(names) != len(selected_tools) or any(not isinstance(name, str) or not name for name in names):
+            raise ValueError("tools_repaired.json 包含无效工具")
+        if len(names) != len(set(names)):
+            raise ValueError("tools_repaired.json 存在重复工具名")
     # Internal code is deliberately allowed to differ from the frozen delivery
     # artifact: the public MCP contract is the name, description, usage rules,
     # and input/output schemas.  Comparing ``internal.code`` rejects compatible
@@ -37,14 +59,16 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
         {field: tool.get(field) for field in public_fields}
         for tool in tools
     ]
-    if 'tools' in config and public_tools(config['tools']) != public_tools(delivery.package.tools):
-        raise ValueError('任务工具与 binding 交付工具不一致')
+    if 'tools' in config and {
+        tool.get("name") for tool in config["tools"]
+    } != {tool.get("name") for tool in selected_tools}:
+        raise ValueError('任务工具名称与修复后的交付工具不一致')
     if 'environment' in config and any(config['environment'].get(k) != v
                                       for k, v in delivery.package.environment.items()):
         raise ValueError('任务环境与 binding 交付环境不一致')
     bound = {
         **config,
-        'tools': list(delivery.package.tools),
+        'tools': selected_tools,
         'environment': delivery.package.environment,
         'delivery_runtime': dict(delivery.runtime),
     }
@@ -69,17 +93,46 @@ class TaskEvalMcpServer:
         self.tools = {tool["name"]: tool for tool in config["tools"]}
         if len(self.tools) != len(config["tools"]):
             raise ValueError("重复工具名")
-        state_value = config.get("state_root", config.get("workspace"))
+        state_value = config.get("workspace_root", config.get("state_root", config.get("workspace")))
         if not isinstance(state_value, str) or not state_value:
             raise ValueError("MCP 配置缺少 state_root（兼容字段：workspace）")
         self.state_root = Path(state_value).resolve()
-        self.workspace = self.state_root  # Compatibility for existing callers.
+        self.workspace = self.state_root
+        database_value = config.get("record_database")
+        self.record_database = (
+            Path(database_value).resolve()
+            if isinstance(database_value, str) and database_value
+            else None
+        )
+        mounts = config.get("scope_mounts", {})
+        if not isinstance(mounts, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in mounts.items()
+        ):
+            raise ValueError("MCP 配置 scope_mounts 必须是字符串映射")
+        self.scope_mounts = mounts
         self.trace = Path(config["trace"]).resolve()
+        marker_value = config.get("budget_stop_marker")
+        self.budget_stop_marker = (
+            Path(marker_value).resolve()
+            if isinstance(marker_value, str) and marker_value
+            else None
+        )
+        counter_value = config.get("tool_budget_counter")
+        self.tool_budget_counter = (
+            Path(counter_value).resolve()
+            if isinstance(counter_value, str) and counter_value
+            else None
+        )
         self.resources = None
         if config.get("environment", {}).get("filesystem_scopes"):
             self.resources = ResourceCatalog(
                 config["environment"],
-                lambda scope_id: self.state_root / "filesystem_scopes" / scope_id,
+                self._scope_root,
+                **({
+                    "workspace_root": self.workspace,
+                    "scope_mounts": self.scope_mounts,
+                } if self.scope_mounts else {}),
             )
         self.calls = 0
         self.choices = None
@@ -109,8 +162,9 @@ class TaskEvalMcpServer:
             if self.resources is not None:
                 result["instructions"] = (
                     "Use resources/list and resources/read to find files. "
-                    "For business tools, pass the returned Scope-relative path with its "
-                    "scope_id; do not pass the resource URI as a business argument."
+                    "For business tools, pass the returned working-directory-relative "
+                    "path or an absolute path inside the working directory; do not pass "
+                    "the resource URI as a business argument."
                 )
             return result
         if method == "tools/list":
@@ -146,7 +200,38 @@ class TaskEvalMcpServer:
             raise RpcError(-32602, f"未知工具：{name}")
         if not isinstance(arguments, dict):
             raise RpcError(-32602, "工具 arguments 必须是 object")
-        if self.calls >= int(self.config["max_tool_calls"]):
+        limit = int(self.config["max_tool_calls"])
+        if self.tool_budget_counter is not None and self.budget_stop_marker is not None:
+            budget_stop = claim_tool_call(
+                self.tool_budget_counter, self.budget_stop_marker, limit, name
+            )
+            budget_exceeded = not budget_stop["allowed"]
+        else:
+            budget_exceeded = self.calls >= limit
+            budget_stop = {
+                "allowed": not budget_exceeded,
+                "reason": "tool_call_limit_exceeded",
+                "limit": limit,
+                "observed_count": self.calls,
+                "attempted_tool": name,
+            }
+        if budget_exceeded:
+            if self.budget_stop_marker is not None:
+                self.budget_stop_marker.parent.mkdir(parents=True, exist_ok=True)
+                self.budget_stop_marker.write_text(
+                    json.dumps(budget_stop, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            self.trace.parent.mkdir(parents=True, exist_ok=True)
+            with self.trace.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({
+                    "tool": name,
+                    "arguments": arguments,
+                    "result": None,
+                    "error": "工具调用次数已达到上限",
+                    "failure_kind": "tool_budget_exceeded",
+                    "limit": limit,
+                }, ensure_ascii=False, allow_nan=False) + "\n")
             raise RpcError(-32000, "工具调用次数已达到上限")
         self.calls += 1
         if is_choice:
@@ -166,6 +251,8 @@ class TaskEvalMcpServer:
                 environment=self.config.get("environment", {}),
                 runtime=self.config.get("runtime") or self.config.get("delivery_runtime"),
                 binding_path=self.config.get("binding_path"),
+                record_database=self.record_database,
+                scope_mounts=self.scope_mounts or None,
                 **({'software': self.config['software']} if self.config.get('software') else {}),
                 **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )
@@ -189,43 +276,17 @@ class TaskEvalMcpServer:
             }, "tool_result": payload}
         return tool_call_result(payload, is_error=record["error"] is not None or business_failure)
 
+    def _scope_root(self, scope_id: str) -> Path:
+        mount = self.scope_mounts.get(scope_id)
+        if mount is None:
+            return self.state_root / "filesystem_scopes" / scope_id
+        return self.workspace if mount == "." else self.workspace / mount
+
     def _resource_list(self, params: Any) -> list[dict[str, Any]]:
-        if self.resources is None:
-            return []
-        if params not in (None, {}) and not isinstance(params, dict):
-            raise RpcError(-32602, "resources/list params 必须是 object")
-        return [
-            {
-                "uri": item["ref"],
-                "name": item["name"],
-                "description": item.get("description", ""),
-                "mimeType": item.get("media_type") or "application/octet-stream",
-                "scope_id": item["scope_id"],
-                "relative_path": item["relative_path"],
-            }
-            for item in self.resources.list(limit=500)
-        ]
+        return list_mcp_resources(self.resources, params)
 
     def _resource_read(self, uri: str) -> dict[str, Any]:
-        import base64
-        if self.resources is None:
-            raise RpcError(-32602, "当前环境没有 Filesystem Scope")
-        resource = self.resources.inspect(uri, preview_chars=0)
-        path = self.resources.resolve(uri, must_exist=True)
-        if path.is_dir():
-            raise RpcError(-32602, "resources/read 只能读取文件")
-        raw = path.read_bytes()
-        if len(raw) > 50 * 1024 * 1024:
-            raise RpcError(-32000, "资源读取超过 50 MiB 限制，请使用业务工具处理该资源")
-        payload: dict[str, Any] = {
-            "uri": uri,
-            "mimeType": resource.get("media_type") or "application/octet-stream",
-        }
-        try:
-            payload["text"] = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            payload["blob"] = base64.b64encode(raw).decode("ascii")
-        return payload
+        return read_mcp_resource(self.resources, uri)
 
 
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:

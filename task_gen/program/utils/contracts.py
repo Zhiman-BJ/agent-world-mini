@@ -34,6 +34,7 @@ class ProgramGenerationPolicy:
     require_state_change: bool = False
     max_repair_rounds: int = 6
     execution_timeout_seconds: float = 15.0
+    quality_timeout_seconds: float = 2400.0
     # None keeps fixture/candidate replay permissive. Production orchestration
     # supplies 15 so generated tasks must contain a genuinely long workflow.
     minimum_effective_tool_calls: int | None = None
@@ -45,12 +46,17 @@ class ProgramGenerationPolicy:
             raise ValueError("candidate_multiplier 必须至少为 1")
         if self.task_generation_attempts < 1:
             raise ValueError("task_generation_attempts 必须至少为 1")
-        if self.clean_replays < 2:
-            raise ValueError("clean_replays 必须至少为 2")
+        if self.clean_replays < 1:
+            raise ValueError("clean_replays 必须至少为 1")
         if self.max_repair_rounds < 0:
             raise ValueError("max_repair_rounds 不能小于 0")
         if self.execution_timeout_seconds <= 0:
             raise ValueError("execution_timeout_seconds 必须大于 0")
+        if self.quality_timeout_seconds <= self.execution_timeout_seconds:
+            raise ValueError(
+                "quality_timeout_seconds 必须大于 execution_timeout_seconds，"
+                "为语义审查和质检结果写回预留时间"
+            )
         if (
             self.minimum_effective_tool_calls is not None
             and self.minimum_effective_tool_calls < 1
@@ -67,6 +73,7 @@ class ProgramGenerationPolicy:
             "require_state_change": self.require_state_change,
             "max_repair_rounds": self.max_repair_rounds,
             "execution_timeout_seconds": self.execution_timeout_seconds,
+            "quality_timeout_seconds": self.quality_timeout_seconds,
         }
         if self.minimum_effective_tool_calls is not None:
             values["minimum_effective_tool_calls"] = self.minimum_effective_tool_calls

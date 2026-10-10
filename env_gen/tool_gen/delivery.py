@@ -54,7 +54,8 @@ def _software_build_artifact(relative: Path) -> bool:
     return bool(parts) and (
         parts[0] in {"cache", ".cache", "conda-pkgs"}
         or parts[0].endswith("-failed")
-        or parts[:4] == ("system", "usr", "share", "doc")
+        or any(parts[index:index + 3] == ("usr", "share", "doc")
+               for index in range(len(parts) - 2))
     )
 
 

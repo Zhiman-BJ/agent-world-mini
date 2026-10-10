@@ -8,7 +8,7 @@
 | 编号 | 要求 | 实现位置／处理方式 | 验收 |
 |---|---|---|---|
 | R1 | 可替换原 ReAct，保留原入口 | `task_eval._run_agent` 按 agent_backend 分流 | 原有评测测试通过 |
-| R2 | 只用环境业务工具及受限原生文件工具，不能直接读 execution-state 或 internal code | SDK profile + 全局白名单 + `PreToolUse` realpath hook；Read/Grep/Glob 只在模型 workspace/当前 session tool-results/wire 内工作 | Write、Shell、任意环境路径及其他 MCP 工具均不可用；文件访问决定单独审计 |
+| R2 | 只用环境业务工具及受限原生文件工具，不能读 private-state、raw 或 internal code | SDK profile + 全局白名单 + `PreToolUse` realpath hook；Read/Grep/Glob 只在模型 workspace/当前 session tool-results/wire 内工作 | Write、Shell、私有路径及其他 MCP 工具均不可用；文件访问决定单独审计 |
 | R3 | 输入格式对齐 | 原任务文本和公开环境信息；公开 usageConditions、输入输出契约 | 请求包含公开契约、不包含 internal.code |
 | R4 | 输出格式提取与适配 | 原生 tool calls；提取最终 assistant 文本，返回原字符串接口 | 非空完成、工具 trace 原格式 |
 | R5 | 支持同一轮多工具调用 | 沿用 SDK，不额外传 parallel_tool_calls；环境工具仍串行执行 | 两个不同调用均回传 |

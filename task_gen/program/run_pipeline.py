@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -65,11 +67,17 @@ def parse_step_range(value: str) -> list[int]:
     return sorted(selected)
 
 
-def _agent(model: str, timeout: int, *, web_research: bool) -> CodexAgentClient:
+def _agent(
+    model: str,
+    timeout: int,
+    *,
+    web_research: bool,
+    sandbox: str = "workspace-write",
+) -> CodexAgentClient:
     return CodexAgentClient(
         model=model,
         timeout_seconds=timeout,
-        sandbox="workspace-write",
+        sandbox=sandbox,
         enable_web_search=web_research,
         network_access=web_research,
         reasoning_effort="high",
@@ -77,9 +85,32 @@ def _agent(model: str, timeout: int, *, web_research: bool) -> CodexAgentClient:
     )
 
 
+def _step2_generation_sandbox(step0_path: Path) -> str:
+    """Let the authoring Agent launch the runtime selected by ToolGen."""
+    value = json.loads(step0_path.read_text(encoding="utf-8"))
+    delivery = value.get("toolgen_delivery") or {}
+    runtime = delivery.get("runtime") or {}
+    if runtime.get("backend") in {"docker", "python_profile"}:
+        return "danger-full-access"
+    return "workspace-write"
+
+
 def _require_input(path: Path, step: int) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"Step {step} 缺少上游产物：{path}。请先运行前置步骤。")
+
+
+def _configure_process_temp_dir(output_dir: Path) -> Path:
+    """Keep large disposable workspaces on the run output filesystem."""
+    configured = os.environ.get("AGENT_WORLD_PROGRAM_TMPDIR")
+    temp_root = (
+        Path(configured).expanduser()
+        if configured
+        else output_dir / ".tmp"
+    ).resolve()
+    temp_root.mkdir(parents=True, exist_ok=True)
+    tempfile.tempdir = str(temp_root)
+    return temp_root
 
 
 def run_selected_steps(
@@ -99,6 +130,7 @@ def run_selected_steps(
     candidates_path: Path | None = None,
     overwrite: bool = False,
     agent_timeout_seconds: int = 3600,
+    review_timeout_seconds: int = 600,
 ) -> dict[int, Any]:
     """Run selected generation steps while preserving their file checkpoints."""
     policy.validate()
@@ -108,6 +140,7 @@ def run_selected_steps(
     results: dict[int, Any] = {}
     research_agent: CodexAgentClient | None = None
     workflow_agent: CodexAgentClient | None = None
+    review_agent: CodexAgentClient | None = None
 
     for number in steps:
         spec = STEPS[number]
@@ -154,14 +187,30 @@ def run_selected_steps(
             continue
 
         if workflow_agent is None:
-            workflow_agent = _agent(model, agent_timeout_seconds, web_research=False)
+            workflow_agent = _agent(
+                model,
+                agent_timeout_seconds,
+                web_research=False,
+                sandbox=_step2_generation_sandbox(paths[0]),
+            )
+        if review_agent is None:
+            # The reviewer only works in a disposable handoff directory.  Running
+            # it through workspace-write adds a second bubblewrap layer, which can
+            # hang after the Agent invokes simple inspection commands and leave
+            # orphaned sandbox processes behind.
+            review_agent = _agent(
+                model,
+                review_timeout_seconds,
+                web_research=False,
+                sandbox="danger-full-access",
+            )
         results[number] = run_step2(
             step0_path=paths[0],
             step1_path=paths[1],
             output_dir=output_dir,
             policy=policy,
             generation_agent=workflow_agent,
-            review_agent=workflow_agent,
+            review_agent=review_agent,
             candidates_path=candidates_path,
         )
     return results
@@ -176,6 +225,7 @@ def _policy(arguments: argparse.Namespace) -> ProgramGenerationPolicy:
         require_state_change=arguments.require_state_change,
         max_repair_rounds=arguments.max_repair_rounds,
         execution_timeout_seconds=arguments.execution_timeout_seconds,
+        quality_timeout_seconds=arguments.quality_timeout_seconds,
         minimum_effective_tool_calls=(
             arguments.minimum_effective_tool_calls
             if arguments.minimum_effective_tool_calls > 0
@@ -196,7 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--research-fixture", type=Path)
     parser.add_argument("--candidates", type=Path)
-    parser.add_argument("--model", default="gpt-6-sol")
+    parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--task-count", type=int, default=1)
     parser.add_argument(
         "--candidate-multiplier",
@@ -222,6 +272,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="生产任务至少需要的去重后有效工具调用数；设为 0 可关闭门槛",
     )
     parser.add_argument("--agent-timeout-seconds", type=int, default=3600)
+    parser.add_argument(
+        "--review-timeout-seconds",
+        type=int,
+        default=600,
+        help="单次语义审查 Agent 调用预算（秒），与生成 Agent 分开限制",
+    )
+    parser.add_argument(
+        "--quality-timeout-seconds",
+        type=float,
+        default=2400.0,
+        help="候选质检客户端等待父进程完成执行和语义审查的总预算（秒）",
+    )
     parser.add_argument("--fresh", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -235,6 +297,7 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
         "task_generation_attempts",
         "clean_replays",
         "agent_timeout_seconds",
+        "review_timeout_seconds",
     ):
         if getattr(arguments, name) < 1:
             raise ValueError(f"--{name.replace('_', '-')} 必须至少为 1")
@@ -242,6 +305,10 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
         raise ValueError("--max-repair-rounds 不能小于 0")
     if arguments.execution_timeout_seconds <= 0:
         raise ValueError("--execution-timeout-seconds 必须大于 0")
+    if arguments.quality_timeout_seconds <= arguments.execution_timeout_seconds:
+        raise ValueError(
+            "--quality-timeout-seconds 必须大于 --execution-timeout-seconds"
+        )
     if arguments.minimum_effective_tool_calls < 0:
         raise ValueError("--minimum-effective-tool-calls 不能小于 0")
 
@@ -285,6 +352,8 @@ def main() -> None:
         print(f"  {number}. {spec.name}: {status}")
     if arguments.dry_run:
         return
+    temp_root = _configure_process_temp_dir(output_dir)
+    print(f"Temp: {temp_root}")
     results = run_selected_steps(
         steps=steps,
         binding_path=arguments.binding,
@@ -301,6 +370,7 @@ def main() -> None:
         candidates_path=arguments.candidates,
         overwrite=arguments.fresh,
         agent_timeout_seconds=arguments.agent_timeout_seconds,
+        review_timeout_seconds=arguments.review_timeout_seconds,
     )
     print(json.dumps(
         {number: str(result) for number, result in results.items()},

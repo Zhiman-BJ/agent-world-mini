@@ -380,6 +380,14 @@ def runtime_environment(
                 if path.is_dir():
                     lib_dirs.append(path)
 
+    # Distribution packages may place alternatives such as BLAS under a
+    # library subdirectory instead of directly in the architecture directory.
+    for directory in tuple(dict.fromkeys(lib_dirs)):
+        lib_dirs.extend(
+            child for child in sorted(directory.iterdir())
+            if child.is_dir() and any(child.glob("*.so*"))
+        )
+
     bins = list(dict.fromkeys(str(path) for path in bin_dirs))
     libraries = list(dict.fromkeys(str(path) for path in lib_dirs))
     if bins:

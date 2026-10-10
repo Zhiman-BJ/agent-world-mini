@@ -26,6 +26,27 @@ def prepare(tmp_path):
     return root
 
 
+def test_verifier_evidence_uses_same_volume_hard_links(tmp_path):
+    initial = tmp_path / "initial"
+    initial.mkdir()
+    source = initial / "large-result.bin"
+    source.write_bytes(b"result")
+
+    root = prepare_verification_workspace(
+        tmp_path / "audit-links",
+        task={"task_id": "t1", "task_text": "Return value."},
+        environment={},
+        initial_state=initial,
+        actual_state=initial,
+        calls=[],
+        answer="result",
+        execution={},
+    )
+
+    assert (root / "evidence/initial/large-result.bin").stat().st_ino == source.stat().st_ino
+    assert (root / "evidence/actual/final/large-result.bin").stat().st_ino == source.stat().st_ino
+
+
 def verdict():
     return {"task_id": "t1", "requirements": [{"id": "R1", "task_quote": "Return value.",
         "requirement": "Return the recorded value", "analysis": "Record and answer both show 8",

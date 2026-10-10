@@ -58,7 +58,8 @@
 | `task_gen/task_eval_kimi.mjs` | JavaScript 端调用官方 SDK，配置会话、提交任务、留档 | 新增 |
 | `task_gen/task_eval_mcp.py` | 任务级工具执行服务，核对交付、预算和状态提交 | 修改原文件 |
 | `task_gen/task_eval_kimi_mcp.py` | 新拆出的 Kimi 展示层，处理分页与辅助读取 | 后续新增 |
-| `env_gen/tool_gen/mcp_protocol.py`、`kimi_mcp.py`、`delivery.py` | 共享协议、正式交付加载及发布 | 同事代码迁入并适配，详见第 13 节 |
+| `harness/mcp_protocol.py`、`harness/mcp_resources.py` | 共享 MCP wire 与 Resources 投影 | 已收口到 Harness |
+| `env_gen/tool_gen/kimi_mcp.py`、`harness/delivery.py` | 环境级 MCP 启动与正式交付加载 | 同事代码迁入并适配，详见第 13 节 |
 | `task_gen/tool_result_reader.py` | 只读取本次会话已经产生的长结果 | 新增 |
 | `config/task_eval_kimi.yaml` | 使用者修改模型、参数和 system prompt 的入口 | 新增 |
 | `scripts/run_kimi_smoke.py` | 真实模型的小型功能试跑 | 新增 |
@@ -550,7 +551,8 @@ KIMI_CODE_SDK=/data1/home/tianfang/kimi-code/packages/node-sdk/dist/index.mjs \
 |---|---|---|
 | `env_gen/tool_gen/delivery.py` | 将工具、状态及软件映射发布为交付结构 | 不驱动模型完成任务 |
 | `env_gen/tool_gen/kimi_mcp.py` | 加载 binding，校验包，提供环境级 MCP 入口 | 不替任务评测决定用哪个任务初态 |
-| `env_gen/tool_gen/mcp_protocol.py` | 统一公开工具描述、MCP 返回与 JSON-RPC 收发 | 不实现工具业务，也不判断任务是否完成 |
+| `harness/mcp_protocol.py` | 统一公开工具描述、MCP 返回与 JSON-RPC 收发 | 不实现工具业务，也不判断任务是否完成 |
+| `harness/mcp_resources.py` | 统一两套 Server 的 Resources 列出和读取 | 不把 Resources 变成 function tool |
 | `task_gen/task_eval_mcp.py` | 在指定任务状态上执行工具、预算计数及 trace | 不再承担 Kimi 专属分页展示 |
 | `task_gen/task_eval_kimi_mcp.py` | 将标准结果包装成适合 Kimi 的展示形式 | 不修改环境工具业务逻辑 |
 

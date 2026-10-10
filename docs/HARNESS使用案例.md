@@ -8,15 +8,15 @@
 
 ~~~text
 task-run/
-  execution-state/      # MCP/业务工具的可变状态
-  model-workspace/      # Kimi cwd；默认为空
+  <environment-task>/   # model-workspace：Kimi cwd 和文件 Scope
+  private-state/        # records.sqlite、path-map.json；模型不可见
   kimi-home/            # Kimi 私有 session、wire、tool-results（概念目录）
   raw/                  # 原始请求、响应、wire、工具调用记录
   evidence/             # verifier 或导出阶段的证据（按需创建）
   trajectory.json       # 稳定轨迹（蒸馏结束后生成）
 ~~~
 
-四个目录不使用符号链接互相连接。execution-state 和 model-workspace 是两个不同概念：业务工具读写前者，Kimi 原生 Read/Grep/Glob 默认只读后者和当前 session 允许的 tool-results、wire.jsonl。
+这些目录不使用符号链接互相连接。MCP 文件工具与 Kimi 原生 `Read/Grep/Glob` 使用同一个 `model-workspace`；Record Set 数据、raw 和 verifier 证据仍在模型不可见的目录。
 
 当前 distill runner 实际把 kimi-home 创建为任务独享的临时目录，任务结束后导出 kimi_session.zip 再删除临时目录；这仍满足 session 隔离，不能把它改成多个任务共享的全局 Kimi home。
 
@@ -24,11 +24,11 @@ task-run/
 
 | 场景 | 传入的值 | 谁负责解析 |
 | --- | --- | --- |
-| 业务工具参数 | Scope 内相对路径，例如 daily.json | Harness 根据工具 Schema 的 x-resource-scope 解析 |
+| 业务工具参数 | 工作目录路径，例如 reports/daily.json | Harness 根据工具 Schema 和 scope mount 解析 |
 | MCP resources/read | MCP Resource URI，例如当前服务返回的 aw://reports/daily.json | MCP Server 的 resources catalog |
 | Kimi 原生文件工具 | 相对 model-workspace 的路径，或当前 session 的允许路径 | PreToolUse realpath hook |
 
-业务工具不接收宿主机绝对路径，也不把 Resource URI 当作业务参数。
+业务工具可接收当前工作目录内的绝对路径，但不接收工作目录外的宿主路径，也不把 Resource URI 当作业务参数。
 
 四个 Case 的输入和交付物如下：
 
@@ -65,7 +65,7 @@ for tool in delivery.package.tools:
     print(json.dumps(tool["inputSchema"], ensure_ascii=False, indent=2))
 ~~~
 
-只有真实 Schema 中标有 x-resource-scope 的字段才使用 Scope 内相对路径。例如，某字段声明的 Scope 是 reports，真实文件在该 Scope 根下的 daily.json，那么参数值传 daily.json。不要传 filesystem_scopes/reports/daily.json，也不要传 /data/...。x-resource-scope 和 x-resource-kind 是 Agent-World 的 JSON Schema 扩展注解，不是一个额外工具，也不是 MCP 标准字段。
+只有真实 Schema 中标有 `x-resource-scope` 的字段才按文件路径解析。单 Scope 直接传 Scope 内相对路径；多 Scope 传带 mount 的工作目录路径，例如 `reports/daily.json`。不要传 `filesystem_scopes/reports/daily.json`。`x-resource-scope` 和 `x-resource-kind` 是 Agent-World 的 JSON Schema 扩展注解，不是额外工具，也不是 MCP 标准字段。
 
 ### A.2 调用代码
 
@@ -86,6 +86,8 @@ delivery = load_delivery(binding)
 paths = create_task_run_layout(
     initial_state=delivery.package.package_root / "state",
     output_dir=Path("/path/to/runs/demo-task"),
+    environment=delivery.package.environment,
+    workspace_name="demo-task",
 )
 
 tools = {item["name"]: item for item in delivery.package.tools}
@@ -104,19 +106,21 @@ record = call_environment_tool(
     name=tool_name,
     arguments=arguments,
     tools=tools,
-    state_root=paths.execution_state,
+    state_root=paths.model_workspace,
     timeout=300,
     memory_limit=2 * 1024 * 1024 * 1024,
     write_limit=256 * 1024 * 1024,
     process_limit=1024,
     environment=delivery.package.environment,
+    record_database=paths.record_database,
+    scope_mounts=paths.scope_mounts,
     software=software,
     software_root=delivery.software_root,
 )
 print(record)
 ~~~
 
-load_delivery() 会校验 binding、工具 Schema、环境验收回执、ToolGen 工具验收回执和软件 Profile。create_task_run_layout() 会拒绝已有输出目录和状态中的符号链接，并创建 execution-state/、model-workspace/、raw/。
+`load_delivery()` 会校验 binding、工具 Schema、环境验收回执、ToolGen 工具验收回执和软件 Profile。`create_task_run_layout()` 会拒绝已有输出目录和状态中的符号链接，并创建 workspace、`private-state/` 和 `raw/`。
 
 这段直接 Python 调用适用于 host_python 和 python_profile 交付。runtime/runtime.json 声明为 docker 的交付应通过它的 MCP 启动配置进入镜像执行，不能在宿主 Python 中绕过 Docker runtime。
 
@@ -125,11 +129,11 @@ load_delivery() 会校验 binding、工具 Schema、环境验收回执、ToolGen
 ~~~text
 arguments Schema 校验
   -> Scope 相对路径校验和物理路径解析
-  -> 复制 execution-state 到临时调用副本
+  -> 为可写调用备份 workspace 和私有数据库
   -> bubblewrap/运行后端执行 internal.code
   -> outputSchema 校验
   -> 检查状态差异
-  -> 成功才提交临时副本；失败恢复调用前状态
+  -> 成功保留状态；失败恢复 workspace 和数据库
 ~~~
 
 成功记录的形状大致是：
@@ -253,12 +257,12 @@ delivery = load_delivery(Path("/path/to/binding.json"))
 ToolGen 生成的工具代码不保存宿主绝对路径。工具运行时收到的是当前调用副本的状态根，Scope 由 Harness 解析：
 
 ~~~text
-模型参数：daily.json
-工具代码：Scope 内的 daily.json
-物理路径：<task-run>/execution-state/filesystem_scopes/reports/daily.json
+模型参数（多 Scope）：reports/daily.json
+工具代码：            Scope 内的 daily.json
+物理路径：            <task-run>/<workspace>/reports/daily.json
 ~~~
 
-如果工具在 reports Scope 中输出文件，也返回 result.json 或 exports/result.json 这样的 Scope 内相对路径，不在前面增加 reports/。MCP Resource URI 只在 resources/list/read 层使用，不进入业务工具 Schema。
+工具代码仍返回 `result.json` 或 `exports/result.json` 这样的 Scope 内相对路径；Harness 对模型返回单 Scope 路径或带 Scope mount 的多 Scope 路径。MCP Resource URI 只在 `resources/list/read` 层使用，不进入业务工具 Schema。
 
 ## Case C：TaskGen 从 binding 生成任务和参考解
 
@@ -391,7 +395,7 @@ python -m env_gen.tool_gen.kimi_mcp \
 
 这里的 --print-kimi-config 输出的是 Kimi MCP 配置，不会执行任务。正式启动时去掉它，Server 会通过 stdio 接收 MCP JSON-RPC。
 
-独立环境级 MCP 要求 mcp-session 在启动前不存在；Server 创建它，并把实际状态放在 mcp-session/state/。不要把这里的 --session-root 指向已经存在的 Harness execution-state/。TaskGen/Kimi 蒸馏使用另一条任务级 MCP 入口，由 distill runner 直接把已有 execution-state/ 绑定为 state_root。
+独立环境级 MCP 要求 `mcp-session` 在启动前不存在；Server 创建它，并把实际状态放在 `mcp-session/state/`。TaskGen/Kimi 蒸馏使用任务级 MCP 入口，由 distill runner 传入当前任务的 workspace、私有数据库和 Scope mount。
 
 MCP 层次是：
 
@@ -403,11 +407,11 @@ resources/list   -> 列出当前状态中的资源 URI
 resources/read   -> 通过 URI 读取一个资源
 ~~~
 
-resources/list/read 是 MCP 协议方法，不会变成额外的业务 Function Tool。当前 Resource URI 由 Server 生成，客户端只能原样交给 resources/read；业务工具仍然接收 Scope 相对路径。
+`resources/list/read` 是 MCP 协议方法，不会变成额外的业务 Function Tool。当前 Resource URI 由 Server 生成，客户端只能原样交给 `resources/read`；业务工具接收工作目录路径。
 
 ### D.2 任务级运行目录
 
-如果直接调用环境级 MCP Server，--session-root 应指向该任务尚不存在的 MCP 会话目录；Server 会在其下创建 state/。正式 Kimi 蒸馏推荐让 distill.runner 创建目录，它会自动把初始状态复制到 execution-state/，并为每条任务创建独立 Kimi home、MCP 进程和证据目录。
+如果直接调用环境级 MCP Server，`--session-root` 应指向尚不存在的 MCP 会话目录；Server 会在其下创建 `state/`。正式 Kimi 蒸馏推荐让 `distill.runner` 创建目录，它会把文件 Scope 复制到 Kimi cwd，把 Record Set 复制到 `private-state/`，并为每条任务创建独立 Kimi home、MCP 进程和证据目录。
 
 对 TaskGen 生成的任务，优先使用批量入口；它会从 tasks.json 和 intermediate/step_5_bundle.json 读取 prompt、环境、任务初态、工具和 runtime：
 
@@ -464,7 +468,7 @@ trajectory = run_k3_distillation(
 )
 ~~~
 
-实际项目中不要把真实 API key 写入源码、Kimi 配置、session、轨迹或 stderr。distill.runner 会把 Kimi 的 cwd 设为 model-workspace/，MCP 的 state_root 设为任务的 execution-state/。
+实际项目中不要把真实 API key 写入源码、Kimi 配置、session、轨迹或 stderr。`distill.runner` 会让 Kimi cwd 和 MCP 文件工具共享 `model-workspace`，同时把 Record Set 数据单独放在私有数据库。
 
 ### D.3 模型能看到什么
 
@@ -479,7 +483,7 @@ mcp__agent_world_distill__<业务工具名>
 
 继续禁用 Write、Edit、Bash、Agent、AgentSwarm、网络工具和 select_tools。MCP 工具名上的 mcp__...__ 是客户端命名空间，不改变交付包中的业务工具名。
 
-Kimi 原生文件调用会先经过 PreToolUse realpath hook：允许 model-workspace/**、当前 session 的 tool-results/** 和 wire.jsonl，拒绝 execution-state/**、raw/**、其他任务/session 以及符号链接逃逸。允许和拒绝都会写入 raw/native_file_access.jsonl。
+Kimi 原生文件调用会先经过 PreToolUse realpath hook：允许 `model-workspace/**`、当前 session 的 `tool-results/**` 和 `wire.jsonl`，拒绝 `private-state/**`、`raw/**`、其他任务/session 以及符号链接逃逸。允许和拒绝都会写入 `raw/native_file_access.jsonl`。
 
 ### D.4 长结果和证据
 
@@ -490,8 +494,8 @@ Kimi 原生文件调用会先经过 PreToolUse realpath hook：允许 model-work
 ~~~text
 distill-run/
   trajectory.json
-  execution-state/
-  model-workspace/
+  <environment-task>/
+  private-state/
   raw/
     wire.jsonl
     session_state.json
@@ -520,7 +524,7 @@ DataGen environment/
        └─ binding.json
               │
               ├─ Harness 直接调用
-              │    └─ call_environment_tool -> execution-state
+              │    └─ call_environment_tool -> workspace + private database
               │
               ├─ TaskGen Step 0/1/2
               │    └─ tasks.json + reference Solution + final state
@@ -528,8 +532,8 @@ DataGen environment/
               └─ Kimi/MCP
                    ├─ tools/list / tools/call
                    ├─ resources/list / resources/read
-                   ├─ execution-state（MCP）
-                   ├─ model-workspace（Kimi cwd）
+                   ├─ model-workspace（Kimi cwd + 文件 Scope）
+                   ├─ private-state（Record Set）
                    └─ raw + trajectory（证据）
 ~~~
 
@@ -538,7 +542,7 @@ DataGen environment/
 1. load_delivery(binding.json) 能成功，且工具和环境验收回执都是 passed/valid。
 2. 用 create_task_run_layout() 为一条任务创建全新目录，不复用其他任务的 state 或 Kimi home。
 3. 用一个真实工具跑通一次成功调用和一次失败/回滚调用。
-4. 检查业务工具参数和返回值是否都是 Scope 内相对路径，没有宿主绝对路径或 Resource URI。
+4. 检查模型侧业务工具参数和返回值是否是 workspace 路径，没有工作目录外的宿主绝对路径或 Resource URI。
 5. MCP 运行时确认 tools/list 只有业务工具，resources/list/read 只作为协议方法存在。
 6. Kimi 运行后检查 native_file_access.jsonl、environment_tool_calls.jsonl 和 wire.jsonl 是否都有记录。
 7. 长结果、compaction 和恢复测试单独验收；不要只用“轨迹文件存在”代替真实恢复测试。

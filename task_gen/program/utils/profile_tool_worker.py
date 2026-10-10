@@ -108,7 +108,17 @@ class RecordStore:
         descending: bool = False,
     ) -> list[dict[str, Any]]:
         definition = self._definition(record_set_id)
-        if type(limit) is not int or not 0 <= limit <= 1000 or offset < 0:
+        # Match the RecordStore used by the delivered Harness runtime. ToolGen
+        # legitimately emits full-set reads above 1,000 rows (commonly 10,000),
+        # so imposing an extra cap only in this Profile fallback makes a valid
+        # tool fail during authoring with a misleading pagination error.
+        if (
+            type(limit) is not int
+            or limit < 0
+            or type(offset) is not int
+            or offset < 0
+            or type(descending) is not bool
+        ):
             raise ValueError("分页参数非法")
         if order_by is not None and order_by not in definition["fields"]:
             raise ValueError(f"未知排序字段：{order_by}")

@@ -6,12 +6,15 @@ read-only in bubblewrap; the investigating agent can only write in its run folde
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import errno
 import json
 import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from typing import Any
@@ -84,6 +87,15 @@ class VerificationError(RuntimeError):
     """Investigation failed, not a verdict that the candidate failed."""
 
 
+_STATE_PREPARATION_SEMAPHORE = threading.BoundedSemaphore(1)
+
+
+@contextmanager
+def serialized_state_preparation():
+    with _STATE_PREPARATION_SEMAPHORE:
+        yield
+
+
 def _write(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -95,7 +107,19 @@ def _copy_state(source: Path, target: Path) -> None:
         raise ValueError(f"Missing state: {source}")
     if any(p.is_symlink() for p in source.rglob("*")):
         raise ValueError(f"State contains symlinks: {source}")
-    shutil.copytree(source, target)
+    def link_or_copy(source_file: str, target_file: str) -> str:
+        try:
+            os.link(source_file, target_file)
+        except OSError as error:
+            if error.errno not in {errno.EXDEV, errno.EPERM, errno.EOPNOTSUPP}:
+                raise
+            return shutil.copy2(source_file, target_file)
+        return target_file
+
+    # Evidence is exposed read-only by sandbox_command and checked for changes
+    # after verification, so same-volume hard links preserve the evidence
+    # snapshot without writing another multi-gigabyte state tree.
+    shutil.copytree(source, target, copy_function=link_or_copy)
 
 
 def prepare_verification_workspace(
@@ -311,7 +335,11 @@ def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
 
 def verify_execution(*, run_dir: Path, config: dict | None = None, **evidence: Any) -> dict:
     try:
-        root = prepare_verification_workspace(run_dir, **evidence)
+        # Directory traversal alone can saturate the shared ext4 volume when
+        # many large cases finish together. Only preparation is serialized;
+        # the model investigations remain concurrent.
+        with serialized_state_preparation():
+            root = prepare_verification_workspace(run_dir, **evidence)
         return run_verification_agent(root, config)
     except VerificationError:
         raise

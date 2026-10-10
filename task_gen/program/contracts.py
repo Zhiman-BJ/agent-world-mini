@@ -23,7 +23,7 @@ class ProgramPipelineStep(str, Enum):
 class Config:
     environment_package: Path | None = None
     output_root: Path = PROJECT_ROOT / "runs/program"
-    model: str = "gpt-6-sol"
+    model: str = "gpt-6.1-sol"
     # A normal production run targets long, useful workflows. Unit fixtures can
     # still construct ProgramGenerationPolicy() explicitly when testing replay.
     policy: ProgramGenerationPolicy = field(

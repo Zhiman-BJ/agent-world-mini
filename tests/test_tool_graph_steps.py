@@ -18,32 +18,19 @@ from task_gen.tool_graph.step_2_chain_sample import _graph, _select_diverse_chai
 
 
 def write_environment(root: Path, *, resource_path: str = "data.json") -> Config:
-    workspace = root / "workspace"
-    workspace.mkdir(parents=True)
-    (workspace / "data.json").write_text("{}", encoding="utf-8")
-    (root / "environment.json").write_text(json.dumps({
-        "environment_id": "example",
-        "resources": [{
-            "resource_id": "data",
-            "storage_type": "file",
-            "path": resource_path,
-            "writable": False,
-        }],
-        # Step 0 现在校验工具的四个公开字段、outputSchema 含 oneOf 与
-        # internal.code 非空，夹具必须提供，否则清单检查会先失败。
-        "tools": [{
-            "name": "read_data",
-            "description": "read the data file",
-            "inputSchema": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
-            "outputSchema": {"oneOf": [
-                {"properties": {"success": {"const": True}, "data": {"type": "object"}}},
-                {"properties": {"success": {"const": False}, "error": {"type": "object"}}},
-            ]},
-            "internal": {"code": "def run(arguments, context):\n    return {'success': True, 'data': {}}"},
-        }],
-    }), encoding="utf-8")
-    (root / "validation.json").write_text('{"status":"passed"}', encoding="utf-8")
-    return Config(environment_dir=root)
+    from tests.test_kimi_mcp import KimiMcpTests
+    binding = KimiMcpTests()._make_delivery(root, with_report_tool=True)
+    if resource_path != "data.json":
+        document = json.loads(binding.read_text())
+        document["environment_path"] = resource_path
+        binding.write_text(json.dumps(document), encoding="utf-8")
+    return Config(environment_dir=binding.parent)
+
+
+def delivery_path(config: Config, key: str) -> Path:
+    from harness.delivery import load_delivery
+    delivery = load_delivery(config.environment_dir / "binding.json")
+    return delivery.delivery_root / delivery.binding[key]
 
 
 class EnvironmentLoadTest(unittest.TestCase):
@@ -51,14 +38,14 @@ class EnvironmentLoadTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             config = write_environment(Path(temporary))
             output = load_environment({"config": config})
-            self.assertEqual(set(output), {"environment"})
-            self.assertEqual(output["environment"]["environment_id"], "example")
+            self.assertEqual(set(output), {"environment", "runtime"})
+            self.assertEqual(output["environment"]["environment_id"], "support_workspace")
 
     def test_rejects_path_escape_and_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             config = write_environment(root, resource_path="../outside.json")
-            with self.assertRaisesRegex(ValueError, "data"):
+            with self.assertRaisesRegex(ValueError, "environment_path"):
                 load_environment({"config": config})
 
 
@@ -598,7 +585,8 @@ class ChainSampleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             config = write_environment(root)
-            (root / "workspace" / "link").symlink_to(root / "workspace" / "data.json")
+            state = delivery_path(config, "environment_path") / "state"
+            (state / "link").symlink_to(state / "records.sqlite")
             with self.assertRaisesRegex(ValueError, "符号链接"):
                 load_environment({"config": config})
 
@@ -606,13 +594,15 @@ class ChainSampleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             config = write_environment(root)
-            (root / "validation.json").write_text('{"status":"failed"}', encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "passed"):
+            receipt = delivery_path(config, "environment_validation_path")
+            receipt.write_text('{"valid":false}', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "验收"):
                 load_environment({"config": config})
 
-            (root / "validation.json").write_text('{"status":"passed"}', encoding="utf-8")
-            (root / "workspace" / "data.json").unlink()
-            with self.assertRaisesRegex(ValueError, "data"):
+            receipt.write_text('{"valid":true}', encoding="utf-8")
+            scope = delivery_path(config, "environment_path") / "state/filesystem_scopes/reports"
+            scope.rename(scope.with_name("moved_reports"))
+            with self.assertRaisesRegex(ValueError, "reports"):
                 load_environment({"config": config})
 
 

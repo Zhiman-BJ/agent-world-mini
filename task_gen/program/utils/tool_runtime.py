@@ -8,7 +8,6 @@ Schema、资源 Scope、沙箱、状态提交和失败回滚。运行后端由 T
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
@@ -17,10 +16,8 @@ import subprocess
 import sys
 import tempfile
 import threading
-from collections import OrderedDict
 from copy import deepcopy
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,21 +30,34 @@ from .schema import Draft202012Validator
 from .environment import CompleteEnvironmentPackage
 
 
-MAX_INLINE_STATE_BYTES = 128 * 1024
+_STATE_LOCKS: dict[str, threading.RLock] = {}
+_STATE_LOCKS_GUARD = threading.Lock()
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        allow_nan=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+def _serialize_state_method(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Serialize transactions/snapshots sharing one task-local state root."""
+    def wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
+        key = str(getattr(self, "state_root", ""))
+        with _STATE_LOCKS_GUARD:
+            lock = _STATE_LOCKS.setdefault(key, threading.RLock())
+        with lock:
+            return method(self, *args, **kwargs)
+
+    wrapped.__name__ = getattr(method, "__name__", "wrapped")
+    wrapped.__doc__ = method.__doc__
+    return wrapped
 
 
-def _sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
+from harness.state_snapshot import (
+    MAX_INLINE_STATE_BYTES,
+    snapshot_workspace,
+    snapshot_state,
+    workspace_diff,
+    compact_state_snapshot,
+    _clear_snapshot_database_cache,
+    _snapshot_record_sets,
+    _snapshot_sqlite_metadata,
+)
 
 
 def _json_native(value: Any, *, label: str) -> Any:
@@ -55,389 +65,6 @@ def _json_native(value: Any, *, label: str) -> Any:
         return json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
     except (TypeError, ValueError) as error:
         raise ValueError(f"{label} 不是严格 JSON-native 数据：{error}") from error
-
-
-def _snapshot_files(root: Path) -> dict[str, dict[str, Any]]:
-    files: dict[str, dict[str, Any]] = {}
-    if not root.is_dir():
-        return files
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
-        relative = path.relative_to(root).as_posix()
-        content = path.read_bytes()
-        item: dict[str, Any] = {
-            "sha256": _sha256_bytes(content),
-            "size": len(content),
-        }
-        if len(content) <= MAX_INLINE_STATE_BYTES:
-            try:
-                item["json"] = json.loads(content.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                pass
-        files[relative] = item
-    return files
-
-
-def snapshot_workspace(root: Path) -> dict[str, Any]:
-    """保留旧 Runtime/ToolGen 使用的文件树快照接口。"""
-    return {"format": "files", "files": _snapshot_files(root)}
-
-
-def _decode_sqlite_value(value: Any, field: dict[str, Any]) -> Any:
-    if value is None:
-        return None
-    field_type = field.get("type")
-    if field_type == "boolean":
-        return bool(value)
-    if field_type in {"object", "array"}:
-        return json.loads(value)
-    return value
-
-
-def _record_identity(row: dict[str, Any], key_fields: list[str], ordinal: int) -> str:
-    if key_fields:
-        return _canonical_json([row.get(field) for field in key_fields])
-    return f"row:{ordinal:08d}:{_sha256_bytes(_canonical_json(row).encode('utf-8'))}"
-
-
-def _snapshot_record_sets(
-    database: Path,
-    record_sets: list[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any]] = {}
-    if not record_sets:
-        return result
-    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
-    connection.row_factory = sqlite3.Row
-    try:
-        for declaration in record_sets:
-            record_set_id = str(declaration["record_set_id"])
-            field_definitions = declaration["fields"]
-            columns = list(field_definitions)
-            quoted_table = '"' + record_set_id.replace('"', '""') + '"'
-            rows: list[dict[str, Any]] = []
-            for raw in connection.execute(f"SELECT * FROM {quoted_table}"):
-                rows.append({
-                    name: _decode_sqlite_value(raw[name], field_definitions[name])
-                    for name in columns
-                })
-            key_fields = [str(item) for item in declaration.get("key_fields", [])]
-            if key_fields:
-                rows.sort(key=lambda row: _canonical_json([row.get(key) for key in key_fields]))
-            else:
-                rows.sort(key=_canonical_json)
-            record_hashes = {
-                _record_identity(row, key_fields, index): _sha256_bytes(
-                    _canonical_json(row).encode("utf-8")
-                )
-                for index, row in enumerate(rows)
-            }
-            canonical = _canonical_json(rows).encode("utf-8")
-            item: dict[str, Any] = {
-                "row_count": len(rows),
-                "sha256": _sha256_bytes(canonical),
-                "key_fields": key_fields,
-                "record_hashes": record_hashes,
-            }
-            if len(canonical) <= MAX_INLINE_STATE_BYTES:
-                item["records"] = rows
-            result[record_set_id] = item
-    finally:
-        connection.close()
-    return result
-
-
-def _snapshot_sqlite_metadata(database: Path) -> dict[str, Any]:
-    """捕获 SQLite 中声明记录之外的结构事实，防止未声明表逃过 diff。"""
-    if not database.is_file():
-        return {"sha256": None, "objects": [], "user_version": None, "application_id": None}
-    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
-    try:
-        objects = [
-            {"type": row[0], "name": row[1], "table": row[2], "sql": row[3]}
-            for row in connection.execute(
-                "SELECT type, name, tbl_name, sql FROM sqlite_master "
-                "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
-            )
-        ]
-        user_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        application_id = int(connection.execute("PRAGMA application_id").fetchone()[0])
-    finally:
-        connection.close()
-    payload = {
-        "objects": objects,
-        "user_version": user_version,
-        "application_id": application_id,
-    }
-    return {"sha256": _sha256_bytes(_canonical_json(payload).encode("utf-8")), **payload}
-
-
-def _sqlite_state_signature(database: Path) -> tuple[tuple[str, bool, int, int], ...]:
-    """Return the filesystem facts that can change SQLite's visible state."""
-    paths = (
-        database,
-        database.with_name(database.name + "-wal"),
-        database.with_name(database.name + "-shm"),
-    )
-    signature: list[tuple[str, bool, int, int]] = []
-    for path in paths:
-        try:
-            status = path.stat()
-        except FileNotFoundError:
-            signature.append((str(path), False, 0, 0))
-        else:
-            signature.append((str(path), True, status.st_size, status.st_mtime_ns))
-    return tuple(signature)
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _sqlite_content_signature(database: Path) -> tuple[tuple[str, bool, int, str], ...]:
-    """Identify SQLite content across Harness transaction copies."""
-    paths = (
-        database,
-        database.with_name(database.name + "-wal"),
-        database.with_name(database.name + "-shm"),
-    )
-    signature: list[tuple[str, bool, int, str]] = []
-    for path in paths:
-        try:
-            size = path.stat().st_size
-        except FileNotFoundError:
-            signature.append((path.name, False, 0, ""))
-        else:
-            signature.append((path.name, True, size, _sha256_file(path)))
-    return tuple(signature)
-
-
-def _snapshot_database_state_by_content(
-    database: Path,
-    record_sets_json: str,
-    content_signature: tuple[tuple[str, bool, int, str], ...],
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    key = (record_sets_json, content_signature)
-    with _DATABASE_CONTENT_CACHE_LOCK:
-        cached = _DATABASE_CONTENT_CACHE.get(key)
-        if cached is not None:
-            _DATABASE_CONTENT_CACHE.move_to_end(key)
-            return cached
-    record_sets = json.loads(record_sets_json)
-    result = (
-        _snapshot_record_sets(database, record_sets),
-        _snapshot_sqlite_metadata(database),
-    )
-    with _DATABASE_CONTENT_CACHE_LOCK:
-        _DATABASE_CONTENT_CACHE[key] = result
-        _DATABASE_CONTENT_CACHE.move_to_end(key)
-        while len(_DATABASE_CONTENT_CACHE) > 4:
-            _DATABASE_CONTENT_CACHE.popitem(last=False)
-    return result
-
-
-_DATABASE_CONTENT_CACHE: OrderedDict[
-    tuple[str, tuple[tuple[str, bool, int, str], ...]],
-    tuple[dict[str, dict[str, Any]], dict[str, Any]],
-] = OrderedDict()
-_DATABASE_CONTENT_CACHE_LOCK = threading.RLock()
-
-
-def _clear_snapshot_database_cache() -> None:
-    _snapshot_database_state_cached.cache_clear()
-    with _DATABASE_CONTENT_CACHE_LOCK:
-        _DATABASE_CONTENT_CACHE.clear()
-
-
-@lru_cache(maxsize=2)
-def _snapshot_database_state_cached(
-    database_path: str,
-    record_sets_json: str,
-    _state_signature: tuple[tuple[str, bool, int, int], ...],
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    """Cache file checks, then reuse logical state across transaction copies."""
-    database = Path(database_path)
-    content_signature = _sqlite_content_signature(database)
-    # ``database_path`` cannot be part of the content-cache key: Harness
-    # intentionally gives every tool call a fresh transaction directory.
-    # The content digest and record-set declaration are the stable identity.
-    return _snapshot_database_state_by_content(
-        database,
-        record_sets_json,
-        content_signature,
-    )
-
-
-def _snapshot_database_state(
-    database: Path,
-    record_sets: list[dict[str, Any]],
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    cached = _snapshot_database_state_cached(
-        str(database.resolve()),
-        _canonical_json(record_sets),
-        _sqlite_state_signature(database),
-    )
-    # Callers may compact or otherwise transform snapshots. Never expose the
-    # cache-owned objects directly.
-    return deepcopy(cached)
-
-
-def snapshot_state(
-    root: Path,
-    environment: dict[str, Any] | None = None,
-    *,
-    package_format: str | None = None,
-) -> dict[str, Any]:
-    """生成可稳定比较的逻辑状态快照。
-
-    v2 SQLite 按规范 JSON 行内容计算摘要，而不直接比较数据库文件字节，
-    避免同一逻辑状态因 SQLite 页布局不同被误判为不确定。
-    """
-    if package_format != "v2":
-        return snapshot_workspace(root)
-    environment = environment or {}
-    database = root / "records.sqlite"
-    record_sets = [
-        item for item in environment.get("record_sets", []) if isinstance(item, dict)
-    ]
-    database_record_sets, database_metadata = _snapshot_database_state(
-        database,
-        record_sets,
-    )
-    scopes: dict[str, Any] = {}
-    scopes_root = root / "filesystem_scopes"
-    scope_ids: set[str] = set()
-    for scope in environment.get("filesystem_scopes", []):
-        scope_id = str(scope["scope_id"])
-        scope_ids.add(scope_id)
-        scopes[scope_id] = {"files": _snapshot_files(scopes_root / scope_id)}
-    undeclared_files: dict[str, Any] = {}
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
-        relative = path.relative_to(root).as_posix()
-        if relative in {"records.sqlite", "records.sqlite-wal", "records.sqlite-shm"}:
-            continue
-        parts = Path(relative).parts
-        if len(parts) >= 3 and parts[0] == "filesystem_scopes" and parts[1] in scope_ids:
-            continue
-        content = path.read_bytes()
-        undeclared_files[relative] = {"sha256": _sha256_bytes(content), "size": len(content)}
-    return {
-        "format": "state-v2",
-        "record_sets": database_record_sets,
-        "database_metadata": database_metadata,
-        "filesystem_scopes": scopes,
-        "undeclared_files": undeclared_files,
-    }
-
-
-def _file_diff(
-    before_files: dict[str, Any],
-    after_files: dict[str, Any],
-) -> dict[str, Any]:
-    before_names = set(before_files)
-    after_names = set(after_files)
-    modified = sorted(
-        name
-        for name in before_names & after_names
-        if before_files[name].get("sha256") != after_files[name].get("sha256")
-    )
-    changed = sorted((after_names - before_names) | (before_names - after_names) | set(modified))
-    return {
-        "created": sorted(after_names - before_names),
-        "modified": modified,
-        "deleted": sorted(before_names - after_names),
-        "changes": {
-            name: {
-                "before": deepcopy(before_files.get(name)),
-                "after": deepcopy(after_files.get(name)),
-            }
-            for name in changed
-        },
-    }
-
-
-def _record_set_diff(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    before_hashes = before.get("record_hashes", {})
-    after_hashes = after.get("record_hashes", {})
-    before_keys = set(before_hashes)
-    after_keys = set(after_hashes)
-    return {
-        "before_count": int(before.get("row_count", 0)),
-        "after_count": int(after.get("row_count", 0)),
-        "inserted": sorted(after_keys - before_keys),
-        "updated": sorted(
-            key for key in before_keys & after_keys if before_hashes[key] != after_hashes[key]
-        ),
-        "deleted": sorted(before_keys - after_keys),
-        "before_sha256": before.get("sha256"),
-        "after_sha256": after.get("sha256"),
-    }
-
-
-def workspace_diff(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    """比较 v1 文件快照或 v2 逻辑状态快照。"""
-    if before.get("format") != "state-v2" or after.get("format") != "state-v2":
-        return _file_diff(before.get("files", {}), after.get("files", {}))
-
-    record_changes: dict[str, Any] = {}
-    before_sets = before.get("record_sets", {})
-    after_sets = after.get("record_sets", {})
-    for record_set_id in sorted(set(before_sets) | set(after_sets)):
-        change = _record_set_diff(
-            before_sets.get(record_set_id, {}),
-            after_sets.get(record_set_id, {}),
-        )
-        if change["inserted"] or change["updated"] or change["deleted"]:
-            record_changes[record_set_id] = change
-
-    scope_changes: dict[str, Any] = {}
-    before_scopes = before.get("filesystem_scopes", {})
-    after_scopes = after.get("filesystem_scopes", {})
-    for scope_id in sorted(set(before_scopes) | set(after_scopes)):
-        change = _file_diff(
-            before_scopes.get(scope_id, {}).get("files", {}),
-            after_scopes.get(scope_id, {}).get("files", {}),
-        )
-        if change["created"] or change["modified"] or change["deleted"]:
-            scope_changes[scope_id] = change
-    undeclared_change = _file_diff(
-        before.get("undeclared_files", {}),
-        after.get("undeclared_files", {}),
-    )
-    database_schema_changed = (
-        before.get("database_metadata", {}).get("sha256")
-        != after.get("database_metadata", {}).get("sha256")
-    )
-    changed_assets = [*record_changes, *scope_changes]
-    if database_schema_changed:
-        changed_assets.append("__database_schema__")
-    if undeclared_change["created"] or undeclared_change["modified"] or undeclared_change["deleted"]:
-        changed_assets.append("__undeclared_state__")
-    return {
-        "record_sets": record_changes,
-        "filesystem_scopes": scope_changes,
-        "database_schema_changed": database_schema_changed,
-        "undeclared_files": undeclared_change,
-        "changed_assets": sorted(changed_assets),
-    }
-
-
-def compact_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
-    """删除只为 diff 服务的逐记录哈希和小表全量内联数据。"""
-    if snapshot.get("format") != "state-v2":
-        return deepcopy(snapshot)
-    compact = deepcopy(snapshot)
-    for item in compact.get("record_sets", {}).values():
-        if isinstance(item, dict):
-            item.pop("record_hashes", None)
-            item.pop("records", None)
-    metadata = compact.get("database_metadata")
-    if isinstance(metadata, dict):
-        metadata.pop("objects", None)
-    return compact
 
 
 def _has_changes(change: dict[str, Any]) -> bool:
@@ -499,7 +126,9 @@ def execute_profile_tool(
     """Run one tool in the bound Profile Python against the supplied state copy."""
     if not profile_python.is_file() or not os.access(profile_python, os.X_OK):
         raise RuntimeError(f"ToolGen Profile Python 不可执行：{profile_python}")
-    with tempfile.TemporaryDirectory(prefix="agent-world-profile-call-") as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix="agent-world-profile-call-", ignore_cleanup_errors=True,
+    ) as temporary:
         root = Path(temporary)
         request = root / "request.json"
         response = root / "response.json"
@@ -563,119 +192,32 @@ def execute_profile_tool(
 
 
 def _docker_call_tool(
-    package: CompleteEnvironmentPackage,
-    code: str,
-    arguments: dict[str, Any],
-    state_root: Path,
-    timeout: int,
-    memory_limit: int,
-    write_limit: int,
-    environment: dict[str, Any] | None = None,
-    software_root: Path | None = None,
+    package: CompleteEnvironmentPackage, code: str, arguments: dict[str, Any],
+    state_root: Path, timeout: int, memory_limit: int, write_limit: int,
+    environment: dict[str, Any] | None = None, software_root: Path | None = None,
+    *, process_limit: int = 1024, read_only: bool = False,
+    record_database: Path | None = None, scope_roots: dict | None = None,
 ) -> dict[str, Any]:
-    """Execute one Harness sandbox call inside the delivery's Docker image."""
+    """Execute the frozen package through the shared Docker backend."""
     from harness.delivery import load_delivery
-    from env_gen.tool_gen.runtime_launch import docker_stdio_launch
+    from harness.sandbox import run_tool_in_docker
 
-    metadata = package.delivery or {}
-    binding = metadata.get("binding_path")
+    binding = (package.delivery or {}).get("binding_path")
     if not isinstance(binding, str) or not binding:
-        return {
-            "kind": "runtime_error",
-            "result": None,
-            "error": "Docker 环境缺少原始 binding_path，无法启动交付镜像",
-        }
+        return {"kind": "runtime_error", "result": None,
+                "error": "Docker 环境缺少原始 binding_path"}
     delivery = load_delivery(Path(binding))
     if delivery.runtime.get("backend") != "docker":
-        return {
-            "kind": "runtime_error",
-            "result": None,
-            "error": "冻结环境声明为 Docker，但原始 binding 未选择 Docker 后端",
-        }
-    with tempfile.TemporaryDirectory(prefix="agent-world-docker-call-") as temporary:
-        root = Path(temporary)
-        request = root / "request.json"
-        response = root / "response.json"
-        request_software_root = (
-            "/opt/tool-software"
-            if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1"
-            else (str(software_root) if software_root is not None else None)
-        )
-        request.write_text(json.dumps({
-            "code": code,
-            "arguments": arguments,
-            "timeout": timeout,
-            "memory_limit": memory_limit,
-            "write_limit": write_limit,
-            "environment": environment or {},
-            "software_root": request_software_root,
-            "compat_direct": os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1",
-        }, ensure_ascii=False), encoding="utf-8")
-        launch_delivery = delivery
-        if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1":
-            # Older Docker receipts contain host paths from a removed delivery
-            # batch. The image keeps its runtime under the command `python`,
-            # while the current source tree is mounted at /opt/agent-world.
-            from dataclasses import replace
-
-            runtime = dict(delivery.runtime)
-            runtime["python_command"] = "python"
-            runtime["software_root"] = "/opt/tool-software"
-            launch_delivery = replace(delivery, runtime=runtime)
-        launch = docker_stdio_launch(
-            launch_delivery,
-            server_path=Path(__file__),
-            project_root=Path(__file__).resolve().parents[3],
-            arguments=[
-                "-m",
-                "task_gen.program.utils.harness_docker_worker",
-                str(request),
-                str(response),
-                str(state_root),
-            ],
-            writable_paths=(request, response, state_root),
-        )
-        if os.environ.get("AGENT_WORLD_DOCKER_COMPAT_PATCH") == "1":
-            launch_args = list(launch.arguments)
-            image = str(launch_delivery.runtime["image"])
-            image_index = launch_args.index(image)
-            launch_args[image_index:image_index] = [
-                "--env",
-                "PYTHONPATH=/opt/agent-world",
-            ]
-            launch = type(launch)(
-                command=launch.command,
-                arguments=tuple(launch_args),
-                environment=launch.environment,
-            )
-        completed = subprocess.run(
-            [str(launch.command), *launch.arguments],
-            cwd=state_root,
-            env={**os.environ, **launch.environment},
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout + 60,
-            check=False,
-        )
-        if completed.returncode != 0 or not response.is_file():
-            detail = (completed.stderr or completed.stdout or "no Docker worker output")[-4000:]
-            return {
-                "kind": "runtime_error",
-                "result": None,
-                "error": f"Docker 工具进程失败({completed.returncode})：{detail}",
-            }
-        payload = json.loads(response.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            return {
-                "kind": "runtime_error",
-                "result": None,
-                "error": "Docker 工具进程返回的不是 object",
-            }
-        return payload
+        return {"kind": "runtime_error", "result": None,
+                "error": "冻结环境与原始 binding 的 Docker 后端不一致"}
+    return run_tool_in_docker(
+        code, arguments, state_root, timeout, memory_limit, write_limit,
+        environment, runtime=delivery.runtime, process_limit=process_limit,
+        read_only=read_only, record_database=record_database, scope_roots=scope_roots,
+    )
 
 
-def _program_v2_sandbox_call_tool(
+def _program_v2_call_tool(
     code: str,
     arguments: dict[str, Any],
     state_root: Path,
@@ -688,56 +230,43 @@ def _program_v2_sandbox_call_tool(
     process_limit: int = 1024,
     software: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Run one v2 sandbox inside ``call_environment_tool``'s transaction.
+    """Run one v2 tool inside ``call_environment_tool``'s transaction.
 
     ``call_environment_tool`` already copies state and commits it atomically.
-    Calling Harness ``call_tool`` here would create a second transaction and
-    scan large SQLite tables twice more. This adapter retains the sandbox and
-    performs the same writable-resource check before the outer transaction can
-    commit.
+    Python-profile tools run in their delivered interpreter without a nested
+    bubblewrap namespace. Host-Python tools retain the Harness sandbox. Both
+    paths perform the same writable-resource check before the outer transaction
+    can commit.
     """
     from harness.sandbox import run_tool_in_sandbox
 
     environment = environment or {}
     try:
         before = snapshot_state(state_root, environment, package_format="v2")
-        outcome = run_tool_in_sandbox(
-            code,
-            arguments,
-            state_root,
-            timeout,
-            memory_limit,
-            write_limit,
-            environment,
-            software_root,
-            process_limit=process_limit,
-            software=software,
-        )
-        # Some delivered Python profiles use an absolute symlink whose target
-        # is outside the profile tree. The host resolves it, but bwrap may not
-        # expose the symlink alias inside its mount namespace. Keep this
-        # authoring fallback opt-in; final evaluation must use the published
-        # sandbox runtime.
-        if (
-            outcome.get("error")
-            and os.environ.get("AGENT_WORLD_ALLOW_UNSANDBOXED_PROFILE_FALLBACK") == "1"
-            and software
-            and "bwrap" in str(outcome.get("error"))
-            and "execvp" in str(outcome.get("error"))
-        ):
-            fallback_python = Path(str(software["python"]))
-            fallback_root = Path(str(software["root"]))
+        if software:
             result = execute_profile_tool(
-                profile_python=fallback_python,
-                software_root=fallback_root,
+                profile_python=Path(str(software["python"])),
+                software_root=Path(str(software["root"])),
                 source=code,
-                tool_name="authoring_profile_fallback",
+                tool_name="python_profile_tool",
                 arguments=arguments,
                 state_root=state_root,
                 environment_contract=environment,
                 timeout_seconds=timeout,
             )
             outcome = {"kind": None, "result": result, "error": None}
+        else:
+            outcome = run_tool_in_sandbox(
+                code,
+                arguments,
+                state_root,
+                timeout,
+                memory_limit,
+                write_limit,
+                environment,
+                software_root,
+                process_limit=process_limit,
+            )
         result = outcome.get("result")
         if outcome.get("error") or not isinstance(result, dict) or result.get("success") is not True:
             return outcome
@@ -792,9 +321,17 @@ def run(arguments, context):
 class CompleteEnvironmentRuntime:
     """在一份独立状态副本上执行完整环境的工具。"""
 
-    def __init__(self, package: CompleteEnvironmentPackage):
+    def __init__(
+        self,
+        package: CompleteEnvironmentPackage,
+        *,
+        tool_timeout_seconds: int = 300,
+    ):
         self.package = package
-        self._temporary = tempfile.TemporaryDirectory(prefix="agent-world-program-runtime-")
+        self.tool_timeout_seconds = max(1, int(tool_timeout_seconds))
+        self._temporary = tempfile.TemporaryDirectory(
+            prefix="agent-world-program-runtime-", ignore_cleanup_errors=True,
+        )
         self.layout = create_task_run_layout(
             package.state_root,
             Path(self._temporary.name) / "task-run",
@@ -835,6 +372,20 @@ class CompleteEnvironmentRuntime:
     def _restore(self, backup: Path) -> None:
         shutil.rmtree(self.state_root)
         shutil.copytree(backup, self.state_root)
+
+    def _recover_missing_state(self) -> None:
+        """Recreate a task-local state root if a transaction removed it.
+
+        A Docker/Harness directory transaction should atomically leave
+        ``execution-state`` in place. Under heavy concurrent Docker startup,
+        a failed rename can nevertheless leave the temporary root absent. The
+        immutable package state is a safe recovery source; the caller retries
+        the current tool call so no partial result is accepted.
+        """
+        if self.state_root.exists():
+            return
+        self.state_root.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(self.package.state_root, self.state_root)
 
     def _context(self) -> ToolContext:
         from env_gen.tool_gen.runtime import RecordStore
@@ -900,6 +451,7 @@ class CompleteEnvironmentRuntime:
                 rejected.append(path)
         return rejected
 
+    @_serialize_state_method
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self._tools:
             raise KeyError(f"未知工具：{name}")
@@ -934,22 +486,32 @@ class CompleteEnvironmentRuntime:
         elif backend != "host_python":
             raise RuntimeError(f"不支持的 ToolGen runtime backend：{backend}")
         if self.package.package_format == "v2" and backend in {"host_python", "python_profile"}:
-            call_tool_fn = _program_v2_sandbox_call_tool
+            call_tool_fn = _program_v2_call_tool
 
-        record = call_environment_tool(
-            name,
-            arguments,
-            self._tools,
-            self.state_root,
-            timeout=300,
-            memory_limit=2 * 1024 * 1024 * 1024,
-            write_limit=256 * 1024 * 1024,
-            process_limit=1024,
-            call_tool_fn=call_tool_fn,
-            environment=self.package.environment,
-            software=software,
-            software_root=software_root,
-        )
+        for recovery_attempt in range(2):
+            self._recover_missing_state()
+            try:
+                record = call_environment_tool(
+                    name,
+                    arguments,
+                    self._tools,
+                    self.state_root,
+                    timeout=self.tool_timeout_seconds,
+                    memory_limit=2 * 1024 * 1024 * 1024,
+                    write_limit=256 * 1024 * 1024,
+                    process_limit=1024,
+                    call_tool_fn=call_tool_fn,
+                    environment=self.package.environment,
+                    software=software,
+                    software_root=software_root,
+                )
+            except (FileNotFoundError, OSError):
+                if recovery_attempt == 0 and not self.state_root.exists():
+                    continue
+                raise
+            if recovery_attempt == 0 and not self.state_root.exists():
+                continue
+            break
         result = record.get("result")
         is_business_failure = (
             isinstance(result, dict)
@@ -977,7 +539,9 @@ class CompleteEnvironmentRuntime:
         self.trace.append(record)
         return deepcopy(result)
 
+    @_serialize_state_method
     def snapshot(self) -> dict[str, Any]:
+        self._recover_missing_state()
         return snapshot_state(
             self.state_root,
             self.package.environment,

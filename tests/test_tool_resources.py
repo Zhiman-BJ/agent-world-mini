@@ -5,7 +5,7 @@ import unittest
 import json
 from pathlib import Path
 
-from env_gen.tool_gen.resources import ResourceCatalog, parse_resource_ref, resource_ref
+from harness.resources import ResourceCatalog, parse_resource_ref, resource_ref
 from env_gen.tool_gen.runtime import ToolPackage, ToolRuntime
 from env_gen.tool_gen.compiler import (
     ToolGenerationError,

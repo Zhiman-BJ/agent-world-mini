@@ -18,6 +18,7 @@ cross_audit*.json
 docs/*
 !docs/HARNESS阶段接入说明.md
 !docs/HARNESS使用案例.md
+!docs/MCP与工具调用代码地图.md
 task_gen/tool_graph/AGENTS.md
 
 # One-off server recovery and scheduling scripts

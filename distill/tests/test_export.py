@@ -80,3 +80,102 @@ def test_compaction_links_before_and_after_model_contexts(tmp_path):
     assert compaction["after_context"]["line"] == 2
     assert compaction["model_exchanges"][0]["request_id"] == 1
     assert trajectory["reasoning_preservation"]["context_snapshots"] is True
+
+
+def test_official_full_compaction_events_preserve_context_metrics(tmp_path):
+    from distill.export import export_trajectory, validate_trajectory
+
+    raw = tmp_path / "raw"
+    io = raw / "model_io"
+    io.mkdir(parents=True)
+    _jsonl(raw / "wire.jsonl", [
+        {"type": "full_compaction.begin", "source": "auto"},
+        {"type": "llm.request", "kind": "compaction", "messageCount": 113},
+        {
+            "type": "context.apply_compaction",
+            "contextSummary": "recovery preamble\nretained facts",
+            "compactedCount": 112,
+            "tokensBefore": 122594,
+            "tokensAfter": 23053,
+            "summaryOutputTokens": 6139,
+            "keptUserMessageCount": 1,
+            "wireLines": {"start": 1, "end": 307},
+        },
+        {"type": "full_compaction.complete"},
+        {"type": "context.append_loop_event", "event": {
+            "type": "step.begin", "uuid": "s1", "turnId": "0", "step": 1,
+        }},
+        {"type": "llm.request", "kind": "loop", "turnStep": "0.1"},
+        {"type": "context.append_loop_event", "event": {
+            "type": "step.end", "uuid": "s1", "turnId": "0", "step": 1,
+            "finishReason": "end_turn",
+        }},
+    ])
+    _jsonl(raw / "model_requests.jsonl", [
+        {
+            "request_id": 1,
+            "kind": "compaction",
+            "wire_line": 2,
+            "request": {
+                "model": "kimi-k3",
+                "messages": [{"role": "assistant", "content": "full history"}],
+                "stream": True,
+            },
+        },
+        {
+            "request_id": 2,
+            "kind": "agent_step",
+            "turn_id": 0,
+            "step": 1,
+            "wire_line": 6,
+            "request": {
+                "model": "kimi-k3",
+                "messages": [{"role": "user", "content": "retained facts"}],
+                "stream": True,
+            },
+        },
+    ])
+    (io / "000001.response.sse").write_text(
+        'data: {"choices":[{"delta":{"content":"retained facts"}}]}\n\n'
+        'data: [DONE]\n\n',
+        encoding="utf-8",
+    )
+    (io / "000002.response.sse").write_text(
+        'data: {"choices":[{"delta":{"content":"done"}}]}\n\n'
+        'data: [DONE]\n\n',
+        encoding="utf-8",
+    )
+    _jsonl(raw / "model_responses.jsonl", [
+        {"request_id": 1, "status": 200, "body_path": "raw/model_io/000001.response.sse"},
+        {"request_id": 2, "status": 200, "body_path": "raw/model_io/000002.response.sse"},
+    ])
+    _jsonl(raw / "environment_tool_calls.jsonl", [])
+    (raw / "run_result.json").write_text(json.dumps({
+        "reason": "completed",
+        "answer": "done",
+        "usage": {},
+        "model": {"alias": "evaluation", "upstream_id": "kimi-k3"},
+    }), encoding="utf-8")
+
+    trajectory = export_trajectory(
+        raw,
+        tmp_path / "trajectory.json",
+        task={"prompt": "task"},
+        environment={"tool_names": []},
+    )
+    validate_trajectory(trajectory)
+
+    compaction = trajectory["compactions"][0]
+    assert compaction["status"] == "completed"
+    assert compaction["started_event_sequence"] == 1
+    assert compaction["completed_event_sequence"] == 4
+    assert compaction["summary"] == "retained facts"
+    assert compaction["context_summary"] == "recovery preamble\nretained facts"
+    assert compaction["tokens_before"] == 122594
+    assert compaction["tokens_after"] == 23053
+    assert compaction["compacted_count"] == 112
+    assert compaction["summary_output_tokens"] == 6139
+    assert compaction["kept_user_message_count"] == 1
+    assert compaction["wire_lines"] == {"start": 1, "end": 307}
+    assert compaction["before_context"]["line"] == 1
+    assert compaction["after_context"]["line"] == 2

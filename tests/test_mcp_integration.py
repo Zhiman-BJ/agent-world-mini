@@ -29,7 +29,7 @@ def test_task_and_mcp_share_public_contract_and_business_failure(tmp_path):
     listed, called = [json.loads(line)['result'] for line in output.getvalue().splitlines()]
     assert listed['tools'] == [_public_tool(tool)]
     assert set(listed['tools'][0]) == {'name', 'description', 'inputSchema', 'outputSchema'}
-    assert 'Must exist' in listed['tools'][0]['description']
+    assert listed['tools'][0]['description'] == 'Inspect.'
     assert listed['tools'][0]['outputSchema']['type'] == 'object'
     assert called['isError'] is True
     assert called['structuredContent'] == {'success': False, 'error': {'code': 'not_found'}}
@@ -40,7 +40,7 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
     from env_gen.tool_gen.kimi_mcp import load_delivery, KimiMcpServer
     from task_gen.task_eval_mcp import TaskEvalMcpServer
     import shutil
-    binding = KimiMcpTests()._make_delivery(tmp_path)
+    binding = KimiMcpTests()._make_delivery(tmp_path, with_report_tool=True)
     delivery = load_delivery(binding)
     state = tmp_path / 'task_state'
     shutil.copytree(delivery.package.package_root / 'state', state)
@@ -51,6 +51,14 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
     server = TaskEvalMcpServer(config)
     with KimiMcpServer(delivery) as original:
         assert server.handle({'method': 'tools/list'}) == original.handle({'method': 'tools/list'})
+        listed = server.handle({'method': 'resources/list', 'params': {}})
+        assert listed == original.handle({'method': 'resources/list', 'params': {}})
+        uri = next(
+            item['uri'] for item in listed['resources']
+            if item['relative_path'] == 'daily.json'
+        )
+        request = {'method': 'resources/read', 'params': {'uri': uri}}
+        assert server.handle(request) == original.handle(request)
     response = server.handle({'method': 'tools/call', 'params': {
         'name': 'resolve_ticket', 'arguments': {'ticket_id': 'task-only'}}})
     assert response['structuredContent']['data']['status'] == 'resolved'
@@ -142,7 +150,7 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
     from task_gen.task_eval_mcp import TaskEvalMcpServer
     binding = KimiMcpTests()._make_delivery(tmp_path)
     config = Config(environment_dir=binding.parent,
-                    execution={'min_tool_calls': 1, 'target_tool_calls': 1})
+                    execution={'min_tool_calls': 11, 'target_tool_calls': 11})
     bundle = load_environment({'config': config})
     software = tmp_path / 'software'
     launcher = software / 'venv/bin/python'
@@ -162,27 +170,30 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
         "assert (context.software_root / 'marker').read_text() == 'correct profile'\n    record = context.records.get")
     bundle['tasks'] = [{'task_id': 'task1', 'chain': ['get_ticket'], 'objective': 'Read ticket', 'score': 1}]
 
-    preparation_calls = 0
+    session_calls = 0
 
     def run(client, prompt, working_directory):
-        nonlocal preparation_calls
+        nonlocal session_calls
         client.session_id = client.session_id or f'test-{Path(client.server_config).parent.name}'
-        if 'preparation' in Path(client.server_config).parts:
-            preparation_calls += 1
-            action = 'execute' if preparation_calls == 1 else 'accept'
-            return json.dumps({'action': action, 'objective': 'Read ticket',
-                               'reason': 'Use the delivery state and profile.',
-                               'feedback': '', 'score': 0 if action == 'execute' else 4})
+        session_calls += 1
+        payload = {'objective': 'Read ticket', 'reason': 'Use the delivery state and profile.',
+                   'completed': True, 'answer': 'open', 'score': 4}
+        if session_calls == 2:
+            return json.dumps({**payload, 'call_indices': list(range(1, 12)),
+                               'chain_changes': 'The fixture checks each delivered call.', 'restart': False})
         server = TaskEvalMcpServer(json.loads(client.server_config.read_text()))
-        response = server.handle({'method': 'tools/call', 'params': {
-            'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
-        assert response['structuredContent']['data']['status'] == 'open', response
-        return json.dumps({'reason': 'Read actual ticket', 'completed': True, 'answer': 'open'})
+        for _ in range(11):
+            response = server.handle({'method': 'tools/call', 'params': {
+                'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+            assert response['structuredContent']['data']['status'] == 'open', response
+        return json.dumps(payload)
 
     monkeypatch.setattr('task_gen.tool_graph.execution_agent._ReviewClient.run', run)
     result = execute_candidates(to_execute_chains_input(bundle, config, tmp_path / 'run'))
     assert result['tasks'][0]['execution']['success'] is True
     assert result['tasks'][0]['execution']['tool_calls'][0]['result']['data']['status'] == 'open'
+    assert len(result['tasks'][0]['execution']['tool_calls']) == 11
+    assert session_calls == 2
 
 
 def test_profile_missing_validation_dependencies_does_not_borrow_host_packages(tmp_path):

@@ -119,6 +119,11 @@ def run_react_agent(
                     environment=config.get("environment", {}),
                     runtime=config.get("runtime") or config.get("delivery_runtime"),
                     binding_path=config.get("binding_path"),
+                    record_database=(
+                        Path(config["record_database"])
+                        if config.get("record_database") else None
+                    ),
+                    scope_mounts=config.get("scope_mounts"),
                     **({'software': config['software']} if config.get('software') else {}),
                 )
                 with trace.open("a", encoding="utf-8") as stream:

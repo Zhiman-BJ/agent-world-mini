@@ -4,8 +4,8 @@
 
 ## 1. 先记住四件事
 
-1. `execution-state` 是 MCP 和工具执行状态，不能作为 Agent 的工作目录。
-2. `model-workspace` 是 Kimi 的 `cwd`，默认为空，只放模型明确产生的模型可读文件。
+1. `model-workspace` 是 Kimi 的 `cwd`，也承载复制后的 Filesystem Scope；MCP 文件工具和原生 `Read/Grep/Glob` 看到同一棵目录树。
+2. `private-state` 保存 `records.sqlite` 和 `path-map.json`，模型不可见。
 3. `kimi-home` 保存 Kimi 配置、session、wire 和 `tool-results`，每条任务独立创建。
 4. `raw`/`evidence` 保存原始请求、响应、轨迹和 verifier 证据，不能放进 `model-workspace`。
 
@@ -13,8 +13,8 @@
 
 ```text
 task-run/
-  execution-state/      # 当前任务的环境状态副本
-  model-workspace/      # Kimi cwd
+  <environment-task>/   # model-workspace：Kimi cwd 和文件 Scope
+  private-state/        # 私有 records.sqlite 和 path-map.json
   kimi-home/            # Kimi 私有 session 数据（通常是临时目录）
   raw/                  # 原始请求、响应、wire、工具调用日志
   evidence/             # verifier 和导出证据（按流程需要创建）
@@ -24,7 +24,7 @@ task-run/
 不要使用符号链接连接这些目录，也不要让任务之间共享状态、session 或 `tool-results`。
 
 蒸馏 runner 和通用 ToolGen MCP 都从同一个 `binding.json` 读取 `runtime.json`：
-`host_python`/`python_profile` 使用本地解释器，`docker` 使用交付包声明的镜像、挂载和命令。任务级 MCP 仍保留独立的 `execution-state`、调用轨迹和资源限制；这只统一进程启动后端，不改变 Kimi Code 的 agent loop。
+`host_python`/`python_profile` 使用本地解释器，`docker` 使用交付包声明的镜像、挂载和命令。任务级 MCP 仍保留独立的 workspace、私有数据库、调用轨迹和资源限制；这只统一进程启动后端，不改变 Kimi Code 的 agent loop。
 
 ## 2. 稳定入口
 
@@ -35,6 +35,8 @@ task-run/
 | 执行一个环境工具 | `harness.execution.call_environment_tool` |
 | 工具沙盒 | `harness.sandbox` |
 | 资源引用和 Resources | `harness.resources.ResourceCatalog` |
+| MCP wire contract | `harness.mcp_protocol` |
+| MCP Resources 投影 | `harness.mcp_resources` |
 | Kimi 文件访问边界 | `harness.kimi_file_policy.KimiFileAccessPolicy` |
 | MCP 工具 allowlist | `harness.mcp_tools.expected_mcp_tool_names` |
 
@@ -84,18 +86,24 @@ from harness.layout import create_task_run_layout
 paths = create_task_run_layout(
     initial_state=initial_state,
     output_dir="/path/to/task-run",
+    environment=environment,
+    workspace_name="environment-task",
 )
 
-paths.execution_state
 paths.model_workspace
+paths.private_state
+paths.record_database
+paths.scope_mounts
 paths.raw
 paths.trajectory
 ```
 
 这个函数会：
 
-- 复制初始状态到 `execution-state`；
-- 创建空的 `model-workspace` 和 `raw`；
+- 把 Filesystem Scope 复制到 `model-workspace`；单 Scope 挂在 `.`，多 Scope 使用无歧义的 Scope 目录名；
+- 把 `records.sqlite` 复制到模型不可见的 `private-state`；
+- 写入 `path-map.json`，记录 workspace、数据库和 Scope mount；
+- 创建 `raw`；
 - 拒绝不存在的状态目录；
 - 拒绝初始状态中的符号链接；
 - 拒绝已经存在的输出目录。
@@ -112,12 +120,14 @@ record = call_environment_tool(
     name="query_records",
     arguments={"path": "daily.json"},
     tools=tool_map,
-    state_root=paths.execution_state,
+    state_root=paths.model_workspace,
     timeout=300,
     memory_limit=2 * 1024 * 1024 * 1024,
     write_limit=256 * 1024 * 1024,
     process_limit=1024,
     environment=environment,
+    record_database=paths.record_database,
+    scope_mounts=paths.scope_mounts,
     software=(
         {"root": str(delivery.software_root), "python": str(delivery.python_path)}
         if delivery.software_root else None
@@ -150,12 +160,13 @@ record = call_environment_tool(
 
 ## 6. 文件参数和资源 URI
 
-业务工具的文件参数使用 Scope 内相对路径：
+模型侧业务工具的文件参数使用工作目录路径。Harness 会根据 Schema 的 Scope 标注转成工具代码原有的 Scope 内相对路径：
 
 ```text
-模型调用工具：daily.json
-工具代码：    daily.json
-实际物理路径：<task-run>/execution-state/filesystem_scopes/reports/daily.json
+单 Scope 模型参数：mobility_models/source/mobility.py
+多 Scope 模型参数：reports/daily.json
+工具代码收到：      daily.json
+实际物理路径：      <task-run>/<workspace>/reports/daily.json
 ```
 
 文件字段由 ToolGen 标注 Scope：
@@ -168,7 +179,7 @@ record = call_environment_tool(
 }
 ```
 
-业务工具参数不传宿主机绝对路径、`filesystem_scopes/...` 或 Resource URI。
+业务工具也接受当前 `model-workspace` 内的绝对路径；不接受工作目录外的宿主路径、`filesystem_scopes/...` 或 Resource URI。
 
 MCP Resources 使用标准方法：
 
@@ -187,7 +198,8 @@ resources/read  -> 使用 URI 读取资源
 
 ```text
 Kimi cwd                  -> model-workspace/
-MCP server state_root     -> execution-state/
+MCP server workspace_root -> model-workspace/
+MCP record_database       -> private-state/records.sqlite
 Kimi session/tool-results -> kimi-home/sessions/.../
 原始证据                  -> raw/
 ```
@@ -209,7 +221,7 @@ mcp__<server_name>__<business_tool>
 - `Grep`：搜索工作区、当前 session 的 `tool-results` 或 `wire.jsonl`；
 - `Glob`：按模式寻找文件。
 
-这三个工具不是环境 Scope 浏览器。Scope 内业务文件必须通过环境 MCP 工具或 MCP Resources 访问；原生文件工具只能读取当前模型工作区、当前 session 的长工具结果和当前 session 的 wire 日志。
+复制后的文件 Scope 就在 `model-workspace` 中，因此这三个工具可以直接查看任务文件；它们还可以读取当前 session 的长工具结果和 `wire.jsonl`。私有 Record Set、raw 和 verifier 证据仍不可读。
 
 这三个工具不属于环境 MCP，不会出现在 MCP `tools/list`。
 
@@ -227,7 +239,7 @@ model-workspace/**
 拒绝：
 
 ```text
-execution-state/**
+private-state/**
 raw/**、evidence/**、verifier/**
 其他任务或其他 session
 ~/...
@@ -298,7 +310,7 @@ python -m pytest -q
 
 当前重点验收包括：
 
-- `execution-state` 与 `model-workspace` 分离；
+- `model-workspace` 与私有数据库、raw 证据隔离；
 - Read 越权访问被拒绝并记录；
 - 长 MCP 结果由原生 Read 恢复；
 - MCP 资源方法和业务工具目录不混淆；

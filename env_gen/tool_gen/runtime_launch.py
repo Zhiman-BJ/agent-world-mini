@@ -103,14 +103,6 @@ def docker_stdio_launch(
         "run",
         "--rm",
         "-i",
-        # Docker's default seccomp and AppArmor profiles block creation and
-        # mount propagation for the task-local bubblewrap user namespace. The
-        # container still runs without added capabilities as the host user;
-        # bubblewrap supplies the actual per-tool filesystem/network boundary.
-        "--security-opt",
-        "seccomp=unconfined",
-        "--security-opt",
-        "apparmor=unconfined",
         "--user",
         f"{os.getuid()}:{os.getgid()}",
         "--mount",

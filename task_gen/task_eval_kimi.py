@@ -59,6 +59,9 @@ def _mcp_launch(
         "--write-limit", str(config["write_limit"]),
         "--process-limit", str(config.get("process_limit", 1024)),
     ]
+    tools_path = config.get("tools_path")
+    if isinstance(tools_path, str) and tools_path:
+        arguments.extend(["--tools-path", str(Path(tools_path).resolve())])
     return stdio_launch(
         delivery,
         server_path=server_path,

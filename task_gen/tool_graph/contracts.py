@@ -8,7 +8,12 @@ AppendOnlyBundle 是一次流水线运行中持续扩充的信息与产物集合
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, NotRequired, TypedDict
+from typing import Any
+
+try:
+    from typing import NotRequired, TypedDict
+except ImportError:
+    from typing_extensions import NotRequired, TypedDict
 
 AppendOnlyBundle = dict[str, Any]
 ToolCall = dict[str, Any]  # {"tool": str, "arguments": dict, "observation": dict}

@@ -320,7 +320,7 @@ class DockerRuntimeTests(unittest.TestCase):
                 "write_limit": 256 * 1024**2,
                 "tools": list(delivery.package.tools),
             })
-            self.assertEqual(config["runtime"]["backend"], "docker")
+            self.assertEqual(config["delivery_runtime"]["backend"], "docker")
             server = TaskEvalMcpServer(config)
             update = server.handle({
                 "method": "tools/call", "params": {

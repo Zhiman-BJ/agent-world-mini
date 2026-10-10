@@ -20,6 +20,42 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _stream_error(path: Path) -> dict[str, Any] | None:
+    """Return a top-level error emitted after a successful SSE handshake."""
+    event_name: str | None = None
+    try:
+        stream = path.open("r", encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    with stream:
+        for raw_line in stream:
+            line = raw_line.strip()
+            if not line:
+                event_name = None
+                continue
+            if line.startswith("event:"):
+                event_name = line[6:].strip()
+                continue
+            payload = line[5:].strip() if line.startswith("data:") else line
+            if not payload.startswith("{"):
+                continue
+            try:
+                value = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            error = value.get("error") if isinstance(value, dict) else None
+            if not isinstance(error, dict):
+                if event_name == "error":
+                    return {"type": "upstream_stream_error", "message": payload[:1000]}
+                continue
+            return {
+                key: error[key]
+                for key in ("type", "code", "message", "source", "request_id")
+                if key in error
+            }
+    return None
+
+
 def _normalize_kimi_k3_chat_request(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Translate Kimi Code provider fields to the public K3 Chat API contract."""
     if request.get("model") != "kimi-k3":
@@ -65,6 +101,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         retry_jitter_seconds: float = 0.25,
         first_request_tool_validator: Callable[[set[str]], bool] | None = None,
         expected_tool_names: set[str] | None = None,
+        fatal_stream_error_codes: set[str] | None = None,
     ):
         upstream = urlsplit(upstream_base_url.rstrip("/"))
         if upstream.scheme not in {"http", "https"} or not upstream.hostname:
@@ -88,11 +125,13 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         self.retry_jitter_seconds = retry_jitter_seconds
         self.first_request_tool_validator = first_request_tool_validator
         self.expected_tool_names = set(expected_tool_names or ())
+        self.fatal_stream_error_codes = set(fatal_stream_error_codes or ())
         self.raw_dir = raw_dir.resolve()
         self.io_dir = self.raw_dir / "model_io"
         self.io_dir.mkdir(parents=True, exist_ok=True)
         self.request_log = self.raw_dir / "model_requests.jsonl"
         self.response_log = self.raw_dir / "model_responses.jsonl"
+        self.upstream_stop_marker = self.raw_dir / "upstream_stop.json"
         self.request_log.touch()
         self.response_log.touch()
         self._lock = threading.Lock()
@@ -127,6 +166,26 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         line = json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n"
         with self._lock, path.open("a", encoding="utf-8") as stream:
             stream.write(line)
+
+    def _record_fatal_stream_error(
+        self, request_id: int, response_path: Path, stream_error: dict[str, Any]
+    ) -> None:
+        code = stream_error.get("code")
+        if code not in self.fatal_stream_error_codes:
+            return
+        payload = {
+            "reason": "fatal_upstream_stream_error",
+            "recorded_at": _now(),
+            "request_sequence": request_id,
+            "response_path": response_path.relative_to(self.raw_dir.parent).as_posix(),
+            "stream_error": stream_error,
+        }
+        with self._lock:
+            if not self.upstream_stop_marker.exists():
+                self.upstream_stop_marker.write_text(
+                    json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
 
     @staticmethod
     def _request_tool_names(request: dict[str, Any]) -> set[str]:
@@ -245,6 +304,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "recorded_at": _now(),
                             "status": 400,
                             "error": "invalid_kimi_k3_request",
+                            "origin": "local_harness",
                         })
                         return
                     forwarded_body = json.dumps(
@@ -279,6 +339,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "recorded_at": _now(),
                             "status": 400,
                             "error": "non_streaming_request_rejected",
+                            "origin": "local_harness",
                         })
                         return
                     tool_failure = relay._check_first_model_request(forwarded_request)
@@ -297,6 +358,17 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "recorded_at": _now(),
                             "status": 503,
                             "error": tool_failure["reason"],
+                            "origin": "local_harness",
+                        })
+                        return
+                    if relay.upstream_stop_marker.is_file():
+                        self._json_error(502, "Task stopped after a fatal upstream stream error")
+                        relay._append(relay.response_log, {
+                            "request_id": request_id,
+                            "recorded_at": _now(),
+                            "status": 502,
+                            "error": "request_rejected_after_fatal_stream_error",
+                            "origin": "local_harness",
                         })
                         return
 
@@ -392,7 +464,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                         if sink is not None:
                             sink.close()
                     if model_request:
-                        relay._append(relay.response_log, {
+                        record = {
                             "request_id": request_id,
                             "recorded_at": _now(),
                             "status": response.status,
@@ -401,7 +473,16 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "body_path": response_path.relative_to(relay.raw_dir.parent).as_posix(),
                             "sha256": digest.hexdigest(),
                             "attempts": attempts,
-                        })
+                        }
+                        stream_error = _stream_error(response_path)
+                        if stream_error is not None:
+                            record["error"] = "upstream_stream_error"
+                            record["stream_error"] = stream_error
+                        relay._append(relay.response_log, record)
+                        if stream_error is not None:
+                            relay._record_fatal_stream_error(
+                                request_id, response_path, stream_error
+                            )
                 except Exception as error:
                     if model_request:
                         relay._append(relay.response_log, {

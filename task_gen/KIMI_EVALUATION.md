@@ -84,7 +84,7 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 
 ## 共享 MCP 与交付包接入（2026-09-17）
 
-共享代码来自 `/data1/agent_world/kimi-mcp-integration-20260917`：`env_gen/tool_gen/mcp_protocol.py` 原样迁入；`kimi_mcp.py`、`delivery.py`、binding Schema 和测试随同迁入。迁入后修正了虚拟环境 Python 路径不能提前 resolve 的问题，避免跳过 profile 中安装的依赖。`runtime.py` 仅引入 software_root 支持。
+共享代码最初来自 `/data1/agent_world/kimi-mcp-integration-20260917`；当前公共协议实现已收口到 `harness/mcp_protocol.py`，ToolGen 和 TaskGen 共用该入口。`kimi_mcp.py`、delivery/binding Schema 和测试随后完成了本仓库适配。
 
 新任务 `available_tools` 与 ToolGen、TaskGen 的正式环境 MCP `tools/list` 共用 `public_tools()`，包含名称、合并 usageConditions 后的说明、输入和输出 Schema。旧任务只接受与原环境逐字段一致的旧投影，以便复用历史任务；其他工具差异仍拒绝。业务失败保持原有 `success=false` 对象，不再套一层导致错误内容被客户端遮蔽。审查辅助工具和 Kimi 辅助读取不属于环境工具集合。
 

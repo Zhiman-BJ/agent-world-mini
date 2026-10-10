@@ -6,13 +6,15 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
+import hashlib
 import json
 from pathlib import Path
+import random
 import shutil
 import tempfile
 import time
 from typing import Any, Callable
-from env_gen.tool_gen.mcp_protocol import public_tools
+from harness.mcp_protocol import public_tools
 
 from .task_eval_react import run_react_agent
 from .tool_graph.llm import capture_calls
@@ -26,6 +28,7 @@ from .task_eval_verifier import verify_execution, VerificationError
 
 
 DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"
+KIMI_MAX_TOOL_CALLS = 65
 AgentRunFn = Callable[[str, Path, Path, Path], str]
 
 
@@ -46,6 +49,14 @@ def load_cases(
     selected_case_names: set[str] | None = None,
 ) -> list[EvalCase]:
     """Read tasks from the latest complete run for each environment."""
+    input_root = input_root.expanduser().resolve()
+    collection_root = input_root
+    preserve_collection_entries = (
+        (collection_root / "manifest.json").is_file()
+        and (collection_root / "environments").is_dir()
+    )
+    if not any(input_root.glob("*/tasks.json")) and (input_root / "environments").is_dir():
+        input_root = input_root / "environments"
     selected_by_run: dict[str, set[str]] | None = None
     if selected_case_names is not None:
         selected_by_run = {}
@@ -55,7 +66,7 @@ def load_cases(
                 raise ValueError(f"invalid selected case name: {name}")
             selected_by_run.setdefault(source_name, set()).add(task_id)
     latest: dict[str, tuple[Path, Path, dict[str, Any], dict[str, Any]]] = {}
-    for tasks_path in sorted(input_root.expanduser().resolve().glob("*/tasks.json")):
+    for tasks_path in sorted(input_root.glob("*/tasks.json")):
         source_run = tasks_path.parent
         if selected_by_run is not None and source_run.name not in selected_by_run:
             continue
@@ -69,12 +80,19 @@ def load_cases(
         environment_id = environment.get("environment_id")
         if not isinstance(environment_id, str) or not environment_id:
             raise ValueError(f"环境缺少 environment_id：{source_run}")
-        previous = latest.get(environment_id)
+        # A collected environment set is already a canonical selection.  Its
+        # directory names are the stable package identities and two packages
+        # may legitimately expose the same internal environment_id.  Deduping
+        # those entries silently drops their tasks.  Raw generation roots keep
+        # the historical latest-run-per-environment behavior.
+        selection_key = source_run.name if preserve_collection_entries else environment_id
+        previous = latest.get(selection_key)
         if previous is None or source_run.name > previous[0].name:
-            latest[environment_id] = (source_run, tasks_path, environment, bundle)
+            latest[selection_key] = (source_run, tasks_path, environment, bundle)
 
     cases: list[EvalCase] = []
-    for environment_id, (source_run, tasks_path, environment, bundle) in sorted(latest.items()):
+    for _, (source_run, tasks_path, environment, bundle) in sorted(latest.items()):
+        environment_id = environment["environment_id"]
         tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
         if not isinstance(tasks, list):
             raise ValueError(f"无效的正式任务 run：{source_run}")
@@ -121,9 +139,24 @@ def load_cases(
                 bundle_calls if isinstance(bundle_calls, list)
                 else task.get("reference", {}).get("tool_calls", [])
             )
+            runtime = bundle.get("runtime")
+            runtime = dict(runtime) if isinstance(runtime, dict) else {}
+            delivery = bundle.get("toolgen_delivery")
+            if not runtime.get("binding_path") and isinstance(delivery, dict):
+                binding_path = delivery.get("binding_path")
+                if isinstance(binding_path, str) and binding_path:
+                    runtime["binding_path"] = binding_path
+            if runtime.get("binding_path") and not runtime.get("tools_path"):
+                repaired_tools = (
+                    Path(str(runtime["binding_path"])).expanduser().resolve().parent
+                    / "tools/tools_repaired.json"
+                )
+                if not repaired_tools.is_file():
+                    raise ValueError(f"任务交付缺少 tools_repaired.json：{repaired_tools}")
+                runtime["tools_path"] = str(repaired_tools)
             cases.append(EvalCase(
                 source_run, task, environment, initial_state, reference_state, reference_calls,
-                bundle.get('runtime', {}),
+                runtime,
             ))
     return cases
 
@@ -144,9 +177,11 @@ def evaluate_case(
 ) -> dict[str, Any]:
     """Let the configured agent solve a task with environment tools, then judge it."""
     if max_tool_calls is None:
-        max_tool_calls = 100 if llm_config.get('agent_backend') == 'kimi' else 50
+        max_tool_calls = KIMI_MAX_TOOL_CALLS if llm_config.get('agent_backend') == 'kimi' else 50
     if max_tool_calls < 1:
         raise ValueError("max_tool_calls 必须大于 0")
+    if llm_config.get('agent_backend') == 'kimi' and max_tool_calls > KIMI_MAX_TOOL_CALLS:
+        raise ValueError(f"Kimi max_tool_calls 不能超过 {KIMI_MAX_TOOL_CALLS}")
     if agent_attempts < 1:
         raise ValueError("agent_attempts 必须大于 0")
     workspace = workspace.expanduser().resolve()
@@ -182,8 +217,14 @@ def evaluate_case(
                 "tools": list(tools.values()),
                 "environment": case.environment,
                 **({"binding_path": case.runtime['binding_path']} if case.runtime.get('binding_path') else {}),
+                **({"tools_path": case.runtime['tools_path']} if case.runtime.get('tools_path') else {}),
                 **({"software": case.runtime['software']} if case.runtime.get('software') else {}),
                 **({"runtime": case.runtime['runtime']} if case.runtime.get('runtime') else {}),
+                "record_database": str(workspace / "records.sqlite"),
+                "scope_mounts": {
+                    str(item["scope_id"]): f"filesystem_scopes/{item['scope_id']}"
+                    for item in case.environment.get("filesystem_scopes", [])
+                },
             }, ensure_ascii=False), encoding="utf-8")
             try:
                 answer = run_agent(_agent_prompt(case, max_tool_calls), workspace, server_config, trace).strip()
@@ -248,28 +289,11 @@ def evaluate_case(
 
 
 def _agent_prompt(case: EvalCase, max_tool_calls: int) -> str:
-    return json.dumps({
-        "role": (
-            "You are the agent responsible for completing this task. "
-            "Use only the provided environment tools to inspect and change environment state. "
-            "Never guess internal identifiers; discover them through environment tools "
-            "and use business errors to correct invalid calls. Do not stop at a "
-            "transient 429 or 503 tool error while call budget remains; retry it at least once. For validation errors, "
-            "correct the arguments before retrying. The task itself is authorization to execute it; do not ask the user "
-            "for confirmation or approval before using the provided tools. "
-            "Filesystem Scope file paths are relative to the named scope root. "
-            "Pass paths returned by one tool unchanged to the next tool; never prepend /workspace, "
-            "filesystem_scopes/<scope_id>, or a host absolute path. "
-            "Complete the task, verify the result with the environment tools when useful, then submit the "
-            f"final user-facing answer. You may make at most {max_tool_calls} environment tool calls, so reserve "
-            "calls for required state changes and verification."
-        ),
-        # The solver receives the task-specific natural-language context and
-        # the public tool contracts. Runtime still keeps the complete
-        # environment for tool execution; its database/file schema is not
-        # injected into the solver prompt.
-        "task": case.task.get("task_text"),
-    }, ensure_ascii=False)
+    del max_tool_calls
+    task_text = case.task.get("task_text")
+    if not isinstance(task_text, str) or not task_text.strip():
+        raise ValueError("task_text must be non-empty")
+    return task_text.strip()
 
 
 def _run_agent(
@@ -321,6 +345,8 @@ def run_evaluation(
     execution_config: dict[str, Any],
     *,
     limit: int | None = None,
+    sample_size: int | None = None,
+    sample_seed: int = 20261005,
     environment_id: str | None = None,
     max_tool_calls: int | None = None,
     max_concurrency: int = 1,
@@ -328,6 +354,11 @@ def run_evaluation(
     cases = load_cases(input_root)
     if environment_id:
         cases = [case for case in cases if case.task.get("environment_id") == environment_id]
+    population_size = len(cases)
+    if sample_size is not None:
+        if sample_size > population_size:
+            raise ValueError(f"抽样数 {sample_size} 超过可评测任务数 {population_size}")
+        cases = random.Random(sample_seed).sample(cases, sample_size)
     if limit is not None:
         cases = cases[:limit]
     if not cases:
@@ -338,6 +369,27 @@ def run_evaluation(
     verifier_dir.mkdir()
     task_result_dir = run_dir / "task_results"
     task_result_dir.mkdir()
+    selection = {
+        "input_root": str(input_root.expanduser().resolve()),
+        "population_size": population_size,
+        "sample_size": sample_size,
+        "sample_seed": sample_seed if sample_size is not None else None,
+        "selected_count": len(cases),
+        "cases": [{
+            "case_name": f"{case.source_run.name}__{case.task['task_id']}",
+            "source_run": str(case.source_run),
+            "task_id": case.task["task_id"],
+            "environment_id": case.task.get("environment_id"),
+            "task_text_sha256": hashlib.sha256(
+                str(case.task.get("task_text", "")).encode("utf-8")
+            ).hexdigest(),
+            "initial_state": str(case.initial_state),
+            "reference_state": str(case.reference_state) if case.reference_state else None,
+        } for case in cases],
+    }
+    (run_dir / "selection.json").write_text(
+        json.dumps(selection, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
 
     def run(case: EvalCase) -> dict[str, Any]:
         filename = f"{case.source_run.name}__{case.task['task_id']}"
@@ -411,12 +463,18 @@ def main() -> None:
     parser.add_argument("--agent-backend", choices=["react", "kimi"])
     parser.add_argument("--environment-id")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--sample-size", type=int)
+    parser.add_argument("--sample-seed", type=int, default=20261005)
     parser.add_argument("--max-tool-calls", type=int)
     parser.add_argument("--max-concurrency", type=int)
     parser.add_argument("--llm-timeout-seconds", type=int)
     arguments = parser.parse_args()
     if arguments.limit is not None and arguments.limit < 1:
         parser.error("--limit 必须大于 0")
+    if arguments.sample_size is not None and arguments.sample_size < 1:
+        parser.error("--sample-size 必须大于 0")
+    if arguments.limit is not None and arguments.sample_size is not None:
+        parser.error("--limit 和 --sample-size 不能同时使用")
     if arguments.max_tool_calls is not None and arguments.max_tool_calls < 1:
         parser.error("--max-tool-calls 必须大于 0")
     if arguments.max_concurrency is not None and arguments.max_concurrency < 1:
@@ -428,11 +486,13 @@ def main() -> None:
     if arguments.agent_backend is not None:
         llm_config['agent_backend'] = arguments.agent_backend
     max_tool_calls = arguments.max_tool_calls if arguments.max_tool_calls is not None else config.execution.get(
-        'evaluation_max_tool_calls', 100 if llm_config.get('agent_backend') == 'kimi' else 50)
+        'evaluation_max_tool_calls', KIMI_MAX_TOOL_CALLS if llm_config.get('agent_backend') == 'kimi' else 50)
     max_concurrency = arguments.max_concurrency if arguments.max_concurrency is not None else config.execution.get('evaluation_max_concurrency', 1)
     for name, value in (('evaluation_max_tool_calls', max_tool_calls), ('evaluation_max_concurrency', max_concurrency)):
         if type(value) is not int or value < 1:
             parser.error(f'{name} 必须是正整数')
+    if llm_config.get('agent_backend') == 'kimi' and max_tool_calls > KIMI_MAX_TOOL_CALLS:
+        parser.error(f'evaluation_max_tool_calls 不能超过 {KIMI_MAX_TOOL_CALLS}')
     if arguments.llm_timeout_seconds is not None:
         llm_config["timeout_seconds"] = arguments.llm_timeout_seconds
         if llm_config.get('agent_backend') == 'kimi':
@@ -443,6 +503,8 @@ def main() -> None:
         llm_config,
         config.execution,
         limit=arguments.limit,
+        sample_size=arguments.sample_size,
+        sample_seed=arguments.sample_seed,
         environment_id=arguments.environment_id,
         max_tool_calls=max_tool_calls,
         max_concurrency=max_concurrency,

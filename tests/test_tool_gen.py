@@ -214,6 +214,13 @@ class FakeAgent:
                     },
                 },
             ]
+            for action in actions:
+                action["verification_tests"] = [{
+                    "calls": [{"tool": action["name"], "arguments": {"ticket_id": "ticket-1"}}],
+                    "expect_changed": action["effect"] == "write",
+                    "expected_data": {"status": "resolved" if action["effect"] == "write" else "open"},
+                    "reference": "Original tickets record and the planned resolution state transition.",
+                }]
             (working_directory / "action_plan.json").write_text(
                 json.dumps({"environment_id": "support_workspace", "actions": [
                     action for action in actions

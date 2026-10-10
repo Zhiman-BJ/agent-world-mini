@@ -8,7 +8,7 @@ import sys
 if __package__ in {None, ''}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from env_gen.tool_gen.mcp_protocol import serve_jsonrpc
+from harness.mcp_protocol import serve_jsonrpc
 from task_gen.task_eval_mcp import TaskEvalMcpServer
 
 
@@ -114,9 +114,6 @@ class KimiMcpAdapter:
             result = {'tools': [dict(tool) for tool in result['tools']]}
             for tool in result['tools']:
                 tool['inputSchema'] = _normalize_kimi_tool_schema(tool['inputSchema'])
-                schema = tool.pop('outputSchema', None)
-                if schema is not None:
-                    tool['description'] += '\nOutput contract: ' + json.dumps(schema, ensure_ascii=False)
         return result
 
 
@@ -124,8 +121,14 @@ def _arguments(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=Path, nargs='?')
     parser.add_argument('--binding', type=Path)
+    parser.add_argument('--tools-path', type=Path)
     parser.add_argument('--state-root', type=Path)
+    parser.add_argument('--workspace-root', type=Path)
+    parser.add_argument('--record-database', type=Path)
+    parser.add_argument('--path-map', type=Path)
     parser.add_argument('--trace', type=Path)
+    parser.add_argument('--budget-stop-marker', type=Path)
+    parser.add_argument('--tool-budget-counter', type=Path)
     parser.add_argument('--max-tool-calls', type=int)
     parser.add_argument('--timeout', type=int)
     parser.add_argument('--memory-limit', type=int)
@@ -138,8 +141,14 @@ def _arguments(argv=None):
             value is not None
             for value in (
                 options.binding,
+                options.tools_path,
                 options.state_root,
+                options.workspace_root,
+                options.record_database,
+                options.path_map,
                 options.trace,
+                options.budget_stop_marker,
+                options.tool_budget_counter,
                 options.max_tool_calls,
                 options.timeout,
                 options.memory_limit,
@@ -151,7 +160,7 @@ def _arguments(argv=None):
         return options
     required = {
         '--binding': options.binding,
-        '--state-root': options.state_root,
+        '--state-root/--workspace-root': options.state_root or options.workspace_root,
         '--trace': options.trace,
         '--max-tool-calls': options.max_tool_calls,
         '--timeout': options.timeout,
@@ -172,7 +181,7 @@ def _server_config(options):
         return json.loads(options.config.read_text(encoding='utf-8'))
     config = {
         'binding_path': str(options.binding),
-        'state_root': str(options.state_root),
+        'state_root': str(options.state_root or options.workspace_root),
         'trace': str(options.trace),
         'max_tool_calls': options.max_tool_calls,
         'timeout': options.timeout,
@@ -180,6 +189,19 @@ def _server_config(options):
         'write_limit': options.write_limit,
         'process_limit': options.process_limit,
     }
+    if options.budget_stop_marker is not None:
+        config['budget_stop_marker'] = str(options.budget_stop_marker)
+    if options.tool_budget_counter is not None:
+        config['tool_budget_counter'] = str(options.tool_budget_counter)
+    if options.tools_path is not None:
+        config['tools_path'] = str(options.tools_path)
+    if options.workspace_root is not None:
+        config['workspace_root'] = str(options.workspace_root)
+    if options.record_database is not None:
+        config['record_database'] = str(options.record_database)
+    if options.path_map is not None:
+        path_map = json.loads(options.path_map.read_text(encoding='utf-8'))
+        config['scope_mounts'] = path_map.get('scope_mounts', {})
     if options.review_choice_seed is not None:
         config['review_choice_seed'] = json.loads(
             options.review_choice_seed.read_text(encoding='utf-8')

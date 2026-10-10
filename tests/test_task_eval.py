@@ -10,19 +10,17 @@ from task_gen.task_eval_mcp import call_environment_tool, serve
 ROOT = Path(__file__).resolve().parents[1]
 
 class TaskEvalTest(unittest.TestCase):
-    def test_agent_prompt_states_the_tool_call_budget(self) -> None:
+    def test_agent_prompt_is_the_original_task_text(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             case = load_cases(self._write_case_at(root / "source"))[0]
 
-            prompt = json.loads(_agent_prompt(case, 7))
+            prompt = _agent_prompt(case, 7)
 
-            self.assertIn("7", prompt["role"])
-            self.assertIn("tool calls", prompt["role"])
-            self.assertNotIn("environment", prompt)
+            self.assertEqual(prompt, "Return the current value.")
 
     def test_task_evaluation_uses_backend_budget_and_explicit_override(self) -> None:
-        for backend, override, expected in [('react', None, 50), ('kimi', None, 100), ('kimi', 7, 7)]:
+        for backend, override, expected in [('react', None, 50), ('kimi', None, 65), ('kimi', 7, 7)]:
             with self.subTest(backend=backend, override=override), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 case = load_cases(self._write_case_at(root / 'source'))[0]
@@ -30,7 +28,7 @@ class TaskEvalTest(unittest.TestCase):
 
                 def agent(prompt, workspace, config, trace):
                     observed.append(json.loads(config.read_text())['max_tool_calls'])
-                    self.assertIn(f'at most {expected} environment tool calls', json.loads(prompt)['role'])
+                    self.assertEqual(prompt, "Return the current value.")
                     return 'Done.'
 
                 result = evaluate_case(case, root / 'evaluation', {'agent_backend': backend},
@@ -95,6 +93,63 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(cases[0].environment["environment_id"], "env1")
             self.assertEqual(cases[0].initial_state, run / "tasks/task1/initial")
 
+    def test_load_cases_reads_toolgen_delivery_binding_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._write_case_at(root / "environments/source_run")
+            bundle_path = root / "environments/source_run/intermediate/step_5_bundle.json"
+            bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+            package = root / "delivery/env"
+            (package / "tools").mkdir(parents=True)
+            repaired = package / "tools/tools_repaired.json"
+            repaired.write_text("{}", encoding="utf-8")
+            bundle["toolgen_delivery"] = {"binding_path": str(package / "binding.json")}
+            bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+
+            cases = load_cases(root)
+
+            self.assertEqual(cases[0].runtime, {
+                "binding_path": str(package / "binding.json"),
+                "tools_path": str(repaired),
+            })
+
+    def test_run_evaluation_samples_reproducibly_and_writes_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "input/source_run"
+            self._write_case_at(source)
+            task = json.loads((source / "tasks.json").read_text(encoding="utf-8"))[0]
+            tasks = []
+            for index in range(4):
+                candidate = dict(task, task_id=f"task{index}")
+                candidate["initial_state"] = f"tasks/task{index}/initial"
+                state = source / candidate["initial_state"]
+                state.mkdir(parents=True, exist_ok=True)
+                (state / "value.txt").write_text("7", encoding="utf-8")
+                tasks.append(candidate)
+            (source / "tasks.json").write_text(json.dumps(tasks), encoding="utf-8")
+
+            with patch("task_gen.task_eval.evaluate_case") as evaluate:
+                evaluate.side_effect = lambda case, workspace, config, **kwargs: {
+                    "source_run": case.source_run.name,
+                    "task_id": case.task["task_id"],
+                    "environment_id": case.task["environment_id"],
+                    "task_text": case.task["task_text"],
+                    "outcome": "pass",
+                    "error": None,
+                }
+                run_dir = run_evaluation(
+                    root / "input", root / "output", {}, {},
+                    sample_size=2, sample_seed=17,
+                )
+
+            selection = json.loads((run_dir / "selection.json").read_text(encoding="utf-8"))
+            self.assertEqual(selection["population_size"], 4)
+            self.assertEqual(selection["sample_size"], 2)
+            self.assertEqual(selection["sample_seed"], 17)
+            self.assertEqual(selection["selected_count"], 2)
+            self.assertEqual(len({item["task_id"] for item in selection["cases"]}), 2)
+
     def test_load_cases_rejects_initial_state_outside_source_run(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -125,6 +180,30 @@ class TaskEvalTest(unittest.TestCase):
             cases = load_cases(root)
 
             self.assertEqual(cases, [])
+
+    def test_load_cases_preserves_collection_entries_with_shared_environment_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            environments = root / "environments"
+            first = environments / "scenario_0422"
+            second = environments / "scenario_0423"
+            self._write_case_at(first)
+            self._write_case_at(second)
+            (root / "manifest.json").write_text(json.dumps({
+                "environment_count": 2,
+                "task_count": 2,
+                "environments": [
+                    {"link": "environments/scenario_0422", "task_count": 1},
+                    {"link": "environments/scenario_0423", "task_count": 1},
+                ],
+            }), encoding="utf-8")
+
+            cases = load_cases(root)
+
+            self.assertEqual(
+                [case.source_run.name for case in cases],
+                ["scenario_0422", "scenario_0423"],
+            )
 
     def test_evaluate_case_rejects_source_state_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -221,6 +300,81 @@ class TaskEvalTest(unittest.TestCase):
             self.assertEqual(error["code"], "timeout")
             self.assertTrue(error["retryable"])
             self.assertTrue(response["isError"])
+
+    def test_mcp_gateway_marks_tool_budget_exhaustion_for_hard_stop(self) -> None:
+        from harness.mcp_protocol import RpcError
+        from task_gen.task_eval_mcp import TaskEvalMcpServer
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "tool_budget_stop.json"
+            tool = {
+                "name": "ok_tool",
+                "description": "A fixture.",
+                "inputSchema": {"type": "object"},
+                "outputSchema": {"type": "object"},
+                "internal": {"code": ""},
+            }
+            server = TaskEvalMcpServer({
+                "workspace": str(root),
+                "trace": str(root / "trace.jsonl"),
+                "budget_stop_marker": str(marker),
+                "max_tool_calls": 1,
+                "timeout": 1,
+                "memory_limit": 1024 * 1024,
+                "write_limit": 1024 * 1024,
+                "tools": [tool],
+            })
+            record = {
+                "tool": "ok_tool", "arguments": {}, "result": {}, "error": None,
+            }
+            request = {
+                "method": "tools/call",
+                "params": {"name": "ok_tool", "arguments": {}},
+            }
+            with patch("task_gen.task_eval_mcp.call_environment_tool", return_value=record):
+                server.handle(request)
+                with self.assertRaises(RpcError):
+                    server.handle(request)
+
+            stop = json.loads(marker.read_text(encoding="utf-8"))
+            self.assertEqual(stop["reason"], "tool_call_limit_exceeded")
+            self.assertEqual(stop["limit"], 1)
+            exhausted = json.loads((root / "trace.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+            self.assertEqual(exhausted["failure_kind"], "tool_budget_exceeded")
+
+    def test_workspace_mode_uses_direct_tool_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "task"
+            workspace.mkdir()
+            database = root / "private-records.sqlite"
+            database.touch()
+            tool = {
+                "name": "read_value",
+                "inputSchema": {"type": "object"},
+                "outputSchema": {"type": "object"},
+                "usageConditions": {"sideEffects": []},
+                "internal": {"code": "unused"},
+            }
+            direct_result = {
+                "kind": None,
+                "result": {"success": True},
+                "error": None,
+            }
+
+            with patch(
+                "harness.execution._sandbox_call_tool",
+                side_effect=AssertionError("bubblewrap path must not be used"),
+            ), patch("harness.execution._direct_call_tool", return_value=direct_result) as direct:
+                result = call_environment_tool(
+                    "read_value", {}, {"read_value": tool}, workspace,
+                    timeout=10, memory_limit=1024 * 1024, write_limit=1024 * 1024,
+                    record_database=database, scope_mounts={},
+                )
+
+            self.assertIsNone(result["error"])
+            direct.assert_called_once()
 
     def test_mcp_gateway_rejects_symlink_before_a_second_call_can_follow_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

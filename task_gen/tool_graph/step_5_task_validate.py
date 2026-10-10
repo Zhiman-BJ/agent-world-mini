@@ -202,5 +202,5 @@ def _load_schema(path: Path):
 
 
 def _public_tool(tool: dict[str, Any]) -> dict[str, Any]:
-    from env_gen.tool_gen.mcp_protocol import public_tool
+    from harness.mcp_protocol import public_tool
     return public_tool(tool)

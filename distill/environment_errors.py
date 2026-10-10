@@ -18,6 +18,8 @@ _MARKERS = (
     "resource temporarily unavailable",
     "pthread_create",
     "thread creation failed",
+    "can't start new thread",
+    "cannot start new thread",
     "no space left on device",
     "启动工具沙箱失败",
     "工具沙箱异常退出",
@@ -46,11 +48,14 @@ def environment_errors(trace: Path) -> list[dict[str, Any]]:
         message = (
             error.get("message") if isinstance(error, dict) else None
         ) or (runtime_error if isinstance(runtime_error, str) else None)
-        if not is_environment_error and result is None and isinstance(record.get("error"), str):
-            candidate = record["error"]
+        candidates = [message, runtime_error, record.get("error")]
+        for candidate in candidates:
+            if not isinstance(candidate, str):
+                continue
             if any(marker in candidate.lower() for marker in _MARKERS):
                 message = candidate
                 is_environment_error = True
+                break
         if not is_environment_error:
             continue
         errors.append({

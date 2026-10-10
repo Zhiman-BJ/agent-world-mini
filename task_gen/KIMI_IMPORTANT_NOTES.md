@@ -110,7 +110,7 @@ ${skills_section}${plugin_sections}
 
 已确认执行时也会检查工具权限，相关两项测试通过。同一 MCP 服务以后新增的工具也会进入白名单。
 
-原生 `Read/Grep/Glob` 另有执行前路径边界：SDK 的 `PreToolUse` hook 调用 `harness.kimi_file_policy`，对目标做 `realpath` 规范化，只允许临时 model workspace、当前 session 主 Agent 的 `tool-results`/`wire.jsonl` 和当前 session attachment。`execution-state`、其他 session、宿主目录及符号链接逃逸会以退出码 2 拒绝，允许/拒绝记录写入 `native_file_access.jsonl`。工具启用白名单本身不能限制路径，不能用它代替这个 hook。
+原生 `Read/Grep/Glob` 另有执行前路径边界：SDK 的 `PreToolUse` hook 调用 `harness.kimi_file_policy`，对目标做 `realpath` 规范化，只允许当前 model workspace、当前 session 主 Agent 的 `tool-results`/`wire.jsonl` 和当前 session attachment。`private-state`、raw、其他 session、宿主目录及符号链接逃逸会以退出码 2 拒绝，允许/拒绝记录写入 `native_file_access.jsonl`。工具启用白名单本身不能限制路径，不能用它代替这个 hook。
 
 ## 3. 思考内容处理
 
@@ -128,7 +128,7 @@ MCP 适配层直接返回完整结果。Kimi Code 超过原生阈值后把结果
 
 Kimi 循环和请求重试沿用官方默认：不设固定轮数上限，单步最多尝试 10 次（含首次）。不再默认覆盖为 110 轮、3 次，也不再把普通 LLM 的 600 秒超时当作整个 Kimi 任务时限。
 
-MCP 侧默认调用预算对齐恒辉的 100 次，调用等待时限对齐 300 秒；现有任务工具执行器的 300 秒超时保留。没有更换工具执行后端。显式传入的预算、超时或循环配置仍生效；ReAct 默认不变。答案提取、留档和 verifier 衔接保留。
+MCP 侧默认调用预算为 65 次，调用等待时限对齐 300 秒；第 66 次业务工具请求会触发任务硬停止，避免模型在预算耗尽后继续重试。现有任务工具执行器的 300 秒超时保留。没有更换工具执行后端。显式传入的更低预算、超时或循环配置仍生效；ReAct 默认不变。答案提取、留档和 verifier 衔接保留。
 
 ## 6. 上下文与压缩
 

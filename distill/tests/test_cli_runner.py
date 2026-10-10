@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -11,6 +12,162 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
+
+
+def test_state_copy_waits_until_io_pressure_recovers(monkeypatch):
+    from distill import runner
+
+    readings = iter([35.0, 12.0, 9.0])
+    sleeps = []
+    monkeypatch.setattr(runner, "_io_full_pressure_avg10", lambda: next(readings))
+    monkeypatch.setattr(runner.time, "sleep", sleeps.append)
+
+    runner._wait_for_state_copy_capacity()
+
+    assert sleeps == [runner.KIMI_STATE_COPY_IO_POLL_SECONDS] * 2
+
+
+def test_state_copy_pressure_limit_can_be_overridden_for_low_priority_runs(monkeypatch):
+    from distill import runner
+
+    readings = iter([46.0, 44.0])
+    sleeps = []
+    monkeypatch.setenv("KIMI_STATE_COPY_IO_PRESSURE_LIMIT", "45")
+    monkeypatch.setattr(runner, "_io_full_pressure_avg10", lambda: next(readings))
+    monkeypatch.setattr(runner.time, "sleep", sleeps.append)
+
+    runner._wait_for_state_copy_capacity()
+
+    assert sleeps == [runner.KIMI_STATE_COPY_IO_POLL_SECONDS]
+
+
+def test_cli_tool_call_counter_includes_attachment_reads_incrementally(tmp_path):
+    from distill.runner import _CliToolCallCounter
+
+    stream = tmp_path / "cli_stream.jsonl"
+    counter = _CliToolCallCounter(stream)
+
+    stream.write_text(
+        json.dumps({
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "mcp_1",
+                    "function": {"name": "mcp__environment__inspect"},
+                },
+                {
+                    "id": "read_1",
+                    "function": {
+                        "name": "Read",
+                        "arguments": json.dumps({"path": "kimi-file://result/1"}),
+                    },
+                },
+            ],
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    assert counter.snapshot() == {
+        "observed_count": 2,
+        "native_file_tool_calls": 1,
+        "environment_mcp_tool_calls": 1,
+        "other_tool_calls": 0,
+    }
+
+    with stream.open("a", encoding="utf-8") as output:
+        output.write(json.dumps({
+            "role": "assistant",
+            "tool_calls": [
+                {"id": "read_1", "function": {"name": "Read"}},
+                {"id": "glob_1", "function": {"name": "Glob"}},
+            ],
+        }) + "\n")
+
+    assert counter.snapshot() == {
+        "observed_count": 3,
+        "native_file_tool_calls": 2,
+        "environment_mcp_tool_calls": 1,
+        "other_tool_calls": 0,
+    }
+
+
+def test_runner_stops_before_executing_tool_call_above_budget(tmp_path, monkeypatch):
+    from distill import runner
+
+    class Process:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+    process = Process()
+    stream = tmp_path / "cli_stream.jsonl"
+    stream.write_text(json.dumps({
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "id": f"call_{index}",
+                "function": {"name": "Read" if index == 65 else "mcp__env__inspect"},
+            }
+            for index in range(66)
+        ],
+    }) + "\n", encoding="utf-8")
+    marker = tmp_path / "tool_budget_stop.json"
+
+    monkeypatch.setattr(
+        runner,
+        "_stop_process_group",
+        lambda observed_process, _signal: setattr(observed_process, "stopped", True),
+    )
+    runner._monitor_environment_errors(
+        process,
+        tmp_path / "environment_tool_calls.jsonl",
+        None,
+        tmp_path / "environment_stop.json",
+        tool_budget_marker=marker,
+        cli_tool_counter=runner._CliToolCallCounter(stream),
+        tool_call_limit=65,
+    )
+
+    assert process.stopped is True
+    assert json.loads(marker.read_text()) == {
+        "reason": "total_tool_call_limit_exceeded",
+        "limit": 65,
+        "observed_count": 66,
+        "native_file_tool_calls": 1,
+        "environment_mcp_tool_calls": 65,
+        "other_tool_calls": 0,
+        "count_source": "kimi_cli_stream",
+    }
+
+
+def test_runner_stops_after_fatal_upstream_stream_error(tmp_path, monkeypatch):
+    from distill import runner
+
+    class Process:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+    process = Process()
+    marker = tmp_path / "upstream_stop.json"
+    marker.write_text('{"reason":"fatal_upstream_stream_error"}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        runner,
+        "_stop_process_group",
+        lambda observed_process, _signal: setattr(observed_process, "stopped", True),
+    )
+
+    runner._monitor_environment_errors(
+        process,
+        tmp_path / "environment_tool_calls.jsonl",
+        None,
+        tmp_path / "environment_stop.json",
+        upstream_stop_marker=marker,
+    )
+
+    assert process.stopped is True
 
 
 def test_kimi_tool_schema_splits_mixed_enum_without_mutating_source():
@@ -71,7 +228,7 @@ def test_kimi_launcher_loads_prompt_after_execve(tmp_path):
 
 
 def test_kimi_config_declares_official_k3_metadata(tmp_path):
-    from distill.runner import KIMI_K3_CONTEXT_SIZE, _write_kimi_config
+    from distill.runner import KIMI_K3_CONTEXT_SIZE, KIMI_K3_OUTPUT_SIZE, _write_kimi_config
 
     path = tmp_path / "config.toml"
     _write_kimi_config(
@@ -89,9 +246,10 @@ def test_kimi_config_declares_official_k3_metadata(tmp_path):
     model = config["models"]["evaluation"]
     assert provider["type"] == "kimi"
     assert model["max_context_size"] == 1_048_576
+    assert model["max_output_size"] == KIMI_K3_OUTPUT_SIZE == 131_072
     assert model["capabilities"] == ["thinking", "always_thinking", "tool_use"]
     assert model["support_efforts"] == ["low", "high", "max"]
-    assert model["default_effort"] == "high"
+    assert model["default_effort"] == "max"
 
 
 def test_kimi_config_can_select_max_reasoning_effort(tmp_path):
@@ -112,6 +270,143 @@ def test_kimi_config_can_select_max_reasoning_effort(tmp_path):
     assert tomllib.loads(path.read_text(encoding="utf-8"))["models"]["evaluation"][
         "default_effort"
     ] == "max"
+
+
+def test_mcp_config_uses_extended_startup_timeout(tmp_path):
+    from distill.runner import (
+        KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS,
+        _write_mcp_config,
+    )
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+
+    path = tmp_path / "mcp.json"
+    _write_mcp_config(
+        path,
+        StdioLaunch(Path("python"), ("server.py",), {}),
+        tmp_path,
+        300,
+    )
+
+    server = json.loads(path.read_text())["mcpServers"]["agent_world_distill"]
+    assert server["startupTimeoutMs"] == KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS * 1000
+    assert server["toolTimeoutMs"] == 300_000
+
+
+def test_mcp_preflight_validates_initialize_and_tool_contract(tmp_path):
+    from distill.runner import _run_mcp_preflight
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+
+    server = tmp_path / "fake_mcp.py"
+    server.write_text(
+        "import json, sys\n"
+        "for line in sys.stdin:\n"
+        " request = json.loads(line)\n"
+        " if request.get('id') == 1:\n"
+        "  print(json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': "
+        "{'protocolVersion': '2025-06-18', 'capabilities': {}, "
+        "'serverInfo': {'name': 'fake', 'version': '1'}}}), flush=True)\n"
+        " if request.get('id') == 2:\n"
+        "  print(json.dumps({'jsonrpc': '2.0', 'id': 2, 'result': "
+        "{'tools': [{'name': 'inspect', 'inputSchema': {'type': 'object'}}]}}), flush=True)\n",
+        encoding="utf-8",
+    )
+    raw = tmp_path / "raw"
+
+    evidence = _run_mcp_preflight(
+        StdioLaunch(Path(sys.executable), (str(server),), {}),
+        tmp_path,
+        raw,
+        {"inspect"},
+        timeout_seconds=5,
+    )
+
+    assert evidence["status"] == "passed"
+    assert evidence["failure_stage"] is None
+    assert evidence["response_ids"] == [1, 2]
+    assert evidence["observed_tool_names"] == ["inspect"]
+    assert (raw / "mcp_preflight.stdout.jsonl").is_file()
+    assert json.loads((raw / "mcp_preflight.json").read_text())["status"] == "passed"
+
+
+def test_mcp_preflight_records_process_failure_and_stderr(tmp_path):
+    from distill.runner import _run_mcp_preflight
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+
+    server = tmp_path / "broken_mcp.py"
+    server.write_text(
+        "import sys\n"
+        "sys.stderr.write('docker daemon unavailable\\n')\n"
+        "raise SystemExit(23)\n",
+        encoding="utf-8",
+    )
+    raw = tmp_path / "raw"
+
+    evidence = _run_mcp_preflight(
+        StdioLaunch(Path(sys.executable), (str(server),), {}),
+        tmp_path,
+        raw,
+        {"inspect"},
+        timeout_seconds=5,
+    )
+
+    assert evidence["status"] == "failed"
+    assert evidence["failure_stage"] == "process_exit"
+    assert evidence["returncode"] == 23
+    assert evidence["missing_tool_names"] == ["inspect"]
+    assert "docker daemon unavailable" in (
+        raw / "mcp_preflight.stderr.txt"
+    ).read_text()
+
+
+def test_mcp_preflight_records_spawn_failure(tmp_path):
+    from distill.runner import _run_mcp_preflight
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+
+    raw = tmp_path / "raw"
+    evidence = _run_mcp_preflight(
+        StdioLaunch(tmp_path / "missing-mcp-command", (), {}),
+        tmp_path,
+        raw,
+        {"inspect"},
+        timeout_seconds=5,
+    )
+
+    assert evidence["status"] == "failed"
+    assert evidence["failure_stage"] == "process_spawn"
+    assert evidence["returncode"] is None
+    assert "FileNotFoundError" in evidence["error"]
+    assert "FileNotFoundError" in (raw / "mcp_preflight.stderr.txt").read_text()
+
+
+def test_mcp_preflight_rejects_wrong_tool_set(tmp_path):
+    from distill.runner import _run_mcp_preflight
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+
+    server = tmp_path / "wrong_tools_mcp.py"
+    server.write_text(
+        "import json, sys\n"
+        "for line in sys.stdin:\n"
+        " request = json.loads(line)\n"
+        " if request.get('id') == 1:\n"
+        "  print(json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': {}}), flush=True)\n"
+        " if request.get('id') == 2:\n"
+        "  print(json.dumps({'jsonrpc': '2.0', 'id': 2, 'result': "
+        "{'tools': [{'name': 'other'}]}}), flush=True)\n",
+        encoding="utf-8",
+    )
+
+    evidence = _run_mcp_preflight(
+        StdioLaunch(Path(sys.executable), (str(server),), {}),
+        tmp_path,
+        tmp_path / "raw",
+        {"inspect"},
+        timeout_seconds=5,
+    )
+
+    assert evidence["status"] == "failed"
+    assert evidence["failure_stage"] == "tool_contract"
+    assert evidence["missing_tool_names"] == ["inspect"]
+    assert evidence["unexpected_tool_names"] == ["other"]
 
 
 def test_kimi_config_registers_native_file_access_hook(tmp_path):
@@ -135,6 +430,26 @@ def test_kimi_config_registers_native_file_access_hook(tmp_path):
         "command": "python /private/kimi_file_policy.py",
         "timeout": 5,
     }]
+
+
+def test_atomic_tool_budget_is_shared_across_callers(tmp_path):
+    from harness.tool_budget import claim_tool_call
+
+    counter = tmp_path / "counter.json"
+    marker = tmp_path / "stop.json"
+
+    assert claim_tool_call(counter, marker, 2, "inspect")["allowed"] is True
+    assert claim_tool_call(counter, marker, 2, "Read")["allowed"] is True
+    rejected = claim_tool_call(counter, marker, 2, "Grep")
+
+    assert rejected == {
+        "allowed": False,
+        "reason": "total_tool_call_limit_exceeded",
+        "limit": 2,
+        "observed_count": 2,
+        "attempted_tool": "Grep",
+    }
+    assert json.loads(marker.read_text()) == rejected
 
 
 def test_kimi_k3_request_normalization_uses_public_chat_contract():
@@ -187,6 +502,41 @@ def test_relay_retries_only_internal_maas_400():
     assert not StreamingRelay._retryable_response(400, ordinary)
     assert StreamingRelay._retryable_response(503, b"temporary")
     assert not StreamingRelay._retryable_response(401, b"unauthorized")
+
+
+def test_relay_detects_error_inside_successful_sse_response(tmp_path):
+    from distill.relay import _stream_error
+
+    response = tmp_path / "response.sse"
+    response.write_text(
+        'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'
+        '{"error":{"type":"timeout_error","code":"504001",'
+        '"message":"upstream timed out","source":"upstream"}}\n'
+        'event: error\n'
+        'data: {"error":{"type":"upstream_error",'
+        '"code":"upstream_stream_truncated"}}\n\n',
+        encoding="utf-8",
+    )
+
+    assert _stream_error(response) == {
+        "type": "timeout_error",
+        "code": "504001",
+        "message": "upstream timed out",
+        "source": "upstream",
+    }
+
+
+def test_relay_ignores_error_text_inside_normal_sse_content(tmp_path):
+    from distill.relay import _stream_error
+
+    response = tmp_path / "response.sse"
+    response.write_text(
+        'data: {"choices":[{"delta":{"content":"the error is fixed"}}]}\n\n'
+        'data: [DONE]\n\n',
+        encoding="utf-8",
+    )
+
+    assert _stream_error(response) is None
 
 
 def test_relay_retry_delay_is_exponential_and_bounded(tmp_path):
@@ -243,6 +593,8 @@ def test_relay_blocks_missing_mcp_tools_before_upstream(tmp_path, streaming_mode
     assert failure["reason"] == "mcp_tools_missing_from_first_model_request"
     assert failure["expected_tool_names"] == sorted(expected)
     assert failure["observed_tool_names"] == ["Read"]
+    response = json.loads((raw / "model_responses.jsonl").read_text())
+    assert response["origin"] == "local_harness"
 
 
 def test_streaming_relay_forwards_public_k3_contract_and_keeps_both_requests(
@@ -378,6 +730,23 @@ def test_tool_policy_accepts_kimi_code_shortened_long_name():
         {"mcp__agent_world_distill__update_simulated_remote_comma_-8194698"},
         {"mcp__agent_world_distill__update_simulated_remote_command_definition"},
     )
+
+
+def test_tool_policy_accepts_multiple_shortened_names_with_same_prefix():
+    from distill.runner import _tool_names_match
+
+    expected = {
+        "Read",
+        "mcp__agent_world_distill__find_control_job_process_job_to_control_job",
+        "mcp__agent_world_distill__find_control_job_process_job_to_process_job",
+    }
+    observed = {
+        "Read",
+        "mcp__agent_world_distill__find_control_job_process_job_-319b09d6",
+        "mcp__agent_world_distill__find_control_job_process_job_-4453156a",
+    }
+
+    assert _tool_names_match(observed, expected)
 
 
 @pytest.mark.parametrize("observed", [
@@ -577,7 +946,7 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
     }
     for request in requests:
         assert request["stream"] is True
-        assert request["reasoning_effort"] == "high"
+        assert request["reasoning_effort"] == "max"
         assert request["max_completion_tokens"] > 0
         assert "thinking" not in request
         assert "max_tokens" not in request
@@ -662,7 +1031,7 @@ def test_official_cli_reads_long_result_with_native_read(tmp_path, streaming_mod
         "Inspect the long sample and report the evidence in its middle.",
         initial,
         {
-            "state_root": ".", "trace": "calls.jsonl", "max_tool_calls": 1,
+            "state_root": ".", "trace": "calls.jsonl", "max_tool_calls": 2,
             "timeout": 30, "memory_limit": 2 * 1024 * 1024 * 1024,
             "write_limit": 256 * 1024 * 1024, "tools": [tool],
             "environment": {"environment_id": "long-cli-fixture", "schema_version": "1.0"},

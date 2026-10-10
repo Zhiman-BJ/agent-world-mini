@@ -1,6 +1,6 @@
 # Program-form 三步任务生成管线
 
-`task_gen/program_form` 是 `task_gen/program` 的兼容软链接。当前模块的职责到生成任务、
+正式模块为 `task_gen/program`。当前模块的职责到生成任务、
 验证参考 Solution 并保存可重放 Ground Truth 为止，不包含 Verifier 或任务评测。
 
 ## 1. 流程
@@ -106,8 +106,13 @@ baseline_environment/
 ├── validation.json
 ├── tools.json
 ├── tool_validation.json         # binding 模式存在
-└── state/
+└── state_reference.json         # binding 模式下指向 ToolGen 冻结初态
 ```
+
+binding 模式不会把完整环境状态长期复制进 TaskGen 运行目录。生成和审查只通过
+`state_reference.json` 读取冻结初态；真正调用工具或 clean replay 时，Harness 才创建独立的
+临时可写副本，并在该次执行结束后释放。旧版 `--environment-package` 输入没有冻结交付保证，
+仍会保存本地 `state/` 或 `workspace/` 副本。
 
 为了兼容历史测试，也可以直接使用 `--environment-package` 和 `--tools-path`；正式生产应
 优先使用 binding，避免错误组合环境、工具和软件 Profile。
@@ -203,11 +208,14 @@ Step 2 选择一个 `generatable=true` 的任务原型作为主要现实依据�
 Step 2 不再自行解释工具代码或拼接软件路径。每次 Solution 执行和 clean replay 都先通过
 `harness.layout.create_task_run_layout()` 创建相互隔离的 `execution-state/` 与
 `model-workspace/`，再统一调用 `harness.execution.call_environment_tool()`。Harness 负责输入输出
-Schema、资源 Scope、bubblewrap 沙箱、只读边界、成功提交和失败回滚。
+Schema、资源 Scope、事务状态副本、只读边界、成功提交和失败回滚。
+这里的 clean replay 是重新执行已经生成的 Solution，不是再让一个 Agent 重新解题。
 
 实际运行后端完全服从 ToolGen `binding.json` 指向的 `runtime.json`：`host_python` 使用当前
 Harness Python，`python_profile` 使用交付的软件 Profile，`docker` 使用交付声明的镜像和容器内
-软件目录。TaskGen 不再根据目录名称猜测依赖，也不会把 `execution-state` 当作 Agent 工作目录。
+软件目录。Python Profile 和 Docker 路径不再嵌套 bubblewrap；`host_python` 仍使用
+Harness 沙箱。TaskGen 不再根据目录名称猜测依赖，也不会把 `execution-state`
+当作 Agent 工作目录。
 
 ## 6. Step 2 输出
 

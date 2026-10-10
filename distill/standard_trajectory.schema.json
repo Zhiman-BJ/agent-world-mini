@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-world.local/schemas/standard-trajectory-v1.json",
+  "title": "Agent World standard training trajectory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "message_format",
+    "trajectory_id",
+    "model",
+    "task",
+    "environment",
+    "tools",
+    "messages",
+    "tool_call_annotations",
+    "evaluation",
+    "quality_flags",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {"const": "agent_world.standard_trajectory.v1"},
+    "message_format": {
+      "const": "openai.chat_completions.messages.v1+kimi.reasoning_content"
+    },
+    "trajectory_id": {"type": "string", "minLength": 1},
+    "model": {"type": "object"},
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "task_text"],
+      "properties": {
+        "task_id": {"type": ["string", "null"]},
+        "task_text": {"type": "string", "minLength": 1}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment_id",
+        "delivery_namespace",
+        "binding_ref",
+        "binding_sha256",
+        "environment_definition_sha256",
+        "initial_state_manifest_sha256",
+        "tools_sha256",
+        "runtime"
+      ],
+      "properties": {
+        "environment_id": {"type": "string", "minLength": 1},
+        "delivery_namespace": {"type": "string", "minLength": 1},
+        "binding_ref": {"type": "string", "minLength": 1},
+        "binding_sha256": {"$ref": "#/$defs/hash"},
+        "environment_definition_sha256": {"$ref": "#/$defs/hash"},
+        "initial_state_manifest_sha256": {"$ref": "#/$defs/hash"},
+        "tools_sha256": {"$ref": "#/$defs/hash"},
+        "runtime": {"type": "object"}
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {"enum": ["system", "developer", "user", "assistant", "tool"]},
+          "content": {},
+          "reasoning_content": {"type": "string"},
+          "tool_calls": {"type": "array"},
+          "tool_call_id": {"type": "string"}
+        }
+      }
+    },
+    "tool_call_annotations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "tool_kind", "is_error", "output_encoding"],
+        "properties": {
+          "name": {"type": "string"},
+          "tool_kind": {"type": "string"},
+          "is_error": {"type": "boolean"},
+          "output_encoding": {"enum": ["text", "json"]}
+        }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "source", "category"],
+      "properties": {
+        "outcome": {"const": "pass"},
+        "source": {"type": "string"},
+        "category": {"type": "string"}
+      }
+    },
+    "quality_flags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case",
+        "evidence_ref",
+        "source_trajectory_sha256",
+        "cleaned_trajectory_sha256",
+        "cleaned_input_sha256",
+        "raw_model_evidence_available",
+        "reasoning_preserved",
+        "normalizations"
+      ],
+      "properties": {
+        "case": {"type": "string"},
+        "evidence_ref": {"type": "string"},
+        "source_trajectory_sha256": {"$ref": "#/$defs/hash"},
+        "cleaned_trajectory_sha256": {"$ref": "#/$defs/hash"},
+        "cleaned_input_sha256": {"$ref": "#/$defs/hash"},
+        "raw_model_evidence_available": {"type": "boolean"},
+        "reasoning_preserved": {"type": "boolean"},
+        "normalizations": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

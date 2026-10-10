@@ -44,6 +44,7 @@ V1_ENVIRONMENT_FIELDS = (
     "rules",
     "tools",
 )
+STATE_REFERENCE_FILENAME = "state_reference.json"
 
 
 def _read_json(path: Path, *, label: str) -> Any:
@@ -105,7 +106,7 @@ class CompleteEnvironmentPackage:
             cls._validate_upstream_receipt(package_root)
             state_root = package_root / "state"
             if not state_root.is_dir():
-                raise ValueError(f"v2 环境包缺少 state/：{package_root}")
+                state_root = cls._load_state_reference(package_root, expected_name="state")
             cls._validate_v2_state_shape(environment, state_root)
             package_format = "v2"
             embedded_tools: Any = None
@@ -118,7 +119,7 @@ class CompleteEnvironmentPackage:
             environment = deepcopy(raw_environment)
             state_root = package_root / "workspace"
             if not state_root.is_dir():
-                raise ValueError(f"旧版环境包缺少 workspace/：{package_root}")
+                state_root = cls._load_state_reference(package_root, expected_name="workspace")
             package_format = "v1"
 
         resolved_tools_path, raw_tools = cls._load_tools(
@@ -164,6 +165,26 @@ class CompleteEnvironmentPackage:
             software_root=software_root,
             runtime=runtime,
         )
+
+    @staticmethod
+    def _load_state_reference(package_root: Path, *, expected_name: str) -> Path:
+        path = package_root / STATE_REFERENCE_FILENAME
+        if not path.is_file():
+            raise ValueError(
+                f"环境包缺少 {expected_name}/ 或 {STATE_REFERENCE_FILENAME}：{package_root}"
+            )
+        value = _read_json(path, label=STATE_REFERENCE_FILENAME)
+        if (
+            not isinstance(value, dict)
+            or value.get("schema_version") != "1.0"
+            or value.get("state_name") != expected_name
+            or not isinstance(value.get("path"), str)
+        ):
+            raise ValueError(f"{STATE_REFERENCE_FILENAME} 结构无效：{path}")
+        state_root = Path(value["path"]).expanduser().resolve()
+        if not state_root.is_dir():
+            raise FileNotFoundError(f"状态索引指向的目录不存在：{state_root}")
+        return state_root
 
     @staticmethod
     def _load_delivery_metadata(package_root: Path) -> dict[str, Any] | None:
