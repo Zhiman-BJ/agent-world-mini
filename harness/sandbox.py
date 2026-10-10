@@ -283,6 +283,10 @@ def _run_tool(
             runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
         except ValueError:
             return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
+    # A delivery container already owns procfs; host execution gets a fresh mount.
+    proc_mount = (["--ro-bind", "/proc", "/proc"]
+                  if os.environ.get("AGENT_WORLD_DOCKER_RUNTIME") == "1"
+                  else ["--proc", "/proc"])
     command = [
         sandbox,
         "--unshare-all",
@@ -292,7 +296,7 @@ def _run_tool(
         "--ro-bind-try", "/lib64", "/lib64",
         "--dir", "/etc",
         "--ro-bind-try", "/etc/passwd", "/etc/passwd",
-        "--proc", "/proc",
+        *proc_mount,
         "--dev", "/dev",
         "--dir", "/tmp",
         "--dir", "/workspace",

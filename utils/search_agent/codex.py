@@ -52,11 +52,39 @@ def _process_failure_is_retryable(detail: str) -> bool:
             "timed out",
             "timeout",
             "overloaded",
+            "500",
             "502",
             "503",
             "504",
         )
     )
+
+
+def is_retryable_error(error: BaseException) -> bool:
+    """Return whether an exception chain contains a transient Agent failure."""
+
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        # A Step 2 coverage gap is not a malformed Seed or schema failure:
+        # the Agent downloaded real data but did not discover enough source
+        # types in this attempt. Retry so the next attempt can supplement it.
+        detail = str(current)
+        if "Step 2 已完成主要下载" in detail and "collection_profile.gaps" in detail:
+            return True
+        if getattr(current, "retryable", False) is True:
+            return True
+        if isinstance(current, (TimeoutError, ConnectionError)):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
 
 
 def _toml_string(value: str) -> str:
@@ -294,7 +322,10 @@ class CodexAgentClient:
                     process.stdin.close()
                     deadline = time.monotonic() + self.timeout_seconds
                     while process.poll() is None:
-                        if stop_when and all(path.resolve().is_file() for path in stop_when):
+                        checkpoints_ready = bool(stop_when) and all(
+                            self._checkpoint_is_complete(path) for path in stop_when
+                        )
+                        if checkpoints_ready:
                             if stable_json_path is None:
                                 stopped_at_checkpoint = True
                                 self._terminate_process_group(
@@ -362,6 +393,21 @@ class CodexAgentClient:
             return response
 
     @staticmethod
+    def _checkpoint_is_complete(path: Path) -> bool:
+        """Require JSON checkpoints to be parseable before stopping the writer."""
+
+        path = path.resolve()
+        if not path.is_file():
+            return False
+        if path.suffix.lower() != ".json":
+            return True
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return False
+        return True
+
+    @staticmethod
     def _terminate_process_group(
         process: subprocess.Popen[str],
         *,
@@ -416,4 +462,5 @@ __all__ = [
     "CodexLaunchError",
     "CodexProcessError",
     "CodexTimeoutError",
+    "is_retryable_error",
 ]

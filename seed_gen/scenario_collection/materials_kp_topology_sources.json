@@ -1,0 +1,55 @@
+[
+  {
+    "name": "kdotpy",
+    "directory": "kdotpy",
+    "index": 141,
+    "source_root": "src",
+    "modules": [
+      "kdotpy"
+    ],
+    "repository": "https://git.physik.uni-wuerzburg.de/kdotpy/kdotpy",
+    "documentation": "https://kdotpy.physik.uni-wuerzburg.de",
+    "pypi": "https://pypi.org/project/kdotpy/",
+    "pypi_version": "1.4.1",
+    "tag": "v1.4.1",
+    "commit": "771ffd704a611e2b15e32f7d1b62eda1bb7ae0d2",
+    "release_published_at": "2026-06-26",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "notes": [
+      "完整发布Python静态候选；运行任务、继承/动态入口另行核查。"
+    ],
+    "description": "kdotpy实现Kane多带k·p模型，计算闪锌矿半导体的体材料、量子阱和条带能带，支持材料参数、应变、磁场与光学观察量；多数高层用法为命令行，Python参考入口需明确状态与单位。",
+    "release_api": "https://git.physik.uni-wuerzburg.de/kdotpy/kdotpy/-/tags/v1.4.1",
+    "release_url": "https://git.physik.uni-wuerzburg.de/kdotpy/kdotpy/-/tags/v1.4.1",
+    "selection_rule": "Official latest stable tag v1.4.1 agrees with PyPI1.4.1; date from official tag page."
+  },
+  {
+    "name": "z2pack",
+    "directory": "z2pack",
+    "index": 142,
+    "source_root": "src",
+    "modules": [
+      "z2pack"
+    ],
+    "repository": "https://github.com/Z2PackDev/Z2Pack",
+    "documentation": "https://z2pack.greschd.ch",
+    "pypi": "https://pypi.org/project/z2pack/",
+    "pypi_version": "2.2.1",
+    "tag": "2.2.1",
+    "commit": "a82c83afbdac8e43a593c22c06de19cfe752d354",
+    "release_published_at": "2025-02-20T23:45:48.157239Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "notes": [
+      "完整发布Python静态候选；运行任务、继承/动态入口另行核查。",
+      "PyPI2.2.1无相同Git tag；不是以默认分支冒充发布版。所有发布Python文件与固定提交逐字节一致，核查证据见research/z2pack_source_equivalence.json。",
+      "Windows rejects test filenames containing <lambda>; cone sparse checkout includes src/doc/examples and root files. One-command core.protectNTFS=false allowed index population; no source files changed. Tests outside sparse cone are not part of API extraction."
+    ],
+    "description": "Z2Pack沿闭合k空间回路计算Wannier电荷中心和Wilson环，支持自适应收敛及Chern/Z2不变量，可使用显式哈密顿量或TBmodels模型作为输入。",
+    "release_api": "https://pypi.org/pypi/z2pack/2.2.1/json",
+    "release_url": "https://pypi.org/project/z2pack/2.2.1/",
+    "selection_rule": "Latest stable PyPI2.2.1, exact Git source equivalence; no matching release tag.",
+    "ref": "a82c83afbdac8e43a593c22c06de19cfe752d354"
+  }
+]

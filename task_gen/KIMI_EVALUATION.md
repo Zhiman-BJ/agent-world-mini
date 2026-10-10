@@ -1,6 +1,6 @@
 # Kimi 独立评测接入与试跑说明
 
-2026-09-18 更新：默认 system prompt 使用官方 `${base_prompt}` 继承机制，移除适配器附加的正文、预算及分页提醒；工具范围仍单独限制。详情和全文见 `KIMI_IMPORTANT_NOTES.md`。此次 Kimi 专项回归 22 项通过，包含官方 prompt 渲染和内置 Read 拒绝测试；尚未做此 prompt 版本的真实模型任务质量对比。
+2026-09-28 更新：默认 system prompt 使用官方 `${base_prompt}` 继承机制；MCP 只暴露业务工具，Kimi 原生 `Read/Grep/Glob` 单独开放，长结果使用原生 `tool-results`。详情见 `KIMI_IMPORTANT_NOTES.md`。
 
 ## 2026-09-18 新交付输入
 
@@ -29,7 +29,7 @@ Kimi 是执行循环，模型通过 `llm.model` 选择，不要求使用 Kimi �
 - `task_eval_kimi.mjs`：使用官方 SDK 管理消息循环，通过现有 MCP 服务执行工具；保存请求、事件、上下文和 usage。
 - `config/task_eval_kimi.yaml`：独立配置，使用已有管线凭据，不修改对话的凭据。
 
-工具执行仍由已有的 bubblewrap 沙箱和状态提交逻辑负责。Kimi 工作目录是单独的空目录；工具白名单只允许当前环境的 MCP 工具和受限 `read_tool_result`，内置 Read、Shell、网络、子代理等均不开放。
+工具执行仍由已有的 bubblewrap 沙箱和状态提交逻辑负责。Kimi 工作目录是单独的空目录；MCP 只提供当前环境的业务工具，原生 `Read/Grep/Glob` 只用于模型工作区和 Kimi 自己落盘的长结果，Write、Edit、Bash、网络和子代理均不开放。
 这是 SDK 工具权限限制，不是新增了一个包住整个 Kimi 进程的操作系统沙箱。
 
 ## 官方 SDK 与启动
@@ -67,7 +67,6 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 | `llm.model / base_url / api_key_file` | 复用已有管线模型配置 |
 | `llm.temperature / llm.kimi.max_output_size` | 采样温度、可选的单次输出上限；默认不额外限制输出 |
 | `llm.kimi.system_prompt` | 可直接在 YAML 修改 system prompt 正文 |
-| `llm.kimi.tool_result_page_chars` | 长返回值预览与单页字符上限，默认 6000，允许 1–12000；由我们的适配层实现 |
 | `llm.kimi.max_context_size` | 显式声明后端上下文预算；不能改变服务端实际限制 |
 | `llm.kimi.max_steps_per_turn` | 模型循环上限；默认工具预算 × 2 + 10 |
 | `llm.kimi.max_attempts_per_step` | 每步 API 尝试次数，默认 3 |
@@ -77,11 +76,11 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 
 原 ReAct 的 `response_format`、`format_retry_count` 不用于 Kimi。当前模型协议只支持 OpenAI-compatible Chat Completions。
 
-**长返回值读取：** SDK 原生超过 50,000 字符会外存并指示使用 Read/Grep，外存本身也有保留上限。现在在它之前分页：短返回保持原样，长返回给出 `result_id / total_chars / offset / next_offset / has_more / content`，内容是原始 JSON 文本的一段，不是摘要。模型用 `read_tool_result(result_id, offset, length)` 按需读取后续或任意位置；offset/length 按 Unicode 字符计数，页面可能切在 JSON 字段中间，只有拼接完整后才是完整 JSON。
+**长返回值读取：** MCP 适配层不再分页或注册自定义 reader，工具结果完整进入 Kimi Code。超过 Kimi 原生阈值时由 SDK 保存到当前 session 的 `tool-results`，模型使用原生 `Read/Grep` 按 Kimi 给出的路径恢复；这些文件不属于环境状态，也不会进入 `tools/list`。
 
-编号只能查到当前 Kimi 适配进程已有的长结果；实现不接受文件路径、不读取环境状态目录。完整原文在进程内保留到运行结束，永久记录仍是 `tool_calls.jsonl`；`result_index.jsonl` 将结果编号对应到业务调用序号。辅助读取另记 `result_reads.jsonl`，不消耗环境调用预算，但受模型步数和总时限限制。目前内存占用随长结果累计增长，尚未改成磁盘缓存；会话结束后不能续用旧编号。没有添加摘要，也不开放 SDK 历史文件恢复指针。
+长结果文件只属于当前 Kimi session，不能通过物理路径访问其他任务或环境状态；原始完整返回仍记录在 `environment_tool_calls.jsonl`。
 
-正式环境 MCP 使用同事的共享协议，保留原业务 outputSchema。仅 Kimi 的展示适配层 `task_eval_kimi_mcp.py` 为了容纳分页信封，不向 SDK 声明结构化 outputSchema，而将它完整放入 description；Python 执行器仍按原 outputSchema 校验并决定状态是否提交。`read_tool_result` 也仅在这层注册，不进入任务 available_tools。这个适配层接收标准 handler 的完整结果再处理，不修改官方 SDK。工具自身的语义分页优先使用，长结果兜底作为补充。
+正式环境 MCP 使用同事的共享协议，保留原业务 outputSchema。`task_eval_kimi_mcp.py` 只做 Kimi Schema 兼容转换，不改变工具返回值；`resources/list/read` 是 MCP 协议方法，不是模型 function tool，业务工具的文件参数仍是 Scope 内相对路径。
 
 ## 共享 MCP 与交付包接入（2026-09-17）
 
@@ -109,7 +108,7 @@ SDK 会对同一步内名称和参数完全相同的调用去重，多个消息�
 每次调用在状态目录旁的 `<目录名>.agent/` 留档：`agent.md`、`llm_requests.jsonl`、
 `llm_responses.jsonl`（按 request_id 对应原始 SSE/JSON 响应）、`system_prompts.jsonl`、
 `effective_config.json`、`events.jsonl`、`context.json`、`result.json`（含 usage）、
-`tool_calls.jsonl`、`result_reads.jsonl` 和 `timing.json`。断流保留已收到的原始片段及错误；超时先取消并保存上下文，10 秒内不能退出则强制终止。
+`tool_calls.jsonl` 和 `timing.json`。断流保留已收到的原始片段及错误；超时先取消并保存上下文，10 秒内不能退出则强制终止。
 请求日志没有认证头；API key 通过 stdin 传给进程，不放入命令行。临时 SDK home 在结束后清理。
 失败时仍保留已有日志；若尚未进入生成阶段，可能没有模型请求或上下文文件。
 
@@ -131,7 +130,7 @@ python -m pytest tests/test_task_eval.py tests/test_task_eval_react.py tests/tes
 真实 Sol 试跑产物：`runs/kimi_smoke/20260916_171006_114568/report.json`；3 次调用，989 → 996，状态与答案检查通过。
 新版完整配置的 Sol 试跑：`runs/kimi_smoke/20260916_181618_613815/report.json`，407 → 414，3 次工具调用，耗时 14.43 秒。
 该次 usage：普通输入 5416、缓存输入 13952、输出 176 tokens；未据此推算价格。
-小窗口测试产生 `compaction.completed` 并继续执行；分页后使用 4096 token 测试窗口。
+小窗口测试产生 `compaction.completed` 并继续执行；原生文件工具表在压缩前后保持一致。
 长结果试跑命令：`python scripts/run_kimi_smoke.py --long-result --model gpt-5.6-sol`。
 产物 `runs/kimi_smoke/20260917_012857_674755/report.json`：600083 字符返回中取得尾部凭据，157 → 164，3 次业务调用、2 次辅助读取，21.32 秒，检查通过。
 另有正式 Hugeicons task4 单例 `runs/kimi_real_task/20260916_194130_051270`，verifier 3/3 通过；尚未完成整套任务集评测。

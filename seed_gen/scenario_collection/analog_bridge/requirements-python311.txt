@@ -1,0 +1,16 @@
+# Windows CPython 3.11.16; exact installed versions after uv pip check.
+annotated-types==0.8.0
+hdl21==6.0.0
+klayout==0.30.12
+numpy==1.26.4
+pandas==1.5.3
+protobuf==4.25.9
+pydantic==2.6.4
+pydantic-core==2.16.3
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+six==1.17.0
+skillbridge==1.8.0
+typing-extensions==4.16.0
+vlsir==6.0.0
+vlsirtools==6.0.0

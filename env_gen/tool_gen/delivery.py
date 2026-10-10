@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from pathlib import Path
 from utils.io import write_json
 
 from .compiler import ToolGenerationResult
-from .software import runtime_info
+from .software import runtime_info, installed_versions
 
 
 BINDING_SCHEMA_VERSION = "1.0"
@@ -24,6 +25,7 @@ class ToolDelivery:
     tools_root: Path
     environment_root: Path
     software_mapping_root: Path
+    runtime_root: Path
     binding_path: Path
     software_profile: str | None
 
@@ -34,10 +36,60 @@ def _copy_directory(source: Path, destination: Path) -> None:
 
 
 def _replace_directory(staged: Path, destination: Path) -> None:
-    if destination.exists():
-        shutil.rmtree(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    staged.rename(destination)
+    previous = staged.with_name(staged.name + ".previous")
+    if destination.exists():
+        destination.rename(previous)
+    try:
+        staged.rename(destination)
+    except OSError:
+        if previous.exists():
+            previous.rename(destination)
+        raise
+
+
+def _software_build_artifact(relative: Path) -> bool:
+    """Select build caches and extracted system documentation at known locations."""
+    parts = relative.parts
+    return bool(parts) and (
+        parts[0] in {"cache", ".cache", "conda-pkgs"}
+        or parts[0].endswith("-failed")
+        or parts[:4] == ("system", "usr", "share", "doc")
+    )
+
+
+def _copy_software(source: Path, staged: Path) -> None:
+    source = source.resolve()
+
+    def ignore(directory: str, names: list[str]) -> list[str]:
+        relative = Path(directory).relative_to(source)
+        return [name for name in names if _software_build_artifact(relative / name)]
+
+    shutil.copytree(source, staged, symlinks=True, ignore=ignore)
+    links = [path for path in staged.rglob("*") if path.is_symlink()]
+    for link in links:
+        original = source / link.relative_to(staged)
+        # Resolve relative links from the source location before moving the package.
+        target = Path(os.path.abspath(original.parent / os.readlink(original)))
+        if not original.exists():
+            raise FileNotFoundError(f"软件运行依赖链接失效：{original} -> {target}")
+        relative = target.relative_to(source) if target.is_relative_to(source) else None
+        link.unlink()
+        if relative is not None and _software_build_artifact(relative):
+            # A runtime may link into a download cache; ship that required target.
+            if target.is_dir():
+                shutil.copytree(target, link)
+            else:
+                shutil.copy2(target, link)
+        else:
+            destination = staged / relative if relative is not None else target
+            link.symlink_to(
+                os.path.relpath(destination, link.parent) if relative is not None else destination,
+                target_is_directory=target.is_dir(),
+            )
+    for link in links:
+        if not link.exists():
+            raise FileNotFoundError(f"交付软件链接不可访问：{link}")
 
 
 def _environment_validation_path(package_root: Path) -> Path:
@@ -53,11 +105,56 @@ def _environment_validation_path(package_root: Path) -> Path:
     return path
 
 
+def _publish_software_profile(
+    source: Path,
+    destination: Path,
+    requirements: Path,
+) -> None:
+    """Publish one immutable profile without racing another environment."""
+
+    versions = installed_versions(source, requirements)
+    if destination.exists():
+        if installed_versions(destination, destination / 'requirements.txt') != versions:
+            raise ValueError(f'共享软件版本与当前安装结果不同：{destination}')
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix=f".{destination.name}-", dir=destination.parent
+    ) as temporary:
+        staged = Path(temporary) / destination.name
+        _copy_software(source, staged)
+        for entrypoint in staged.glob("python-*/bin/*"):
+            if entrypoint.is_symlink() or not entrypoint.is_file() or entrypoint.stat().st_size > 1_000_000:
+                continue
+            original = entrypoint.read_bytes()
+            relocated = original.replace(str(source).encode(), str(destination).encode())
+            if relocated != original:
+                entrypoint.write_bytes(relocated)
+        for package, filename in (("petsc4py", "petsc.cfg"), ("slepc4py", "slepc.cfg")):
+            for config in staged.glob(
+                f"python-*/lib/python*/site-packages/{package}/lib/{filename}"
+            ):
+                value = config.read_text(encoding="utf-8")
+                updated = value.replace(str(source), str(destination))
+                if updated != value:
+                    config.write_text(updated, encoding="utf-8")
+        if requirements.is_file():
+            shutil.copy2(requirements, staged / "requirements.txt")
+        write_json(staged / 'installed_versions.json', versions)
+        try:
+            staged.rename(destination)
+        except OSError:
+            if not destination.is_dir():
+                raise
+            if installed_versions(destination, destination / 'requirements.txt') != versions:
+                raise ValueError(f'共享软件版本与当前安装结果不同：{destination}')
+
+
 def _software_profile_id(software: dict[str, object]) -> str:
     profile = software.get("profile_id")
     if profile:
         return str(profile)
-    plan = software.get("plan", {})
+    plan = {'plan': software.get('plan', {}), 'installed_versions': software.get('installed_versions', {})}
     payload = json.dumps(plan, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return "py-" + hashlib.sha256(payload).hexdigest()[:12]
 
@@ -75,12 +172,37 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
     tools_root = delivery_package_root / "tools"
     environment_root = delivery_package_root / "environment"
     software_mapping_root = delivery_package_root / "software"
+    runtime_root = delivery_package_root / "runtime"
     source_package_root = result.package_root
     package_root = delivery_package_root
     environment_validation_path = _environment_validation_path(source_package_root)
+    container_runtime_path = (
+        source_package_root / "tool_generation/container_runtime.json"
+    )
+    container_runtime: dict[str, object] | None = None
+    if container_runtime_path.is_file():
+        value = json.loads(container_runtime_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("backend") != "docker":
+            raise ValueError(
+                f"container_runtime.json 必须声明 docker 后端：{container_runtime_path}"
+            )
+        container_runtime = value
     software = runtime_info(source_package_root)
-    profile = _software_profile_id(software) if software else None
-    software_source = Path(str(software["root"])).resolve() if software else None
+    if software and container_runtime is None:
+        software = dict(software)
+        software['installed_versions'] = installed_versions(
+            Path(str(software['root'])), source_package_root / 'tool_runtime/requirements.txt'
+        )
+    profile = (
+        _software_profile_id(software)
+        if software and container_runtime is None
+        else None
+    )
+    software_source = (
+        Path(str(software["root"])).resolve()
+        if software and container_runtime is None
+        else None
+    )
     if software_source and not software_source.is_dir():
         raise ValueError(f"软件运行目录不存在：{software_source}")
     software_profile_root = (
@@ -95,14 +217,23 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
         except ValueError as error:
             raise ValueError(f"软件 Python 不在运行目录内：{python_path}") from error
 
+    if software_source and software_profile_root:
+        _publish_software_profile(
+            software_source,
+            software_profile_root,
+            source_package_root / "tool_runtime/requirements.txt",
+        )
+
     with tempfile.TemporaryDirectory(prefix=f".{package_id}-", dir=output_root) as temporary:
-        staging = Path(temporary)
+        staging = Path(temporary) / "package"
         staged_tools = staging / "tools"
         staged_environment = staging / "environment"
         staged_software = staging / "software"
-        staged_tools.mkdir()
+        staged_runtime = staging / "runtime"
+        staged_tools.mkdir(parents=True)
         staged_environment.mkdir()
         staged_software.mkdir()
+        staged_runtime.mkdir()
         shutil.copy2(result.tools_path, staged_tools / "tools.json")
         for source, name in (
             (result.grounding_path, "tool_grounding.json"),
@@ -135,39 +266,43 @@ def publish(result: ToolGenerationResult, output_root: Path) -> ToolDelivery:
                 ),
             },
         )
-        _replace_directory(staged_tools, tools_root)
-        _replace_directory(staged_environment, environment_root)
-        _replace_directory(staged_software, software_mapping_root)
-
-    if software_source and software_profile_root and not software_profile_root.exists():
-        software_profile_root.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(software_source, software_profile_root, symlinks=True)
-        requirements = source_package_root / "tool_runtime/requirements.txt"
-        if requirements.is_file():
-            shutil.copy2(requirements, software_profile_root / "requirements.txt")
+        if container_runtime is not None:
+            runtime = container_runtime
+        elif profile:
+            runtime = {
+                "schema_version": "1.0",
+                "backend": "python_profile",
+                "profile_id": profile,
+            }
+        else:
+            runtime = {"schema_version": "1.0", "backend": "host_python"}
+        write_json(staged_runtime / "runtime.json", runtime)
+        binding = {
+            "schema_version": BINDING_SCHEMA_VERSION,
+            "package_id": package_id,
+            "environment_id": environment_id,
+            "package_path": f"environments/{package_id}",
+            "tools_path": f"environments/{package_id}/tools/tools.json",
+            "tool_validation_path": f"environments/{package_id}/tools/tool_validation.json",
+            "environment_path": f"environments/{package_id}/environment",
+            "environment_validation_path": f"environments/{package_id}/environment/validation.json",
+            "software_mapping_path": f"environments/{package_id}/software/profile.json",
+            "software_profile": profile,
+            "software_profile_path": (
+                f"software_profiles/profiles/{profile}" if profile else None
+            ),
+            "runtime_path": f"environments/{package_id}/runtime/runtime.json",
+        }
+        write_json(staging / "binding.json", binding)
+        _replace_directory(staging, package_root)
 
     binding_path = package_root / "binding.json"
-    binding = {
-        "schema_version": BINDING_SCHEMA_VERSION,
-        "package_id": package_id,
-        "environment_id": environment_id,
-        "package_path": f"environments/{package_id}",
-        "tools_path": f"environments/{package_id}/tools/tools.json",
-        "tool_validation_path": f"environments/{package_id}/tools/tool_validation.json",
-        "environment_path": f"environments/{package_id}/environment",
-        "environment_validation_path": f"environments/{package_id}/environment/validation.json",
-        "software_mapping_path": f"environments/{package_id}/software/profile.json",
-        "software_profile": profile,
-        "software_profile_path": (
-            f"software_profiles/profiles/{profile}" if profile else None
-        ),
-    }
-    write_json(binding_path, binding)
     return ToolDelivery(
         package_root=package_root,
         tools_root=tools_root,
         environment_root=environment_root,
         software_mapping_root=software_mapping_root,
+        runtime_root=runtime_root,
         binding_path=binding_path,
         software_profile=profile,
     )

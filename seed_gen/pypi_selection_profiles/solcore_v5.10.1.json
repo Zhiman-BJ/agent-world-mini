@@ -2,7 +2,7 @@
   "profile_id": "solcore_balanced_v1",
   "package": "solcore",
   "version": "v5.10.1",
-  "source_sha256": "b8208e231ba9a02b57592ee9e8ff236e9fdafcfb40d3eb1ad1c4f608d6f12936",
+  "source_sha256": "474d7e78a75ce374792599af35875c56c0c4bcc538158afd4f67bc0975bb4cce",
   "target_all_func": {
     "min": 50,
     "max": 100

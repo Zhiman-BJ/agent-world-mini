@@ -1,0 +1,101 @@
+[
+  {
+    "name": "gdsfactory",
+    "index": 331,
+    "directory": "l1_design_lab/gdsfactory",
+    "source_root": ".",
+    "modules": [
+      "gdsfactory"
+    ],
+    "repository": "https://github.com/gdsfactory/gdsfactory",
+    "tag": "v9.51.0",
+    "commit": "d3b218d916fe8d8601c46ff49edf9e32bca65cef",
+    "documentation": "https://gdsfactory.github.io/gdsfactory/",
+    "description": "gdsfactory以参数化组件、端口、截面和工艺定义组织光子/芯片层次版图，提供放置、连接、光电布线和GDS文件读写；原生几何和继承对象来自KLayout/kfactory。",
+    "pypi": "https://pypi.org/project/gdsfactory/",
+    "pypi_version": "9.51.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/gdsfactory/gdsfactory/releases/latest",
+    "release_url": "https://github.com/gdsfactory/gdsfactory/releases/tag/v9.51.0",
+    "release_published_at": "2026-09-14T09:57:48Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方稳定Release；继承API按真实定义类保留，任务选择时明确状态/单位边界。"
+    ]
+  },
+  {
+    "name": "kfactory",
+    "index": 332,
+    "directory": "l1_design_lab/kfactory_3.0.4",
+    "source_root": "src",
+    "modules": [
+      "kfactory"
+    ],
+    "repository": "https://github.com/gdsfactory/kfactory",
+    "tag": "v3.0.4",
+    "commit": "ef56a574d7a2ac5da0751e9804167ace5f394a0d",
+    "documentation": "https://gdsfactory.github.io/kfactory/",
+    "description": "kfactory在KLayout数据库之上提供带类型/单位的单元、实例、端口、变换和工艺模型，是gdsfactory层次版图与布线的基础；当前版本遵循gdsfactory的兼容依赖。",
+    "pypi": "https://pypi.org/project/kfactory/",
+    "pypi_version": "3.2.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/gdsfactory/kfactory/releases/tags/v3.0.4",
+    "release_url": "https://github.com/gdsfactory/kfactory/releases/tag/v3.0.4",
+    "release_published_at": "2026-07-27T22:58:27Z",
+    "github_prerelease": false,
+    "notes": [
+      "官方稳定3.0.4，gdsfactory9.51.0要求>=3.0.4,<3.1.dev0；最新3.2.1来源/commit保存在research/kfactory_compatibility.json，最新全量池也保留但不供场景引用。"
+    ]
+  },
+  {
+    "name": "klayout",
+    "index": 333,
+    "directory": "klayout",
+    "source_root": "src/pymod/distutils_src",
+    "modules": [
+      "klayout"
+    ],
+    "repository": "https://github.com/KLayout/klayout",
+    "tag": "v0.30.12",
+    "commit": "e71272c3b178105bd2a2f25af54673a7af7ed60d",
+    "documentation": "https://www.klayout.de/doc-qt5/programming/python.html",
+    "description": "KLayout提供GDS/OASIS层次数据库、整数/浮点几何、区域布尔运算、设计规则检查和版图连接提取，支持无GUI的Python芯片版图处理。",
+    "pypi": "https://pypi.org/project/klayout/",
+    "pypi_version": "0.30.12",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/KLayout/klayout/releases/latest",
+    "release_url": "https://github.com/KLayout/klayout/releases/tag/v0.30.12",
+    "release_published_at": "2026-08-26T17:09:27Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方稳定Release；继承API按真实定义类保留，任务选择时明确状态/单位边界。",
+      "复用已存在相同发布commit且无追踪修改的源码，只读重新核验；官方core.pyi原生适配，不改变共享源码。"
+    ],
+    "adapter": "klayout"
+  },
+  {
+    "name": "gdstk",
+    "index": 334,
+    "directory": "l1_design_lab/gdstk",
+    "source_root": ".",
+    "modules": [
+      "gdstk"
+    ],
+    "repository": "https://github.com/heitzmann/gdstk",
+    "tag": "v1.0.1",
+    "commit": "2e468cdab1aa380af559eb7ff4125e1924bbad1f",
+    "documentation": "https://heitzmann.github.io/gdstk/",
+    "description": "GDSTK提供基于C++的GDSII/OASIS读写、层次单元、路径与多边形布尔运算；本场景优先KLayout统一数据库，保留GDSTK候选但不重复暴露。",
+    "pypi": "https://pypi.org/project/gdstk/",
+    "pypi_version": "1.0.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/heitzmann/gdstk/releases/latest",
+    "release_url": "https://github.com/heitzmann/gdstk/releases/tag/v1.0.1",
+    "release_published_at": "2026-07-16T13:32:41Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方稳定Release；继承API按真实定义类保留，任务选择时明确状态/单位边界。"
+    ],
+    "adapter": "gdstk"
+  }
+]

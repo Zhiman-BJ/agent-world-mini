@@ -1,0 +1,105 @@
+[
+  {
+    "name": "mobilitypy",
+    "index": 26,
+    "repository": "https://github.com/SemiconductorTransport/mobilitypy",
+    "documentation": "https://github.com/SemiconductorTransport/mobilitypy/wiki/Package-Documentation",
+    "pypi": "https://pypi.org/project/mobilitypy/",
+    "pypi_version": "1.0.2",
+    "tag": "v1.0.2",
+    "commit": "bd401479fde096db9748ffd78a8840c0932b0ae6",
+    "release_published_at": "2025-12-30T17:37:41Z",
+    "checked_on": "2026-09-15",
+    "github_prerelease": false,
+    "directory": "mobilitypy",
+    "modules": ["mobilitypy"],
+    "description": "mobilitypy 是面向半导体载流子输运的迁移率计算包，提供体材料与二维电子气中的离化杂质、合金无序、界面粗糙、声学和极性光学声子等散射机制模型，并可组合材料参数、温度和载流子浓度来分析总迁移率及主导散射机制。模型适用范围和材料参数仍需针对具体器件校核。",
+    "notes": [
+      "PyPI 1.0.2 与 GitHub 最新正式 Release v1.0.2 一致；官方文档由项目 GitHub Wiki 提供。",
+      "本次仅静态整理公开 Python 源码，不对具体异质结参数、单位约定或数值结果做实验验证。"
+    ]
+  },
+  {
+    "name": "scikit-rf",
+    "index": 27,
+    "repository": "https://github.com/scikit-rf/scikit-rf",
+    "documentation": "https://scikit-rf.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/scikit-rf/",
+    "pypi_version": "2.1.0",
+    "tag": "v2.1.0",
+    "commit": "34652721a23bb87260916f2cbf063b92f38ab8eb",
+    "release_published_at": "2026-08-13T16:39:00Z",
+    "checked_on": "2026-09-15",
+    "github_prerelease": false,
+    "directory": "scikit-rf",
+    "modules": ["skrf"],
+    "description": "scikit-rf 是射频和微波网络分析工具包，提供频率轴、N 端口网络、Touchstone 等测量文件读写、S/Z/Y/T 参数转换、级联与去嵌入、校准、矢量拟合、传输线介质和电路组合接口，可用于离线处理器件与 VNA 数据。真实校准质量仍取决于标准件、误差模型和测量数据。",
+    "notes": [
+      "PyPI 2.1.0 与 GitHub 最新正式 Release v2.1.0 一致。",
+      "本次静态索引包括包内测试模块中的源码定义；精选 profile 将只保留核心网络、校准、去嵌入和文件 I/O，且不连接真实 VNA。"
+    ]
+  },
+  {
+    "name": "plasmapy",
+    "index": 28,
+    "repository": "https://github.com/PlasmaPy/PlasmaPy",
+    "documentation": "https://docs.plasmapy.org/en/stable/",
+    "pypi": "https://pypi.org/project/plasmapy/",
+    "pypi_version": "2026.2.0",
+    "tag": "v2026.2.0",
+    "commit": "fca3bc8a97a19b91a6c7b105b450cea2c2f251a9",
+    "release_published_at": "2026-02-21T02:17:14Z",
+    "checked_on": "2026-09-15",
+    "github_prerelease": false,
+    "directory": "plasmapy",
+    "source_root": "src",
+    "modules": ["plasmapy"],
+    "description": "PlasmaPy 是开源等离子体物理 Python 库，提供粒子和离化态对象、带单位的等离子体公式、碰撞与输运尺度、色散关系、诊断分析及粒子轨迹等接口，可用于估算工艺等离子体的频率、长度、耦合和碰撞区间。它不是完整的刻蚀腔室或反应动力学求解器。",
+    "notes": [
+      "PyPI 2026.2.0 与 GitHub 最新正式 Release v2026.2.0 一致。",
+      "本次只做静态 API 整理；需要联网数据的接口、高成本模拟和实验诊断数据拟合未运行。"
+    ]
+  },
+  {
+    "name": "cantera",
+    "index": 29,
+    "repository": "https://github.com/Cantera/cantera",
+    "documentation": "https://cantera.org/stable/python/",
+    "pypi": "https://pypi.org/project/Cantera/",
+    "pypi_version": "3.2.0",
+    "tag": "v3.2.0",
+    "commit": "4a8358eb80cfeb50474386b5f9ec0b3a83519889",
+    "release_published_at": "2025-11-18T00:13:14Z",
+    "checked_on": "2026-09-15",
+    "github_prerelease": false,
+    "directory": "cantera",
+    "source_root": "interfaces/cython",
+    "modules": ["cantera"],
+    "adapter": "cantera",
+    "description": "Cantera 是开源化学动力学、热力学和输运计算库，其 Python 接口可从反应机理构建气相与表面相、设置状态并求平衡、计算反应速率和输运性质，以及配置理想反应器网络和一维火焰。它可用于 CVD 或刻蚀气相化学建模，但等离子体表面反应机理和工艺参数必须另行提供与验证。",
+    "notes": [
+      "PyPI 3.2.0 与 GitHub 最新正式 Release v3.2.0 一致；该标签是 annotated tag，记录的 commit 为标签解引用后的提交。",
+      "核心接口由 Cython/C++ 实现；全量索引以发布版 .pyi 类型签名配对同名 .pyx 文档，并补充普通 Python 模块。未编译或导入 Cantera。"
+    ]
+  },
+  {
+    "name": "fipy",
+    "index": 30,
+    "repository": "https://github.com/usnistgov/fipy",
+    "documentation": "https://pages.nist.gov/fipy/en/stable/",
+    "pypi": "https://pypi.org/project/FiPy/",
+    "pypi_version": "4.0.3",
+    "tag": "4.0.3",
+    "commit": "64635bf8ed6bc51431edb7d6cf1495ff68ac18a7",
+    "release_published_at": "2026-06-18T18:25:19Z",
+    "checked_on": "2026-09-15",
+    "github_prerelease": false,
+    "directory": "fipy",
+    "modules": ["fipy"],
+    "description": "FiPy 是基于有限体积法的偏微分方程求解框架，提供结构化与 Gmsh 网格、单元和面变量、扩散/对流/源项、边界约束、方程组合、线性求解器和时间步进接口，可构建扩散、反应、相场与电化学等模型。具体物理方程、离散精度和求解收敛性需要按任务单独验证。",
+    "notes": [
+      "PyPI 4.0.3 与 GitHub 最新正式 Release 标签 4.0.3 一致。",
+      "全量静态索引会包含包内测试辅助定义；精选 profile 只保留网格、变量、方程项、边界条件和求解闭环，不运行 PETSc/Trilinos 等可选后端。"
+    ]
+  }
+]

@@ -13,7 +13,7 @@ def test_bundle_merge_is_append_only():
     merge_output(bundle, {"tasks": []}, ProgramPipelineStep.SOLUTION_GENERATE)
     assert bundle["_step"] == ProgramPipelineStep.SOLUTION_GENERATE.value
     with pytest.raises(KeyError):
-        merge_output(bundle, {"environment": {}}, ProgramPipelineStep.SCORING_GENERATE)
+        merge_output(bundle, {"environment": {}}, ProgramPipelineStep.SOLUTION_GENERATE)
 
 
 def test_pipeline_can_stop_after_environment_and_resume(tmp_path: Path, monkeypatch):

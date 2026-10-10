@@ -1,0 +1,114 @@
+[
+  {
+    "name": "mp-api", "index": 16,
+    "repository": "https://github.com/materialsproject/api",
+    "documentation": "https://docs.materialsproject.org/downloading-data/using-the-api",
+    "pypi": "https://pypi.org/project/mp-api/", "pypi_version": "0.46.5",
+    "tag": "v0.46.5", "commit": "e114cc193551f421ed5cf10bf8854bf474cf6a7e",
+    "release_published_at": "2026-08-18T00:16:25Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "mp-api", "modules": ["mp_api"],
+    "description": "mp-api 是 Materials Project 官方 API 的 Python 客户端，提供材料数据资源的查询、筛选、分页和结构化响应模型，可将远程材料检索结果交给 pymatgen、ASE 等工具继续分析。访问真实数据库需要 API 密钥和网络连接。",
+    "notes": ["PyPI 0.46.5 与 GitHub Release v0.46.5 一致；官方使用文档位于 docs.materialsproject.org。", "本次只静态解析客户端接口，不调用 Materials Project 服务或验证 API 密钥。"]
+  },
+  {
+    "name": "ase", "index": 17,
+    "repository": "https://gitlab.com/ase/ase",
+    "documentation": "https://ase-lib.org/",
+    "pypi": "https://pypi.org/project/ase/", "pypi_version": "3.29.0",
+    "tag": "3.29.0", "commit": "f27c0005ae6a67ea419f996e728668865bfc1f86",
+    "release_published_at": "2026-06-21T16:03:03Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://gitlab.com/ase/ase/-/tags/3.29.0", "release_api": "",
+    "selection_rule": "Latest non-prerelease PyPI version and exact official GitLab tag agree; ASE uses GitLab rather than GitHub Releases.",
+    "directory": "ase", "modules": ["ase"],
+    "description": "ASE（Atomic Simulation Environment）是用于原子结构建模、计算任务配置和结果分析的 Python 框架，提供 Atoms、晶胞、约束、优化器、计算器、轨迹与多种文件格式接口，可连接 GPAW、VASP 等外部电子结构计算器。",
+    "notes": ["PyPI 3.29.0 与官方 GitLab 标签 3.29.0 一致。", "本次只索引 Python 源码；外部计算器、编译扩展和实际能量/力计算未运行。"]
+  },
+  {
+    "name": "matminer", "index": 18,
+    "repository": "https://github.com/hackingmaterials/matminer",
+    "documentation": "https://hackingmaterials.github.io/matminer/",
+    "pypi": "https://pypi.org/project/matminer/", "pypi_version": "0.10.1",
+    "tag": "v0.10.1", "commit": "25cd8f2778d73e54f80b38ee1983a28643368118",
+    "release_published_at": "2026-04-14T22:15:48Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "matminer", "source_root": "src", "modules": ["matminer"],
+    "description": "matminer 是材料信息学特征工程和数据集工具包，提供结构、组成、局部环境和工艺信息的描述符生成器、数据集读取以及表格化转换，可把 pymatgen 或 ASE 对象转为机器学习特征。模型训练和数据集质量需另行验证。",
+    "notes": ["PyPI 与 GitHub Release 均为 0.10.1；仓库标签 v0.10.1 指向提交 25cd8f。", "精选时应避免把大量同类 featurizer 全部纳入，保留代表性组成/结构/站点特征。"]
+  },
+  {
+    "name": "spglib", "index": 19,
+    "repository": "https://github.com/spglib/spglib",
+    "documentation": "https://spglib.readthedocs.io/",
+    "pypi": "https://pypi.org/project/spglib/", "pypi_version": "2.7.0",
+    "tag": "v2.7.0", "commit": "12355c77fb7c505a55f52cae36341d73b781a065",
+    "release_published_at": "2025-12-29T09:47:23Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "spglib", "source_root": "python", "modules": ["spglib"],
+    "description": "spglib 是晶体对称性分析库的 Python 接口，能够识别空间群、标准化晶胞、寻找对称操作、生成等价原子位置并分析网格点的对称性，可用于 pymatgen 和 ASE 结构预处理与验证。核心数值实现位于 C 扩展。",
+    "notes": ["PyPI 2.7.0 与 GitHub 标签 v2.7.0 一致；Python 包源码位于仓库 python/spglib。", "静态索引不等于已编译 C 扩展的运行验证。"]
+  },
+  {
+    "name": "jobflow", "index": 20,
+    "repository": "https://github.com/materialsproject/jobflow",
+    "documentation": "https://materialsproject.github.io/jobflow/",
+    "pypi": "https://pypi.org/project/jobflow/", "pypi_version": "0.3.1",
+    "tag": "v0.3.1", "commit": "3c10cd96401d90ea18ca1e80ab2c4a859050472a",
+    "release_published_at": "2026-02-05T07:57:03Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "jobflow", "source_root": "src", "modules": ["jobflow"],
+    "description": "jobflow 是 Materials Project 生态的工作流编排库，用 Job、Flow、Maker、响应引用和存储后端表达可组合的材料计算任务，支持动态产生后续工作和持久化执行状态。实际调度器和计算环境需要额外配置。",
+    "notes": ["PyPI 0.3.1 与 GitHub Release v0.3.1 一致。", "本次索引工作流对象和状态转换接口，不执行外部计算或分布式调度。"]
+  },
+  {
+    "name": "custodian", "index": 21,
+    "repository": "https://github.com/materialsproject/custodian",
+    "documentation": "https://materialsproject.github.io/custodian/",
+    "pypi": "https://pypi.org/project/custodian/", "pypi_version": "2025.12.14",
+    "tag": "v2025.12.14", "commit": "4591934b5bc4ae90a11037c3f95f1eb2023ca571",
+    "release_published_at": "2025-12-14T15:48:02Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "custodian", "source_root": "src", "modules": ["custodian"],
+    "description": "custodian 是面向材料计算的作业监控和错误恢复框架，通过 Job、监控器、错误处理器和验证器包装外部程序，记录运行状态并在常见失败时修复输入后重试。它不替代具体的 VASP、QE 等计算程序。",
+    "notes": ["PyPI 2025.12.14 与 GitHub Release v2025.12.14 一致。", "错误恢复依赖外部程序和真实输出；本次仅做静态 API 整理。"]
+  },
+  {
+    "name": "phonopy", "index": 22,
+    "repository": "https://github.com/phonopy/phonopy",
+    "documentation": "https://phonopy.github.io/phonopy/",
+    "pypi": "https://pypi.org/project/phonopy/", "pypi_version": "4.5.0",
+    "tag": "v4.5.0", "commit": "6683c731a54b3aed2a739138a54138a6b2782013",
+    "release_published_at": "2026-09-08T07:01:09Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "phonopy", "modules": ["phonopy"],
+    "description": "phonopy 是晶格动力学和声子性质计算工具，提供超胞生成、位移结构、力常数、动力学矩阵、声子频率与本征矢、态密度和热力学量分析接口，可读取外部第一性原理计算得到的原子力。",
+    "notes": ["PyPI 4.5.0 与 GitHub 标签 v4.5.0 一致。", "力常数通常来自外部 DFT 计算；本次不执行电子结构或声子数值计算。"]
+  },
+  {
+    "name": "phono3py", "index": 23,
+    "repository": "https://github.com/phonopy/phono3py",
+    "documentation": "https://phonopy.github.io/phono3py/",
+    "pypi": "https://pypi.org/project/phono3py/", "pypi_version": "4.5.0",
+    "tag": "v4.5.0", "commit": "21fa8f3817fbcc603254656f525bb5aec113afb6",
+    "release_published_at": "2026-09-10T09:41:19Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "phono3py", "modules": ["phono3py"],
+    "description": "phono3py 是三阶力常数和声子输运分析工具，支持三阶位移超胞、散射相空间、三声子相互作用、晶格热导率及相关频率和寿命数据的计算与读写，通常与 phonopy 和外部 DFT 力数据配合使用。",
+    "notes": ["PyPI 4.5.0 与 GitHub 标签 v4.5.0 一致。", "热输运结果依赖外部力常数和数值参数，本次只静态解析 Python 接口。"]
+  },
+  {
+    "name": "pygmsh", "index": 24,
+    "repository": "https://github.com/nschloe/pygmsh",
+    "documentation": "https://pygmsh.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/pygmsh/", "pypi_version": "7.1.17",
+    "tag": "v7.1.17", "commit": "1a4118650fab05bbd284eb49c99f9185bdf6a927", 
+    "release_published_at": "2022-01-28T13:15:39Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "pygmsh", "source_root": "src", "modules": ["pygmsh"],
+    "description": "pygmsh 是 Gmsh 几何建模 API 的 Python 封装，提供二维和三维点、线、曲面、体、布尔运算及物理分组构造，并将几何脚本交给 Gmsh 生成有限元网格。它不替代 Gmsh 网格内核。",
+    "notes": ["PyPI 7.1.17 与 GitHub 标签 v7.1.17 一致；该项目近年发布较少。", "精选接口需覆盖几何构造、布尔操作、物理分组和网格写出，不重复每种几何实体的长尾方法。"]
+  },
+  {
+    "name": "scikit-fem", "index": 25,
+    "repository": "https://github.com/kinnala/scikit-fem",
+    "documentation": "https://scikit-fem.readthedocs.io/",
+    "pypi": "https://pypi.org/project/scikit-fem/", "pypi_version": "12.0.2",
+    "tag": "12.0.2", "commit": "a9c43abbc3b17c36a059132c9f571447b755920e",
+    "release_published_at": "2026-06-05T20:45:49Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "scikit-fem", "modules": ["skfem"],
+    "description": "scikit-fem 是轻量有限元组装和求解库，提供网格、有限元基、双线性/线性形式、积分、边界条件、组装、线性系统求解和后处理接口，可接收 meshio 或 Gmsh 网格并构建可验证的 PDE 示例。",
+    "notes": ["PyPI 12.0.2 与 GitHub 标签 12.0.2 一致；导入模块名为 skfem。", "本次只整理 Python API；线性代数后端和具体 PDE 数值结果未运行验证。"]
+  }
+]

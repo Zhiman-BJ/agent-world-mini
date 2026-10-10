@@ -1,0 +1,28 @@
+[
+  {
+    "name": "PyOPUS", "index": 42,
+    "repository": "https://codeberg.org/arpadbuermen/PyOPUS",
+    "documentation": "http://fides.fe.uni-lj.si/pyopus/download/0.12/docsrc/_build/html/",
+    "pypi": "https://pypi.org/project/PyOPUS/", "pypi_version": "0.9",
+    "tag": "v0.12", "commit": "b27da532dee0cb8241db0725e48891347faea09b",
+    "release_published_at": "2026-01-14T07:35:07Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://codeberg.org/arpadbuermen/PyOPUS/src/tag/v0.12", "release_api": "",
+    "selection_rule": "Official project site names 0.12 as latest and links the official Codeberg tag v0.12; PyPI remains at 0.9 and is not used to choose the release.",
+    "directory": "pyopus", "modules": ["pyopus"],
+    "description": "PyOPUS 是面向仿真驱动设计与优化的 Python 框架，提供 ngspice、Xyce、HSPICE、Spectre 等电路仿真器接口、波形性能度量、角点与 Monte Carlo 分析、灵敏度和最坏情况分析，以及多种局部和全局优化算法。外部仿真器、MPI 和部分图形组件需要单独安装。",
+    "notes": ["官方站点于 2026-01-14 发布 0.12，并链接 Codeberg 官方仓库 v0.12 标签；PyPI 最新仍为 0.9，因此以官网发布为准并记录差异。", "首次 Codeberg 浅克隆出现 schannel early EOF，使用 Git HTTP/1.1 重试成功。未运行外部 SPICE、MPI 或 GUI。"]
+  },
+  {
+    "name": "angler", "index": 43,
+    "repository": "https://github.com/fancompute/angler",
+    "documentation": "https://github.com/fancompute/angler#readme",
+    "pypi": "https://pypi.org/project/angler/", "pypi_version": "0.0.15",
+    "tag": "0.0.15", "ref": "7ca72f33d91e9a3e36c8d7d856da4c641e2a067b", "commit": "7ca72f33d91e9a3e36c8d7d856da4c641e2a067b",
+    "release_published_at": "2018-11-29T01:34:04Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://pypi.org/project/angler/0.0.15/", "release_api": "",
+    "selection_rule": "The project has no tags or GitHub Releases. Pin the official repository commit that changes setup.py and angler/__init__.py to 0.0.15; PyPI uploaded 0.0.15 the same release day.",
+    "directory": "angler", "modules": ["angler"],
+    "description": "angler 是用于二维光子结构的频域电磁仿真和伴随梯度优化研究库，提供仿真域、材料分布、源与模式、线性/非线性求解、目标函数梯度、结构滤波和优化流程。项目已长期停止发布，适合固定研究样例，不应假定兼容当前依赖。",
+    "notes": ["PyPI 最新为 0.0.15；官方仓库没有标签。提交 7ca72f3 明确将 setup.py 和包版本改为 0.0.15，故以完整提交号作为 release_ref。", "没有独立官方文档站；使用官方 README。未运行旧版 autograd/scipy 依赖组合或电磁数值验证。"]
+  }
+]

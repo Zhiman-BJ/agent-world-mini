@@ -1,0 +1,217 @@
+[
+  {
+    "name": "gdstk",
+    "index": 334,
+    "directory": "l1_design_lab/gdstk",
+    "source_root": ".",
+    "modules": [
+      "gdstk"
+    ],
+    "repository": "https://github.com/heitzmann/gdstk",
+    "tag": "v1.0.1",
+    "commit": "2e468cdab1aa380af559eb7ff4125e1924bbad1f",
+    "documentation": "https://heitzmann.github.io/gdstk/",
+    "description": "GDSTK提供基于C++的GDSII/OASIS读写、层次单元、路径与多边形布尔运算；本场景优先KLayout统一数据库，保留GDSTK候选但不重复暴露。",
+    "pypi": "https://pypi.org/project/gdstk/",
+    "pypi_version": "1.0.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/heitzmann/gdstk/releases/latest",
+    "release_url": "https://github.com/heitzmann/gdstk/releases/tag/v1.0.1",
+    "release_published_at": "2026-07-16T13:32:41Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方稳定Release；继承API按真实定义类保留，任务选择时明确状态/单位边界。"
+    ],
+    "adapter": "gdstk"
+  },
+  {
+    "name": "scipy",
+    "index": 529,
+    "directory": "l1_test_fab/scipy",
+    "source_root": ".",
+    "modules": [
+      "scipy"
+    ],
+    "repository": "https://github.com/scipy/scipy",
+    "tag": "v1.18.1",
+    "commit": "e4e854eaa8f18d807cd3496028e257e36caa93cc",
+    "documentation": "https://docs.scipy.org/doc/scipy/",
+    "description": "SciPy提供数值统计、信号与科学计算工具，作为测试限值和过程统计的必要补充；静态Python索引不冒充全部原生扩展导出。",
+    "pypi": "https://pypi.org/project/scipy/",
+    "pypi_version": "1.18.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/scipy/scipy/releases/latest",
+    "release_url": "https://github.com/scipy/scipy/releases/tag/v1.18.1",
+    "release_published_at": "2026-08-21T23:52:53Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "prysm",
+    "index": 1851,
+    "directory": "lithography/prysm",
+    "modules": [
+      "prysm"
+    ],
+    "repository": "https://github.com/brandondube/prysm",
+    "documentation": "https://prysm.readthedocs.io/en/stable/",
+    "pypi": "https://pypi.org/project/prysm/",
+    "pypi_version": "0.21.1",
+    "tag": "v0.21.1",
+    "commit": "091b1af9e847d93c6272e3e6e1b4108bfe7012c2",
+    "release_published_at": "2022-08-15T00:16:21.438257Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_url": "https://github.com/brandondube/prysm/tree/v0.21.1",
+    "release_api": "https://api.github.com/repos/brandondube/prysm/tags?per_page=20",
+    "source_kind": "official_stable_tag_and_distribution",
+    "selection_rule": "PyPI latest stable 0.21.1 agrees with official v0.21.1 tag and docs/source/releases/v0.21.1.rst. GitHub latest Release page is older v0.21; the patch release is explicitly documented, not inferred from HEAD.",
+    "description": "prysm提供数值傅里叶光学、波前传播、瞳孔/像差、点扩散与图像传递等接口；可作为小型标量相干光刻环境的光学核心，不自带完整工业光刻胶和OPC工艺模型。",
+    "notes": [
+      "已发布0.21.1标签、分发、发布说明一致；当前场景限定局部周期光学模型，非工业Hopkins/resist全栈。"
+    ]
+  },
+  {
+    "name": "torchoptics",
+    "index": 1856,
+    "directory": "lithography/torchoptics",
+    "source_root": "src",
+    "modules": [
+      "torchoptics"
+    ],
+    "repository": "https://github.com/MatthewFilipovich/torchoptics",
+    "documentation": "https://torchoptics.readthedocs.io/en/stable/",
+    "pypi": "https://pypi.org/project/torchoptics/",
+    "pypi_version": "1.0.2",
+    "tag": "v1.0.2",
+    "commit": "34fe9c40f874e53db225e703c5580befe8c523b5",
+    "release_published_at": "2026-04-02T18:32:45Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "release_url": "https://github.com/MatthewFilipovich/torchoptics/releases/tag/v1.0.2",
+    "release_api": "https://api.github.com/repos/MatthewFilipovich/torchoptics/releases/latest",
+    "source_kind": "official_stable_release",
+    "selection_rule": "Latest official non-prerelease GitHub release v1.0.2 agrees with PyPI1.0.2 and exact tag.",
+    "description": "TorchOptics提供基于PyTorch的可微标量/矢量光场、光学元件、传播和系统优化接口；可在CPU小网格上核验梯度及逆向幅度掩膜设计，不等于完整标定的工业光刻工艺仿真。",
+    "notes": [
+      "作为无正式发布TorchLitho2的明确替代，验证固定CPU Fresnel过程窗口及自动微分，不声称GPU全片性能。"
+    ]
+  },
+  {
+    "name": "lithosim",
+    "index": 1852,
+    "directory": "lithography/lithosim",
+    "modules": [
+      "lithosim"
+    ],
+    "repository": "https://github.com/VLSIDA/lithosim",
+    "documentation": "https://github.com/VLSIDA/lithosim#readme",
+    "pypi": "",
+    "pypi_version": "",
+    "tag": "snapshot-b3868e025716",
+    "ref": "b3868e025716ba1c236f892345d57709f0cebacd",
+    "commit": "b3868e025716ba1c236f892345d57709f0cebacd",
+    "release_published_at": "",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_url": "",
+    "release_api": "https://api.github.com/repos/VLSIDA/lithosim/releases/latest",
+    "source_kind": "unreleased_commit_snapshot",
+    "selection_rule": "No GitHub Release and zero tags; no verified PyPI distribution. Exact research commit only; NOT a release and NOT accepted by the stable-release gate.",
+    "description": "非常基础的光刻成像、GDS/bitmap输入、SOCS与像素OPC研究代码；未发布，退火候选存在不可退出的随机选择循环。",
+    "include_call_protocol": true,
+    "notes": [
+      "UNRELEASED RESEARCH SNAPSHOT: source_kind=unreleased_commit_snapshot; tag字段仅文件索引标签，真实ref为完整commit；没有发布版本/发布日期。",
+      "未修改上游源码。静态全量候选不代表运行通过；未发布依赖用于正式场景时必须明确release例外/阻塞。"
+    ]
+  },
+  {
+    "name": "OpenILT",
+    "index": 1853,
+    "directory": "lithography/OpenILT",
+    "modules": [
+      "pycommon",
+      "pylitho",
+      "pyilt",
+      "opc",
+      "utils"
+    ],
+    "repository": "https://github.com/OpenOPC/OpenILT",
+    "documentation": "https://github.com/OpenOPC/OpenILT#readme",
+    "pypi": "",
+    "pypi_version": "",
+    "tag": "snapshot-dabb97c6ca3d",
+    "ref": "dabb97c6ca3dfd159362e48273c436444c77353b",
+    "commit": "dabb97c6ca3dfd159362e48273c436444c77353b",
+    "release_published_at": "",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_url": "",
+    "release_api": "https://api.github.com/repos/OpenOPC/OpenILT/releases/latest",
+    "source_kind": "unreleased_commit_snapshot",
+    "selection_rule": "No GitHub Release and zero tags; no verified PyPI distribution. Exact research commit only; NOT a release and NOT accepted by the stable-release gate.",
+    "description": "OpenILT研究平台将光刻仿真、初始化、逆向优化与评估解耦，附带ICCAD13核；当前无发布版。",
+    "include_call_protocol": true,
+    "notes": [
+      "UNRELEASED RESEARCH SNAPSHOT: source_kind=unreleased_commit_snapshot; tag字段仅文件索引标签，真实ref为完整commit；没有发布版本/发布日期。",
+      "未修改上游源码。静态全量候选不代表运行通过；未发布依赖用于正式场景时必须明确release例外/阻塞。"
+    ]
+  },
+  {
+    "name": "TorchLitho-2.0",
+    "index": 1854,
+    "directory": "lithography/TorchLitho-2.0",
+    "modules": [
+      "pylitho"
+    ],
+    "repository": "https://github.com/OpenOPC/TorchLitho-2.0",
+    "documentation": "https://github.com/OpenOPC/TorchLitho-2.0#readme",
+    "pypi": "",
+    "pypi_version": "",
+    "tag": "snapshot-c5f46ce8282a",
+    "ref": "c5f46ce8282a90d7ce7e224b5f69a8135fcfc6ff",
+    "commit": "c5f46ce8282a90d7ce7e224b5f69a8135fcfc6ff",
+    "release_published_at": "",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_url": "",
+    "release_api": "https://api.github.com/repos/OpenOPC/TorchLitho-2.0/releases/latest",
+    "source_kind": "unreleased_commit_snapshot",
+    "selection_rule": "No GitHub Release and zero tags; no verified PyPI distribution. Exact research commit only; NOT a release and NOT accepted by the stable-release gate.",
+    "description": "TorchLitho 2.0使用PyTorch实现Abbe/Hopkins和自定义梯度；setup声明2.0.0但无对应发布tag或PyPI分发，保留为固定研究快照。",
+    "include_call_protocol": true,
+    "notes": [
+      "UNRELEASED RESEARCH SNAPSHOT: source_kind=unreleased_commit_snapshot; tag字段仅文件索引标签，真实ref为完整commit；没有发布版本/发布日期。",
+      "未修改上游源码。静态全量候选不代表运行通过；未发布依赖用于正式场景时必须明确release例外/阻塞。"
+    ]
+  },
+  {
+    "name": "TorchLitho",
+    "index": 1855,
+    "directory": "lithography/TorchLitho",
+    "modules": [
+      "src"
+    ],
+    "repository": "https://github.com/TorchOPC/TorchLitho",
+    "documentation": "https://github.com/TorchOPC/TorchLitho#readme",
+    "pypi": "",
+    "pypi_version": "",
+    "tag": "snapshot-027cf8a9ec3e",
+    "ref": "027cf8a9ec3ebda3b0ae9902313d7c856e67af03",
+    "commit": "027cf8a9ec3ebda3b0ae9902313d7c856e67af03",
+    "release_published_at": "",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_url": "",
+    "release_api": "https://api.github.com/repos/TorchOPC/TorchLitho/releases/latest",
+    "source_kind": "unreleased_commit_snapshot",
+    "selection_rule": "No GitHub Release and zero tags; no verified PyPI distribution. Exact research commit only; NOT a release and NOT accepted by the stable-release gate.",
+    "description": "TorchLitho旧研究框架覆盖光学成像、可微模型和训练配置；无正式发布，不能与TorchLitho2共同作为同一已验证运行包。",
+    "include_call_protocol": true,
+    "notes": [
+      "UNRELEASED RESEARCH SNAPSHOT: source_kind=unreleased_commit_snapshot; tag字段仅文件索引标签，真实ref为完整commit；没有发布版本/发布日期。",
+      "未修改上游源码。静态全量候选不代表运行通过；未发布依赖用于正式场景时必须明确release例外/阻塞。"
+    ]
+  }
+]

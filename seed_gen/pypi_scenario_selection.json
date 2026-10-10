@@ -1,0 +1,926 @@
+{
+  "schema_version": "1.0",
+  "source_table": "seed_gen/pypi_outputs/半导体Python包覆盖报告.md",
+  "source_directory": "seed_gen/pypi_outputs/package_select_func",
+  "target_all_func": {
+    "min": 50,
+    "max": 200
+  },
+  "count_policy": "all_func = 顶层函数 + 类方法；类是容器，另计 class 和顶层工具条目数。保留已有属性与构造方法口径。",
+  "selection_policy": "人工按场景选择已有包级 capability，再按符号和方法精简。没有 LLM 评分，不从全量源码补入工具、不按分数或数量截断。",
+  "scenarios": [
+    {
+      "id": "02.01.01",
+      "packages": [
+        {
+          "package": "devsim",
+          "capabilities": [
+            "device_lifecycle",
+            "mesh_construction",
+            "material_parameters",
+            "physical_models",
+            "equation_assembly",
+            "solve_and_persistence"
+          ],
+          "reason": "覆盖网格、材料、漂移扩散方程、求解与电流检查，排除电路耦合。"
+        },
+        {
+          "package": "sesame",
+          "capabilities": [
+            "device_construction",
+            "equilibrium_and_iv",
+            "result_analysis",
+            "local_observables",
+            "persistence_and_geometry"
+          ],
+          "reason": "作为 PN/光生载流子漂移扩散替代路径，保留复合与电流分析；不推定支持全部 DEVSIM MOS 能力。"
+        }
+      ]
+    },
+    {
+      "id": "02.01.02",
+      "packages": [
+        {
+          "package": "nextnanopy",
+          "capabilities": [
+            "input_lifecycle",
+            "configuration",
+            "sweep_orchestration",
+            "output_navigation",
+            "data_containers"
+          ],
+          "reason": "形成层参数输入、扫描配置、结果导航、能级读取闭环；排除电容分析。"
+        }
+      ],
+      "boundaries": [
+        "nextnano 为需要许可的外部求解器；当前任务使用固定的已完成输出，未运行求解。"
+      ]
+    },
+    {
+      "id": "02.01.03",
+      "packages": [
+        {
+          "package": "solcore",
+          "capabilities": [
+            "units_and_materials",
+            "layer_and_cell_structure",
+            "illumination",
+            "thin_film_optics",
+            "solar_cell_characteristics",
+            "quantum_wells"
+          ],
+          "reason": "覆盖材料/层/光照、吸收、量子阱及 I-V/QE 主链；不扩展到介电模型拟合。"
+        }
+      ]
+    },
+    {
+      "id": "02.02.01",
+      "packages": [
+        {
+          "package": "mobilitypy",
+          "capabilities": [
+            "mobility_models",
+            "result_plotting"
+          ],
+          "reason": "聚焦 HEMT/2DEG 材料、二维散射迁移率和比较绘图；去掉三维模型。",
+          "exclude": [
+            "Mobility3DCarrier",
+            "PlotQuasi3DFuns"
+          ]
+        }
+      ],
+      "count_exception": "现有包级二维迁移率接口数量有限；不补入三维模型或无关包凑到 50。",
+      "boundaries": [
+        "openbandparams 是报告中的可选上游，当前目录未提供其包级产物；TCAD 是下游类别，不是可合并的包名。"
+      ]
+    },
+    {
+      "id": "02.03.01",
+      "packages": [
+        {
+          "package": "gmsh",
+          "capabilities": [
+            "session_and_groups",
+            "geometry_construction",
+            "mesh_generation"
+          ],
+          "reason": "支持几何、区域标记、局部尺寸控制及网格质量检查。",
+          "exclude": [
+            "addSphere",
+            "addCylinder",
+            "addBox",
+            "addDisk"
+          ]
+        },
+        {
+          "package": "pygmsh",
+          "capabilities": [
+            "geometry_2d"
+          ],
+          "reason": "提供 MOS 截面的上层几何建模和物理组封装；去掉三维造型。",
+          "methods": {
+            "pygmsh.geo.geometry.Geometry": [
+              "__init__",
+              "add_rectangle",
+              "add_circle",
+              "in_surface"
+            ],
+            "CommonGeometry": [
+              "__init__",
+              "add_point",
+              "add_line",
+              "add_curve_loop",
+              "add_plane_surface",
+              "add_polygon",
+              "add_physical",
+              "set_mesh_size_callback",
+              "generate_mesh",
+              "save_geometry",
+              "synchronize"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "02.03.02",
+      "packages": [
+        {
+          "package": "gmsh",
+          "capabilities": [
+            "session_and_groups",
+            "mesh_generation"
+          ],
+          "reason": "负责源 MSH 的读取、物理分组和节点/单元检查，排除 CAD 构造与网格优化。",
+          "exclude": [
+            "generate",
+            "refine",
+            "optimize",
+            "setTransfiniteCurve",
+            "setTransfiniteSurface",
+            "setRecombine",
+            "setOrder"
+          ]
+        },
+        {
+          "package": "meshio",
+          "capabilities": [
+            "mesh_data",
+            "mesh_files"
+          ],
+          "reason": "负责格式转换、标签集合、拓扑数据和读回校验。"
+        }
+      ],
+      "boundaries": [
+        "目标格式必须能够表示任务要求的单元类型和标签；下游求解器需另行选择适配。"
+      ]
+    },
+    {
+      "id": "02.03.03",
+      "packages": [
+        {
+          "package": "meshio",
+          "capabilities": [
+            "mesh_data",
+            "mesh_files"
+          ],
+          "reason": "提供网格交换和读回验证。"
+        },
+        {
+          "package": "scikit-fem",
+          "capabilities": [
+            "mesh_basis",
+            "forms",
+            "solve_io"
+          ],
+          "reason": "提供网格边界、有限元空间、弱形式、组装、消元与场求解。"
+        }
+      ]
+    },
+    {
+      "id": "02.04.01",
+      "packages": [
+        {
+          "package": "spicelib",
+          "capabilities": [
+            "netlist_edit",
+            "runner_sweeps",
+            "results_analysis"
+          ],
+          "reason": "负责现有网表编辑、运行调度和波形解析；排除批量扫描与统计分析。",
+          "exclude": [
+            "SimStepper",
+            "Montecarlo",
+            "QuickSensitivityAnalysis",
+            "WorstCaseAnalysis"
+          ]
+        },
+        {
+          "package": "PySpice",
+          "capabilities": [
+            "netlist",
+            "analysis",
+            "parse_results"
+          ],
+          "reason": "提供 Python 电路/网表构造及 DC/AC/瞬态分析替代入口。",
+          "methods": {
+            "CircuitSimulation": [
+              "__init__",
+              "circuit",
+              "options",
+              "temperature",
+              "nominal_temperature",
+              "initial_condition",
+              "node_set",
+              "save",
+              "save_currents",
+              "reset_analysis",
+              "analysis_iter",
+              "operating_point",
+              "dc",
+              "ac",
+              "transient"
+            ],
+            "CircuitSimulator": [
+              "factory",
+              "operating_point",
+              "dc",
+              "ac",
+              "transient"
+            ]
+          }
+        }
+      ],
+      "boundaries": [
+        "ngspyce 无可确认发布版，未提供包级产物，不合入工具。",
+        "ngspice/Xyce 为外部求解器；不同 Python 前端的后端支持范围须单独适配，不能任意互换。"
+      ]
+    },
+    {
+      "id": "02.04.02",
+      "packages": [
+        {
+          "package": "spicelib",
+          "capabilities": [
+            "netlist_edit",
+            "runner_sweeps",
+            "results_analysis"
+          ],
+          "reason": "保留编辑、扫描、蒙特卡洛、灵敏度、最差角和结果聚合完整链。"
+        }
+      ],
+      "boundaries": [
+        "ngspice/Xyce 为外部运行依赖，本次未运行 SPICE 仿真。"
+      ]
+    },
+    {
+      "id": "02.05.01",
+      "packages": [
+        {
+          "package": "lcapy",
+          "capabilities": [
+            "circuit_netlist",
+            "expressions",
+            "network_equivalents"
+          ],
+          "reason": "保留符号电路、传递函数/极零点与端口等效分析；比较对象采用已有 SPICE 数值结果。"
+        }
+      ],
+      "boundaries": [
+        "SPICE 是数值对照后端，离线任务使用预生成频响；未把外部程序伪装成 Python 工具。"
+      ]
+    },
+    {
+      "id": "02.05.02",
+      "packages": [
+        {
+          "package": "PyOPUS",
+          "capabilities": [
+            "simulation",
+            "performance",
+            "optimization",
+            "robust_design"
+          ],
+          "reason": "包自身包含 SPICE 适配、性能测量、优化和最差角分析，不另加重复 Python 前端。"
+        }
+      ],
+      "boundaries": [
+        "SPICE 求解器和器件模型需外部配置，数值优化未执行验证。"
+      ]
+    },
+    {
+      "id": "02.06.01",
+      "packages": [
+        {
+          "package": "scikit-rf",
+          "capabilities": [
+            "network_core",
+            "network_collections_circuits"
+          ],
+          "reason": "保留网络读取、转换、级联、匹配、增益与批量网络；去掉专用校准和去嵌流程。",
+          "exclude": [
+            "de_embed"
+          ],
+          "methods": {
+            "Network": [
+              "__init__",
+              "from_z",
+              "s",
+              "y",
+              "z",
+              "t",
+              "z0",
+              "frequency",
+              "nports",
+              "passivity",
+              "reciprocity",
+              "stability",
+              "max_stable_gain",
+              "max_gain",
+              "group_delay",
+              "is_reciprocal",
+              "is_passive",
+              "copy",
+              "read_touchstone",
+              "write_touchstone",
+              "interpolate",
+              "crop",
+              "renormalize"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "02.06.02",
+      "packages": [
+        {
+          "package": "scikit-rf",
+          "capabilities": [
+            "network_core",
+            "calibration_deembedding_io"
+          ],
+          "reason": "保留频率轴/网络读写与标准件校准、误差盒、去嵌；不保留增益优化或电路组装。",
+          "exclude": [
+            "connect",
+            "cascade_list",
+            "stitch",
+            "concat_ports",
+            "average",
+            "s2y",
+            "y2s"
+          ],
+          "methods": {
+            "Network": [
+              "__init__",
+              "s",
+              "z",
+              "t",
+              "z0",
+              "frequency",
+              "nports",
+              "copy",
+              "read_touchstone",
+              "write_touchstone",
+              "interpolate",
+              "crop",
+              "renormalize",
+              "is_reciprocal",
+              "is_passive"
+            ]
+          }
+        }
+      ],
+      "boundaries": [
+        "使用固定标准件和 DUT 测量文件；测量设备控制不在现有工具中。"
+      ]
+    },
+    {
+      "id": "02.07.01",
+      "packages": [
+        {
+          "package": "sax",
+          "capabilities": [
+            "smatrix_netlist",
+            "circuit_models",
+            "io_fit"
+          ],
+          "reason": "保留经典光子 S 矩阵、网表、耦合器/MMI/相移与文件插值；不扩展 RF 和神经拟合。",
+          "exclude": [
+            "resistor",
+            "capacitor",
+            "inductor",
+            "transmission_line_s_params",
+            "coplanar_waveguide",
+            "microstrip",
+            "neural_fit",
+            "eval_neural_fit",
+            "create_network",
+            "train_network"
+          ]
+        },
+        {
+          "package": "simphony",
+          "capabilities": [
+            "classical",
+            "models",
+            "utilities"
+          ],
+          "reason": "提供经典激光源/探测器与组件模型补充；排除量子态及其排列转换。",
+          "exclude": [
+            "xxpp_to_xpxp",
+            "xpxp_to_xxpp"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "02.08.01",
+      "packages": [
+        {
+          "package": "gdsfactory",
+          "capabilities": [
+            "layout_objects",
+            "parametric_devices",
+            "paths_and_cross_sections",
+            "routing_and_technology"
+          ],
+          "reason": "提供组件几何、截面、端口及材料层堆栈；剔除电互连、打包排版和光纤布线。",
+          "exclude": [
+            "grid",
+            "pack",
+            "pad",
+            "via_stack",
+            "metal_routing",
+            "pn",
+            "route_single_electrical",
+            "route_fiber_array"
+          ]
+        },
+        {
+          "package": "meep",
+          "capabilities": [
+            "geometry_sources",
+            "simulation_results"
+          ],
+          "reason": "保留材料、几何、源、边界、运行与频域监视/结果，不合入伴随优化。",
+          "exclude": [
+            "MaterialGrid"
+          ]
+        }
+      ],
+      "boundaries": [
+        "gdsfactory 几何到 Meep 的层厚、材料、坐标和端口映射需要适配；当前包级选集未提供完整集成桥接工具。",
+        "Meep 原生库及 FDTD 数值收敛未运行验证。"
+      ]
+    },
+    {
+      "id": "02.08.02",
+      "packages": [
+        {
+          "package": "gdsfactory",
+          "capabilities": [
+            "layout_objects",
+            "parametric_devices",
+            "paths_and_cross_sections",
+            "routing_and_technology"
+          ],
+          "reason": "提供组件几何、截面、端口及材料层堆栈；剔除电互连、打包排版和光纤布线。",
+          "exclude": [
+            "grid",
+            "pack",
+            "pad",
+            "via_stack",
+            "metal_routing",
+            "pn",
+            "route_single_electrical",
+            "route_fiber_array"
+          ]
+        },
+        {
+          "package": "tidy3d",
+          "capabilities": [
+            "geometry_medium",
+            "source_simulation",
+            "results_cloud"
+          ],
+          "reason": "保留 GDS 几何、材料、源/监视器、提交前配置和已完成结果读取；排除云任务上传启动运行。",
+          "exclude": [
+            "upload",
+            "start",
+            "monitor",
+            "download",
+            "run"
+          ]
+        }
+      ],
+      "boundaries": [
+        "离线任务需固定结果文件；load 等接口须核对是否仍访问云端。",
+        "完整组件转仿真适配和云成本估算不在所选接口中，需后续环境补充；未提交付费任务。"
+      ]
+    },
+    {
+      "id": "02.09.01",
+      "packages": [
+        {
+          "package": "gdsfactory",
+          "capabilities": [
+            "layout_objects",
+            "parametric_devices",
+            "paths_and_cross_sections",
+            "routing_and_technology"
+          ],
+          "reason": "提供组件几何、截面、端口及材料层堆栈；剔除电互连、打包排版和光纤布线。",
+          "exclude": [
+            "grid",
+            "pack",
+            "pad",
+            "via_stack",
+            "metal_routing",
+            "pn",
+            "route_single_electrical",
+            "route_fiber_array"
+          ]
+        },
+        {
+          "package": "femwell",
+          "capabilities": [
+            "waveguide_modes",
+            "mesh_multiphysics",
+            "pn_solvers"
+          ],
+          "reason": "保留截面网格、本征模、模式重叠/约束及特征值求解；排除 PN、热、静电和磁场求解。",
+          "exclude": [
+            "solve_thermal",
+            "solve_thermal_transient",
+            "laplace_equation",
+            "solve_magnetostatic_2D",
+            "solve_coulomb",
+            "solve_continuity_equations",
+            "dn_carriers",
+            "dalpha_carriers",
+            "alpha_to_k",
+            "k_to_alpha",
+            "built_in_voltage",
+            "depletion_width",
+            "depletion_width_n_side",
+            "depletion_width_p_side",
+            "hole_concentration_depletion_approx",
+            "electron_concentration_depletion_approx",
+            "index_pn_junction"
+          ]
+        }
+      ],
+      "boundaries": [
+        "层堆栈/截面到 Femwell 材料网格需适配；网格收敛和模式跟踪尚未运行验证。"
+      ]
+    },
+    {
+      "id": "02.09.02",
+      "packages": [
+        {
+          "package": "emepy",
+          "capabilities": [
+            "eme",
+            "modes_geometry",
+            "network_monitor"
+          ],
+          "reason": "覆盖局部模式、分层匹配、网络传播与结果监视，排除并行分发辅助接口。",
+          "methods": {
+            "EME": [
+              "__init__",
+              "add_layer",
+              "add_layers",
+              "reset",
+              "solve_modes",
+              "propagate_layers",
+              "build_network",
+              "field_propagate",
+              "get_sources",
+              "s_parameters",
+              "add_monitor",
+              "draw",
+              "propagate"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "02.10.01",
+      "packages": [
+        {
+          "package": "ceviche",
+          "capabilities": [
+            "solvers",
+            "autodiff",
+            "postprocess"
+          ],
+          "reason": "保留频域场求解、Jacobian/Adam 与频谱检验，去掉时域、多频、三维和自动微分内部原语。",
+          "exclude": [
+            "fdfd_mf_ez",
+            "fdfd_3d",
+            "fdtd",
+            "sp_mult",
+            "grad_sp_mult_entries_reverse",
+            "grad_sp_mult_x_reverse",
+            "sp_solve",
+            "grad_sp_solve_entries_reverse",
+            "grad_sp_solve_b_reverse",
+            "spsp_mult",
+            "grad_spsp_mult_entries_a_reverse",
+            "sp_solve_nl",
+            "grad_sp_solve_nl_parameters",
+            "curl_E",
+            "curl_H",
+            "compute_derivative_matrices",
+            "createDws",
+            "make_Dxf",
+            "make_Dxb",
+            "make_Dyf",
+            "make_Dyb",
+            "create_S_matrices",
+            "create_sfactor"
+          ]
+        },
+        {
+          "package": "angler",
+          "capabilities": [
+            "simulation",
+            "adjoint_optimization",
+            "design_parameterization"
+          ],
+          "reason": "保留线性伴随优化、梯度检查和制造约束映射；不引入 Kerr 非线性设计。",
+          "exclude": [
+            "Nonlinearity",
+            "born_solve",
+            "newton_solve",
+            "nl_eq_and_jac",
+            "newton_krylov_solve",
+            "adjoint_kerr_Ez",
+            "grad_kerr_Ez",
+            "grad_kerr_Hx",
+            "grad_kerr_Hy"
+          ],
+          "methods": {
+            "Simulation": [
+              "__init__",
+              "setup_modes",
+              "add_mode",
+              "eps_r",
+              "solve_fields",
+              "flux_probe",
+              "init_design_region",
+              "plt_abs",
+              "plt_re",
+              "plt_eps"
+            ],
+            "Optimization": [
+              "__init__",
+              "compute_J",
+              "compute_dJ",
+              "check_deriv",
+              "run",
+              "plot_it",
+              "plt_objs",
+              "scan_frequency",
+              "plot_transmissions"
+            ]
+          }
+        },
+        {
+          "package": "legume-gme",
+          "capabilities": [
+            "photonic_crystal",
+            "gme_pwe",
+            "optimization_visualization"
+          ],
+          "reason": "为周期光子晶体的参数化几何与 GME 梯度优化保留独立路径；不当作通用端口 FDFD 替换。",
+          "exclude": [
+            "PlaneWaveExp",
+            "wavef",
+            "reciprocal"
+          ]
+        }
+      ],
+      "boundaries": [
+        "三个后端的几何、边界与目标函数不同，分别生成任务，不直接拼接场数组；制造约束和独立复算需要任务侧实现。"
+      ]
+    },
+    {
+      "id": "02.11.01",
+      "packages": [
+        {
+          "package": "plasmapy",
+          "capabilities": [
+            "particles_ionization",
+            "plasma_scales",
+            "collisions_dispersion"
+          ],
+          "reason": "保留粒子、离化态、基本尺度、碰撞和输运判据；排除停止本领及色散波求解。",
+          "exclude": [
+            "stopping_power",
+            "plasma_dispersion_func",
+            "plasma_dispersion_func_deriv",
+            "stix",
+            "two_fluid"
+          ]
+        },
+        {
+          "package": "cantera",
+          "capabilities": [
+            "thermo_kinetics_transport",
+            "reaction_models"
+          ],
+          "reason": "提供气体组分、热力学/输运及电子碰撞截面参数接口。",
+          "include": [
+            "Solution",
+            "Species",
+            "ThermoPhase",
+            "Transport",
+            "ElectronCollisionPlasmaRate"
+          ]
+        },
+        {
+          "package": "fipy",
+          "capabilities": [
+            "mesh_variables",
+            "equation_solve"
+          ],
+          "reason": "为化学或等离子体参数提供最小一维扩散/反应输运模型与守恒检查。",
+          "exclude": [
+            "Grid2D",
+            "Grid3D",
+            "CylindricalGrid1D",
+            "CylindricalGrid2D",
+            "SphericalGrid1D",
+            "Stepper"
+          ],
+          "methods": {
+            "Variable": [
+              "__init__",
+              "inUnitsOf",
+              "setValue",
+              "numericValue",
+              "constrain",
+              "release",
+              "sum",
+              "allclose"
+            ],
+            "CellVariable": [
+              "__init__",
+              "setValue",
+              "cellVolumeAverage",
+              "grad",
+              "arithmeticFaceValue",
+              "faceGrad",
+              "old",
+              "updateOld",
+              "constrain",
+              "release"
+            ],
+            "FaceVariable": [
+              "setValue",
+              "divergence"
+            ]
+          }
+        }
+      ],
+      "boundaries": [
+        "压力/功率不能单独确定电子温度和密度，需测量或额外放电模型；保留报告原文但不宣称这些包构成完整刻蚀腔体求解器。",
+        "Cantera/PlasmaPy/FiPy 的单位、物种与速率映射需任务侧适配。"
+      ]
+    },
+    {
+      "id": "02.11.02",
+      "packages": [
+        {
+          "package": "cantera",
+          "capabilities": [
+            "thermo_kinetics_transport",
+            "reaction_models",
+            "reactor_network"
+          ],
+          "reason": "保留机理、状态、反应速率和反应器网络完整主链；排除电子碰撞专用参数。",
+          "exclude": [
+            "ElectronCollisionPlasmaRate"
+          ]
+        },
+        {
+          "package": "plasmapy",
+          "capabilities": [
+            "plasma_scales"
+          ],
+          "reason": "仅提供可选电离平衡估算，用于机理适用条件检查。",
+          "include": [
+            "Saha",
+            "ionization_balance"
+          ]
+        },
+        {
+          "package": "fipy",
+          "capabilities": [
+            "mesh_variables",
+            "equation_solve"
+          ],
+          "reason": "为化学或等离子体参数提供最小一维扩散/反应输运模型与守恒检查。",
+          "exclude": [
+            "Grid2D",
+            "Grid3D",
+            "CylindricalGrid1D",
+            "CylindricalGrid2D",
+            "SphericalGrid1D",
+            "Stepper"
+          ],
+          "methods": {
+            "Variable": [
+              "__init__",
+              "inUnitsOf",
+              "setValue",
+              "numericValue",
+              "constrain",
+              "release",
+              "sum",
+              "allclose"
+            ],
+            "CellVariable": [
+              "__init__",
+              "setValue",
+              "cellVolumeAverage",
+              "grad",
+              "arithmeticFaceValue",
+              "faceGrad",
+              "old",
+              "updateOld",
+              "constrain",
+              "release"
+            ],
+            "FaceVariable": [
+              "setValue",
+              "divergence"
+            ]
+          }
+        }
+      ],
+      "boundaries": [
+        "需要适用于目标 CVD/刻蚀气体的机理；本次未验证机理科学适用性或包间耦合数值。"
+      ]
+    },
+    {
+      "id": "02.11.03",
+      "packages": [
+        {
+          "package": "fipy",
+          "capabilities": [
+            "mesh_variables",
+            "equation_solve",
+            "gmsh_interchange"
+          ],
+          "reason": "覆盖状态变量、边界通量、扩散反应项、时间推进、残差与网格导入。"
+        },
+        {
+          "package": "gmsh",
+          "capabilities": [
+            "session_and_groups",
+            "mesh_generation"
+          ],
+          "reason": "提供已有网格读取、物理组及局部细化/质量检查，作为报告中几何/网格环节的实现。"
+        },
+        {
+          "package": "cantera",
+          "capabilities": [
+            "thermo_kinetics_transport"
+          ],
+          "reason": "提供输运系数和化学源项所需的状态与动力学接口。",
+          "include": [
+            "Solution",
+            "ThermoPhase",
+            "Kinetics",
+            "Transport"
+          ],
+          "methods": {
+            "ThermoPhase": [
+              "T",
+              "P",
+              "X",
+              "Y",
+              "concentrations",
+              "density",
+              "species_names",
+              "n_species"
+            ],
+            "Kinetics": [
+              "reaction_equations",
+              "net_production_rates",
+              "net_rates_of_progress",
+              "set_multiplier"
+            ]
+          }
+        }
+      ],
+      "boundaries": [
+        "需显式映射网格物理组、物种顺序、单位和反应源项；未执行电沉积或表面反应的端到端验证。"
+      ]
+    }
+  ]
+}

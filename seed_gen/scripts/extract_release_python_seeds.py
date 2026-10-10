@@ -19,6 +19,7 @@ from seed_gen.scripts.extract_python_ref_tools import (
     _doc_sections,
     _parse_output,
     _section_entries,
+    extract_file,
     extract_modules,
 )
 
@@ -67,12 +68,41 @@ def git(root: Path, *args: str) -> str:
 def build_seed(spec: dict, raw_root: Path) -> list[dict]:
     root = raw_root / spec["directory"]
     commit = git(root, "rev-parse", "HEAD")
-    if commit != spec["commit"] or git(root, "rev-parse", f"{spec['tag']}^{{commit}}") != commit:
+    release_ref = spec.get("ref", spec["tag"])
+    if commit != spec["commit"] or git(root, "rev-parse", f"{release_ref}^{{commit}}") != commit:
         raise ValueError(f"Release commit mismatch: {root}")
     if git(root, "status", "--porcelain", "--untracked-files=no"):
         raise ValueError(f"Tracked source modifications in {root}")
     source_root = root / spec.get("source_root", ".")
-    tools, files = extract_modules(source_root, spec["modules"])
+    include_call_protocol = spec.get("include_call_protocol", False)
+    if not isinstance(include_call_protocol, bool):
+        raise ValueError("include_call_protocol must be a boolean")
+    tools, files = extract_modules(source_root, spec["modules"], include_call_protocol=include_call_protocol)
+    # A Windows checkout may collapse case-only Git paths. Only an explicit,
+    # byte-identical alias is recoverable from the existing working-tree file;
+    # differing blobs must never silently substitute for the missing source.
+    source_aliases = spec.get("identical_source_aliases", {})
+    for alias, canonical in source_aliases.items():
+        alias_path = source_root / alias
+        canonical_path = source_root / canonical
+        alias_git = alias_path.relative_to(root).as_posix()
+        canonical_git = canonical_path.relative_to(root).as_posix()
+        alias_blob = git(root, "rev-parse", f"{commit}:{alias_git}")
+        canonical_blob = git(root, "rev-parse", f"{commit}:{canonical_git}")
+        if alias_blob != canonical_blob or git(root, "hash-object", "--", str(canonical_path.resolve())) != canonical_blob:
+            raise ValueError(f"Non-identical source alias: {alias}")
+        # On a case-sensitive filesystem extraction may already include both.
+        if alias not in files:
+            module = alias.removesuffix('.py').replace('/', '.').removesuffix('.__init__')
+            tools.extend(extract_file(canonical_path, module, include_call_protocol=include_call_protocol))
+            files.append(alias)
+    if source_aliases:
+        tools.sort(key=lambda t: (t['module'], t['name'], t['type']))
+        files.sort()
+    module_prefix = spec.get("module_prefix", "")
+    if module_prefix:
+        for tool in tools:
+            tool["module"] = f"{module_prefix}.{tool['module']}" if tool["module"] else module_prefix
     files = [(source_root / file).relative_to(root).as_posix() for file in files]
     adapter_metadata = {}
     if spec.get("adapter"):
@@ -112,6 +142,7 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
                 **{key: spec[key] for key in ("repository", "documentation", "pypi", "pypi_version",
                                              "tag", "commit", "release_published_at", "checked_on",
                                              "github_prerelease", "notes")},
+                **({"release_ref": release_ref} if release_ref != spec["tag"] else {}),
                 "release_url": spec.get("release_url", f"{spec['repository']}/releases/tag/{spec['tag']}"),
                 "release_api": spec.get("release_api", f"https://api.github.com/repos/{spec['repository'].removeprefix('https://github.com/')}/releases/latest"),
                 "selection_rule": spec.get("selection_rule", "Latest official GitHub Release returned at checked_on; checkout its tag, not the default branch"),
@@ -121,11 +152,16 @@ def build_seed(spec: dict, raw_root: Path) -> list[dict]:
             "python_source_extraction": {
                 "strategy": "static_ast_and_native_export_docs" if native_count else "static_ast",
                 "requested_modules": spec["modules"], "source_files": files,
+                **({"identical_source_aliases": source_aliases} if source_aliases else {}),
+                **({"include_call_protocol": True, "additional_protocol_methods": ["__call__"]} if include_call_protocol else {}),
+                **({"module_prefix": module_prefix} if module_prefix else {}),
                 "source_file_sha256": {file: hashlib.sha256((root / file).read_bytes()).hexdigest() for file in files},
                 "source_version": spec["tag"], "source_commit": commit,
                 "native_function_count": native_count,
-                "selection": "public module classes/functions; __init__ and public source-defined class methods (including properties)",
-                "excluded": "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories",
+                "selection": ("public module classes/functions; __init__, __call__ and public source-defined class methods (including properties)"
+                              if include_call_protocol else "public module classes/functions; __init__ and public source-defined class methods (including properties)"),
+                "excluded": ("private definitions, magic methods except __init__/__call__, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories"
+                             if include_call_protocol else "private definitions, non-constructor magic methods, imported/inherited APIs, nested definitions, external dependencies; tests/examples outside package directories"),
                 "docstring_mapping": {
                     "description": "summary before Google/NumPy sections or reStructuredText fields",
                     "input": "signature parameters; annotation types with docstring fallback; Google/NumPy/reStructuredText parameter descriptions",

@@ -109,6 +109,23 @@ python -m env_gen.data_gen \
   --schema-path schemas/environment.schema.json
 ```
 
+一个 Seed 数组文件包含多条记录时，使用容错批量入口。它会逐条预检，跳过已有环境；单条失败不会
+中断其他 Seed。Step 内部修复用尽后，仅对超时、限流、服务端 `500/502/503/504` 和连接中断等瞬时故障重试
+整条 Seed，确定性的 Schema、覆盖或数据不足问题直接记入批次报告：
+
+```bash
+python -m env_gen.data_gen.batch \
+  --seed-path /path/to/seeds.json \
+  --output-root /home/sunshuo/AgenticDataGeneration/generated/data_gen_batch \
+  --model gpt-5.6-sol \
+  --timeout-seconds 7200 \
+  --concurrency 2 \
+  --max-attempts 2
+```
+
+批次状态持续写入 `<output-root>/batch_runs/<batch-id>/report.json`。即使部分 Seed 无效或失败，所有
+可运行 Seed 仍会继续；命令最终在存在失败时返回非零状态，方便调度系统识别不完整批次。
+
 默认使用 `gpt-5.6-terra` 和 `high` 推理强度，输出分类发布到：
 
 ```text

@@ -2,7 +2,7 @@
   "profile_id": "nextnanopy_balanced_v1",
   "package": "nextnanopy",
   "version": "v1.3.2",
-  "source_sha256": "cb6fdc26edb5b3647dab024ad8b6c94bdd0f12dbe9c7828344624fe8650e05e4",
+  "source_sha256": "cd31b36bb8d9ea79f93762b87bca63efdb3573028010b2a12cc7f0fc2f707b46",
   "target_all_func": {
     "min": 50,
     "max": 100

@@ -1,0 +1,294 @@
+[
+  {
+    "name": "RosettaSciIO",
+    "index": 750,
+    "directory": "l1_metrology_quality/RosettaSciIO",
+    "source_root": ".",
+    "modules": [
+      "rsciio"
+    ],
+    "repository": "https://github.com/hyperspy/rosettasciio",
+    "tag": "v0.14.0",
+    "commit": "d777df48bd1cd3ee2422eb6be4fc3c76450c072d",
+    "documentation": "https://hyperspy.org/rosettasciio/",
+    "description": "RosettaSciIO提供多种显微镜、谱学和科学图像文件格式的读写，将信号数据、轴和实验元数据表示为可桥接HyperSpy的结构；各格式支持与元数据损失需单独检查。",
+    "pypi": "https://pypi.org/project/RosettaSciIO/",
+    "pypi_version": "0.14.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/hyperspy/rosettasciio/releases/latest",
+    "release_url": "https://github.com/hyperspy/rosettasciio/releases/tag/v0.14.0",
+    "release_published_at": "2026-05-27T15:30:33Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "HyperSpy",
+    "index": 751,
+    "directory": "l1_metrology_quality/HyperSpy",
+    "source_root": ".",
+    "modules": [
+      "hyperspy"
+    ],
+    "repository": "https://github.com/hyperspy/hyperspy",
+    "tag": "v2.4.0",
+    "commit": "0a98c44344f66b6174f19eb49867c6fdf8669d99",
+    "documentation": "https://hyperspy.org/hyperspy-doc/current/",
+    "description": "HyperSpy以多维信号、导航/信号轴和实验元数据组织显微/谱像数据，提供裁剪、配准、滤波、分解与模型分析，并通过扩展包加入领域功能。",
+    "pypi": "https://pypi.org/project/HyperSpy/",
+    "pypi_version": "2.4.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/hyperspy/hyperspy/releases/latest",
+    "release_url": "https://github.com/hyperspy/hyperspy/releases/tag/v2.4.0",
+    "release_published_at": "2026-01-26T17:41:10Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "LiberTEM",
+    "index": 752,
+    "directory": "l1_metrology_quality/LiberTEM",
+    "source_root": "src",
+    "modules": [
+      "libertem"
+    ],
+    "repository": "https://github.com/LiberTEM/LiberTEM",
+    "tag": "v0.16.0",
+    "commit": "04b4a68c24c506f867680b2fc92b7e5da2554244",
+    "documentation": "https://libertem.github.io/LiberTEM/",
+    "description": "LiberTEM提供多维STEM探测器数据分块读取、任务执行和虚拟探测/质心等UDF分析，支持本地与分布式后端；固定小样例不能代替TB吞吐量验证。",
+    "pypi": "https://pypi.org/project/LiberTEM/",
+    "pypi_version": "0.16.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/LiberTEM/LiberTEM/releases/latest",
+    "release_url": "https://github.com/LiberTEM/LiberTEM/releases/tag/v0.16.0",
+    "release_published_at": "2026-05-19T13:12:18Z",
+    "github_prerelease": false,
+    "notes": [
+      "在线首页0.17.0.dev0领先正式版0.16.0，源码签名与运行固定0.16.0。"
+    ]
+  },
+  {
+    "name": "abTEM",
+    "index": 753,
+    "directory": "l1_metrology_quality/abTEM",
+    "source_root": ".",
+    "modules": [
+      "abtem"
+    ],
+    "repository": "https://github.com/abTEM/abTEM",
+    "tag": "v1.0.10",
+    "commit": "164e644ff411167db23ec4ef26aeb4fe8f384b26",
+    "documentation": "https://abtem.github.io/doc/",
+    "description": "abTEM从原子结构和势构建透射电子显微镜多重散射、探针及探测器模拟，支持生成衍射/扫描图像并进行物理参数控制；模拟近似和数值网格需验证。",
+    "pypi": "https://pypi.org/project/abTEM/",
+    "pypi_version": "1.0.10",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/abTEM/abTEM/releases/latest",
+    "release_url": "https://github.com/abTEM/abTEM/releases/tag/v1.0.10",
+    "release_published_at": "2026-07-06T11:26:21Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "kikuchipy",
+    "index": 754,
+    "directory": "l1_metrology_quality/kikuchipy",
+    "source_root": "src",
+    "modules": [
+      "kikuchipy"
+    ],
+    "repository": "https://github.com/pyxem/kikuchipy",
+    "tag": "v0.13.1",
+    "commit": "ae684944a4a2816c84fcf2369d1b31917e4939c2",
+    "documentation": "https://kikuchipy.org/en/stable/",
+    "description": "kikuchipy基于HyperSpy处理EBSD花样、探测器几何、背景校正、字典匹配和晶体取向结果，提供数据/几何/索引的可追溯流程。",
+    "pypi": "https://pypi.org/project/kikuchipy/",
+    "pypi_version": "0.13.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyxem/kikuchipy/releases/latest",
+    "release_url": "https://github.com/pyxem/kikuchipy/releases/tag/v0.13.1",
+    "release_published_at": "2026-09-04T15:33:03Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "pyxem",
+    "index": 755,
+    "directory": "l1_metrology_quality/pyxem",
+    "source_root": ".",
+    "modules": [
+      "pyxem"
+    ],
+    "repository": "https://github.com/pyxem/pyxem",
+    "tag": "v0.21.0",
+    "commit": "52ca3a2a2a569a1f451339e597f7b038cb6b7cb3",
+    "documentation": "https://pyxem.readthedocs.io/en/stable/",
+    "description": "pyxem在HyperSpy信号上提供电子衍射、4D数据、虚拟成像、衍射矢量、峰及取向/应变分析；导航轴与倒易像素尺度决定结果物理意义。",
+    "pypi": "https://pypi.org/project/pyxem/",
+    "pypi_version": "0.21.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyxem/pyxem/releases/latest",
+    "release_url": "https://github.com/pyxem/pyxem/releases/tag/v0.21.0",
+    "release_published_at": "2025-06-04T16:36:35Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "py4DSTEM",
+    "index": 756,
+    "directory": "l1_metrology_quality/py4DSTEM",
+    "source_root": ".",
+    "modules": [
+      "py4DSTEM"
+    ],
+    "repository": "https://github.com/py4dstem/py4DSTEM",
+    "tag": "v0.14.8",
+    "commit": "7d1fb8499c98aecf18e7b1a47414218e9e734c8a",
+    "documentation": "https://py4dstem.readthedocs.io/en/latest/",
+    "description": "py4DSTEM围绕扫描位置和二维衍射像素组成的DataCube提供4D-STEM校准、虚拟探测、布拉格盘和应变/相位分析；本轮固定正式发布版并显式记录PyPI版本差异。",
+    "pypi": "https://pypi.org/project/py4DSTEM/",
+    "pypi_version": "0.14.18",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/py4dstem/py4DSTEM/releases/latest",
+    "release_url": "https://github.com/py4dstem/py4DSTEM/releases/tag/v0.14.8",
+    "release_published_at": "2023-11-08T22:50:15Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新GitHub正式Release v0.14.8；PyPI0.14.18/在线文档0.14.14，按指南固定正式Release，签名和运行使用0.14.8。"
+    ]
+  },
+  {
+    "name": "eXSpy",
+    "index": 757,
+    "directory": "l1_metrology_quality/eXSpy",
+    "source_root": ".",
+    "modules": [
+      "exspy"
+    ],
+    "repository": "https://github.com/hyperspy/exspy",
+    "tag": "v0.3.2",
+    "commit": "530e6f28b835f99bd86dab034e066562e8e2559d",
+    "documentation": "https://hyperspy.org/exspy/",
+    "description": "eXSpy扩展HyperSpy的EDS/EELS信号、X射线谱线、背景、吸收边和定量分析模型，支持由谱像到组分图；物理标定与截面/厚度假设不能忽略。",
+    "pypi": "https://pypi.org/project/eXSpy/",
+    "pypi_version": "0.3.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/hyperspy/exspy/releases/latest",
+    "release_url": "https://github.com/hyperspy/exspy/releases/tag/v0.3.2",
+    "release_published_at": "2025-03-02T18:27:04Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "pyFAI",
+    "index": 758,
+    "directory": "l1_metrology_quality/pyFAI",
+    "source_root": "src",
+    "modules": [
+      "pyFAI"
+    ],
+    "repository": "https://github.com/silx-kit/pyFAI",
+    "tag": "v2026.09",
+    "commit": "c482bdce480ce743322a81e6f9b01fd07826a2d3",
+    "documentation": "http://www.silx.org/doc/pyFAI/latest/",
+    "description": "pyFAI从二维探测器图像及几何标定进行方位积分，输出一维/二维散射强度、单位轴和掩膜校正，支持XRD衍射数据处理与误差模型。",
+    "pypi": "https://pypi.org/project/pyFAI/",
+    "pypi_version": "2026.9.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/silx-kit/pyFAI/releases/latest",
+    "release_url": "https://github.com/silx-kit/pyFAI/releases/tag/v2026.09",
+    "release_published_at": "2026-09-15T14:58:43Z",
+    "github_prerelease": false,
+    "notes": [
+      "HTTPS文档证书链检查失败，未关闭验证；官方HTTP站200可读并保留原始URL。tag v2026.09对应PyPI2026.9.0。"
+    ]
+  },
+  {
+    "name": "xrayutilities",
+    "index": 759,
+    "directory": "l1_metrology_quality/xrayutilities",
+    "source_root": "lib",
+    "modules": [
+      "xrayutilities"
+    ],
+    "repository": "https://github.com/dkriegner/xrayutilities",
+    "tag": "v1.8.0",
+    "commit": "8f75eaefbaec1ed9f19cc6fdc4687d332af1ab10",
+    "documentation": "https://xrayutilities.sourceforge.io/",
+    "description": "xrayutilities提供X射线衍射几何、倒易空间变换、材料晶格和薄膜XRR/XRD模拟/拟合，支持由角度测量到结构参数的可解释链。",
+    "pypi": "https://pypi.org/project/xrayutilities/",
+    "pypi_version": "1.8.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/dkriegner/xrayutilities/releases/latest",
+    "release_url": "https://github.com/dkriegner/xrayutilities/releases/tag/v1.8.0",
+    "release_published_at": "2026-07-21T22:53:17Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "diffpy.structure",
+    "index": 760,
+    "directory": "l1_metrology_quality/diffpy.structure",
+    "source_root": "src",
+    "modules": [
+      "diffpy.structure"
+    ],
+    "repository": "https://github.com/diffpy/diffpy.structure",
+    "tag": "3.5.0",
+    "commit": "2a75e1f387308d18503f981d8a27485455abbc76",
+    "documentation": "https://www.diffpy.org/diffpy.structure/",
+    "description": "diffpy.structure提供原子、晶格、晶体结构和结构文件读写，用于衍射参考和结构数据的规范表示；计算几何不等于完成散射谱反演。",
+    "pypi": "https://pypi.org/project/diffpy.structure/",
+    "pypi_version": "3.5.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/diffpy/diffpy.structure/releases/latest",
+    "release_url": "https://github.com/diffpy/diffpy.structure/releases/tag/3.5.0",
+    "release_published_at": "2026-08-23T19:52:25Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "scikit-image",
+    "index": 761,
+    "directory": "l1_metrology_quality/scikit-image",
+    "source_root": "src",
+    "modules": [
+      "skimage"
+    ],
+    "repository": "https://github.com/scikit-image/scikit-image",
+    "tag": "v0.26.0",
+    "commit": "ee0a7a3ebd9ac8c2602f40e55bc015a3c8a81ae8",
+    "documentation": "https://scikit-image.org/docs/stable/",
+    "description": "scikit-image提供科学图像滤波、分割、配准、区域测量和形态学工具，作为显微信号环境的必要图像能力补充，需维护像素尺度与坐标约定。",
+    "pypi": "https://pypi.org/project/scikit-image/",
+    "pypi_version": "0.26.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/scikit-image/scikit-image/releases/latest",
+    "release_url": "https://github.com/scikit-image/scikit-image/releases/tag/v0.26.0",
+    "release_published_at": "2025-12-20T17:13:44Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "orix",
+    "index": 762,
+    "directory": "l1_metrology_quality/orix",
+    "source_root": ".",
+    "modules": [
+      "orix"
+    ],
+    "repository": "https://github.com/pyxem/orix",
+    "tag": "v0.15.0",
+    "commit": "7cbe3384aa5fa377d2628708eef0a284a34095a2",
+    "documentation": "https://orix.readthedocs.io/en/stable/",
+    "description": "orix提供晶体取向、对称性、相与CrystalMap表示和读写，作为kikuchipy字典取向及索引结果容器，避免把取向元数据藏入未搜集依赖。",
+    "pypi": "https://pypi.org/project/orix/",
+    "pypi_version": "0.15.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyxem/orix/releases/latest",
+    "release_url": "https://github.com/pyxem/orix/releases/tag/v0.15.0",
+    "release_published_at": "2026-07-29T19:38:20Z",
+    "github_prerelease": false,
+    "notes": []
+  }
+]

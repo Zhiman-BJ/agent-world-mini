@@ -68,9 +68,11 @@ def _integration_guide(
 ## 两种落地方式
 
 - 某类内容需要按字段或 ID 查询、关联、创建、更新时，把它整理成 `state/records.sqlite` 中的业务表，
-  并在 `environment.json.record_sets` 中声明。
+  并在 `environment.json.record_sets` 中声明。为了让后续任务既能读取也能修改业务状态，最终 Record Set
+  统一声明为 `copy_on_write`。
 - 某类内容需要保留文件内容、文件名或目录结构，供工具整份读取、校验、比较或修改时，把实际可操作文件
-  放入 `state/filesystem_scopes/<scope_id>/`，并在 `environment.json.filesystem_scopes` 中声明。
+  放入 `state/filesystem_scopes/<scope_id>/`，并在 `environment.json.filesystem_scopes` 中声明。最终 Scope
+  同样统一声明为 `copy_on_write`；这允许任务修改独立副本，不允许修改采集原件或共享基线。
 - 同一个原件可以同时贡献数据库记录和文件工作区。不要根据扩展名机械分类：JSON、XML、代码或压缩包
   最终放在哪里，只由后续如何使用决定。
 - ZIP、TAR、GZIP 通常只是下载容器。先检查内部成员；除非业务本身就是操作压缩包，否则应解析其中的
@@ -97,7 +99,9 @@ def _integration_guide(
    JSON/JSONL/GZIP 采用流式读取并统计真实记录类型和数量。先弄清每个原件含有哪些对象、状态、标识、
    关系和可直接操作的文件。
 2. 围绕实际业务对象设计最终表和文件工作区。同一对象的兼容来源合并、去重并统一字段名和类型；
-   主键必须稳定且唯一，跨表关系使用统一后的键。
+   主键必须稳定且唯一，跨表关系使用统一后的键。保持不同项目、批次、实验或设计的原始边界；只有原件或
+   `work_coverage` 中存在稳定 ID、路径、版本、时间或明确业务事实时才合并来源，格式相同、名称相似或能被
+   同一工具处理不能作为合并依据。
 3. 直接生成 `environment.json`、最终数据库和文件工作区。转换全部与业务要求有关的有效内容，
    不得只取前几条、最容易处理的类型或演示样例。保留有意义的原始 ID、状态、时间、分类、文本和关联字段；
    只排除重复、无关、确实不可解析或纯说明内容。

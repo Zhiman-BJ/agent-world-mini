@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -131,9 +132,20 @@ class KimiMcpTests(unittest.TestCase):
             prefix = subprocess.check_output([str(delivery.python_path), '-I', '-c', 'import sys; print(sys.prefix)'], text=True).strip()
             self.assertEqual(Path(prefix), delivery.software_root / 'python')
 
-    def _make_delivery(self, root: Path, *, with_software_profile: bool = False) -> Path:
+    def _make_delivery(
+        self,
+        root: Path,
+        *,
+        with_software_profile: bool = False,
+        with_report_tool: bool = False,
+    ) -> Path:
         source = root / "support"
         (source / "state/filesystem_scopes/reports").mkdir(parents=True)
+        if with_report_tool:
+            (source / "state/filesystem_scopes/reports/daily.json").write_text(
+                '{"status":"open"}', encoding="utf-8"
+            )
+            (source / "state/filesystem_scopes/reports/raw.bin").write_bytes(b"\x00\xff")
         environment = {
             "schema_version": "2.0",
             "environment_id": "support_workspace",
@@ -212,6 +224,63 @@ class KimiMcpTests(unittest.TestCase):
                 ["The ticket status becomes resolved."],
             ),
         ]
+        if with_report_tool:
+            tools.append(
+                {
+                    "name": "write_report",
+                    "description": "Update the daily support report.",
+                    "usageConditions": {
+                        "targetResources": ["reports"],
+                        "targetObjects": [
+                            {"objectType": "support report", "identifiedBy": ["path"]}
+                        ],
+                        "preconditions": ["The reports scope is writable."],
+                        "sideEffects": ["daily.json is updated."],
+                    },
+                    "inputSchema": _closed_object(
+                        {"path": {"type": "string"}, "status": {"type": "string"}},
+                        ["path", "status"],
+                    ),
+                    "outputSchema": {
+                        "type": "object",
+                        "oneOf": [
+                            _closed_object(
+                                {
+                                    "success": {"type": "boolean", "const": True},
+                                    "data": _closed_object(
+                                        {"status": {"type": "string"}}, ["status"]
+                                    ),
+                                },
+                                ["success", "data"],
+                            ),
+                            _closed_object(
+                                {
+                                    "success": {"type": "boolean", "const": False},
+                                    "error": _closed_object(
+                                        {
+                                            "code": {"type": "string", "enum": ["not_found"]},
+                                            "path": {"type": "string"},
+                                            "message": {"type": "string", "minLength": 1},
+                                            "retryable": {"type": "boolean"},
+                                        },
+                                        ["code", "path", "message", "retryable"],
+                                    ),
+                                },
+                                ["success", "error"],
+                            ),
+                        ],
+                    },
+                    "internal": {
+                        "code": (
+                            "import json\n"
+                            "def run(arguments, context):\n"
+                            "    path = context.scope_root('reports') / arguments['path']\n"
+                            "    path.write_text(json.dumps({'status': arguments['status']}, separators=(',', ':')))\n"
+                            "    return {'success': True, 'data': {'status': arguments['status']}}\n"
+                        )
+                    },
+                }
+            )
         tools_path = source / "tools.json"
         tools_path.write_text(
             json.dumps(
@@ -306,7 +375,10 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual([item["id"] for item in responses], [1, 2, 3, 4])
             self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
             listed = responses[1]["result"]["tools"]
-            self.assertEqual([item["name"] for item in listed], ["get_ticket", "resolve_ticket"])
+            self.assertEqual(
+                [item["name"] for item in listed],
+                ["get_ticket", "resolve_ticket"],
+            )
             self.assertIn("Preconditions", listed[0]["description"])
             self.assertNotIn("internal", listed[0])
             self.assertEqual(listed[0]["outputSchema"]["type"], "object")
@@ -318,12 +390,125 @@ class KimiMcpTests(unittest.TestCase):
             self.assertEqual(records[0]["state_changes"]["record_sets"], ["tickets"])
             self.assertEqual(records[1]["state_changes"]["record_sets"], [])
 
+            sandbox = root / "sandbox"
+            receipt = json.loads((sandbox / "session.json").read_text())
+            self.assertEqual(receipt["tool_calls"], 2)
+            with sqlite3.connect(sandbox / "state/records.sqlite") as connection:
+                sandbox_status = connection.execute(
+                    'SELECT status FROM "tickets"'
+                ).fetchone()[0]
+            self.assertEqual(sandbox_status, "resolved")
+
             delivery = load_delivery(binding)
             with sqlite3.connect(
                 delivery.package.package_root / "state/records.sqlite"
             ) as connection:
                 status = connection.execute('SELECT status FROM "tickets"').fetchone()[0]
             self.assertEqual(status, "open")
+
+    def test_persistent_session_records_file_fingerprints(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binding = self._make_delivery(root, with_report_tool=True)
+            trace = root / "calls.jsonl"
+            requests = [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "write_report",
+                        "arguments": {"path": "daily.json", "status": "done"},
+                    },
+                },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                        "method": "resources/read",
+                        "params": {
+                        "uri": "aw://reports/daily.json",
+                        },
+                },
+            ]
+            stdout = io.StringIO()
+            serve(
+                binding,
+                trace_path=trace,
+                stdin=io.StringIO("\n".join(json.dumps(item) for item in requests)),
+                stdout=stdout,
+            )
+
+            responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+            self.assertEqual(len(responses), 2)
+            self.assertFalse(responses[0]["result"]["isError"])
+            self.assertIn(
+                "done",
+                responses[1]["result"]["contents"][0]["text"],
+            )
+            changes = [json.loads(line)["state_changes"] for line in trace.read_text().splitlines()]
+            self.assertEqual(changes[0]["filesystem_scopes"], ["reports"])
+            self.assertEqual(len(changes), 1)
+
+            sandbox = root / "sandbox"
+            saved_file = sandbox / "state/filesystem_scopes/reports/daily.json"
+            contents = saved_file.read_bytes()
+            self.assertEqual(json.loads(contents)["status"], "done")
+            self.assertEqual(len(contents), len(b'{"status":"open"}'))
+            receipt = json.loads((sandbox / "session.json").read_text())
+            files = receipt["final_snapshot"]["filesystem_scopes"]["reports"]
+            self.assertEqual(files["daily.json"], {
+                "sha256": hashlib.sha256(contents).hexdigest(),
+                "size_bytes": len(contents),
+            })
+            self.assertEqual(files["raw.bin"], {
+                "sha256": hashlib.sha256(b"\x00\xff").hexdigest(),
+                "size_bytes": 2,
+            })
+            self.assertEqual(
+                (root / "delivery/environments/support/environment/state/filesystem_scopes/reports/daily.json").read_text(),
+                '{"status":"open"}',
+            )
+
+    def test_resource_tools_expose_scope_files_without_workspace_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binding = self._make_delivery(root)
+            environment_root = (
+                root / "delivery/environments/support/environment/state/filesystem_scopes/reports"
+            )
+            (environment_root / "daily.json").write_text(
+                json.dumps({"status": "open"}), encoding="utf-8"
+            )
+            requests = [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                        "method": "resources/list",
+                        "params": {},
+                },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                        "method": "resources/read",
+                        "params": {
+                        "uri": "aw://reports/daily.json",
+                        },
+                },
+            ]
+            stdout = io.StringIO()
+            serve(
+                binding,
+                stdin=io.StringIO("\n".join(json.dumps(item) for item in requests)),
+                stdout=stdout,
+            )
+            responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+            resources = responses[0]["result"]["resources"]
+            self.assertEqual(resources[0]["uri"], "aw://reports/daily.json")
+            self.assertNotIn(str(root), json.dumps(resources))
+            self.assertEqual(
+                json.loads(responses[1]["result"]["contents"][0]["text"]),
+                {"status": "open"},
+            )
 
     def test_business_failure_is_returned_as_structured_mcp_error(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -360,10 +545,14 @@ class KimiMcpTests(unittest.TestCase):
             )
 
             entry = config["mcpServers"]["agent_world_support"]
+            self.assertEqual(entry["transport"], "stdio")
+            self.assertEqual(Path(entry["cwd"]), delivery.package.package_root)
             self.assertEqual(Path(entry["command"]), Path(sys.executable).absolute())
             self.assertEqual(Path(entry["args"][1]), binding)
             self.assertTrue(entry["args"][0].endswith("kimi_mcp.py"))
             self.assertIn("--trace", entry["args"])
+            self.assertIn("--session-root", entry["args"])
+            self.assertIn(str(root / "sandbox"), entry["args"])
             self.assertEqual(entry["args"][-2:], ["--max-tool-calls", "25"])
 
     def test_config_uses_bound_software_profile_python(self) -> None:
@@ -372,6 +561,11 @@ class KimiMcpTests(unittest.TestCase):
                 Path(temporary), with_software_profile=True
             )
             delivery = load_delivery(binding)
+            nested_library = delivery.software_root / "python/lib"
+            nested_library.mkdir(parents=True, exist_ok=True)
+            petsc_prefix = delivery.software_root / "python-3.11"
+            (petsc_prefix / "lib/petsc").mkdir(parents=True)
+            (petsc_prefix / "lib/slepc").mkdir(parents=True)
 
             config = kimi_config(
                 delivery,
@@ -380,10 +574,77 @@ class KimiMcpTests(unittest.TestCase):
                 max_tool_calls=10,
             )
 
-            command = Path(config["mcpServers"]["agent_world_support"]["command"])
+            entry = config["mcpServers"]["agent_world_support"]
+            command = Path(entry["command"])
             self.assertEqual(command, delivery.python_path)
             self.assertTrue(command.is_relative_to(delivery.delivery_root))
             self.assertEqual(delivery.software_root, command.parents[2])
+            self.assertEqual(
+                Path(entry["env"]["TOOLGEN_SOFTWARE_ROOT"]),
+                delivery.software_root,
+            )
+            self.assertIn(str(delivery.python_path.parent), entry["env"]["PATH"])
+            self.assertIn(str(nested_library), entry["env"]["LD_LIBRARY_PATH"])
+            self.assertEqual(Path(entry["env"]["PETSC_DIR"]), petsc_prefix)
+            self.assertEqual(Path(entry["env"]["SLEPC_DIR"]), petsc_prefix)
+
+    def test_config_uses_declared_docker_image_and_translates_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binding = self._make_delivery(root)
+            binding_document = json.loads(binding.read_text(encoding="utf-8"))
+            runtime_path = root / "delivery" / binding_document["runtime_path"]
+            runtime_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "backend": "docker",
+                        "image": "agentworld/kicad:9.0",
+                        "delivery_mount": "/delivery",
+                        "code_mount": "/opt/agent-world",
+                        "software_root": "/opt/tool-software",
+                        "python_command": "python",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            delivery = load_delivery(binding)
+            config = kimi_config(
+                delivery,
+                server_name="agent_world_kicad",
+                trace_path=root / "traces/calls.jsonl",
+                max_tool_calls=20,
+            )
+
+            entry = config["mcpServers"]["agent_world_kicad"]
+            self.assertEqual(Path(entry["command"]).name, "docker")
+            self.assertEqual(entry["args"][:3], ["run", "--rm", "-i"])
+            self.assertIn("seccomp=unconfined", entry["args"])
+            self.assertIn("apparmor=unconfined", entry["args"])
+            self.assertNotIn("--privileged", entry["args"])
+            self.assertNotIn("--cap-add", entry["args"])
+            self.assertIn("agentworld/kicad:9.0", entry["args"])
+            self.assertIn(
+                "/delivery/environments/support/binding.json", entry["args"]
+            )
+            self.assertTrue(
+                any(
+                    item.endswith("/env_gen/tool_gen/kimi_mcp.py")
+                    and item.startswith("/opt/agent-world/")
+                    for item in entry["args"]
+                )
+            )
+            self.assertIn("/external/0/calls.jsonl", entry["args"])
+            self.assertIn("/external/0/sandbox", entry["args"])
+            external_mounts = [
+                item
+                for item in entry["args"]
+                if item.startswith("type=bind,source=")
+                and "target=/external/" in item
+            ]
+            self.assertEqual(len(external_mounts), 1)
+            self.assertIn("--user", entry["args"])
+            self.assertEqual(entry["env"], {})
 
 
 if __name__ == "__main__":

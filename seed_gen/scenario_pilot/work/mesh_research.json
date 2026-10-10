@@ -1,0 +1,873 @@
+{
+  "schema_version": "scenario-pilot-research-1.0",
+  "scenario_id": "02.03.03",
+  "scenario_name": "Generic FEM/PDE",
+  "checked_at": "2026-09-17",
+  "scope": "二维标量Poisson/稳态扩散小环境：输入网格、区域/边界、弱形式与源项，经离散和求解获得可回读的场结果；热传导为同构应用线索，瞬态、真实热器件及光学耦合未声称已验证。",
+  "sources": [
+    {
+      "url": "https://scikit-fem.readthedocs.io/en/stable/gettingstarted.html",
+      "final_url": "https://scikit-fem.readthedocs.io/en/stable/gettingstarted.html",
+      "status": 200,
+      "title": "Getting started — scikit-fem 12.0.2 documentation",
+      "evidence": "官方8步Poisson教程包含单位正方形、sin源项、MeshTri/P1/Basis、形式组装、边界自由度、condense/solve和L2误差。本文试验将源项乘2*pi^2，使解析解归一为sin(pi*x)sin(pi*y)。",
+      "entity_relevance": [
+        "mesh",
+        "boundary_condition",
+        "discrete_system",
+        "solution"
+      ],
+      "tool_relevance": [
+        "MeshTri1",
+        "ElementTriP1",
+        "CellBasis",
+        "BilinearForm",
+        "LinearForm",
+        "Functional",
+        "get_dofs",
+        "condense",
+        "solve"
+      ],
+      "task_relevance": [
+        "mesh_poisson_refine",
+        "mesh_repair_missing_source"
+      ]
+    },
+    {
+      "url": "https://scikit-fem.readthedocs.io/en/stable/listofexamples.html#example-19-heat-equation",
+      "final_url": "https://scikit-fem.readthedocs.io/en/stable/listofexamples.html#example-19-heat-equation",
+      "status": 200,
+      "title": "Gallery of examples — scikit-fem 12.0.2 documentation",
+      "evidence": "Example 19给出二维热方程、余弦初值、theta时间积分及一次矩阵分解后反复步进；Example 17有材料导热率与体热源。用于识别环境可扩展状态，当前不加入未测试的时间步进API。",
+      "entity_relevance": [
+        "material_source",
+        "boundary_condition",
+        "solution"
+      ],
+      "tool_relevance": [
+        "BilinearForm",
+        "LinearForm",
+        "CellBasis"
+      ],
+      "task_relevance": [
+        "温度场/热源的后续固定样例设计；本轮未执行瞬态"
+      ]
+    },
+    {
+      "url": "https://github.com/nschloe/meshio",
+      "final_url": "https://github.com/nschloe/meshio",
+      "status": 200,
+      "title": "GitHub - nschloe/meshio: :spider_web: input/output for many mesh formats · GitHub",
+      "evidence": "README明确Mesh(points,cells,point_data,cell_data)、统一read/write和VTU等格式；文件格式后端只需一个统一入口。",
+      "entity_relevance": [
+        "mesh",
+        "artifact",
+        "solution"
+      ],
+      "tool_relevance": [
+        "meshio.Mesh",
+        "meshio.read",
+        "meshio.write"
+      ],
+      "task_relevance": [
+        "mesh_poisson_refine"
+      ]
+    },
+    {
+      "url": "https://helgegehring.github.io/femwell/photonics/examples/metal_heater_phase_shifter.html",
+      "final_url": "https://helgegehring.github.io/femwell/photonics/examples/metal_heater_phase_shifter.html",
+      "status": 200,
+      "title": "TiN TOPS heater — Femwell",
+      "evidence": "真实TiN热光移相器例子按core/box/clad/heater/wafer区域指定导热率、电流密度和底边温度，from_meshio转网格后求温度并进一步计算有效折射率与相移。仅取区域-材料-边界-场这一状态设计，不把Femwell光学求解混进当前包组合。",
+      "entity_relevance": [
+        "mesh",
+        "material_source",
+        "boundary_condition",
+        "solution"
+      ],
+      "tool_relevance": [
+        "from_meshio",
+        "with_subdomains",
+        "get_dofs",
+        "project"
+      ],
+      "task_relevance": [
+        "热源/边界配置与热场观测任务的真实应用参考；TiN数值结果未复现"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "package": "meshio",
+      "version": "5.3.5",
+      "pypi_url": "https://pypi.org/pypi/meshio/json",
+      "pypi_latest": "5.3.5",
+      "official_repository": "https://github.com/nschloe/meshio",
+      "documentation": "https://github.com/nschloe/meshio",
+      "release_api": "https://api.github.com/repos/nschloe/meshio/releases/latest",
+      "release_url": "https://github.com/nschloe/meshio/releases/tag/v5.3.5",
+      "tag": "v5.3.5",
+      "published_at": "2024-01-31T15:09:04Z",
+      "prerelease": false,
+      "local_path": "seed_pypi_raw/meshio",
+      "remote": "https://github.com/nschloe/meshio.git",
+      "head": "b2ee99842e119901349fdeee06b5bf61e01f450a",
+      "exact_tag": "v5.3.5",
+      "dirty": false,
+      "submodules": "git submodule status返回空，未获取子模块",
+      "action": "reuse_clean_matching_release",
+      "raw_index": "seed_gen/pypi_outputs/ori_all_funcs/meshio_v5.3.5.json",
+      "file_sha256": "4ca3de2432a0d4b19422a49514023555e22ea4f28c92af370d595eedc98fd441"
+    },
+    {
+      "package": "scikit-fem",
+      "version": "12.0.2",
+      "pypi_url": "https://pypi.org/pypi/scikit-fem/json",
+      "pypi_latest": "12.0.2",
+      "official_repository": "https://github.com/kinnala/scikit-fem",
+      "documentation": "https://scikit-fem.readthedocs.io/en/stable/",
+      "release_api": "https://api.github.com/repos/kinnala/scikit-fem/releases/latest",
+      "release_url": "https://github.com/kinnala/scikit-fem/releases/tag/12.0.2",
+      "tag": "12.0.2",
+      "published_at": "2026-06-05T20:47:45Z",
+      "prerelease": false,
+      "local_path": "seed_pypi_raw/scikit-fem",
+      "remote": "https://github.com/kinnala/scikit-fem.git",
+      "head": "a9c43abbc3b17c36a059132c9f571447b755920e",
+      "exact_tag": "12.0.2",
+      "dirty": false,
+      "submodules": "git submodule status返回空，未获取子模块",
+      "action": "reuse_clean_matching_release",
+      "raw_index": "seed_gen/pypi_outputs/ori_all_funcs/scikit-fem_12.0.2.json",
+      "file_sha256": "eacd32944b87af49904ea20c71b82ee0ea8ad89f2c077242402bff62245b2480"
+    }
+  ],
+  "package_decisions": [
+    {
+      "package": "scikit-fem",
+      "decision": "primary",
+      "role": "有限元网格、基、弱式组装、边界处理、求解及误差观测",
+      "reason": "主要动作和状态都围绕同一Mesh/CellBasis/数组对象模型；固定Poisson解析基准可离线验证。"
+    },
+    {
+      "package": "meshio",
+      "decision": "complement",
+      "role": "网格、区域标记和场结果的文件读写与互换",
+      "reason": "与scikit-fem的数学求解不重复；官方from_meshio/to_meshio直接桥接。"
+    },
+    {
+      "package": "FEniCS/DOLFINx",
+      "decision": "not_added",
+      "role": "可替代通用有限元后端",
+      "reason": "本场景选scikit-fem为主，不叠加另一套Mesh/Function/方程对象体系；相关教程仅为应用参考。"
+    },
+    {
+      "package": "femwell",
+      "decision": "reference_only",
+      "role": "真实热器件应用参考",
+      "reason": "热光耦合扩大了目标范围；当前保留meshio+scikit-fem完整基础链而不混入另一场景的模态工具。"
+    }
+  ],
+  "required_capabilities": [
+    {
+      "id": "mesh_io",
+      "description": "构造/读写网格及标记，meshio和scikit-fem对象桥接",
+      "required": true,
+      "verification": "VTU点/三角形/region_id精确回读，最终解与命名边界/子域回读一致"
+    },
+    {
+      "id": "mesh_geometry",
+      "description": "有效性检查、区域边界命名、简单几何和细化",
+      "required": true,
+      "verification": "固定单位方形512→2048三角形，is_valid通过"
+    },
+    {
+      "id": "basis_boundary",
+      "description": "具体有限元、全局基、边界自由度和插值",
+      "required": true,
+      "verification": "P1基可构造、边界解为零、内点残差可计算"
+    },
+    {
+      "id": "weak_form",
+      "description": "扩散刚度/载荷/观测泛函表达和组装",
+      "required": true,
+      "verification": "标量Poisson刚度、正确及错误载荷、L2积分实际执行"
+    },
+    {
+      "id": "linear_solve",
+      "description": "Dirichlet消元、线性求解、返回全场",
+      "required": true,
+      "verification": "condense/solve；enforce为可选保留入口，本轮未执行"
+    },
+    {
+      "id": "postprocess",
+      "description": "解析误差、细化收敛和结果输出",
+      "required": true,
+      "verification": "L2误差、误差细化比、内点残差和失效注入修复"
+    }
+  ],
+  "entities": [
+    {
+      "id": "mesh",
+      "type": "meshio.Mesh / skfem.MeshTri1",
+      "attributes": [
+        "points/p",
+        "triangle connectivity/t",
+        "region_id",
+        "named subdomains",
+        "named boundary facets",
+        "refinement level"
+      ],
+      "state_transitions": [
+        "new -> serialized -> loaded -> tagged -> refined"
+      ],
+      "invariants": [
+        "节点/单元索引有效",
+        "桥接前后点和连接关系一致",
+        "边界和子域可回读"
+      ],
+      "mutable_by": [
+        "Mesh.__init__",
+        "read",
+        "from_meshio",
+        "with_boundaries",
+        "with_subdomains",
+        "refined"
+      ]
+    },
+    {
+      "id": "material_source",
+      "type": "coefficient and source configuration",
+      "attributes": [
+        "diffusion coefficient k=1",
+        "source formula",
+        "source_scale",
+        "dimensionless units"
+      ],
+      "state_transitions": [
+        "configured -> injected zero-source defect -> restored"
+      ],
+      "invariants": [
+        "有限数值",
+        "用户指定PDE必须匹配解析基准"
+      ],
+      "mutable_by": [
+        "LinearForm via Form.__init__",
+        "BilinearForm via Form.__init__",
+        "Form.partial"
+      ]
+    },
+    {
+      "id": "boundary_condition",
+      "type": "DofsView plus prescribed values",
+      "attributes": [
+        "outer boundary name",
+        "Dirichlet values",
+        "boundary DOF indices"
+      ],
+      "state_transitions": [
+        "mesh tag -> DOF selection -> condensation"
+      ],
+      "invariants": [
+        "当前任务四边全部零Dirichlet",
+        "未将内部自由度误当边界"
+      ],
+      "mutable_by": [
+        "AbstractBasis.get_dofs",
+        "DofsView.all",
+        "condense"
+      ]
+    },
+    {
+      "id": "discrete_system",
+      "type": "CellBasis and scipy CSR matrix/ndarray",
+      "attributes": [
+        "P1 element",
+        "quadrature order",
+        "A",
+        "b",
+        "interior indices"
+      ],
+      "state_transitions": [
+        "basis created -> assembled -> condensed -> solved"
+      ],
+      "invariants": [
+        "维度匹配",
+        "边界消元后内部残差在容差内"
+      ],
+      "mutable_by": [
+        "CellBasis.__init__",
+        "asm",
+        "condense",
+        "solve"
+      ]
+    },
+    {
+      "id": "solution",
+      "type": "nodal ndarray and DiscreteField",
+      "attributes": [
+        "u",
+        "u_exact",
+        "L2 error",
+        "boundary violation",
+        "interior residual",
+        "mesh convergence ratio"
+      ],
+      "state_transitions": [
+        "computed -> checked -> rejected or accepted -> exported"
+      ],
+      "invariants": [
+        "低残差不自动证明源项/物理问题正确",
+        "必须同时通过解析误差"
+      ],
+      "mutable_by": [
+        "solve",
+        "AbstractBasis.interpolate",
+        "asm(Functional)"
+      ]
+    },
+    {
+      "id": "artifact",
+      "type": "local VTU / JSON",
+      "attributes": [
+        "path",
+        "sha256",
+        "points/cells/field/tag schema",
+        "validation report"
+      ],
+      "state_transitions": [
+        "written -> reread -> equality checked"
+      ],
+      "invariants": [
+        "文件限于该runtime目录",
+        "结果与报告对应"
+      ],
+      "mutable_by": [
+        "meshio.write",
+        "meshio.read",
+        "verifier serialization"
+      ]
+    }
+  ],
+  "selected_symbols": [
+    {
+      "package": "meshio",
+      "module": "meshio._mesh",
+      "name": "Mesh",
+      "type": "class",
+      "methods": [
+        "__init__",
+        "copy",
+        "get_cells_type",
+        "get_cell_data",
+        "cells_dict",
+        "cell_data_dict",
+        "cell_sets_dict",
+        "cell_sets_to_data",
+        "point_sets_to_data",
+        "cell_data_to_sets",
+        "point_data_to_sets"
+      ],
+      "capability": "mesh_io",
+      "reason": "保留网格/标记/数据对象和集合转换；读写统一到顶层read/write，排除重复Mesh.read/write及各格式底层解析入口。"
+    },
+    {
+      "package": "meshio",
+      "module": "meshio._helpers",
+      "name": "read",
+      "type": "function",
+      "capability": "mesh_io",
+      "reason": "统一输入格式入口，承接固定网格与第三方文件；不用每种格式重复注册一个工具。"
+    },
+    {
+      "package": "meshio",
+      "module": "meshio._helpers",
+      "name": "write",
+      "type": "function",
+      "capability": "mesh_io",
+      "reason": "统一网格和节点/单元结果持久化入口；回读可独立校验。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.mesh.mesh",
+      "name": "Mesh",
+      "type": "class",
+      "methods": [
+        "p",
+        "nelements",
+        "nvertices",
+        "boundaries",
+        "subdomains",
+        "boundary_facets",
+        "with_boundaries",
+        "with_subdomains",
+        "boundary_nodes",
+        "interior_nodes",
+        "nodes_satisfying",
+        "facets_satisfying",
+        "elements_satisfying",
+        "is_valid",
+        "refined",
+        "scaled",
+        "translated",
+        "remove_elements",
+        "remove_unused_nodes"
+      ],
+      "capability": "mesh_geometry",
+      "reason": "记录具体MeshTri1继承的状态查询、区域/边界选择、网格有效性和有限几何变换；排除重复文件读写、可视化、内部邻接构建。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.mesh.mesh_tri_1",
+      "name": "MeshTri1",
+      "type": "class",
+      "methods": [
+        "init_tensor",
+        "init_circle"
+      ],
+      "capability": "mesh_geometry",
+      "reason": "保留可直接构造的二维三角网格类型及矩形/圆形代表形状；弥补只选基类不能构造实际网格的缺口。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.element.element_tri.element_tri_p1",
+      "name": "ElementTriP1",
+      "type": "class",
+      "methods": [],
+      "capability": "basis_boundary",
+      "reason": "显式保留P1具体有限元类；无参数构造继承object，源码没有__init__，不编造方法；不向agent暴露内核lbasis。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.basis.cell_basis",
+      "name": "CellBasis",
+      "type": "class",
+      "methods": [
+        "__init__",
+        "project",
+        "with_elements",
+        "with_element",
+        "probes",
+        "interpolator",
+        "boundary"
+      ],
+      "capability": "basis_boundary",
+      "reason": "构造全局基、子域限制、投影/探针和边界基，支撑源项赋值、求解及观测。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.basis.abstract_basis",
+      "name": "AbstractBasis",
+      "type": "class",
+      "methods": [
+        "N",
+        "get_dofs",
+        "complement_dofs",
+        "interpolate",
+        "zeros",
+        "ones",
+        "global_coordinates"
+      ],
+      "capability": "basis_boundary",
+      "reason": "CellBasis继承的必要自由度查询/场插值在真实定义类保留；不重复伪造到子类。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.basis.facet_basis",
+      "name": "FacetBasis",
+      "type": "class",
+      "methods": [
+        "__init__"
+      ],
+      "capability": "basis_boundary",
+      "reason": "为边界积分和后续Neumann/Robin任务保留具体边界基；运行小样例只覆盖Dirichlet。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.dofs",
+      "name": "DofsView",
+      "type": "class",
+      "methods": [
+        "all",
+        "flatten",
+        "keep",
+        "drop"
+      ],
+      "capability": "basis_boundary",
+      "reason": "边界选择返回DofsView，必须可转换/裁剪后传递给condense；排除重复底层自由度数据结构。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.form.form",
+      "name": "Form",
+      "type": "class",
+      "methods": [
+        "__init__",
+        "partial",
+        "assemble"
+      ],
+      "capability": "weak_form",
+      "reason": "BilinearForm/LinearForm/Functional的真实继承构造和组装来源；保留冻结参数入口，去掉底层COO/块实现。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.form.bilinear_form",
+      "name": "BilinearForm",
+      "type": "class",
+      "methods": [],
+      "capability": "weak_form",
+      "reason": "保留具体刚度/质量矩阵弱式类型；统一由asm发起组装以避免重复的调用面。构造沿用Form.__init__。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.form.linear_form",
+      "name": "LinearForm",
+      "type": "class",
+      "methods": [],
+      "capability": "weak_form",
+      "reason": "保留载荷/源项弱式具体类型，构造和组装来自Form；不可因为本类没有直接定义公开方法而删除。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly.form.functional",
+      "name": "Functional",
+      "type": "class",
+      "methods": [
+        "elemental"
+      ],
+      "capability": "postprocess",
+      "reason": "误差/能量泛函及单元级误差来源；整体积分由asm完成，支撑解析解和网格细化断言。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.assembly",
+      "name": "asm",
+      "type": "function",
+      "capability": "weak_form",
+      "reason": "统一形式组装入口，串联基函数、系数和线性代数输出。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.helpers",
+      "name": "dot",
+      "type": "function",
+      "capability": "weak_form",
+      "reason": "最小标量扩散弱式表达必需；排除curl/高阶张量等不属于当前二维标量PDE边界的helper。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.helpers",
+      "name": "grad",
+      "type": "function",
+      "capability": "weak_form",
+      "reason": "最小标量扩散弱式表达必需；排除curl/高阶张量等不属于当前二维标量PDE边界的helper。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.utils",
+      "name": "condense",
+      "type": "function",
+      "capability": "linear_solve",
+      "reason": "保留强制边界的消元/保留矩阵两种有明确用途的方式和统一线性求解；不并列暴露重复底层solver包装。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.utils",
+      "name": "enforce",
+      "type": "function",
+      "capability": "linear_solve",
+      "reason": "保留强制边界的消元/保留矩阵两种有明确用途的方式和统一线性求解；不并列暴露重复底层solver包装。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.utils",
+      "name": "solve",
+      "type": "function",
+      "capability": "linear_solve",
+      "reason": "保留强制边界的消元/保留矩阵两种有明确用途的方式和统一线性求解；不并列暴露重复底层solver包装。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.io.meshio",
+      "name": "from_meshio",
+      "type": "function",
+      "capability": "mesh_io",
+      "reason": "明确的meshio.Mesh与scikit-fem.Mesh类型桥；排除from_file/to_file及Mesh.save/load的重复I/O封装。"
+    },
+    {
+      "package": "scikit-fem",
+      "module": "skfem.io.meshio",
+      "name": "to_meshio",
+      "type": "function",
+      "capability": "mesh_io",
+      "reason": "明确的meshio.Mesh与scikit-fem.Mesh类型桥；排除from_file/to_file及Mesh.save/load的重复I/O封装。"
+    }
+  ],
+  "selection_policy": {
+    "unit": "对meshio+scikit-fem同一场景联合筛选，不对每包分别凑数",
+    "candidate_sources": "两个ori_all_funcs全量索引，未从package_select_func套取旧筛选结果",
+    "target_all_func": {
+      "min": 50,
+      "max": 200
+    },
+    "counting": "all_func=function+class_func；类另计，property沿用原口径。没有源码定义__init__的具体类可被保留但不新增虚构工具。",
+    "deduplication": [
+      "I/O统一使用meshio._helpers.read/write，排除Mesh.read/write、格式专用read/write和skfem的from_file/to_file/save/load",
+      "数学求解只选scikit-fem，不引入DOLFINx第二套离散体系",
+      "asm作为统一组装入口；保留Form上的真实构造/继承来源，不把方法复制到各子类",
+      "只保留二维P1标量扩散所需的grad/dot；不收纳向量弹性、电磁、DG及高阶单元全家桶"
+    ],
+    "exclusions": [
+      "格式内部解析、注册和调试接口",
+      "重复Mesh文件封装",
+      "绘图后端",
+      "三维/混合/间断Galerkin元素",
+      "本征值和非线性求解",
+      "meshio时间序列/h5py后端",
+      "不相关高阶导数张量helper"
+    ],
+    "coverage_gaps": [
+      "raw不展开继承/生成构造；用真实定义+runtime_infrastructure映射，不静默把类当可调用工具",
+      "具体验证仅覆盖65操作中的固定路径，不能标记整个选集运行通过"
+    ],
+    "source_integrity": "raw和发布源码均只读复用"
+  },
+  "tasks": [
+    {
+      "id": "mesh_poisson_refine",
+      "description": "将带区域标记的固定二维三角网格经meshio读写并导入scikit-fem，建立零Dirichlet的Poisson问题，求解并细化，验证解析误差、残差、边界与结果文件回读。",
+      "initial_state": {
+        "mesh": "16x16单位方形单元拆成512三角形，289点，z=0",
+        "region_id": "单元重心x<0.5为1，否则2",
+        "coefficient": 1,
+        "source": "2*pi^2*sin(pi*x)*sin(pi*y)",
+        "boundary": "四边u=0",
+        "solution": null
+      },
+      "fixture": {
+        "generator": "seed_gen/scenario_pilot/verify_mesh.py:unit_square_mesh(16)",
+        "input_artifact": "seed_gen/scenario_pilot/runtime/mesh/unit_square_16.vtu",
+        "fine_elements": 2048,
+        "exact_solution": "sin(pi*x)*sin(pi*y)",
+        "intorder": 6,
+        "randomness": "none"
+      },
+      "steps": [
+        {
+          "description": "构造和持久化带区域标签的固定网格并回读核查",
+          "tool_refs": [
+            "meshio._mesh.Mesh.__init__",
+            "meshio._helpers.write",
+            "meshio._helpers.read",
+            "meshio._mesh.Mesh.get_cells_type",
+            "meshio._mesh.Mesh.get_cell_data"
+          ]
+        },
+        {
+          "description": "桥接FEM网格并命名边界/子域",
+          "tool_refs": [
+            "skfem.io.meshio.from_meshio",
+            "skfem.mesh.mesh.Mesh.with_boundaries",
+            "skfem.mesh.mesh.Mesh.with_subdomains",
+            "skfem.mesh.mesh.Mesh.is_valid"
+          ]
+        },
+        {
+          "description": "构造P1基和弱式、组装刚度与载荷",
+          "tool_refs": [
+            "skfem.element.element_tri.element_tri_p1.ElementTriP1",
+            "skfem.assembly.basis.cell_basis.CellBasis.__init__",
+            "skfem.assembly.form.bilinear_form.BilinearForm",
+            "skfem.assembly.form.linear_form.LinearForm",
+            "skfem.assembly.form.form.Form.__init__",
+            "skfem.helpers.dot",
+            "skfem.helpers.grad",
+            "skfem.assembly.asm"
+          ]
+        },
+        {
+          "description": "设置外边界、消元和求解",
+          "tool_refs": [
+            "skfem.assembly.basis.abstract_basis.AbstractBasis.get_dofs",
+            "skfem.assembly.dofs.DofsView.all",
+            "skfem.utils.condense",
+            "skfem.utils.solve"
+          ]
+        },
+        {
+          "description": "细化后重解并计算解析L2误差",
+          "tool_refs": [
+            "skfem.mesh.mesh.Mesh.refined",
+            "skfem.assembly.basis.abstract_basis.AbstractBasis.interpolate",
+            "skfem.assembly.form.functional.Functional",
+            "skfem.assembly.asm"
+          ]
+        },
+        {
+          "description": "导出结果并确认场和命名标记可回读",
+          "tool_refs": [
+            "skfem.io.meshio.to_meshio",
+            "meshio._helpers.write",
+            "meshio._helpers.read",
+            "skfem.io.meshio.from_meshio"
+          ]
+        }
+      ],
+      "assertions": [
+        "points、triangle connectivity、region_id输入往返完全一致",
+        "fine L2 error < 0.002",
+        "fine/coarse L2 error < 0.30",
+        "自由度内部相对残差 < 1e-10（不能对含Dirichlet反力的全部行使用零残差断言）",
+        "边界最大绝对值 < 1e-12",
+        "最大节点误差 < 0.01",
+        "最终解、命名边界和子域文件往返一致"
+      ],
+      "validation_status": "passed_local_fixed_fixture",
+      "validation_report": "seed_gen/scenario_pilot/runtime/mesh/verification.json"
+    },
+    {
+      "id": "mesh_repair_missing_source",
+      "description": "定位一个残差为零但解析基准失败的Poisson结果，将错误的零源项恢复为规定源项，重新求解并验证误差降低。",
+      "initial_state": {
+        "mesh": "任务1的细化网格2048三角形",
+        "coefficient": 1,
+        "source_scale": 0,
+        "expected_source_scale": 1,
+        "boundary": "四边u=0",
+        "defect": "source_scale=0求解了错误的齐次问题"
+      },
+      "fixture": {
+        "generator": "seed_gen/scenario_pilot/verify_mesh.py:solve_case(fine_mesh,0.0)",
+        "reference": "solve_case(fine_mesh,1.0)",
+        "exact_solution": "sin(pi*x)*sin(pi*y)",
+        "randomness": "none"
+      },
+      "steps": [
+        {
+          "description": "为错误零源项组装并求解，确认小残差无法保证问题正确",
+          "tool_refs": [
+            "skfem.assembly.form.linear_form.LinearForm",
+            "skfem.assembly.form.form.Form.__init__",
+            "skfem.assembly.asm",
+            "skfem.utils.condense",
+            "skfem.utils.solve"
+          ]
+        },
+        {
+          "description": "计算对规定解析解的L2误差并拒绝错误结果",
+          "tool_refs": [
+            "skfem.assembly.basis.abstract_basis.AbstractBasis.interpolate",
+            "skfem.assembly.form.functional.Functional",
+            "skfem.assembly.asm"
+          ]
+        },
+        {
+          "description": "恢复规定源项、重新组装求解并用相同基准验收",
+          "tool_refs": [
+            "skfem.assembly.form.linear_form.LinearForm",
+            "skfem.assembly.form.form.Form.__init__",
+            "skfem.assembly.asm",
+            "skfem.utils.condense",
+            "skfem.utils.solve"
+          ]
+        }
+      ],
+      "assertions": [
+        "故障结果自由度内部残差 < 1e-10",
+        "故障L2 error > 0.49，因此无法通过L2 error < 0.002验收",
+        "修复后L2 error < 0.002且较故障降低超过100倍",
+        "修复后的边界、残差和结果文件断言仍通过"
+      ],
+      "validation_status": "passed_local_fault_injection_and_repair",
+      "validation_report": "seed_gen/scenario_pilot/runtime/mesh/verification.json"
+    }
+  ],
+  "runtime_infrastructure": [
+    {
+      "entry": "skfem.ElementTriP1()",
+      "category": "selected_class_implicit_constructor",
+      "reason": "无参数构造来自object，静态索引无__init__，空methods保留类本身。"
+    },
+    {
+      "entry": "skfem.BilinearForm/LinearForm/Functional constructors",
+      "category": "selected_class_inherited_constructor",
+      "reason": "具体类均保留，真实定义Form.__init__已保留；不重复伪造子类方法。"
+    },
+    {
+      "entry": "skfem.MeshTri1 generated dataclass constructor",
+      "category": "selected_class_generated_constructor",
+      "reason": "类及init_tensor/init_circle保留，from_meshio内部调用dataclass构造；原raw没有生成签名。"
+    },
+    {
+      "entry": "meshio.Mesh.points/point_data; skfem.Mesh.t; FormExtraParams.x/uh; DiscreteField ndarray arithmetic",
+      "category": "data_attributes",
+      "reason": "所选对象的数据属性，不另计为动作；表明连接口数据要求。"
+    },
+    {
+      "entry": "numpy arrays and linalg.norm; scipy sparse indexing/matvec",
+      "category": "numerical_verifier_support",
+      "reason": "固定网格、解析公式、残差和比对基础设施；运行版本记录于verification.json。"
+    },
+    {
+      "entry": "Python stdlib CLI/file IO/hash/version reporting",
+      "category": "artifact_support",
+      "reason": "只用于验证器运行与证据序列化。"
+    }
+  ],
+  "execution": {
+    "selection_validation": {
+      "status": "passed",
+      "raw_file_hashes_match": true,
+      "selected_symbols_in_raw": 22,
+      "task_references_all_selected": true,
+      "runtime_core_references_all_selected": true,
+      "raw_repositories_clean_after_run": true,
+      "uv_pip_check": "All installed packages are compatible (8 packages)"
+    },
+    "environment": ".venv-scenario-mesh",
+    "commands": [
+      "C:/Apps/anaconda3/Scripts/conda.exe run -n base uv venv --python 3.12 .venv-scenario-mesh",
+      "C:/Apps/anaconda3/Scripts/conda.exe run -n base uv pip install --python .venv-scenario-mesh/Scripts/python.exe meshio==5.3.5 scikit-fem==12.0.2",
+      ".venv-scenario-mesh/Scripts/python.exe -X utf8 seed_gen/scenario_pilot/verify_mesh.py"
+    ],
+    "versions": {
+      "python": "3.12.4",
+      "meshio": "5.3.5",
+      "scikit-fem": "12.0.2",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1"
+    },
+    "errors_and_repairs": [
+      {
+        "error": "ImportError: cannot import name 'to_meshio' from 'skfem.io'",
+        "cause": "from_meshio在skfem.io重导出，但to_meshio没有；不能由相似名字猜测重导出。",
+        "repair": "从真实公开模块skfem.io.meshio显式导入from_meshio、to_meshio，与raw module身份匹配。",
+        "status": "fixed_and_rerun_passed"
+      }
+    ],
+    "warnings": [
+      "uv无法跨盘hardlink，回退copy，不影响安装",
+      "VTU导出二维FEM节点时meshio自动补零z坐标；输入已是z=0，验证未丢失平面几何"
+    ],
+    "status": "passed",
+    "assertions_passed": 12,
+    "assertions_total": 12,
+    "fine_l2_error": 0.0013504362483749914,
+    "l2_refinement_ratio": 0.2511301854287805,
+    "wrong_source_l2_error": 0.5000000000000006,
+    "verification_report": "seed_gen/scenario_pilot/runtime/mesh/verification.json"
+  },
+  "limitations": [
+    "只执行固定二维P1+齐次Dirichlet路径；未验证所有所选API",
+    "尚未实现agent工具JSON封装、实体ID/重置/动作约束",
+    "未实现瞬态/真实TiN热器件/光学耦合，不将资料中示例等同实际跑通",
+    "多数原始签名/描述由raw承载；原文缺失字段不补造",
+    "网站实访用于应用研究，不保证这些链接未来持续可用"
+  ],
+  "nums": {
+    "class": 12,
+    "function": 10,
+    "class_func": 55,
+    "all_func": 65
+  }
+}

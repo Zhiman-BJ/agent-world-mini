@@ -55,16 +55,6 @@ def _normalize_id(value: str) -> str:
     return normalized
 
 
-def _data_directions(scenario: dict[str, Any]) -> list[str]:
-    inputs = "、".join(str(item) for item in scenario["inputs"])
-    outputs = "、".join(str(item) for item in scenario["outputs"])
-    return [
-        f"优先取得同一现实项目或受控样例中的{inputs}，保留其原始标识、版本、时间和来源关系。",
-        f"取得或生成能够与输入逐项关联的{outputs}，使场景中的主要处理步骤和中间状态可以离线重放。",
-        f"保留验证所需的原始值、配置、日志和前后版本；验收标准为：{scenario['verification']}",
-    ]
-
-
 def _build_seed(
     *,
     scenario: dict[str, Any],
@@ -73,6 +63,7 @@ def _build_seed(
     l1: dict[str, Any],
     l2: dict[str, Any],
     evidence: dict[str, dict[str, Any]],
+    version: str,
 ) -> dict[str, Any]:
     scenario_id = str(scenario["id"])
     source_records = [evidence[source_id] for source_id in scenario["evidence_ids"]]
@@ -90,12 +81,13 @@ def _build_seed(
     global_id = f"{SOURCE_ID}_{_normalize_id(scenario_id)}_{catalog_index}"
     return {
         "global_id": global_id,
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "environment": {
             "basic_info": {
                 "source": SOURCE_ID,
-                "url": source_urls[0],
+                "url": source_urls,
                 "name": scenario_id,
+                "version": version,
                 "index": catalog_index,
             },
             "description": description,
@@ -103,6 +95,12 @@ def _build_seed(
                 "level1": str(l1["key"]),
                 "level2": str(l2["key"]),
                 "level3": None,
+            },
+            "nums": {
+                "class": 0,
+                "function": 0,
+                "class_func": 0,
+                "all_func": 0,
             },
         },
         # The catalog records implementation candidates, not source-owned APIs.
@@ -147,7 +145,6 @@ def _build_seed(
                 },
             },
             "python_tool_candidates": list(scenario["python_tool_candidates"]),
-            "data_directions": _data_directions(scenario),
         },
     }
 
@@ -165,6 +162,9 @@ def build(
     workflow_sources = _read_object(workflow_sources_path)
     scenario_catalog = _read_object(scenarios_path)
     selection_catalog = _read_object(selection_path)
+    version = scenario_catalog.get("researched_at")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("Scenario catalog must declare a non-empty researched_at version")
 
     l1_by_id = _unique_index(list(taxonomy["levels"]), "id", "L1")
     l2_by_id: dict[str, dict[str, Any]] = {}
@@ -214,6 +214,7 @@ def build(
                 l1=l1_for_l2[l2_id],
                 l2=l2_by_id[l2_id],
                 evidence=evidence,
+                version=version,
             )
         )
 

@@ -1,0 +1,144 @@
+[
+  {
+    "name": "simpy",
+    "index": 501,
+    "directory": "l1_test_fab/simpy",
+    "source_root": "src",
+    "modules": [
+      "simpy"
+    ],
+    "repository": "https://gitlab.com/team-simpy/simpy",
+    "tag": "4.1.2",
+    "commit": "f43816490c6f76f336ad6e457d3cab9f386894af",
+    "documentation": "https://simpy.readthedocs.io/en/stable/",
+    "description": "SimPy以生成器进程、事件和共享资源构建离散事件仿真，可表示生产批次、设备队列、停机和运输等待；工艺时间与规则由使用者提供，不自带真实晶圆厂模型。",
+    "pypi": "https://pypi.org/project/simpy/",
+    "pypi_version": "4.1.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://gitlab.com/api/v4/projects/team-simpy%2Fsimpy/repository/tags/4.1.2",
+    "release_url": "https://gitlab.com/team-simpy/simpy/-/tags/4.1.2",
+    "release_published_at": "2026-05-23T23:25:14.000-04:00",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable release; SimPy uses official latest stable GitLab tag matching PyPI.",
+    "notes": []
+  },
+  {
+    "name": "salabim",
+    "index": 502,
+    "directory": "l1_test_fab/salabim",
+    "source_root": ".",
+    "modules": [
+      "salabim"
+    ],
+    "repository": "https://github.com/salabim/salabim",
+    "tag": "26.0.1",
+    "commit": "f19159a8ea6360c06da69536267009d34930bb28",
+    "documentation": "https://www.salabim.org/manual/",
+    "description": "salabim提供离散事件仿真组件、队列、资源、状态和统计监视器，也支持动画；本轮采用无图形固定模型验证，不连接实际制造系统。",
+    "pypi": "https://pypi.org/project/salabim/",
+    "pypi_version": "26.0.8",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/salabim/salabim/releases/latest",
+    "release_url": "https://github.com/salabim/salabim/releases/tag/26.0.1",
+    "release_published_at": "2026-02-12T06:20:42Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable release; SimPy uses official latest stable GitLab tag matching PyPI.",
+    "notes": [
+      "最新正式GitHub Release为26.0.1，PyPI为26.0.8；采用Release并从固定提交安装。"
+    ]
+  },
+  {
+    "name": "pyjobshop",
+    "index": 503,
+    "directory": "l1_test_fab/pyjobshop",
+    "source_root": ".",
+    "modules": [
+      "pyjobshop"
+    ],
+    "repository": "https://github.com/PyJobShop/PyJobShop",
+    "tag": "v0.0.9",
+    "commit": "5e1cbee697f44ca451fcdd8c6fb97bec151930d5",
+    "documentation": "https://pyjobshop.org/stable/",
+    "description": "PyJobShop用作业、任务、机器、模式、时序和资源约束描述生产调度问题，调用CP-SAT等求解器生成排程，支持停机、设置时间和多目标。",
+    "pypi": "https://pypi.org/project/pyjobshop/",
+    "pypi_version": "0.0.9",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/PyJobShop/PyJobShop/releases/latest",
+    "release_url": "https://github.com/PyJobShop/PyJobShop/releases/tag/v0.0.9",
+    "release_published_at": "2026-03-27T07:12:59Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable release; SimPy uses official latest stable GitLab tag matching PyPI.",
+    "notes": []
+  },
+  {
+    "name": "job-shop-lib",
+    "index": 504,
+    "directory": "l1_test_fab/job-shop-lib",
+    "source_root": ".",
+    "modules": [
+      "job_shop_lib"
+    ],
+    "repository": "https://github.com/Pabloo22/job_shop_lib",
+    "tag": "v1.7.0",
+    "commit": "ed7949ffb283e265a3e88bf04367d3d5588f8e0f",
+    "documentation": "https://job-shop-lib.readthedocs.io/en/stable/",
+    "description": "Job Shop Lib提供作业车间实例、排程、派工规则、图表示和求解接口，可用于比较FIFO、SPT等规则并检验资源和工序约束。",
+    "pypi": "https://pypi.org/project/job-shop-lib/",
+    "pypi_version": "1.7.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Pabloo22/job_shop_lib/releases/latest",
+    "release_url": "https://github.com/Pabloo22/job_shop_lib/releases/tag/v1.7.0",
+    "release_published_at": "2025-09-13T21:58:08Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable release; SimPy uses official latest stable GitLab tag matching PyPI.",
+    "notes": []
+  },
+  {
+    "name": "reliability",
+    "index": 505,
+    "directory": "l1_test_fab/reliability",
+    "source_root": ".",
+    "modules": [
+      "reliability"
+    ],
+    "repository": "https://github.com/MatthewReid854/reliability",
+    "tag": "v0.9.0",
+    "commit": "86c93307c4f7bf7cbdddfa634119b39feead70f5",
+    "documentation": "https://reliability.readthedocs.io/en/latest/",
+    "description": "reliability提供寿命分布、含删失数据的参数拟合、可靠性与维修分析和置信区间工具；参数估计必须保留故障/删失时间及观察窗口。",
+    "pypi": "https://pypi.org/project/reliability/",
+    "pypi_version": "0.9.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/MatthewReid854/reliability/releases/latest",
+    "release_url": "https://github.com/MatthewReid854/reliability/releases/tag/v0.9.0",
+    "release_published_at": "2025-03-07T00:16:10Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable release; SimPy uses official latest stable GitLab tag matching PyPI.",
+    "notes": []
+  },
+  {
+    "name": "surpyval",
+    "index": 506,
+    "directory": "l1_test_fab/surpyval",
+    "source_root": ".",
+    "modules": [
+      "surpyval"
+    ],
+    "repository": "https://github.com/derrynknife/SurPyval",
+    "tag": "v0.18.0",
+    "commit": "dad29b6cbc7762de3bc3ab95e3252f3bfe69d067",
+    "documentation": "https://surpyval.readthedocs.io/en/latest/",
+    "description": "SurPyval提供参数与非参数生存分析及多种删失/截断数据建模，用于寿命和可靠性估计；本轮保留其完整API候选，完整和右删失样例优先采用reliability。",
+    "pypi": "https://pypi.org/project/surpyval/",
+    "pypi_version": "0.19.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/derrynknife/SurPyval/releases/latest",
+    "release_url": "https://github.com/derrynknife/SurPyval/releases/tag/v0.18.0",
+    "release_published_at": "2026-08-03T02:44:54Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable release; SimPy uses official latest stable GitLab tag matching PyPI.",
+    "notes": [
+      "最新正式GitHub Release为v0.18.0，PyPI为0.19.0；采用正式Release。"
+    ]
+  }
+]

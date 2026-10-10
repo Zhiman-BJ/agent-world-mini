@@ -75,6 +75,26 @@ def _validation_issues(
     return [item.to_dict() for item in report.errors], report.statistics
 
 
+def _writable_asset_issues(environment: dict[str, Any]) -> list[dict[str, str]]:
+    """Require task-facing business state to support isolated writes."""
+
+    issues: list[dict[str, str]] = []
+    for collection, id_field in (
+        ("record_sets", "record_set_id"),
+        ("filesystem_scopes", "scope_id"),
+    ):
+        for index, item in enumerate(environment.get(collection, [])):
+            if not isinstance(item, dict) or item.get("access") == "copy_on_write":
+                continue
+            asset_id = str(item.get(id_field) or f"index {index}")
+            issues.append(_issue(
+                "business_asset_not_writable",
+                f"environment.json.{collection}[{index}].access",
+                f"业务资源 {asset_id} 必须使用 copy_on_write，供后续任务读写独立副本",
+            ))
+    return issues
+
+
 def _coverage_issues(run_dir: Path) -> tuple[list[dict[str, str]], dict[str, Any]]:
     config = read_json(control_path(run_dir, CONTROL_RUN_CONFIG), "运行配置")
     path = run_dir / COLLECTION_PROFILE_PATH
@@ -91,16 +111,36 @@ def _coverage_issues(run_dir: Path) -> tuple[list[dict[str, str]], dict[str, Any
         ))
     policy = config.get("collection_policy", {})
     metrics = profile.get("metrics", {})
-    for label, key, minimum in (
-        ("Seed", "seed", int(policy.get("min_seed_coverage_percent", 90))),
-        ("Step 1", "scenario", int(policy.get("min_scenario_coverage_percent", 75))),
+    for label, value, minimum in (
+        (
+            "现实工作",
+            metrics.get("work", {}).get("percent", 0),
+            int(policy.get("min_work_coverage_percent", 60)),
+        ),
+        (
+            "核心实体",
+            metrics.get("scenario", {}).get("entity", {}).get("percent", 0),
+            int(policy.get("min_entity_coverage_percent", 60)),
+        ),
     ):
-        value = metrics.get(key, {}).get("overall", {}).get("percent", 0)
         if not isinstance(value, (int, float)) or value < minimum:
             issues.append(_issue(
                 "collection_coverage_below_floor", COLLECTION_PROFILE_PATH,
                 f"{label} 业务数据覆盖率 {value}% 低于最低线 {minimum}%",
             ))
+    supported_work = metrics.get("work", {}).get("supported", 0)
+    configured_work_goals = int(policy.get("min_supported_work_goals", 2))
+    total_work = metrics.get("work", {}).get("total", 0)
+    min_work_goals = min(
+        configured_work_goals,
+        total_work if isinstance(total_work, int) else configured_work_goals,
+    )
+    if not isinstance(supported_work, int) or supported_work < min_work_goals:
+        issues.append(_issue(
+            "collection_work_below_floor",
+            COLLECTION_PROFILE_PATH,
+            f"完整支持的现实工作目标 {supported_work} 少于最低数量 {min_work_goals}",
+        ))
     return issues, metrics
 
 
@@ -137,6 +177,7 @@ def assess_environment(run_dir: Path) -> dict[str, Any]:
                         f"environment.json.{field}",
                         f"{field} 必须沿用 Step 1 已确认的环境语义",
                     ))
+            issues.extend(_writable_asset_issues(environment))
             validation_issues, statistics = _validation_issues(
                 run_dir, schema_path=Path(config["environment_schema_path"]),
             )

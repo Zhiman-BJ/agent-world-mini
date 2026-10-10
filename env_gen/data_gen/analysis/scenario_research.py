@@ -9,7 +9,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from .seed import is_python_package_seed, reference_tool_labels
+from .seed import is_python_package_seed, reference_task_text, reference_tool_labels
 
 
 @dataclass(frozen=True)
@@ -154,7 +154,9 @@ def validate_scenario_research_payload(
         ))
 
     reference_task_count = sum(
-        1 for item in seed.get("init_ref_tasks", []) if isinstance(item, dict)
+        1
+        for item in seed.get("init_ref_tasks", [])
+        if reference_task_text(item) is not None
     )
     researched_task_count = sum(
         1 for item in payload.get("tasks", []) if isinstance(item, dict)

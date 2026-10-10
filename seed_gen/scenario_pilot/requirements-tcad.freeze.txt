@@ -1,0 +1,2 @@
+# Python 3.12.4; tested in .venv-scenario-tcad (native MKL also required)
+devsim==2.11.0

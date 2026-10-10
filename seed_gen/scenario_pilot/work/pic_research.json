@@ -1,0 +1,998 @@
+{
+  "scenario_id": "02.07.01",
+  "scenario_name": "PIC network",
+  "domain": {
+    "level1": "半导体 02 器件与物理仿真",
+    "level2": "02.07 Photonic",
+    "level3": "02.07.01 Circuit-level S Matrix"
+  },
+  "checked_at": "2026-09-17",
+  "scope": "以组件S矩阵、端口连接和层级网表构建经典光子电路；完成MZI调谐、环形滤波器频谱及采样模型交换。不是全波光学、量子态或布局DRC环境。",
+  "selection_origin": "仅从两个包的ori_all_funcs全量索引联合评审，未从package_select_func或旧scenario_seeds裁剪。",
+  "target_all_func": {
+    "min": 50,
+    "max": 200
+  },
+  "expected_nums": {
+    "class": 0,
+    "function": 51,
+    "class_func": 0,
+    "all_func": 51
+  },
+  "sources": [
+    {
+      "url": "https://gdsfactory.github.io/sax/nbs/examples/03_circuit_from_yaml/",
+      "final_url": "https://gdsfactory.github.io/sax/nbs/examples/03_circuit_from_yaml/",
+      "status": 200,
+      "title": "circuit from yaml - sax",
+      "checked_at": "2026-09-17",
+      "authority": "SAX官方文档",
+      "evidence": "页面给出YAML instances/connections/ports、MZI两臂、models映射和1.5–1.6um波长扫描。",
+      "entity_refs": [
+        "component",
+        "netlist",
+        "sweep",
+        "response"
+      ],
+      "tool_refs": [
+        "sax.utils.load_netlist",
+        "sax.circuits.circuit",
+        "sax.models.couplers.coupler_ideal",
+        "sax.models.straight.straight"
+      ],
+      "task_refs": [
+        "pic_mzi_switch"
+      ]
+    },
+    {
+      "url": "https://gdsfactory.github.io/sax/nbs/examples/02_all_pass_filter/",
+      "final_url": "https://gdsfactory.github.io/sax/nbs/examples/02_all_pass_filter/",
+      "status": 200,
+      "title": "all pass - sax",
+      "checked_at": "2026-09-17",
+      "authority": "SAX官方文档",
+      "evidence": "页面并排比较all-pass环的解析表达式与SAX结果；显示loss[dB/um]需乘1e4传入loss_dB_cm。",
+      "entity_refs": [
+        "component",
+        "netlist",
+        "response"
+      ],
+      "tool_refs": [
+        "sax.circuits.circuit",
+        "sax.models.straight.straight",
+        "sax.models.couplers.coupler_ideal"
+      ],
+      "task_refs": [
+        "pic_allpass_units"
+      ]
+    },
+    {
+      "url": "https://gdsfactory.github.io/sax/nbs/examples/11_hierarchical_circuits/",
+      "final_url": "https://gdsfactory.github.io/sax/nbs/examples/11_hierarchical_circuits/",
+      "status": 200,
+      "title": "hierarchical circuits - sax",
+      "checked_at": "2026-09-17",
+      "authority": "SAX官方文档",
+      "evidence": "页面用相同MZI展示flat与hierarchical网表、子电路连接和嵌套参数覆盖。",
+      "entity_refs": [
+        "netlist",
+        "settings"
+      ],
+      "tool_refs": [
+        "sax.netlists.netlist",
+        "sax.netlists.flatten_netlist",
+        "sax.circuits.circuit"
+      ],
+      "task_refs": [
+        "pic_mzi_switch"
+      ],
+      "future_task": "将层级网表扁平化，保持外部端口及频谱在容差内；本试点尚未执行该扩展任务。"
+    },
+    {
+      "url": "https://simphonyphotonics.readthedocs.io/en/stable/tutorials/mzi.html",
+      "final_url": "https://simphonyphotonics.readthedocs.io/en/stable/tutorials/mzi.html",
+      "status": 200,
+      "title": "Mach-Zehnder interferometer — simphony",
+      "checked_at": "2026-09-17",
+      "authority": "Simphony官方文档",
+      "request_headers": {
+        "User-Agent": "ScenarioSeedResearch/1.0"
+      },
+      "request_note": "带此UA两次成功200；默认Python UA请求403。",
+      "evidence": "页面以sax.circuit求解MZI，并提供ClassicalSim/add_laser/add_detector/run便利层。支持实体设计，但当前版本与SAX0.18.2依赖不相容。",
+      "entity_refs": [
+        "component",
+        "netlist",
+        "response"
+      ],
+      "tool_refs": [],
+      "task_refs": [
+        "pic_mzi_switch"
+      ],
+      "selection_relevance": "候选包评估证据，不表示Simphony已被选中或安装。"
+    }
+  ],
+  "packages": [
+    {
+      "package": "sax",
+      "raw_file": "seed_gen/pypi_outputs/ori_all_funcs/sax_0.18.2.json",
+      "raw_file_sha256": "8c55b643e5ffa2b3df57ae974f49340033bf203ec4e16dc21f4ead7d62b86261",
+      "raw_canonical_sha256": "c197b161cb19fa3d8f0b73ac56c3b2898cc937f9ac5003fd00308ebb873bb1be",
+      "raw_nums": {
+        "class": 9,
+        "function": 172,
+        "class_func": 6,
+        "all_func": 178
+      },
+      "repository": "https://github.com/gdsfactory/sax",
+      "documentation": "https://gdsfactory.github.io/sax/",
+      "pypi": "https://pypi.org/project/sax/",
+      "pypi_check": {
+        "url": "https://pypi.org/pypi/sax/json",
+        "status": 200,
+        "version": "0.18.2",
+        "upload_time": "2026-06-09T16:44:06.567258Z"
+      },
+      "release_check": {
+        "url": "https://api.github.com/repos/gdsfactory/sax/releases/latest",
+        "status": 200,
+        "tag": "0.18.2",
+        "published_at": "2026-06-09T16:44:18Z",
+        "prerelease": false
+      },
+      "local": {
+        "directory": "seed_pypi_raw/sax",
+        "remote": "https://github.com/gdsfactory/sax.git",
+        "head": "e0d8a493d6fe213c794439f315b6c99eea9980ce",
+        "tag": "0.18.2",
+        "version_file": "pyproject.toml",
+        "declared_version": "0.18.2",
+        "dirty": false,
+        "submodules": "未新获取；本轮仅复用已有发布版源码。"
+      },
+      "version_decision": "PyPI、官方latest release与本地固定源码一致，复用。",
+      "selected": true
+    },
+    {
+      "package": "simphony",
+      "raw_file": "seed_gen/pypi_outputs/ori_all_funcs/simphony_v0.7.3.json",
+      "raw_file_sha256": "8ada30f99f7e22918baa2dc93324d4aa05688e2395bfd8363759e4acea075930",
+      "raw_canonical_sha256": "54084bc014f84c91219c2dad4cfb01a9007365fecb0176ead07fb8fd6dfc6c48",
+      "raw_nums": {
+        "class": 20,
+        "function": 44,
+        "class_func": 54,
+        "all_func": 98
+      },
+      "repository": "https://github.com/BYUCamachoLab/simphony",
+      "documentation": "https://simphonyphotonics.readthedocs.io/en/stable/",
+      "pypi": "https://pypi.org/project/simphony/",
+      "pypi_check": {
+        "url": "https://pypi.org/pypi/simphony/json",
+        "status": 200,
+        "version": "0.7.3",
+        "upload_time": "2025-10-28T01:28:50.482941Z"
+      },
+      "release_check": {
+        "url": "https://api.github.com/repos/BYUCamachoLab/simphony/releases/latest",
+        "status": 200,
+        "tag": "v0.7.3",
+        "published_at": "2025-10-28T01:28:53Z",
+        "prerelease": false
+      },
+      "local": {
+        "directory": "seed_pypi_raw/simphony",
+        "remote": "https://github.com/BYUCamachoLab/simphony.git",
+        "head": "5a5e826fb58b2b5ce0355189b3e3b33e2bd8828c",
+        "tag": "v0.7.3",
+        "version_file": "pyproject.toml",
+        "declared_version": "0.7.3",
+        "dirty": false,
+        "submodules": "未新获取；本轮仅复用已有发布版源码。"
+      },
+      "version_decision": "PyPI、官方latest release与本地固定源码一致，作为未选候选保留。",
+      "selected": false,
+      "compatibility_evidence": {
+        "source": "seed_pypi_raw/simphony/pyproject.toml",
+        "requires": [
+          "sax < 0.15.0",
+          "lark ~= 1.1.5"
+        ],
+        "also_confirmed_by": "PyPI requires_dist",
+        "conflicts_with": [
+          "sax == 0.18.2",
+          "SAX0.18.2 requires lark >= 1.2.2"
+        ]
+      }
+    }
+  ],
+  "entities": [
+    {
+      "id": "component",
+      "description": "已注册模型及其实例设置，不要求对应Python顶层class。",
+      "fields": {
+        "id": {
+          "type": "string",
+          "constraints": "网表内唯一"
+        },
+        "model": {
+          "type": "string",
+          "constraints": "模型注册表中存在"
+        },
+        "length": {
+          "type": "float",
+          "unit": "um",
+          "constraints": ">=0"
+        },
+        "coupling": {
+          "type": "float",
+          "unit": "1",
+          "constraints": "0<=coupling<=1"
+        },
+        "loss_dB_cm": {
+          "type": "float",
+          "unit": "dB/cm",
+          "constraints": ">=0；仅straight模型"
+        },
+        "voltage": {
+          "type": "float",
+          "unit": "V",
+          "constraints": "本试点0或1，phase_shifter的相位系数pi rad/V"
+        },
+        "ports": {
+          "type": "string[]",
+          "constraints": "匹配固定port_convention"
+        }
+      },
+      "lifecycle": "注册模型→创建实例→设置参数→被网表引用；参数更新使旧响应失效。"
+    },
+    {
+      "id": "netlist",
+      "description": "instances、connections、ports及可选子电路构成的可编辑拓扑。",
+      "fields": {
+        "instances": {
+          "type": "mapping"
+        },
+        "connections": {
+          "type": "mapping",
+          "constraints": "每一连接端必须存在，避免悬空引用与重复占用"
+        },
+        "ports": {
+          "type": "mapping",
+          "constraints": "外部名字唯一、指向有效实例端口"
+        },
+        "hierarchy": {
+          "type": "mapping",
+          "constraints": "无递归环；物理反馈可在单个网表连接中出现"
+        },
+        "revision": {
+          "type": "integer",
+          "constraints": "环境封装负责递增，SAX原生没有持久化revision字段"
+        }
+      },
+      "lifecycle": "加载→校验→修改/展开→编译；修改拓扑后重编译。"
+    },
+    {
+      "id": "settings",
+      "description": "模型默认值和实例覆盖值的快照。",
+      "fields": {
+        "values": {
+          "type": "mapping"
+        },
+        "port_convention": {
+          "type": "enum",
+          "constraints": "inout或optical；每任务初始化一次，避免JIT缓存下中途切换"
+        },
+        "revision": {
+          "type": "integer",
+          "constraints": "拟建环境状态，非已有包API"
+        }
+      },
+      "lifecycle": "查询默认值→复制→更新指定实例→求解→保留快照供结果溯源。"
+    },
+    {
+      "id": "sweep",
+      "description": "波长及电压/长度参数采样计划。",
+      "fields": {
+        "wavelength": {
+          "type": "float[]",
+          "unit": "um",
+          "constraints": "有限、>0、单调；固定fixture为linspace(1.50,1.60,101)"
+        },
+        "parameters": {
+          "type": "mapping",
+          "constraints": "采样组合数设上限"
+        },
+        "backend": {
+          "type": "string",
+          "constraints": "本fixture使用filipsson_gunnar；反馈环禁止forward-only后端"
+        }
+      },
+      "lifecycle": "定义网格→提交求解→产生完整response或明确异常。"
+    },
+    {
+      "id": "response",
+      "description": "带端口映射和设置快照的复数S参数与派生功率。",
+      "fields": {
+        "s_matrix": {
+          "type": "complex array",
+          "unit": "1",
+          "constraints": "波长和端口维数一致，值有限"
+        },
+        "transmission": {
+          "type": "float array",
+          "unit": "1",
+          "constraints": "abs(S)**2；只在指定无源/无损模型上验证功率界与守恒"
+        },
+        "settings_revision": {
+          "type": "integer"
+        },
+        "netlist_revision": {
+          "type": "integer"
+        },
+        "artifact_path": {
+          "type": "string",
+          "constraints": "限本次runtime目录"
+        }
+      },
+      "lifecycle": "计算→验证→查询/导出；拓扑或参数变化后标记过期，重跑产生新结果。"
+    }
+  ],
+  "required_capabilities": [
+    {
+      "id": "component_models",
+      "description": "从耦合器/波导/相移器/终端等构造可调组件。",
+      "validation": "MZI与环形fixture"
+    },
+    {
+      "id": "netlist_edit",
+      "description": "加载、编辑、层级展开和统一连接描述。",
+      "validation": "本次验证YAML加载；层级展开拟后续fixture"
+    },
+    {
+      "id": "netlist_compile",
+      "description": "检查模型注册并编译电路，调用返回的模型求解。",
+      "validation": "两fixture真实执行"
+    },
+    {
+      "id": "settings_state",
+      "description": "查询、复制及更新实例设置，形成可追踪状态变更。",
+      "validation": "MZI上臂从0V调至1V，原快照仍为0V"
+    },
+    {
+      "id": "scattering_data",
+      "description": "S参数表示、端口映射和复数响应查询。",
+      "validation": "101x4x4矩阵与端口集合"
+    },
+    {
+      "id": "mode_mapping",
+      "description": "保持显式模式标签并提取单模式。",
+      "validation": "未运行；复制模式不等于偏振耦合"
+    },
+    {
+      "id": "file_interchange",
+      "description": "本地文件S参数交换。",
+      "validation": "未运行，后续固定小文件往返"
+    },
+    {
+      "id": "netlist_import",
+      "description": "本地布局/原理图网表结构导入。",
+      "validation": "未运行，不宣称已打通gdsfactory布局提取"
+    },
+    {
+      "id": "sampled_models",
+      "description": "采样参数表转可插值模型。",
+      "validation": "未运行，后续固定表插值端点断言"
+    },
+    {
+      "id": "objective",
+      "description": "误差指标与验收判断。",
+      "validation": "本次独立NumPy解析oracle；mse已选尚未单独执行"
+    },
+    {
+      "id": "port_convention",
+      "description": "环境重置时设定端口命名并供查询。",
+      "validation": "inout命名下两fixture"
+    },
+    {
+      "id": "sweep_grid",
+      "description": "定义光学扫描波长。",
+      "validation": "本次固定linspace网格，不单独执行wl_c便利函数"
+    }
+  ],
+  "package_decisions": [
+    {
+      "package": "sax",
+      "decision": "primary",
+      "reason": "覆盖从网表构造、设置更新、双向/反馈求解到S参数查询与文件交换的主链；最新发布版可在独立Windows CPU环境安装。"
+    },
+    {
+      "package": "simphony",
+      "decision": "exclude",
+      "reason": "其MZI/经典仿真建立在SAX之上，基础耦合器/波导和数据交换与SAX重复；0.7.3要求sax<0.15.0且lark~=1.1.5，与主包0.18.2不相容。SiEPIC/SiPANN模型与激光/探测器便利层虽有独有能力，本场景固定验证无需，不能为工具数量引入冲突或伪造桥接。"
+    },
+    {
+      "package": "sax",
+      "decision": "deduplicate_within_primary",
+      "reason": "bend直接调用straight；mmi2x2_ideal直接coupler_ideal(coupling=0.5)，mirror为反射模型特例；保留参数化代表接口。mmi1x2_ideal/splitter_ideal与当前MMI范围接近，保留有损mmi1x2，不额外枚举理想封装。"
+    },
+    {
+      "package": "sax",
+      "decision": "exclude_out_of_scope",
+      "reason": "排除RF阻容感/传输线、神经网络训练、低级后端analyze/evaluate、内部类型校验器、绘图、probe调试和非物理copier；不把内部帮助函数数量当环境完整性。"
+    }
+  ],
+  "selected_symbols": [
+    {
+      "package": "sax",
+      "module": "sax.circuits",
+      "name": "circuit",
+      "type": "function",
+      "capability": "netlist_compile",
+      "reason": "建立电路并在求解前核查模型注册；统一使用高级circuit入口。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.circuits",
+      "name": "get_required_circuit_models",
+      "type": "function",
+      "capability": "netlist_compile",
+      "reason": "建立电路并在求解前核查模型注册；统一使用高级circuit入口。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.couplers",
+      "name": "coupler_ideal",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "保留理想耦合基线、色散耦合及光纤耦合三种不同物理角色。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.couplers",
+      "name": "coupler",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "保留理想耦合基线、色散耦合及光纤耦合三种不同物理角色。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.couplers",
+      "name": "grating_coupler",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "保留理想耦合基线、色散耦合及光纤耦合三种不同物理角色。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.crossings",
+      "name": "crossing_ideal",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "交叉连线的四端口元件，用于不同拓扑组装。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.mmis",
+      "name": "mmi1x2",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "保留有损/色散MMI；理想2x2封装与coupler_ideal重复而排除。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.mmis",
+      "name": "mmi2x2",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "保留有损/色散MMI；理想2x2封装与coupler_ideal重复而排除。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.straight",
+      "name": "straight",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "传播相位和损耗、集总衰减、电压调谐分别是可变状态。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.straight",
+      "name": "attenuator",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "传播相位和损耗、集总衰减、电压调谐分别是可变状态。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.straight",
+      "name": "phase_shifter",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "传播相位和损耗、集总衰减、电压调谐分别是可变状态。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.terminators",
+      "name": "terminator",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "为未使用端口建立有明确定义的终端边界。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.models.reflectors",
+      "name": "reflector",
+      "type": "function",
+      "capability": "component_models",
+      "reason": "反射/反馈分析；mirror固定默认值封装不再重复保留。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.netlists",
+      "name": "netlist",
+      "type": "function",
+      "capability": "netlist_edit",
+      "reason": "网表规范化、层级展开、删孤立实例、重命名和连接格式转换构成编辑动作。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.netlists",
+      "name": "flatten_netlist",
+      "type": "function",
+      "capability": "netlist_edit",
+      "reason": "网表规范化、层级展开、删孤立实例、重命名和连接格式转换构成编辑动作。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.netlists",
+      "name": "remove_unused_instances",
+      "type": "function",
+      "capability": "netlist_edit",
+      "reason": "网表规范化、层级展开、删孤立实例、重命名和连接格式转换构成编辑动作。",
+      "missing_description_reason": "该公开函数原始docstring为空；依据固定版本源码控制流确认网表变换职责，索引仍保留空说明。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.netlists",
+      "name": "rename_instances",
+      "type": "function",
+      "capability": "netlist_edit",
+      "reason": "网表规范化、层级展开、删孤立实例、重命名和连接格式转换构成编辑动作。",
+      "missing_description_reason": "该公开函数原始docstring为空；依据固定版本源码控制流确认网表变换职责，索引仍保留空说明。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.netlists",
+      "name": "rename_models",
+      "type": "function",
+      "capability": "netlist_edit",
+      "reason": "网表规范化、层级展开、删孤立实例、重命名和连接格式转换构成编辑动作。",
+      "missing_description_reason": "该公开函数原始docstring为空；依据固定版本源码控制流确认网表变换职责，索引仍保留空说明。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.netlists",
+      "name": "convert_nets_to_connections",
+      "type": "function",
+      "capability": "netlist_edit",
+      "reason": "网表规范化、层级展开、删孤立实例、重命名和连接格式转换构成编辑动作。",
+      "missing_description_reason": "该公开函数原始docstring为空；依据固定版本源码控制流确认网表变换职责，索引仍保留空说明。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "load_netlist",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "load_recursive_netlist",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "get_settings",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "update_settings",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "copy_settings",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "rename_params",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "rename_ports",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "cartesian_product",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.utils",
+      "name": "wide_to_tidy",
+      "type": "function",
+      "capability": "settings_state",
+      "reason": "加载/快照/更新设置，适配端口与参数命名，执行扫描并整理结果。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "sdict",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "scoo",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "sdense",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "reciprocal",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "get_ports",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "get_modes",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.s",
+      "name": "get_port_combinations",
+      "type": "function",
+      "capability": "scattering_data",
+      "reason": "保留有不同下游用途的散射数据表示和端口/模式查询；互易构造只用于声明互易的模型。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.multimode",
+      "name": "multimode",
+      "type": "function",
+      "capability": "mode_mapping",
+      "reason": "明确多模式复制与单模式投影；不把复制当模式转换物理。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.multimode",
+      "name": "singlemode",
+      "type": "function",
+      "capability": "mode_mapping",
+      "reason": "明确多模式复制与单模式投影；不把复制当模式转换物理。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.lumerical",
+      "name": "parse_lumerical_dat",
+      "type": "function",
+      "capability": "file_interchange",
+      "reason": "固定本地S参数文件往返，不要求运行商业求解器。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.lumerical",
+      "name": "write_lumerical_dat",
+      "type": "function",
+      "capability": "file_interchange",
+      "reason": "固定本地S参数文件往返，不要求运行商业求解器。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.touchstone",
+      "name": "parse_touchstone",
+      "type": "function",
+      "capability": "file_interchange",
+      "reason": "读写标准S参数文件，支持结果交换。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.touchstone",
+      "name": "write_touchstone",
+      "type": "function",
+      "capability": "file_interchange",
+      "reason": "读写标准S参数文件，支持结果交换。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.kfnetlist",
+      "name": "parse_kfnetlist",
+      "type": "function",
+      "capability": "netlist_import",
+      "reason": "导入布局提取产生的字典/JSON网表，单层与层级入口接收不同结构。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.kfnetlist",
+      "name": "parse_kfnetlist_recursive",
+      "type": "function",
+      "capability": "netlist_import",
+      "reason": "导入布局提取产生的字典/JSON网表，单层与层级入口接收不同结构。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.parsers.mosaic",
+      "name": "parse_mosaic",
+      "type": "function",
+      "capability": "netlist_import",
+      "reason": "支持本地原理图字典转网表，不需要交互式GUI。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.interpolation",
+      "name": "to_df",
+      "type": "function",
+      "capability": "sampled_models",
+      "reason": "从采样S参数表构建可插值模型，保留数据整理到模型的连续链。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.interpolation",
+      "name": "to_xarray",
+      "type": "function",
+      "capability": "sampled_models",
+      "reason": "从采样S参数表构建可插值模型，保留数据整理到模型的连续链。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.interpolation",
+      "name": "interpolate_xarray",
+      "type": "function",
+      "capability": "sampled_models",
+      "reason": "从采样S参数表构建可插值模型，保留数据整理到模型的连续链。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.loss",
+      "name": "mse",
+      "type": "function",
+      "capability": "objective",
+      "reason": "对复数响应与固定目标计算统一误差；不重复保留其他损失函数。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.ports",
+      "name": "set_port_naming_strategy",
+      "type": "function",
+      "capability": "port_convention",
+      "reason": "显式设定并查询全局端口命名，避免不同任务的隐藏状态污染。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.ports",
+      "name": "get_port_naming_strategy",
+      "type": "function",
+      "capability": "port_convention",
+      "reason": "显式设定并查询全局端口命名，避免不同任务的隐藏状态污染。"
+    },
+    {
+      "package": "sax",
+      "module": "sax.constants",
+      "name": "wl_c",
+      "type": "function",
+      "capability": "sweep_grid",
+      "reason": "生成光通信C波段扫描网格，其他波段便利入口不重复枚举。"
+    }
+  ],
+  "missing_or_runtime_contracts": [
+    {
+      "gap": "sax.circuits.circuit返回的callable执行入口不是独立顶层函数，静态索引没有额外run符号。",
+      "resolution": "环境封装需登记编译模型对象并提供evaluate_circuit(circuit_id,settings,sweep)动作；当前原生数仍为51，不伪造进init_ref_tools。",
+      "status": "两fixture直接调用返回callable验证；agent实体仓库封装待实现"
+    },
+    {
+      "gap": "源码phase_shifter文档把loss描述为额外dB，实现却使用loss*length；与非零loss的直观集总定义不一致。",
+      "resolution": "本次fixture严格loss=0；后续封装须明确约束/核查上游，不能声明非零损耗验证完成。",
+      "status": "已读固定版本源码发现边界"
+    },
+    {
+      "gap": "网表revision、响应失效、对象ID、任务重置不是包原生状态管理。",
+      "resolution": "实体字段明确标记为拟建环境状态；本试点验证原生链，不宣称完整agent交互封装已完成。",
+      "status": "设计待实现"
+    },
+    {
+      "gap": "所选函数中若有空description或returns仍沿用全量原文。",
+      "resolution": "选择原因与源码核查放profile，不回填伪造docstring。",
+      "status": "适用"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "pic_mzi_switch",
+      "description": "给定两只50:50耦合器、等长双臂和上臂相移器，将out0由暗端调到全透射，输出双输出端频谱，并发现未调节电压的错误提交。",
+      "initial_state": {
+        "fixture": "runtime/pic/mzi.pic.yml",
+        "upper_voltage_V": 0,
+        "lower_voltage_V": 0,
+        "wavelength_um": [
+          1.5,
+          1.6
+        ],
+        "samples": 101,
+        "loss": 0
+      },
+      "steps": [
+        {
+          "description": "设定端口策略并加载固定YAML网表。",
+          "tool_refs": [
+            "sax.ports.set_port_naming_strategy",
+            "sax.utils.load_netlist"
+          ]
+        },
+        {
+          "description": "用固定耦合器和相移器模型注册并编译。",
+          "tool_refs": [
+            "sax.models.couplers.coupler_ideal",
+            "sax.models.straight.phase_shifter",
+            "sax.circuits.circuit"
+          ]
+        },
+        {
+          "description": "读取默认设置，将upper.voltage从0修改为1，保留原快照。",
+          "tool_refs": [
+            "sax.utils.get_settings",
+            "sax.utils.update_settings"
+          ]
+        },
+        {
+          "description": "分别求解初态和终态的返回callable，转换为字典/矩阵，比较目标和守恒。",
+          "tool_refs": [
+            "sax.s.sdict",
+            "sax.s.sdense"
+          ],
+          "runtime_operation": "调用circuit返回模型；功率/断言由固定NumPy oracle计算"
+        }
+      ],
+      "assertions": [
+        "初态out0功率=0±1e-10",
+        "终态out0功率=1±1e-10",
+        "两输出功率和=1±1e-10",
+        "正反传输互易±1e-10",
+        "dense.shape=(101,4,4)且端口集合正确",
+        "原设置upper.voltage保持0",
+        "负样例upper.voltage仍0必须拒绝T>=0.99"
+      ],
+      "fixture": {
+        "source": "seed_gen/scenario_pilot/verify_pic.py:MZI_YAML",
+        "output": "seed_gen/scenario_pilot/runtime/pic/mzi.pic.yml",
+        "oracle": "理想等臂MZI干涉与能量守恒，独立解析目标"
+      },
+      "validation_status": "passed；Windows Python3.12.4 + SAX0.18.2 + JAX0.9.2 CPU，101点、正负断言均通过；见runtime/pic/validation.json"
+    },
+    {
+      "id": "pic_allpass_units",
+      "description": "定位固定全通环中忘记将0.1dB/um转换为1000dB/cm的模型输入错误：实际求解错误设置并由固定解析oracle拒绝，修复loss_dB_cm后重新求解，输出通过同一oracle的复数频谱。",
+      "initial_state": {
+        "ring_length_um": 10,
+        "coupling": 0.5,
+        "neff": 2.34,
+        "ng": 3.4,
+        "wl0_um": 1.55,
+        "loss_dB_per_um": 0.1,
+        "incorrect_model_loss_dB_cm": 0.1,
+        "repaired_model_loss_dB_cm": 1000.0,
+        "wavelength_um": [
+          1.5,
+          1.6
+        ],
+        "samples": 101
+      },
+      "steps": [
+        {
+          "description": "构造耦合器与闭环波导，保留物理损耗0.1dB/um作为固定目标；错误输入将同一个数0.1直接传给loss_dB_cm。",
+          "tool_refs": [
+            "sax.models.couplers.coupler_ideal",
+            "sax.models.straight.straight"
+          ]
+        },
+        {
+          "description": "使用支持反馈的filipsson_gunnar后端编译，实际调用返回模型分别计算loss_dB_cm=0.1的错误响应和修复为1000.0后的响应。",
+          "tool_refs": [
+            "sax.circuits.circuit"
+          ],
+          "runtime_operation": "ring(wl=wl, ring={'loss_dB_cm':0.1})与ring(wl=wl, ring={'loss_dB_cm':1000.0})；非forward-only后端"
+        },
+        {
+          "description": "提取错误与修复后的复数S参数，用完全相同的独立all-pass解析式及容差验收：错误响应必须触发AssertionError，修复响应必须通过；保存两条谱线和oracle。",
+          "tool_refs": [
+            "sax.s.sdict"
+          ],
+          "runtime_operation": "NumPy解析式(t-a exp(i phi))/(1-t a exp(i phi))与NPZ输出"
+        }
+      ],
+      "assertions": [
+        "101个复数响应点与解析式rtol1e-9、atol1e-10",
+        "频谱有限且0<=T<=1+1e-10",
+        "实际调用SAX得到loss_dB_cm=0.1的错误模型响应，必须被同一个固定解析oracle拒绝，捕获AssertionError",
+        "修复为loss_dB_cm=1000.0后实际重算通过同一oracle；不改变oracle来迎合模型输出"
+      ],
+      "fixture": {
+        "source": "seed_gen/scenario_pilot/verify_pic.py:ring_netlist",
+        "output": "seed_gen/scenario_pilot/runtime/pic/ring.netlist.json",
+        "run_settings": "seed_gen/scenario_pilot/runtime/pic/ring.run_settings.json",
+        "spectra": "seed_gen/scenario_pilot/runtime/pic/spectra.npz: ring_wrong_s, ring_s, ring_analytical",
+        "oracle": "显式单位换算+闭式all-pass复数响应"
+      },
+      "validation_status": "passed；实际错误loss_dB_cm=0.1模型相对固定oracle最大误差0.5015313914799912，101/101点超容差并触发AssertionError；修复为1000.0后的101点最大误差4.185411961974975e-14；见runtime/pic/validation.json"
+    }
+  ],
+  "runtime": {
+    "venv": ".venv-scenario-pic",
+    "install_command": "C:/Apps/anaconda3/python.exe -m uv pip install --python .venv-scenario-pic/Scripts/python.exe sax==0.18.2",
+    "pip_check": "passed; 41 packages compatible",
+    "run_command": ".venv-scenario-pic/Scripts/python.exe -X utf8 seed_gen/scenario_pilot/verify_pic.py",
+    "report": "seed_gen/scenario_pilot/runtime/pic/validation.json",
+    "status": "passed",
+    "validated_at": "2026-09-17",
+    "environment": {"python": "3.12.4", "sax": "0.18.2", "jax": "0.9.2", "jaxlib": "0.9.2", "numpy": "2.5.3", "klujax": "0.5.2", "device": "TFRT_CPU_0", "backend": "filipsson_gunnar", "x64": true},
+    "results": {"mzi_initial_max_transmission": 0.0, "mzi_final_min_transmission": 1.0, "mzi_max_power_balance_error": 8.881784197001252e-16, "ring_max_complex_response_error": 4.185411961974975e-14, "ring_wrong_model_max_complex_response_error": 0.5015313914799912, "ring_wrong_model_mismatched_points": 101, "negative_controls_rejected": 2},
+    "trial_log": [
+      {"attempt": 1, "status": "failed", "error": "AssertionError: np.asarray(dense).shape == (101, 4, 4)", "cause": "get_settings产生含wl=1.55默认值的各组件嵌套设置，将其展开传入circuit时覆盖顶层wl扫描，终态实际只计算一个波长。", "fix": "先sax.update_settings(settings, wl=wl)同步所有组件的波长数组，再更新上臂voltage。该shape断言保留，防止仅一个工作点意外冒充频谱验证。"},
+      {"attempt": 2, "status": "passed", "command": ".venv-scenario-pic/Scripts/python.exe -X utf8 seed_gen/scenario_pilot/verify_pic.py", "limitation": "当时环形负样例仅比较错误解析公式，不足以证明错误模型输入被固定oracle拒绝，已被attempt3替代。"},
+      {"attempt": 3, "status": "passed", "command": ".venv-scenario-pic/Scripts/python.exe -X utf8 seed_gen/scenario_pilot/verify_pic.py", "change": "实际执行loss_dB_cm=0.1的错误模型输入和修复为1000.0后的输入；同一个固定解析oracle拒绝前者、接受后者；保存错误/修复设置、两条模拟谱线、oracle及完整AssertionError。"}
+    ],
+    "unverified": ["51个所选API中未进入两个fixture的接口", "梯度优化", "布局提取到电路网表的桥接", "层级网表等价验证", "采样文件往返", "非零phase_shifter.loss", "agent对象仓库、状态重置、结果失效封装"]
+  }
+}

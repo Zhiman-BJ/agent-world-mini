@@ -1,0 +1,107 @@
+[
+  {
+    "name": "cocotb",
+    "index": 351,
+    "directory": "l1_design_lab/cocotb",
+    "source_root": "src",
+    "modules": [
+      "cocotb",
+      "cocotb_tools"
+    ],
+    "repository": "https://github.com/cocotb/cocotb",
+    "tag": "v2.1.0",
+    "commit": "e85fae957d5c93894740b164ea9cc6567015b954",
+    "documentation": "https://github.com/cocotb/cocotb/tree/v2.1.0",
+    "description": "cocotb通过Python协程驱动真实HDL仿真器，提供时钟、触发器、信号访问、并发测试和断言，可构建可重放的硬件验证任务。",
+    "pypi": "https://pypi.org/project/cocotb/",
+    "pypi_version": "2.1.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/cocotb/cocotb/releases/latest",
+    "release_url": "https://github.com/cocotb/cocotb/releases/tag/v2.1.0",
+    "release_published_at": "2026-08-30T20:52:36Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "官方latest非预发布Release，原始源码/完整候选固定tag；场景联合筛选并裁剪具体类方法。",
+      "Python源层全量提取；cocotb仿真器原生GPI扩展为基础设施，由真实Icarus任务验证其连接，不把C++内部导出伪造为Python源方法。"
+    ]
+  },
+  {
+    "name": "pyuvm",
+    "index": 352,
+    "directory": "l1_design_lab/pyuvm",
+    "source_root": "src",
+    "modules": [
+      "pyuvm"
+    ],
+    "repository": "https://github.com/pyuvm/pyuvm",
+    "tag": "5.0.0",
+    "commit": "b7f51e48be9272402d01d61af8d2c88ae3be8e0c",
+    "documentation": "https://github.com/pyuvm/pyuvm/tree/5.0.0",
+    "description": "pyuvm在cocotb基础上提供UVM式组件、sequence/driver/monitor、配置数据库、TLM连接和scoreboard，用于可复用事务级验证环境。",
+    "pypi": "https://pypi.org/project/pyuvm/",
+    "pypi_version": "5.0.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyuvm/pyuvm/releases/latest",
+    "release_url": "https://github.com/pyuvm/pyuvm/releases/tag/5.0.0",
+    "release_published_at": "2026-08-31T20:11:39Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "官方latest非预发布Release，原始源码/完整候选固定tag；场景联合筛选并裁剪具体类方法。",
+      "Python源层全量提取；cocotb仿真器原生GPI扩展为基础设施，由真实Icarus任务验证其连接，不把C++内部导出伪造为Python源方法。"
+    ]
+  },
+  {
+    "name": "cocotbext-axi",
+    "index": 353,
+    "directory": "l1_design_lab/cocotbext-axi",
+    "source_root": ".",
+    "modules": [
+      "cocotbext.axi"
+    ],
+    "repository": "https://github.com/alexforencich/cocotbext-axi",
+    "tag": "v0.1.28",
+    "commit": "1c0365e261dc5563f7eabb7fd327f2b9dee895de",
+    "documentation": "https://github.com/alexforencich/cocotbext-axi/tree/v0.1.28",
+    "description": "cocotbext-axi提供AXI、AXI-Lite、AXI-Stream及APB的主从、存储器和监视模型，支持突发、背压及事务结果检查。",
+    "pypi": "https://pypi.org/project/cocotbext-axi/",
+    "pypi_version": "0.1.28",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/alexforencich/cocotbext-axi/releases/latest",
+    "release_url": "https://github.com/alexforencich/cocotbext-axi/releases/tag/v0.1.28",
+    "release_published_at": "2026-03-12T22:23:04Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "官方latest非预发布Release，原始源码/完整候选固定tag；场景联合筛选并裁剪具体类方法。",
+      "Python源层全量提取；cocotb仿真器原生GPI扩展为基础设施，由真实Icarus任务验证其连接，不把C++内部导出伪造为Python源方法。"
+    ]
+  },
+  {
+    "name": "cocotb-bus",
+    "index": 354,
+    "directory": "l1_design_lab/cocotb-bus",
+    "source_root": "src",
+    "modules": [
+      "cocotb_bus"
+    ],
+    "repository": "https://github.com/cocotb/cocotb-bus",
+    "tag": "v0.3.0",
+    "commit": "c65a8a2c9a7818a13574d8097af8c1c9635ee0df",
+    "documentation": "https://github.com/cocotb/cocotb-bus/tree/v0.3.0",
+    "description": "cocotb-bus提供cocotb信号总线、驱动、监视器和scoreboard基础类，是协议扩展的基础设施；避免与专用AXI事务入口重复。",
+    "pypi": "https://pypi.org/project/cocotb-bus/",
+    "pypi_version": "0.3.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/cocotb/cocotb-bus/releases/latest",
+    "release_url": "https://github.com/cocotb/cocotb-bus/releases/tag/v0.3.0",
+    "release_published_at": "2026-01-11T05:06:47Z",
+    "github_prerelease": false,
+    "include_call_protocol": true,
+    "notes": [
+      "官方latest非预发布Release，原始源码/完整候选固定tag；场景联合筛选并裁剪具体类方法。",
+      "Python源层全量提取；cocotb仿真器原生GPI扩展为基础设施，由真实Icarus任务验证其连接，不把C++内部导出伪造为Python源方法。"
+    ]
+  }
+]

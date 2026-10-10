@@ -94,12 +94,13 @@ def test_copied_venv_runs_with_its_own_import_paths(tmp_path):
     # Install compatible fixture dependencies into the venv, not via host search paths.
     import shutil
     import jsonschema
+    import typing_extensions
     purelib = subprocess.check_output([str(launcher), '-I', '-c',
         'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
     packages = Path(jsonschema.__file__).parent.parent
     for name in ('jsonschema', 'jsonschema_specifications', 'referencing', 'rpds', 'attr', 'attrs'):
         shutil.copytree(packages / name, Path(purelib) / name)
-    shutil.copyfile(packages / 'typing_extensions.py', Path(purelib) / 'typing_extensions.py')
+    shutil.copyfile(Path(typing_extensions.__file__), Path(purelib) / 'typing_extensions.py')
     state = tmp_path / 'state'
     state.mkdir()
     tool = {'name': 'inspect', 'inputSchema': {'type': 'object'}, 'outputSchema': {'type': 'object'},
@@ -130,7 +131,11 @@ def test_pipeline_loads_binding_and_keeps_runtime_out_of_public_inputs(tmp_path)
 
 
 def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch):
+    import shutil
+    import subprocess
     import sys
+    import jsonschema
+    import typing_extensions
     from tests.test_kimi_mcp import KimiMcpTests
     from task_gen.tool_graph.contracts import Config
     from task_gen.tool_graph.step_0_environment_load import load_environment
@@ -141,9 +146,17 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
     config = Config(environment_dir=binding.parent)
     bundle = load_environment({'config': config})
     software = tmp_path / 'software'
-    software.mkdir()
+    launcher = software / 'venv/bin/python'
+    subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip',
+                    str(software / 'venv')], check=True)
+    purelib = Path(subprocess.check_output([str(launcher), '-I', '-c',
+        'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip())
+    packages = Path(jsonschema.__file__).parent.parent
+    for name in ('jsonschema', 'jsonschema_specifications', 'referencing', 'rpds', 'attr', 'attrs'):
+        shutil.copytree(packages / name, purelib / name)
+    shutil.copyfile(Path(typing_extensions.__file__), purelib / 'typing_extensions.py')
     (software / 'marker').write_text('correct profile')
-    bundle['runtime']['software'] = {'root': str(software), 'python': sys.executable}
+    bundle['runtime']['software'] = {'root': str(software), 'python': str(launcher)}
     tool = bundle['environment']['tools'][0]
     tool['internal']['code'] = tool['internal']['code'].replace(
         'record = context.records.get',
@@ -183,6 +196,50 @@ def test_profile_missing_validation_dependencies_does_not_borrow_host_packages(t
                        268435456, software={'root': str(root), 'python': str(root / 'bin/python')})
     assert result['kind'] == 'exception'
     assert "No module named 'jsonschema'" in result['error']
+
+
+def test_profile_native_library_paths_reach_tool_sandbox(tmp_path):
+    import os
+    import sys
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+
+    profile = tmp_path / 'profile'
+    native = profile / 'python-3.11/native/usr/lib/x86_64-linux-gnu'
+    native.mkdir(parents=True)
+    state = tmp_path / 'state'
+    state.mkdir()
+    outcome = _run_tool(
+        'def run(arguments, context):\n import os\n return {"libraries": os.environ.get("LD_LIBRARY_PATH", "")}',
+        {}, state, 10, 2147483648, 268435456,
+        software={'root': str(profile), 'python': sys.executable},
+    )
+    assert outcome['error'] is None, outcome
+    assert str(native) in outcome['result']['libraries'].split(os.pathsep)
+
+
+def test_tool_sandbox_resolves_its_user_id(tmp_path):
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+
+    outcome = _run_tool(
+        'def run(arguments, context):\n import os, pwd\n'
+        ' return {"user": pwd.getpwuid(os.getuid()).pw_name}',
+        {}, tmp_path, 10, 2147483648, 268435456,
+    )
+    assert outcome['error'] is None, outcome
+    assert outcome['result']['user']
+
+
+def test_native_shutdown_logs_do_not_extend_tool_response(tmp_path):
+    from task_gen.tool_graph.step_3_chain_execute import _run_tool
+
+    outcome = _run_tool(
+        'def run(arguments, context):\n import atexit, os\n'
+        ' atexit.register(lambda: os.write(1, b"native shutdown log\\n"))\n'
+        ' return {"success": True}',
+        {}, tmp_path, 10, 2147483648, 268435456,
+    )
+    assert outcome['error'] is None, outcome
+    assert outcome['result'] == {'success': True}
 
 
 def test_library_caches_are_temporary_not_task_state(tmp_path):

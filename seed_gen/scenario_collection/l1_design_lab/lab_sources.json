@@ -1,0 +1,173 @@
+[
+  {
+    "name": "qcodes",
+    "index": 311,
+    "directory": "l1_design_lab/qcodes",
+    "source_root": "src",
+    "modules": [
+      "qcodes"
+    ],
+    "repository": "https://github.com/microsoft/Qcodes",
+    "tag": "v0.59.0",
+    "commit": "304e21557fd308f27a33d6e96908d938f1b176eb",
+    "documentation": "https://microsoft.github.io/Qcodes/",
+    "description": "QCoDeS是实验仪器控制和数据采集框架，以仪器、参数、验证器、测量运行和数据集组织可重复实验，包含半导体参数分析仪等驱动；真实硬件和虚拟DUT需明确区分。",
+    "pypi": "https://pypi.org/project/qcodes/",
+    "pypi_version": "0.59.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/microsoft/Qcodes/releases/latest",
+    "release_url": "https://github.com/microsoft/Qcodes/releases/tag/v0.59.0",
+    "release_published_at": "2026-08-24T09:14:50Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。",
+      "Parameter的get/set由构造包装产生，显式保留真实ParameterBase.__call__公开协议；不伪造源码get/set定义。"
+    ],
+    "include_call_protocol": true
+  },
+  {
+    "name": "pymeasure",
+    "index": 312,
+    "directory": "l1_design_lab/pymeasure",
+    "source_root": ".",
+    "modules": [
+      "pymeasure"
+    ],
+    "repository": "https://github.com/pymeasure/pymeasure",
+    "tag": "v0.16.0",
+    "commit": "597e0c6760288f6fe1c5a677e9d53a2b7a033566",
+    "documentation": "https://pymeasure.readthedocs.io/",
+    "description": "PyMeasure提供仪器驱动、适配器、实验Procedure与结果管理，支持自动化测量和虚拟仪器；与QCoDeS部分职责重叠。",
+    "pypi": "https://pypi.org/project/pymeasure/",
+    "pypi_version": "0.16.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pymeasure/pymeasure/releases/latest",
+    "release_url": "https://github.com/pymeasure/pymeasure/releases/tag/v0.16.0",
+    "release_published_at": "2026-05-20T11:10:04Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。"
+    ]
+  },
+  {
+    "name": "pyvisa",
+    "index": 313,
+    "directory": "l1_design_lab/pyvisa",
+    "source_root": ".",
+    "modules": [
+      "pyvisa"
+    ],
+    "repository": "https://github.com/pyvisa/pyvisa",
+    "tag": "1.16.2",
+    "commit": "8a01eab9807024b760a7a16ee3be7e6edd8e71a2",
+    "documentation": "https://pyvisa.readthedocs.io/en/latest/",
+    "description": "PyVISA提供VISA资源管理、消息及寄存器资源接口，统一USB/GPIB/串口/TCPIP等仪器通信，依赖指定的VISA后端。",
+    "pypi": "https://pypi.org/project/pyvisa/",
+    "pypi_version": "1.16.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyvisa/pyvisa/releases/latest",
+    "release_url": "https://github.com/pyvisa/pyvisa/releases/tag/1.16.2",
+    "release_published_at": "2026-02-27T12:14:30Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。"
+    ]
+  },
+  {
+    "name": "pyvisa-py",
+    "index": 314,
+    "directory": "l1_design_lab/pyvisa-py",
+    "source_root": ".",
+    "modules": [
+      "pyvisa_py"
+    ],
+    "repository": "https://github.com/pyvisa/pyvisa-py",
+    "tag": "0.8.1",
+    "commit": "f561aea6fe5cbac29fe8ce8517e2358a82fb8f9c",
+    "documentation": "https://pyvisa-py.readthedocs.io/en/latest/",
+    "description": "PyVISA-py实现纯Python VISA后端，通过TCPIP、串口或可选USB/GPIB依赖与仪器通信；应用层优先使用PyVISA资源接口。",
+    "pypi": "https://pypi.org/project/pyvisa-py/",
+    "pypi_version": "0.8.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyvisa/pyvisa-py/releases/latest",
+    "release_url": "https://github.com/pyvisa/pyvisa-py/releases/tag/0.8.1",
+    "release_published_at": "2025-09-04T20:48:45Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。"
+    ]
+  },
+  {
+    "name": "pyvisa-sim",
+    "index": 315,
+    "directory": "l1_design_lab/pyvisa-sim",
+    "source_root": ".",
+    "modules": [
+      "pyvisa_sim"
+    ],
+    "repository": "https://github.com/pyvisa/pyvisa-sim",
+    "tag": "0.7.0",
+    "commit": "f7af67e299ccdc95ccfccbe9edcb7490aa189d6f",
+    "documentation": "https://pyvisa-sim.readthedocs.io/en/latest/",
+    "description": "PyVISA-sim通过YAML对话、属性、终止符和错误行为模拟仪器消息，作为PyVISA后端支持无硬件驱动验证；它不自动提供器件物理模型。",
+    "pypi": "https://pypi.org/project/pyvisa-sim/",
+    "pypi_version": "0.7.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pyvisa/pyvisa-sim/releases/latest",
+    "release_url": "https://github.com/pyvisa/pyvisa-sim/releases/tag/0.7.0",
+    "release_published_at": "2025-04-07T19:21:19Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。",
+      "GitHub最新正式Release为0.7.0，PyPI0.7.1；按指南固定正式Release0.7.0。"
+    ]
+  },
+  {
+    "name": "qcodes-contrib-drivers",
+    "index": 316,
+    "directory": "l1_design_lab/qcodes-contrib-drivers",
+    "source_root": "src",
+    "modules": [
+      "qcodes_contrib_drivers"
+    ],
+    "repository": "https://github.com/QCoDeS/Qcodes_contrib_drivers",
+    "tag": "v0.25.0",
+    "commit": "7804442624aeebd34c78ce738c076f1f0703169c",
+    "documentation": "https://qcodes.github.io/Qcodes_contrib_drivers/",
+    "description": "QCoDeS社区仪器驱动集，扩展SMU、示波器和其他实验设备接口；驱动命令需与型号、固件和实际通信后端匹配。",
+    "pypi": "https://pypi.org/project/qcodes-contrib-drivers/",
+    "pypi_version": "0.25.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/QCoDeS/Qcodes_contrib_drivers/releases/latest",
+    "release_url": "https://github.com/QCoDeS/Qcodes_contrib_drivers/releases/tag/v0.25.0",
+    "release_published_at": "2026-05-11T09:23:51Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。"
+    ]
+  },
+  {
+    "name": "pylablib",
+    "index": 317,
+    "directory": "l1_design_lab/pylablib",
+    "source_root": ".",
+    "modules": [
+      "pylablib"
+    ],
+    "repository": "https://github.com/AlexShkarin/pyLabLib",
+    "tag": "v1.4.5",
+    "commit": "96d9504d3e668f18beb3b75503c01b93152dbcd5",
+    "documentation": "https://pylablib.readthedocs.io/",
+    "description": "pyLabLib提供实验设备控制、数据处理和采集基础设施，包含相机、示波器、运动控制和SCPI等设备驱动；需要适配真实或明确模拟的后端。",
+    "pypi": "https://pypi.org/project/pylablib/",
+    "pypi_version": "1.4.5",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/AlexShkarin/pyLabLib/releases/latest",
+    "release_url": "https://github.com/AlexShkarin/pyLabLib/releases/tag/v1.4.5",
+    "release_published_at": "2026-05-02T20:36:18Z",
+    "github_prerelease": false,
+    "notes": [
+      "网页latest可能领先源码，接口始终从固定tag提取。"
+    ]
+  }
+]

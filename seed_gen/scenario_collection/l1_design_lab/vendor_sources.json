@@ -1,0 +1,81 @@
+[
+  {
+    "name": "RsInstrument",
+    "index": 321,
+    "directory": "l1_design_lab/RsInstrument",
+    "source_root": ".",
+    "modules": [
+      "RsInstrument"
+    ],
+    "repository": "https://github.com/Rohde-Schwarz/RsInstrument",
+    "tag": "1.131.0",
+    "commit": "b600fd6cf693dbcfa3cbfba0f638dfa14ff2c0aa",
+    "documentation": "https://rsinstrument.readthedocs.io/",
+    "description": "RsInstrument封装Rohde & Schwarz SCPI仪器的VISA或Socket通信，提供同步查询、状态错误处理、二进制数据、日志和模拟模式；需要设备型号与协议匹配。",
+    "pypi": "https://pypi.org/project/RsInstrument/",
+    "pypi_version": "1.131.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/Rohde-Schwarz/RsInstrument/releases/latest",
+    "release_url": "https://pypi.org/project/RsInstrument/1.131.0/",
+    "release_published_at": "2026-08-17T16:38:18.575801Z",
+    "github_prerelease": false,
+    "notes": [
+      "官方仓库无tag/Release且单次提交；不能用默认分支当版本。下载PyPI1.131.0正式sdist验证SHA256并逐个比较所有包内Python文件，与固定提交完全相同（仅规范化CRLF/LF），证据research/rsinstrument_release_equivalence.json。",
+      "tag字段记录PyPI正式分发版本1.131.0，release_ref为实际完整提交；未伪造Git标签。"
+    ],
+    "selection_rule": "Stable official PyPI release matched to official source tag, or all package Python files matched to verified PyPI sdist.",
+    "ref": "b600fd6cf693dbcfa3cbfba0f638dfa14ff2c0aa"
+  },
+  {
+    "name": "laboneq",
+    "index": 322,
+    "directory": "l1_design_lab/laboneq",
+    "source_root": "src/python",
+    "modules": [
+      "laboneq"
+    ],
+    "repository": "https://github.com/zhinst/laboneq",
+    "tag": "26.7.0",
+    "commit": "49d96dcf06a0f19460a6426f7a5d71322d1cbc03",
+    "documentation": "https://docs.zhinst.com/labone_q_user_manual/",
+    "description": "LabOne Q提供脉冲实验描述、设备信号映射、校准、编译和仿真/执行工作流，面向量子与低温实验控制；真实执行需Zurich Instruments硬件和数据服务。",
+    "pypi": "https://pypi.org/project/laboneq/",
+    "pypi_version": "26.7.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/zhinst/laboneq/releases/latest",
+    "release_url": "https://pypi.org/project/laboneq/26.7.0/",
+    "release_published_at": "2026-07-30T15:51:58.340130Z",
+    "github_prerelease": false,
+    "notes": [
+      "官方GitHub无Release；采用与PyPI稳定版本一致的官方tag，不取最新beta。",
+      "Python候选池覆盖src/python/laboneq；src/rust中的私有编译器实现不作为独立Agent公开API，运行由Session.compile实际调用安装wheel中的Rust后端。",
+      "pulse_library中被register_pulse_functional装饰的函数源码为sampler，运行时为factory，AST签名不等同公开工厂签名；此场景不选这些动态入口，使用真实attrs生成的PulseFunctional/PulseSampled构造并记录字段。"
+    ],
+    "selection_rule": "Stable official PyPI release matched to official source tag, or all package Python files matched to verified PyPI sdist."
+  },
+  {
+    "name": "zhinst-toolkit",
+    "index": 323,
+    "directory": "l1_design_lab/zhinst-toolkit",
+    "source_root": "src",
+    "modules": [
+      "zhinst.toolkit"
+    ],
+    "repository": "https://github.com/zhinst/zhinst-toolkit",
+    "tag": "v1.4.0",
+    "commit": "80090cd7df099af1f06112d6e42c4cc65666e19f",
+    "documentation": "https://docs.zhinst.com/zhinst-toolkit/en/latest/",
+    "description": "zhinst-toolkit提供Zurich Instruments仪器节点、波形、命令表和模块的高层Python接口，可补充LabOne Q设备控制；离线波形对象不等于真实硬件校准。",
+    "pypi": "https://pypi.org/project/zhinst-toolkit/",
+    "pypi_version": "1.4.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/zhinst/zhinst-toolkit/releases/latest",
+    "release_url": "https://pypi.org/project/zhinst-toolkit/1.4.0/",
+    "release_published_at": "2026-04-29T11:52:01.407474Z",
+    "github_prerelease": false,
+    "notes": [
+      "官方GitHub无Release；采用与PyPI稳定版本一致的官方tag，不取最新beta。"
+    ],
+    "selection_rule": "Stable official PyPI release matched to official source tag, or all package Python files matched to verified PyPI sdist."
+  }
+]

@@ -1,0 +1,238 @@
+[
+  {
+    "name": "tsfresh",
+    "index": 521,
+    "directory": "l1_test_fab/tsfresh",
+    "source_root": ".",
+    "modules": [
+      "tsfresh"
+    ],
+    "repository": "https://github.com/blue-yonder/tsfresh",
+    "tag": "v0.21.2",
+    "commit": "6aa24fdef7e3c3f48b19482535693f5796f2b598",
+    "documentation": "https://tsfresh.readthedocs.io/en/latest/",
+    "description": "tsfresh从带对象ID和时间戳的轨迹提取统计、频域及相关特征，并提供特征筛选和缺失处理工具；适合FDC波形到表格特征桥接。",
+    "pypi": "https://pypi.org/project/tsfresh/",
+    "pypi_version": "0.21.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/blue-yonder/tsfresh/releases/latest",
+    "release_url": "https://github.com/blue-yonder/tsfresh/releases/tag/v0.21.2",
+    "release_published_at": "2026-05-31T18:24:34Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "ruptures",
+    "index": 522,
+    "directory": "l1_test_fab/ruptures",
+    "source_root": "src",
+    "modules": [
+      "ruptures"
+    ],
+    "repository": "https://github.com/deepcharles/ruptures",
+    "tag": "v1.1.10",
+    "commit": "a3f8c437edf7d54c1a8f90aaa72638363a011765",
+    "documentation": "https://centre-borelli.github.io/ruptures-docs/",
+    "description": "ruptures提供离线时间序列变点检测，支持不同代价函数、动态规划、PELT和窗口搜索；检测结果是分段边界，不自动等于工艺故障根因。",
+    "pypi": "https://pypi.org/project/ruptures/",
+    "pypi_version": "1.1.10",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/deepcharles/ruptures/releases/latest",
+    "release_url": "https://github.com/deepcharles/ruptures/releases/tag/v1.1.10",
+    "release_published_at": "2025-09-10T09:53:23Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "sktime",
+    "index": 523,
+    "directory": "l1_test_fab/sktime",
+    "source_root": ".",
+    "modules": [
+      "sktime"
+    ],
+    "repository": "https://github.com/sktime/sktime",
+    "tag": "v1.1.0",
+    "commit": "918fa838d99eb3703fe9bc963891619608aa35b4",
+    "documentation": "https://www.sktime.net/en/stable/",
+    "description": "sktime提供统一的时间序列分类、预测、检测和变换接口；本轮按具体场景与专用特征/变点工具比较，避免重复状态与转换层。",
+    "pypi": "https://pypi.org/project/sktime/",
+    "pypi_version": "1.1.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/sktime/sktime/releases/latest",
+    "release_url": "https://github.com/sktime/sktime/releases/tag/v1.1.0",
+    "release_published_at": "2026-07-28T17:07:38Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "adtk",
+    "index": 524,
+    "directory": "l1_test_fab/adtk",
+    "source_root": "src",
+    "modules": [
+      "adtk"
+    ],
+    "repository": "https://github.com/arundo/adtk",
+    "tag": "v0.6.2",
+    "commit": "73bfb30ba457dd540e8aea82782431254da480ce",
+    "documentation": "https://adtk.readthedocs.io/en/stable/",
+    "description": "ADTK提供基于规则、统计阈值和时间序列变换的异常检测器及管道，可表示工艺轨迹偏离；旧发布版的pandas依赖兼容需单独验证。",
+    "pypi": "https://pypi.org/project/adtk/",
+    "pypi_version": "0.6.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/arundo/adtk/releases/latest",
+    "release_url": "https://github.com/arundo/adtk/releases/tag/v0.6.2",
+    "release_published_at": "2020-04-17T02:17:35Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "river",
+    "index": 525,
+    "directory": "l1_test_fab/river",
+    "source_root": ".",
+    "modules": [
+      "river"
+    ],
+    "repository": "https://github.com/online-ml/river",
+    "tag": "0.26.1",
+    "commit": "64285b9dd6c606804753235fe992bcf25b9856ee",
+    "documentation": "https://riverml.xyz/latest/",
+    "description": "River提供逐条更新的在线统计、漂移检测、异常检测和学习模型；更新顺序、冷启动和reset是流式制造监测状态的关键。",
+    "pypi": "https://pypi.org/project/river/",
+    "pypi_version": "0.26.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/online-ml/river/releases/latest",
+    "release_url": "https://github.com/online-ml/river/releases/tag/0.26.1",
+    "release_published_at": "2026-08-21T15:25:35Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "spc-lib",
+    "index": 526,
+    "directory": "l1_test_fab/spc-lib",
+    "source_root": "src",
+    "modules": [
+      "spc_lib"
+    ],
+    "repository": "https://github.com/denccchick/spc-lib",
+    "tag": "1.0.0",
+    "commit": "964f81b03f0ad4aa0ba6a61676993e434905f14b",
+    "documentation": "https://denccchick.github.io/spc-lib/",
+    "description": "spc-lib提供统计过程控制图、规则和能力分析，可用于固定基线下的过程异常与Cp/Cpk核查；发布版身份和包布局按官方源码确认。",
+    "pypi": "https://pypi.org/project/spc-lib/",
+    "pypi_version": "1.1.2",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/denccchick/spc-lib/releases/latest",
+    "release_url": "https://github.com/denccchick/spc-lib/releases/tag/1.0.0",
+    "release_published_at": "2026-08-31T07:36:16Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": [
+      "官方最新GitHub Release1.0.0；PyPI1.1.2，按指南使用正式Release。",
+      "发布1.0.0内部绝对导入src.spc_lib，pip import spc_lib报ModuleNotFoundError。运行显式把未修改发布仓库根加入sys.path并使用src.spc_lib，索引模块同步记录真实可运行namespace；不是透明安装可用。"
+    ],
+    "module_prefix": "src"
+  },
+  {
+    "name": "pyspc",
+    "index": 527,
+    "directory": "l1_test_fab/pyspc",
+    "source_root": ".",
+    "modules": [
+      "pyspc"
+    ],
+    "repository": "https://github.com/carlosqsilva/pyspc",
+    "tag": "v0.4",
+    "commit": "142367773b208bc0f19b0ea6e125450beed4358a",
+    "documentation": "https://github.com/carlosqsilva/pyspc",
+    "description": "pyspc提供控制图和规则绘制的统计过程控制工具，作为SPC候选与spc-lib比较；采用与PyPI0.4对应的官方标签。",
+    "pypi": "https://pypi.org/project/pyspc/",
+    "pypi_version": "0.4",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/carlosqsilva/pyspc/tags",
+    "release_url": "https://github.com/carlosqsilva/pyspc/tree/v0.4",
+    "release_published_at": null,
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": [
+      "官方无GitHub Release；标签v0.4与PyPI0.4及源码版本对应。"
+    ]
+  },
+  {
+    "name": "scikit-learn",
+    "index": 528,
+    "directory": "l1_test_fab/scikit-learn",
+    "source_root": ".",
+    "modules": [
+      "sklearn"
+    ],
+    "repository": "https://github.com/scikit-learn/scikit-learn",
+    "tag": "1.9.1",
+    "commit": "866c0f51e7560ef0303cbcc5f159df5382ea9e3f",
+    "documentation": "https://scikit-learn.org/stable/",
+    "description": "scikit-learn提供预处理、聚类、异常检测、分类和评价接口；场景中仅暴露与固定晶圆/轨迹特征任务有关的估计器和数据划分，训练与验收数据必须分离。",
+    "pypi": "https://pypi.org/project/scikit-learn/",
+    "pypi_version": "1.9.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/scikit-learn/scikit-learn/releases/latest",
+    "release_url": "https://github.com/scikit-learn/scikit-learn/releases/tag/1.9.1",
+    "release_published_at": "2026-09-11T09:38:12Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "scipy",
+    "index": 529,
+    "directory": "l1_test_fab/scipy",
+    "source_root": ".",
+    "modules": [
+      "scipy"
+    ],
+    "repository": "https://github.com/scipy/scipy",
+    "tag": "v1.18.1",
+    "commit": "e4e854eaa8f18d807cd3496028e257e36caa93cc",
+    "documentation": "https://docs.scipy.org/doc/scipy/",
+    "description": "SciPy提供数值统计、信号与科学计算工具，作为测试限值和过程统计的必要补充；静态Python索引不冒充全部原生扩展导出。",
+    "pypi": "https://pypi.org/project/scipy/",
+    "pypi_version": "1.18.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/scipy/scipy/releases/latest",
+    "release_url": "https://github.com/scipy/scipy/releases/tag/v1.18.1",
+    "release_published_at": "2026-08-21T23:52:53Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "pandas",
+    "index": 530,
+    "directory": "l1_test_fab/pandas",
+    "source_root": ".",
+    "modules": [
+      "pandas"
+    ],
+    "repository": "https://github.com/pandas-dev/pandas",
+    "tag": "v3.0.5",
+    "commit": "e68db09ecf6427d1b62e565bacf17f2e525a3032",
+    "documentation": "https://pandas.pydata.org/docs/",
+    "description": "pandas提供带标签的表格、连接、分组、读写与时间序列处理，可承载lot/wafer/die/test及设备轨迹的规范数据层；需显式维护主键、单位和缺失约定。",
+    "pypi": "https://pypi.org/project/pandas/",
+    "pypi_version": "3.0.5",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pandas-dev/pandas/releases/latest",
+    "release_url": "https://github.com/pandas-dev/pandas/releases/tag/v3.0.5",
+    "release_published_at": "2026-07-22T21:47:08Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  }
+]

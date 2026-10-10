@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,6 +73,31 @@ class CodexAgentClientTests(unittest.TestCase):
                 client.run("work", working_directory=root)
             self.assertTrue(raised.exception.retryable)
             self.assertIn("started", (logs / "run_01/stderr.log").read_text())
+
+    def test_multiple_json_checkpoints_wait_until_every_file_is_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            command = executable(
+                root / "fake-codex",
+                "cat >/dev/null\n"
+                "printf '{\"first\":' > first.json\n"
+                "printf '{\"second\":2}' > second.json\n"
+                "sleep 1\n"
+                "printf '1}' >> first.json\n"
+                "sleep 5\n",
+            )
+            client = CodexAgentClient(executable=str(command), timeout_seconds=10)
+            result = client.run_until_files(
+                "write two files",
+                working_directory=root,
+                required_paths=(root / "first.json", root / "second.json"),
+            )
+
+            self.assertEqual(result, "已到达文件提交点。")
+            self.assertEqual(json.loads((root / "first.json").read_text()), {"first": 1})
+            self.assertEqual(
+                json.loads((root / "second.json").read_text()), {"second": 2}
+            )
 
 
 if __name__ == "__main__":

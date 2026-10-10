@@ -2,7 +2,7 @@
   "profile_id": "devsim_balanced_v1",
   "package": "devsim",
   "version": "v2.11.0.rc5",
-  "source_sha256": "001a04c54979ab47d042c10dae38c872eb29ea70c3f4da6914fbf7128a58dc45",
+  "source_sha256": "c7692a33bc0308a157df19d29d9a3bbdd90af67f63d4af09d2eea88904a63077",
   "target_all_func": {
     "min": 50,
     "max": 100

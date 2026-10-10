@@ -158,7 +158,13 @@ def _detected_format(path: Path, content_type: str = "") -> str:
         return "zip"
     if head.startswith(b"SQLite format 3\x00"):
         return "sqlite"
-    if head.startswith((b"{", b"[")) or "json" in content_type.lower():
+    # Brackets are valid leading characters in several non-JSON formats
+    # (for example TOML sections and GTKWave save files). Only sniff JSON
+    # content when the filename has no useful format signal.
+    json_content = head.startswith((b"{", b"[")) and suffix in {
+        "binary", "json", "geojson",
+    }
+    if json_content or "json" in content_type.lower():
         return "geojson" if suffix == "geojson" else "json"
     return suffix
 

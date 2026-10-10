@@ -1,14 +1,14 @@
 # Kimi 适配要求、参数对照与执行清单
 
 基线提交：`1b61ee2`。本文件记录当前已讨论的要求，不把 Kimi 自带行为当成我们的隐含需求。
-用户已批准在 `kimi` 工作区逐项适配并自动试跑；现已批准并实现结果编号分页读取，内置 Read 仍禁用。
+用户已批准在 `kimi` 工作区逐项适配并自动试跑；长结果采用 Kimi 原生 `tool-results` 和 `Read/Grep`，不再注册自定义结果读取工具。
 
 ## 要求清单
 
 | 编号 | 要求 | 实现位置／处理方式 | 验收 |
 |---|---|---|---|
 | R1 | 可替换原 ReAct，保留原入口 | `task_eval._run_agent` 按 agent_backend 分流 | 原有评测测试通过 |
-| R2 | 只用环境工具及受限结果读取，不能直接读初态或 internal code | SDK profile + 全局白名单 + 请求检查；辅助读取仅接受当前会话已有结果编号 | 内置 Read、任意路径及跨会话编号均不可用 |
+| R2 | 只用环境业务工具及受限原生文件工具，不能直接读 execution-state 或 internal code | SDK profile + 全局白名单 + `PreToolUse` realpath hook；Read/Grep/Glob 只在模型 workspace/当前 session tool-results/wire 内工作 | Write、Shell、任意环境路径及其他 MCP 工具均不可用；文件访问决定单独审计 |
 | R3 | 输入格式对齐 | 原任务文本和公开环境信息；公开 usageConditions、输入输出契约 | 请求包含公开契约、不包含 internal.code |
 | R4 | 输出格式提取与适配 | 原生 tool calls；提取最终 assistant 文本，返回原字符串接口 | 非空完成、工具 trace 原格式 |
 | R5 | 支持同一轮多工具调用 | 沿用 SDK，不额外传 parallel_tool_calls；环境工具仍串行执行 | 两个不同调用均回传 |
@@ -17,8 +17,8 @@
 | R8 | loop 配置可控、含义清晰 | 最大模型步数、每步 API 尝试数、工具调用预算分开 | 达步数上限不认作完成；API 重试不重放已执行工具 |
 | R9 | 上下文上限明确 | SDK models.maxContextSize；不能提高服务端实际上限 | effective_config 留档、压缩入口测试 |
 | R10 | 上下文压缩参数可调 | 预留 token、触发比例、压缩尝试数 | 小窗口触发压缩，压缩请求不被白名单误拦截 |
-| R11 | 工具结果过长的配置与处理 | 在 SDK 截断前分页，原文完整留档；`read_tool_result` 仅访问本会话结果 | 60 万字符中间读取、分页重组、越权拦截、真实 Sol 尾部读取通过 |
-| R12 | 是否需要工具端 summary | 当前保留原文分页，不增加摘要调用 | 按用户批准方案暂不实现 |
+| R11 | 工具结果过长的配置与处理 | MCP 返回完整结果；Kimi 原生保存到 session `tool-results`，模型用 Read/Grep 恢复 | 长结果完整留档、原生结果文件隔离和恢复链路通过 |
+| R12 | 是否需要工具端 summary | 不增加摘要调用，保留原始结果 | 按用户批准方案暂不实现 |
 | R13 | 模型与凭据独立 | 复用管线 api_key_file；SDK 用临时 home | 不修改当前对话配置，日志无 API key |
 | R14 | prompt、answer、阶段与 usage 留档 | 实际请求、原始 HTTP 响应、SDK 事件、上下文、usage、有效配置 | 每个 HTTP 尝试有 request_id；失败也留档 |
 | R15 | 超时、错误、空答案可区分 | 超时先取消保存上下文，再硬终止；非正常结束抛错 | 超时保留记录、空答案不通过 |
@@ -37,7 +37,6 @@
 | `llm.kimi.sdk_path / node` | 官方 SDK 构建入口、Node 命令 | 适配层；sdk_path 也可用 KIMI_CODE_SDK |
 | `llm.kimi.binding_path` | 可选正式 ToolGen 交付入口；核对工具与环境，执行仍用任务初态副本 | 同事交付加载器 + 我们的任务执行器 |
 | `llm.kimi.system_prompt` | 默认 `${base_prompt}`，继承官方默认正文；显式设置可覆盖 | 适配层加载；SDK extraAgentDirs |
-| `llm.kimi.tool_result_page_chars` | 原始 JSON 文本预览及读取单页上限，默认 6000，范围 1–12000 字符 | 我们的 MCP 适配层，不是 SDK 原生配置 |
 | `llm.kimi.max_context_size` | models.evaluation.maxContextSize | SDK 已有接口 |
 | `llm.kimi.max_steps_per_turn` | loopControl.maxStepsPerTurn | SDK 已有接口 |
 | `llm.kimi.max_attempts_per_step` | loopControl.maxAttemptsPerStep，包含首次尝试 | SDK 已有接口 |
@@ -48,7 +47,7 @@
 | `execution.evaluation_max_concurrency` | 同时执行的任务数；CLI --max-concurrency 优先 | 我们现有线程池 |
 | `execution.tool_timeout_seconds / tool_max_memory_bytes / tool_max_write_bytes` | 单次工具的时限、内存与写盘限制 | 我们现有工具沙箱 |
 
-SDK 本身没有长结果阈值公共开关；`tool_result_page_chars` 在我们的适配层生效，不修改官方源码。未添加 `summary` 配置。
+长结果没有额外的适配层分页配置；MCP 返回完整结果，由 Kimi 原生 `tool-results` 处理。未添加 `summary` 配置。
 默认参数集中列在 `config/task_eval_kimi.yaml`；代码保留同样的合理默认值，参数拼写错误应报错。
 
 ## 执行计划
@@ -63,7 +62,7 @@ SDK 本身没有长结果阈值公共开关；`tool_result_page_chars` 在我们
 - [x] 验证：`KIMI_CODE_SDK=... python -m pytest tests/test_task_eval.py tests/test_task_eval_react.py tests/test_task_eval_kimi.py -q`：42 passed，35.94 秒；真实 Sol 试跑通过。
 - [x] 更新每项验收证据、未完成项与试跑结果；本文件随适配版本提交，保留 kimi 分支，不合并 main。
 
-R11 已补齐；R12 不额外调用模型生成摘要，工具自身可返回确定性摘要和分页信息。同事 MCP 共享协议与 binding 加载器已迁入，任务级接入保留初态隔离和现有 verifier，细节见 `KIMI_EVALUATION.md` 的共享 MCP 小节。
+R11 已切换到 Kimi 原生长结果处理；R12 不额外调用模型生成摘要。同事 MCP 共享协议与 binding 加载器已迁入，任务级接入保留初态隔离和现有 verifier，细节见 `KIMI_EVALUATION.md` 的共享 MCP 小节。
 
 ## 验收证据
 
@@ -72,12 +71,12 @@ R11 已补齐；R12 不额外调用模型生成摘要，工具自身可返回确
 | 覆盖要求 | 测试或产物 |
 |---|---|
 | R1/R17 | 原有 `test_task_eval.py`、`test_task_eval_react.py` 回归 |
-| R2/R3/R6/R9/R13 | `test_kimi_rejects_builtin_preserves_public_contract_and_observation`：Read 拒绝、公开契约、真实请求参数、脱敏配置 |
+| R2/R3/R6/R9/R13 | `test_kimi_native_file_policy_bounds_workspace_and_current_session`、`test_official_cli_denies_native_read_of_execution_state`：realpath 白名单、真实 CLI 越权拒绝、审计和 secret 不进入后续模型请求 |
 | R4/R15 | 正常返回测试、`test_empty_final_answer_is_not_success`、`test_timeout_preserves_completed_tool_and_partial_context` |
 | R5/R7 | `test_multiple_calls_return_both_results_before_next_model_step`：不同参数调用真实执行两次，结果按 ID 对应 |
 | R8 | `test_kimi_step_limit_does_not_accept_intermediate_text`、`test_api_retry_does_not_reexecute_tool` |
-| R10 | `test_small_context_triggers_compaction_without_tool_allowlist_error`：分页后改用 4096 token 测试窗口，仍触发压缩并继续完成 |
-| R11 | `test_long_result_read_is_scoped_and_does_not_spend_business_budget`、`tests/test_tool_result_reader.py`；真实试跑见下 |
+| R10 | `test_small_context_triggers_compaction_without_tool_allowlist_error`：原生工具表在压缩请求后仍保持一致并继续完成 |
+| R11 | `test_official_cli_reads_long_result_with_native_read`：真实 CLI 将长 MCP 结果落入当前 session `tool-results`，原生 Read 通过 hook 后恢复中段内容 |
 | R14 | 原始 SSE/HTTP 状态检查、`test_broken_response_preserves_received_bytes` |
 | R16 | `test_concurrent_sessions_keep_tools_and_logs_separate`、`test_eval_cli_config_precedence` |
 | R18 | `KIMI_EVALUATION.md` 记录官方同轮去重及连续重复提醒/熔断行为；未擅自改动 |
@@ -86,7 +85,7 @@ R11 已补齐；R12 不额外调用模型生成摘要，工具自身可返回确
 正式任务单例：`runs/kimi_real_task/20260916_194130_051270`，Hugeicons task4，28 次工具调用，verifier 3/3 通过；遇到的 MCP 错误契约及方言兼容问题仍需正式工具包接入时对齐，不能据此声称整套任务评测完成。
 长返回值试跑：`runs/kimi_smoke/20260917_012857_674755/report.json`，Sol 从 600083 字符结果尾部读取凭据，将 157 更新为 164 并回读确认；3 次业务调用、2 次辅助读取，21.32 秒，检查通过。该项为合成场景功能测试，不是新一轮正式任务集评测。
 
-分页初版回归：`test_task_eval.py`、`test_task_eval_react.py`、`test_task_eval_kimi.py`、`test_tool_result_reader.py` 共 **45 passed，28.17 秒**。独立审查未发现权限或分页实现阻塞；其发现的旧压缩测试触发条件已调整并通过回归。
+Kimi 原生工具表和 MCP 协议回归：`test_task_eval.py`、`test_task_eval_react.py`、`test_task_eval_kimi.py`、`test_kimi_mcp.py` 覆盖工具隔离、完整结果和资源协议。
 
 共享 MCP 接入新增验证：`test_kimi_mcp.py` 的交付与真实 venv 测试、`test_mcp_integration.py` 的协议一致性/任务初态/只读依赖测试，以及真实 SDK 的 binding 集成测试。真实 Sol 与 verifier 结果、旧交付包依赖映射问题见 `KIMI_EVALUATION.md`。审查发现的解释器路径和 BLAS 线程问题均已在迁入代码修正。
 

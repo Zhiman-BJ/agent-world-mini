@@ -28,17 +28,6 @@ def generate_solutions(input: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     from .step_2_solution_generate import generate_solutions as implementation
     return implementation(input, **kwargs)
 
-
-def generate_scoring(input: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-    from .step_3_scoring_generate import generate_scoring as implementation
-    return implementation(input, **kwargs)
-
-
-def evaluate_and_publish(input: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-    from .step_4_difficulty_publish import evaluate_and_publish as implementation
-    return implementation(input, **kwargs)
-
-
 def _config_from_meta(values: dict[str, Any]) -> Config:
     policy_values = values.get("policy") or {}
     # Keep this explicit: serialized policy also contains derived candidate_count.
@@ -46,23 +35,25 @@ def _config_from_meta(values: dict[str, Any]) -> Config:
 
     policy = ProgramGenerationPolicy(**{name: policy_values[name] for name in ProgramGenerationPolicy.__dataclass_fields__ if name in policy_values})
     values = dict(values)
-    values["environment_package"] = Path(values["environment_package"])
+    if values.get("environment_package"):
+        values["environment_package"] = Path(values["environment_package"])
     values["output_root"] = Path(values["output_root"])
-    for name in ("tools_path", "scenario_research_path", "research_fixture_path", "candidates_path", "scoring_fixture_path"):
+    for name in ("tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path"):
         if values.get(name):
             values[name] = Path(values[name])
     values["policy"] = policy
     return Config(**{field.name: values[field.name] for field in fields(Config) if field.name in values})
 
 
-def _client(config: Config):
+def _client(config: Config, *, web_research: bool = False):
     from utils.search_agent.codex import CodexAgentClient
 
     return CodexAgentClient(
         model=config.model,
         timeout_seconds=config.agent_timeout_seconds,
         sandbox="workspace-write",
-        network_access=False,
+        enable_web_search=web_research,
+        network_access=web_research,
         reasoning_effort="high",
         disabled_mcp_servers=("openaiDeveloperDocs",),
     )
@@ -81,8 +72,8 @@ def run(
     stop_after: int | None = None,
     should_stop: Any = lambda: False,
 ) -> RunResult | None:
-    if stop_after is not None and stop_after not in range(5):
-        raise ValueError("stop_after 必须为 0 到 4")
+    if stop_after is not None and stop_after not in range(3):
+        raise ValueError("stop_after 必须为 0 到 2")
     if resume is not None:
         run_dir = resume.expanduser().resolve()
         meta = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
@@ -108,9 +99,9 @@ def _run_stages(config: Config, run_dir: Path, stop_after: int | None, should_st
     clients: dict[str, Any] = {}
     run_io.update_run_meta(run_dir, {"status": "running", "last_completed_step": completed})
 
-    def agent(name: str) -> Any:
+    def agent(name: str, *, web_research: bool = False) -> Any:
         if name not in clients:
-            clients[name] = _client(config)
+            clients[name] = _client(config, web_research=web_research)
         return clients[name]
 
     def stage(step: ProgramPipelineStep, producer: Any) -> None:
@@ -128,11 +119,9 @@ def _run_stages(config: Config, run_dir: Path, stop_after: int | None, should_st
 
     try:
         stage(ProgramPipelineStep.ENVIRONMENT_LOAD, lambda: load_environment({"config": config, "run_dir": run_dir}))
-        stage(ProgramPipelineStep.TASK_RESEARCH, lambda: research_tasks({**bundle, "config": config, "run_dir": run_dir}, agent=None if config.research_fixture_path else agent("research")))
+        stage(ProgramPipelineStep.TASK_RESEARCH, lambda: research_tasks({**bundle, "config": config, "run_dir": run_dir}, agent=None if config.research_fixture_path else agent("research", web_research=True)))
         stage(ProgramPipelineStep.SOLUTION_GENERATE, lambda: generate_solutions({**bundle, "config": config, "run_dir": run_dir}, generation_agent=None if config.candidates_path else agent("workflow"), review_agent=agent("workflow")))
-        stage(ProgramPipelineStep.SCORING_GENERATE, lambda: generate_scoring({**bundle, "config": config, "run_dir": run_dir}, agent=None if config.scoring_fixture_path else agent("workflow")))
-        stage(ProgramPipelineStep.DIFFICULTY_PUBLISH, lambda: evaluate_and_publish({**bundle, "config": config, "run_dir": run_dir}, rubric_agent=agent("rubric")))
-        if stop_after == 4 or should_stop():
+        if should_stop():
             raise _Paused()
         return run_io.finish_run(run_dir, bundle)
     except (_Paused, KeyboardInterrupt):
@@ -163,7 +152,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--resume", type=Path)
-    parser.add_argument("--stop-after", type=int, choices=range(5))
+    parser.add_argument("--stop-after", type=int, choices=range(3))
+    parser.add_argument("--binding", type=Path)
+    parser.add_argument("--delivery-root", type=Path)
+    parser.add_argument("--package-id")
     parser.add_argument("--environment-package", type=Path)
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--model")
@@ -172,7 +164,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    overrides = {"environment_package": args.environment_package, "output_root": args.output_root, "model": args.model}
+    overrides = {
+        "binding_path": args.binding,
+        "delivery_root": args.delivery_root,
+        "package_id": args.package_id,
+        "environment_package": args.environment_package,
+        "output_root": args.output_root,
+        "model": args.model,
+    }
     with _stop_signals() as should_stop:
         result = run(config_path=args.config, overrides=overrides, resume=args.resume, stop_after=args.stop_after, should_stop=should_stop)
     print(json.dumps(result.__dict__ if result else {"status": "paused"}, default=str, ensure_ascii=False, indent=2))

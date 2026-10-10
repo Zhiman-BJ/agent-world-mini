@@ -1,0 +1,74 @@
+[
+  {
+    "name": "meep", "index": 36,
+    "repository": "https://github.com/NanoComp/meep",
+    "documentation": "https://meep.readthedocs.io/en/latest/",
+    "pypi": "", "pypi_version": "",
+    "tag": "v1.34.0", "commit": "3e7b7fee0da4a9b91b07acd9f71d35d674396563",
+    "release_published_at": "2026-07-09T19:36:49Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "meep", "source_root": "python",
+    "modules": ["simulation", "geom", "source", "solver", "visualization", "materials", "adjoint", "mpb_data", "binary_partition_utils", "chunk_balancer", "timing_measurements", "verbosity_mgr"],
+    "module_prefix": "meep",
+    "description": "MEEP 是 MIT/NanoComp 开发的开源时域有限差分电磁仿真软件，Python 接口可定义材料、几何体、源、边界层、监视器与仿真域，运行时域计算并提取通量、模式、近远场和频谱，也提供伴随优化工具。核心求解器与大量底层 API 由编译后的 C++/Scheme/SWIG 绑定提供。",
+    "notes": ["采用 NanoComp/meep 最新正式 Release v1.34.0；PyPI 上的 meep 1.0.6 是无关任务运行器，故不填写 PyPI 链接。官方 Python 包通常通过 conda-forge 或源码构建分发。", "静态索引覆盖发布版 python/ 下的高层 Python 定义，并映射为真实 meep.* 模块；SWIG 生成的原生函数未编译枚举，实际 FDTD 未运行。"]
+  },
+  {
+    "name": "tidy3d", "index": 37,
+    "repository": "https://github.com/flexcompute/tidy3d",
+    "documentation": "https://docs.flexcompute.com/projects/tidy3d/en/latest/",
+    "pypi": "https://pypi.org/project/tidy3d/", "pypi_version": "2.12.0",
+    "tag": "v2.12.0", "commit": "4cacc2755d5858e0de5a8066ff017f1b9e3ad9f9",
+    "release_published_at": "2026-07-27T08:57:55Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "tidy3d", "modules": ["tidy3d"],
+    "description": "Tidy3D 是 Flexcompute 的云端电磁仿真 Python 客户端与数据模型，提供材料、几何、网格、源、边界、监视器、FDTD 仿真、模式求解和结果数据对象，并可提交云任务和下载结果。核心大规模求解在外部云服务执行，通常需要账号、网络和计算额度。",
+    "notes": ["PyPI 2.12.0 与 GitHub 最新正式 Release v2.12.0 一致。", "本次静态解析开源客户端；不登录 Flexcompute、不提交云任务、不产生费用，精选会明确区分本地建模和远程执行接口。"]
+  },
+  {
+    "name": "femwell", "index": 38,
+    "repository": "https://github.com/HelgeGehring/femwell",
+    "documentation": "https://HelgeGehring.github.io/femwell/",
+    "pypi": "https://pypi.org/project/femwell/", "pypi_version": "0.1.12",
+    "tag": "v0.1.12", "commit": "e16d268a412b94d1d210ec6b17d0389c84eed92b",
+    "release_published_at": "2025-01-06T16:29:03Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "femwell", "modules": ["femwell"],
+    "description": "Femwell 是基于有限元的多物理场和光子波导工具包，提供二维截面网格、波导本征模、模式归一化与重叠、热、静电、磁静态和部分半导体方程接口，可将几何与材料分区转为模式和场分布。不同求解模块成熟度不一，需要固定样例验证。",
+    "notes": ["PyPI 0.1.12 与 GitHub 最新正式 Release v0.1.12 一致。", "本次只静态整理 Python API；Gmsh、scikit-fem 与稀疏本征求解后端的实际兼容性尚未运行验证。"]
+  },
+  {
+    "name": "emepy", "index": 39,
+    "repository": "https://github.com/BYUCamachoLab/emepy",
+    "documentation": "https://emepy.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/emepy/", "pypi_version": "1.2.2",
+    "tag": "v1.2.2", "commit": "caa16ec8197cbaeb96abd1f3cb82b1093b747acf",
+    "release_published_at": "2022-10-02T15:25:58Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://github.com/BYUCamachoLab/emepy/tree/v1.2.2", "release_api": "",
+    "selection_rule": "Latest PyPI version 1.2.2 and exact official repository tag v1.2.2 agree; the repository has no GitHub Release object.",
+    "directory": "emepy", "modules": ["emepy"],
+    "description": "EMEPy 是用于分段波导和光子器件的本征模展开仿真库，提供截面几何与材料、有限差分模式求解器、模式匹配、传播层、监视器、散射参数及优化辅助，可计算沿传播方向变化结构的场和透射。可选 Lumerical/Tidy3D 接口依赖外部软件或服务。",
+    "notes": ["PyPI 1.2.2 与官方仓库精确标签 v1.2.2 一致；没有 GitHub Release，发布日期采用 PyPI 上传时间。", "本次不调用 Lumerical 或 Tidy3D，也未运行本征模与传播数值验证。"]
+  },
+  {
+    "name": "ceviche", "index": 40,
+    "repository": "https://github.com/fancompute/ceviche",
+    "documentation": "https://github.com/fancompute/ceviche#readme",
+    "pypi": "https://pypi.org/project/ceviche/", "pypi_version": "0.1.3",
+    "tag": "v0.1.3", "commit": "269cf5aaf41571e4a4c43d4f2b26f24e7172184d",
+    "release_published_at": "2023-02-05T19:12:31Z", "checked_on": "2026-09-15", "github_prerelease": false,
+    "directory": "ceviche", "modules": ["ceviche"],
+    "description": "ceviche 是支持自动微分的二维频域和时域电磁仿真库，提供 FDFD、FDTD、源、模式求解、场与模态重叠、有限差分算子、Jacobian 和优化器，可用于小型光子结构的梯度与逆设计研究。其实现面向研究原型，网格精度和边界设置需单独验证。",
+    "notes": ["PyPI 0.1.3 与 GitHub 最新正式 Release v0.1.3 一致；官方 API 说明主要在 README、示例和源码文档中。", "本次只静态解析，不执行自动微分优化或电磁收敛测试。"]
+  },
+  {
+    "name": "legume-gme", "index": 41,
+    "repository": "https://github.com/fancompute/legume",
+    "documentation": "https://legume.readthedocs.io/en/latest/",
+    "pypi": "https://pypi.org/project/legume-gme/", "pypi_version": "1.0.3",
+    "tag": "v1.0.3", "commit": "edef021a98d5972ef52e3a65bd36ccfb742381be",
+    "release_published_at": "2026-03-26T11:56:14Z", "checked_on": "2026-09-15", "github_prerelease": null,
+    "release_url": "https://github.com/fancompute/legume/tree/v1.0.3", "release_api": "",
+    "selection_rule": "Latest PyPI version 1.0.3 and exact official repository tag v1.0.3 agree; the repository has no GitHub Release object.",
+    "directory": "legume-gme", "modules": ["legume"],
+    "description": "legume-gme 是用于二维光子晶体层和激子-光子体系的可微平面波展开与导模展开库，提供晶格、层、几何形状、光子晶体、PWE/GME 求解器、场与辐射损耗计算，以及基于自动微分的参数优化。结果依赖基组截断和收敛设置。",
+    "notes": ["PyPI 1.0.3 与官方仓库 annotated tag v1.0.3 一致；没有 GitHub Release，发布日期采用 PyPI 上传时间。", "本次静态整理 Python API，不运行 GME/PWE 收敛或梯度优化。"]
+  }
+]

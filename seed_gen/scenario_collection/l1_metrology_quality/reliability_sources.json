@@ -1,0 +1,70 @@
+[
+  {
+    "name": "reliability",
+    "index": 701,
+    "directory": "l1_metrology_quality/reliability",
+    "source_root": ".",
+    "modules": [
+      "reliability"
+    ],
+    "repository": "https://github.com/MatthewReid854/reliability",
+    "tag": "v0.9.0",
+    "commit": "86c93307c4f7bf7cbdddfa634119b39feead70f5",
+    "documentation": "https://reliability.readthedocs.io/en/latest/",
+    "description": "reliability提供寿命分布拟合、删失数据分析、非参数可靠度、加速寿命试验与可修复系统统计，可将受控试验观测转为可靠度、分位寿命及不确定性诊断。统计拟合不代替失效机制确认和实际资格认证。",
+    "pypi": "https://pypi.org/project/reliability/",
+    "pypi_version": "0.9.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/MatthewReid854/reliability/releases/latest",
+    "release_url": "https://github.com/MatthewReid854/reliability/releases/tag/v0.9.0",
+    "release_published_at": "2025-03-07T00:16:10Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "surpyval",
+    "index": 702,
+    "directory": "l1_metrology_quality/surpyval",
+    "source_root": ".",
+    "modules": [
+      "surpyval"
+    ],
+    "repository": "https://github.com/derrynknife/SurPyval",
+    "tag": "v0.18.0",
+    "commit": "dad29b6cbc7762de3bc3ab95e3252f3bfe69d067",
+    "documentation": "https://surpyval.readthedocs.io/en/latest/",
+    "description": "SurPyval提供包含删失和截断的生存统计、参数与非参数分布、回归、重复事件及退化轨迹分析，并支持模型序列化。模型结论受观测机制、分布和应力适用范围限制。",
+    "pypi": "https://pypi.org/project/surpyval/",
+    "pypi_version": "0.19.0",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/derrynknife/SurPyval/releases/latest",
+    "release_url": "https://github.com/derrynknife/SurPyval/releases/tag/v0.18.0",
+    "release_published_at": "2026-08-03T02:44:54Z",
+    "github_prerelease": false,
+    "notes": [
+      "最新官方非预发布GitHub Release为v0.18.0；PyPI为0.19.0，按指南固定官方Release。在线latest文档可领先，API按发布源码。"
+    ]
+  },
+  {
+    "name": "lifelines",
+    "index": 703,
+    "directory": "l1_metrology_quality/lifelines",
+    "source_root": ".",
+    "modules": [
+      "lifelines"
+    ],
+    "repository": "https://github.com/CamDavidsonPilon/lifelines",
+    "tag": "v0.30.3",
+    "commit": "a21e4328fa30bc107ae2a3e0276ec57e892e6504",
+    "documentation": "https://lifelines.readthedocs.io/en/latest/",
+    "description": "lifelines提供Kaplan-Meier等寿命统计和Cox/AFT生存回归，支持事件删失、协变量、模型诊断与预测，适合批次或应力关联的可靠性统计；不把观察相关性自动解释为因果。",
+    "pypi": "https://pypi.org/project/lifelines/",
+    "pypi_version": "0.30.3",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/CamDavidsonPilon/lifelines/releases/latest",
+    "release_url": "https://github.com/CamDavidsonPilon/lifelines/releases/tag/v0.30.3",
+    "release_published_at": "2026-03-05T16:52:50Z",
+    "github_prerelease": false,
+    "notes": []
+  }
+]

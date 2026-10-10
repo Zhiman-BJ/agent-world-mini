@@ -27,26 +27,29 @@ def write_json(path: Path, payload: object) -> None:
 def sample_seed() -> dict[str, Any]:
     return {
         "global_id": "demo_catalog_1",
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "environment": {
             "basic_info": {
                 "source": "demo",
-                "url": "https://example.test/catalog",
+                "url": ["https://example.test/catalog"],
                 "name": "catalog",
+                "version": "2026-09-14",
                 "index": 1,
             },
             "description": "A public catalog of items and categories.",
             "domain": {"level1": "general", "level2": None, "level3": None},
+            "nums": {"class": 0, "function": 1, "class_func": 0, "all_func": 1},
         },
         "init_ref_tools": [
             {
                 "name": "list_items",
+                "type": "function",
+                "module": "demo.catalog",
                 "description": "List and filter items.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {"category": {"type": "string"}},
+                "input": {
+                    "category": {"type": "string", "description": "Category filter."},
                 },
-                "outputSchema": {
+                "output": {
                     "type": "object",
                     "required": ["items"],
                     "properties": {
@@ -74,7 +77,7 @@ def sample_seed() -> dict[str, Any]:
                 "solution_path": [{"tool_name": "list_items"}],
             }
         ],
-        "others": {"data_directions": ["Public item and category records"]},
+        "others": {},
     }
 
 
@@ -104,6 +107,7 @@ def sample_python_package_seed() -> dict[str, Any]:
             },
             "description": "A Python package for parsing and analyzing domain records.",
             "domain": {"level1": "general", "level2": None, "level3": None},
+            "nums": {"class": 0, "function": 2, "class_func": 0, "all_func": 2},
         },
         "init_ref_tools": [tool("demo_package.alpha"), tool("demo_package.beta")],
         "init_ref_tasks": [],

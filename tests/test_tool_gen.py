@@ -235,7 +235,7 @@ class FakeAgent:
                         {"ticket_id": {"type": "string"}, "status": {"type": "string"}},
                         ["ticket_id", "status"],
                     ),
-                    "tests": [{"calls": [{"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False}],
+                    "tests": [{"calls": [{"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}}], "expect_success": True, "expect_changed": False, "expected_data": {"ticket_id": "ticket-1", "status": "open"}}],
                 },
                 "resolve_ticket": {
                     "tool": tool(
@@ -489,6 +489,19 @@ class ToolGenV2Tests(unittest.TestCase):
             self.assertEqual(reports[1]["status"], "passed")
             ToolPackage.load(package)
 
+    def test_python_inline_regex_flags_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent(), max_repairs=0).generate(package)
+            document = json.loads((package / "tools.json").read_text(encoding="utf-8"))
+            document["tools"][0]["inputSchema"]["properties"]["ticket_id"][
+                "pattern"
+            ] = r"(?i)\.json$"
+            (package / "tools.json").write_text(json.dumps(document), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "ECMA-262"):
+                ToolPackage.load(package)
+
     def test_repair_interruption_still_publishes_passed_tools(self) -> None:
         from utils.search_agent.codex import CodexTimeoutError
 
@@ -550,6 +563,29 @@ class ToolGenV2Tests(unittest.TestCase):
             drafts[1]["tests"][0]["calls"].insert(0, {"tool": "get_ticket", "arguments": {"ticket_id": "ticket-1"}})
             reports = ToolGenerator(FakeAgent())._validate(package, environment, drafts)
             self.assertEqual([item["status"] for item in reports], ["rejected", "rejected"])
+
+    def test_targeted_validation_runs_only_the_requested_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = self.make_package(Path(temporary))
+            ToolGenerator(FakeAgent(), max_repairs=0).generate(package)
+            drafts = [json.loads(path.read_text(encoding="utf-8")) for path in
+                      sorted((package / "tool_generation/drafts").glob("*.json"))]
+            environment = json.loads((package / "environment.json").read_text(encoding="utf-8"))
+            reports = ToolGenerator(FakeAgent())._validate_local(
+                package,
+                environment,
+                drafts,
+                target_tools={"resolve_ticket"},
+                apply_dependency_status=False,
+            )
+            self.assertEqual([item["tool"] for item in reports], ["resolve_ticket"])
+            self.assertEqual(reports[0]["status"], "passed")
+
+    def test_action_tests_cover_real_processing_branches(self) -> None:
+        prompt = ToolGenerator._build_action_batch_prompt(Path("environment"), [])
+        self.assertIn("不同主要处理逻辑的代表情况", prompt)
+        self.assertIn("相同处理逻辑只保留一个代表样例", prompt)
+        self.assertIn("缺失文件等业务失败", prompt)
 
     def test_batch_retries_draft_when_usage_conditions_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

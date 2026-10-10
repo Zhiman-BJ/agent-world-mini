@@ -1,0 +1,116 @@
+[
+  {
+    "name": "networkx",
+    "index": 730,
+    "directory": "l1_metrology_quality/networkx",
+    "source_root": ".",
+    "modules": [
+      "networkx"
+    ],
+    "repository": "https://github.com/networkx/networkx",
+    "tag": "networkx-3.6.1",
+    "commit": "7530809bfa1ea7ed6fdf918a4d1431488953cb1f",
+    "documentation": "https://networkx.org/documentation/stable/",
+    "description": "NetworkX提供带属性图、关系查询、DAG、连通与路径分析及图序列化，可承载制造谱系和质量证据的引用结构；图连通或关联不能自动证明根因。",
+    "pypi": "https://pypi.org/project/networkx/",
+    "pypi_version": "3.6.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/networkx/networkx/releases/latest",
+    "release_url": "https://github.com/networkx/networkx/releases/tag/networkx-3.6.1",
+    "release_published_at": "2025-12-08T17:03:31Z",
+    "github_prerelease": false,
+    "notes": []
+  },
+  {
+    "name": "ruptures",
+    "index": 522,
+    "directory": "l1_test_fab/ruptures",
+    "source_root": "src",
+    "modules": [
+      "ruptures"
+    ],
+    "repository": "https://github.com/deepcharles/ruptures",
+    "tag": "v1.1.10",
+    "commit": "a3f8c437edf7d54c1a8f90aaa72638363a011765",
+    "documentation": "https://centre-borelli.github.io/ruptures-docs/",
+    "description": "ruptures提供离线时间序列变点检测，支持不同代价函数、动态规划、PELT和窗口搜索；检测结果是分段边界，不自动等于工艺故障根因。",
+    "pypi": "https://pypi.org/project/ruptures/",
+    "pypi_version": "1.1.10",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/deepcharles/ruptures/releases/latest",
+    "release_url": "https://github.com/deepcharles/ruptures/releases/tag/v1.1.10",
+    "release_published_at": "2025-09-10T09:53:23Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "scikit-learn",
+    "index": 528,
+    "directory": "l1_test_fab/scikit-learn",
+    "source_root": ".",
+    "modules": [
+      "sklearn"
+    ],
+    "repository": "https://github.com/scikit-learn/scikit-learn",
+    "tag": "1.9.1",
+    "commit": "866c0f51e7560ef0303cbcc5f159df5382ea9e3f",
+    "documentation": "https://scikit-learn.org/stable/",
+    "description": "scikit-learn提供预处理、聚类、异常检测、分类和评价接口；场景中仅暴露与固定晶圆/轨迹特征任务有关的估计器和数据划分，训练与验收数据必须分离。",
+    "pypi": "https://pypi.org/project/scikit-learn/",
+    "pypi_version": "1.9.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/scikit-learn/scikit-learn/releases/latest",
+    "release_url": "https://github.com/scikit-learn/scikit-learn/releases/tag/1.9.1",
+    "release_published_at": "2026-09-11T09:38:12Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "scipy",
+    "index": 529,
+    "directory": "l1_test_fab/scipy",
+    "source_root": ".",
+    "modules": [
+      "scipy"
+    ],
+    "repository": "https://github.com/scipy/scipy",
+    "tag": "v1.18.1",
+    "commit": "e4e854eaa8f18d807cd3496028e257e36caa93cc",
+    "documentation": "https://docs.scipy.org/doc/scipy/",
+    "description": "SciPy提供数值统计、信号与科学计算工具，作为测试限值和过程统计的必要补充；静态Python索引不冒充全部原生扩展导出。",
+    "pypi": "https://pypi.org/project/scipy/",
+    "pypi_version": "1.18.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/scipy/scipy/releases/latest",
+    "release_url": "https://github.com/scipy/scipy/releases/tag/v1.18.1",
+    "release_published_at": "2026-08-21T23:52:53Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  },
+  {
+    "name": "pandas",
+    "index": 530,
+    "directory": "l1_test_fab/pandas",
+    "source_root": ".",
+    "modules": [
+      "pandas"
+    ],
+    "repository": "https://github.com/pandas-dev/pandas",
+    "tag": "v3.0.5",
+    "commit": "e68db09ecf6427d1b62e565bacf17f2e525a3032",
+    "documentation": "https://pandas.pydata.org/docs/",
+    "description": "pandas提供带标签的表格、连接、分组、读写与时间序列处理，可承载lot/wafer/die/test及设备轨迹的规范数据层；需显式维护主键、单位和缺失约定。",
+    "pypi": "https://pypi.org/project/pandas/",
+    "pypi_version": "3.0.5",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/pandas-dev/pandas/releases/latest",
+    "release_url": "https://github.com/pandas-dev/pandas/releases/tag/v3.0.5",
+    "release_published_at": "2026-07-22T21:47:08Z",
+    "github_prerelease": false,
+    "selection_rule": "Latest official stable GitHub release; pyspc official v0.4 tag matches stable distribution.",
+    "notes": []
+  }
+]

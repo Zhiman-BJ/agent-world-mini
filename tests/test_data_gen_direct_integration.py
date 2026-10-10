@@ -46,7 +46,7 @@ def _environment(summary: str, description: str) -> dict[str, object]:
             "record_set_id": "items",
             "name": "Catalog items",
             "description": "One record represents one real catalog item.",
-            "access": "read_only",
+            "access": "copy_on_write",
             "key_fields": ["item_id"],
             "fields": {
                 "item_id": {"type": "string", "description": "Stable item identifier.", "nullable": False},
@@ -74,6 +74,23 @@ class DirectIntegrationTests(unittest.TestCase):
                 "schema_version": "1.0",
                 "result": "ready",
                 "summary": "The complete catalog contains two useful business records.",
+                "work_coverage": [{
+                    "task_name": "Browse items by category",
+                    "status": "supported",
+                    "evidence_paths": ["raw/items.json"],
+                    "supported_operations": [
+                        "List items",
+                        "Filter and compare categories",
+                    ],
+                    "connections": [
+                        "item_id identifies records and category groups them"
+                    ],
+                    "variations": ["The data contains multiple items and categories"],
+                    "verification": (
+                        "Every returned item must match the requested category."
+                    ),
+                    "limitations": [],
+                }],
                 "file_cards": [{
                     "path": "raw/items.json",
                     "source_id": "items",
@@ -227,6 +244,7 @@ class DirectIntegrationTests(unittest.TestCase):
             self.assertIn("两种落地方式", guide)
             self.assertIn("不是默认的业务对象", guide)
             self.assertIn("不要自行发明", guide)
+            self.assertIn("保持不同项目、批次、实验或设计的原始边界", guide)
             self.assertIn("先实际检查每个原件", prompt)
             self.assertNotIn("Seed", guide)
             self.assertNotIn("Step 1", guide)

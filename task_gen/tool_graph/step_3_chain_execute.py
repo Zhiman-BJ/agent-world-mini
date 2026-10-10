@@ -24,7 +24,8 @@ workspace; successful candidates retain initial/final relative paths.
 
 Execution config defaults: max_concurrency=4, retry_count=3,
 tool_timeout_seconds=300, tool_result_max_bytes=65536,
-tool_max_memory_bytes=2147483648, tool_max_write_bytes=268435456.
+tool_max_memory_bytes=2147483648, tool_max_write_bytes=268435456,
+tool_max_processes=1024.
 IDs and directory conflicts are checked before any concurrent work.
 Each worker receives its own copy of the caller's tracing context.
 
@@ -53,6 +54,7 @@ import tempfile
 from typing import Any
 
 from jsonschema import validators
+from harness.resources import ResourceCatalog
 from .prompt_principles import REVIEW_GUIDANCE, TASK_STATE_CHAIN
 
 from .contracts import ExecuteChainsInput, ExecuteChainsOutput
@@ -106,6 +108,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
     result_limit = _integer(config.execution, "tool_result_max_bytes", 65536, minimum=1)
     memory_limit = _integer(config.execution, "tool_max_memory_bytes", 2 * 1024 * 1024 * 1024, minimum=1)
     write_limit = _integer(config.execution, "tool_max_write_bytes", 256 * 1024 * 1024, minimum=1)
+    process_limit = _integer(config.execution, "tool_max_processes", 1024, minimum=1)
     with ThreadPoolExecutor(max_workers=min(concurrency, len(tasks)) or 1) as executor:
         futures = [
             executor.submit(copy_context().run, _execute_candidate,
@@ -122,6 +125,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
                 write_limit,
                 runtime.get('software'),
                 runtime.get('runtime'),
+                process_limit,
             ) for candidate in tasks
         ]
         output = [future.result() for future in futures]
@@ -169,6 +173,7 @@ def _execute_candidate(
     write_limit: int,
     software: dict[str, str] | None = None,
     runtime: dict[str, Any] | None = None,
+    process_limit: int = 1024,
 ) -> dict[str, Any]:
     result = deepcopy(candidate)
     task_id = candidate["task_id"]
@@ -215,9 +220,19 @@ def _execute_candidate(
                     failure = parameter_failure
                     break
 
+                known_scopes = {str(item['scope_id']) for item in environment.get('filesystem_scopes', [])}
+                declared_resources = set(tool.get('usageConditions', {}).get('targetResources', []))
+                catalog = ResourceCatalog(environment, lambda scope_id: final / 'filesystem_scopes' / scope_id)
+                try:
+                    arguments = catalog.normalize_arguments(
+                        arguments, schema=tool['inputSchema'], allowed_scopes=known_scopes & declared_resources,
+                    )
+                except ValueError as error:
+                    failure = _failure(tool_name, arguments, 'input_schema', None, str(error))
+                    break
                 outcome = _call_tool(
                     tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
-                    runtime=runtime, **({'software': software} if software else {}),
+                    runtime=runtime, process_limit=process_limit, **({'software': software} if software else {}),
                 )
                 if outcome["kind"] is not None:
                     failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
@@ -228,6 +243,21 @@ def _execute_candidate(
                     break
                 if tool_result.get("success") is not True:
                     failure = _failure(tool_name, arguments, "business", tool_result, _business_error(tool_result))
+                    break
+                try:
+                    tool_result = catalog.externalize_result(
+                        tool_result,
+                        schema=tool["outputSchema"],
+                        allowed_scopes=known_scopes & declared_resources,
+                    )
+                except ValueError as error:
+                    failure = _failure(
+                        tool_name,
+                        arguments,
+                        "output_schema",
+                        tool_result,
+                        str(error),
+                    )
                     break
                 schema_error = _schema_error(tool["outputSchema"], tool_result)
                 if schema_error is not None:
@@ -361,9 +391,11 @@ def _generate_arguments(
     review_guidance: str | None = None,
 ) -> dict[str, Any]:
     prompt = json.dumps({
-        "task": (
-            "为当前调用生成能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
-            "arguments 必须完全符合 current_tool.inputSchema 的字段、必填项、类型、枚举及其他约束；"
+            "task": (
+                "为当前调用生成能推进 objective 的参数，按已审查的固定链执行，不自行跳过调用。\n"
+                "Filesystem Scope 的文件参数必须使用 scope_id 对应根目录内的相对路径；"
+                "后续工具直接使用上一步返回的路径，不添加 /workspace 或 filesystem_scopes/<scope_id> 前缀。\n"
+                "arguments 必须完全符合 current_tool.inputSchema 的字段、必填项、类型、枚举及其他约束；"
             "任务目标和后续调用不能覆盖当前工具的参数契约。重试时依据 previous_failure 修正违反契约的参数。\n"
             + TASK_STATE_CHAIN + "\n" + REVIEW_GUIDANCE + "\n"
             "review_guidance 中明确的业务设定、对象选择和处理规则是本次执行约束，按它们和前序真实结果填参；环境事实仍须以真实调用核实。任务文本在执行之后生成，不等待额外用户输入，也不自行补作影响任务范围和交付的业务决定。"

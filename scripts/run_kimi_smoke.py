@@ -52,17 +52,14 @@ def main():
                         state, server, trace, {**config.llm, 'agent_backend': 'kimi'})
     final = json.loads((state / 'counter.json').read_text())
     calls = [json.loads(line) for line in trace.read_text().splitlines()]
-    read_trace = state.parent / 'state.agent/result_reads.jsonl'
-    reads = [json.loads(line) for line in read_trace.read_text().splitlines()] if read_trace.exists() else []
     passed = (final['count'] == initial['count'] + 7 and final['token'] == initial['token']
               and str(initial['count']) in answer and str(final['count']) in answer
               and all(call['error'] is None for call in calls)
               and [call['tool'] for call in calls].count('read_counter') >= 2)
-    if args.long_result:
-        passed = passed and any(r['error'] is None and initial['token'] in r['result']['content'] for r in reads)
     report = {'passed': passed, 'model': config.llm['model'], 'initial_count': initial['count'],
               'final_count': final['count'], 'answer': answer, 'tool_calls': len(calls),
-              'result_reads': len(reads), 'long_result': args.long_result}
+              'result_reader': 'native_kimi_tool_results' if args.long_result else None,
+              'long_result': args.long_result}
     (root / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps({'run_dir': str(root), **report}, ensure_ascii=False, indent=2))
     if not passed:

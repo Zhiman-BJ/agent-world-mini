@@ -1,0 +1,152 @@
+[
+  {
+    "name": "pymatgen-core",
+    "index": 1,
+    "directory": "pymatgen-core",
+    "source_root": "src",
+    "modules": [
+      "pymatgen"
+    ],
+    "repository": "https://github.com/materialsproject/pymatgen-core",
+    "documentation": "https://pymatgen.org/",
+    "description": "pymatgen-core提供晶体、晶格、组成、对称性、文件转换及材料计算结果分析的基础数据结构和方法，作为当前材料场景的统一结构状态。",
+    "tag": "v2026.8.30",
+    "pypi": "https://pypi.org/project/pymatgen-core/",
+    "pypi_version": "2026.8.30",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/materialsproject/pymatgen-core/releases/latest",
+    "release_url": "https://github.com/materialsproject/pymatgen-core/releases/tag/v2026.8.30",
+    "release_published_at": "2026-08-30T02:43:08Z",
+    "github_prerelease": false,
+    "commit": "73af4e53f5f24e1dcf11e0d94ca13be10ea956ad",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。"
+    ]
+  },
+  {
+    "name": "ase",
+    "index": 17,
+    "repository": "https://gitlab.com/ase/ase",
+    "documentation": "https://ase-lib.org/",
+    "pypi": "https://pypi.org/project/ase/",
+    "pypi_version": "3.29.0",
+    "tag": "3.29.0",
+    "commit": "f27c0005ae6a67ea419f996e728668865bfc1f86",
+    "release_published_at": "2026-06-21T16:03:03Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": null,
+    "release_url": "https://gitlab.com/ase/ase/-/tags/3.29.0",
+    "release_api": "",
+    "selection_rule": "Latest non-prerelease PyPI version and exact official GitLab tag agree; ASE uses GitLab rather than GitHub Releases.",
+    "directory": "ase",
+    "modules": [
+      "ase"
+    ],
+    "description": "ASE（Atomic Simulation Environment）是用于原子结构建模、计算任务配置和结果分析的 Python 框架，提供 Atoms、晶胞、约束、优化器、计算器、轨迹与多种文件格式接口，可连接 GPAW、VASP 等外部电子结构计算器。",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。",
+      "官方GitLab标签与PyPI版本3.29.0一致；多个旧文档链接404，保留失败HTTP记录，桥接依据固定源码及实际运行。"
+    ]
+  },
+  {
+    "name": "spglib",
+    "index": 19,
+    "repository": "https://github.com/spglib/spglib",
+    "documentation": "https://spglib.readthedocs.io/",
+    "pypi": "https://pypi.org/project/spglib/",
+    "pypi_version": "2.7.0",
+    "tag": "v2.7.0",
+    "commit": "12355c77fb7c505a55f52cae36341d73b781a065",
+    "release_published_at": "2025-12-29T09:50:26Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "spglib",
+    "source_root": "python",
+    "modules": [
+      "spglib"
+    ],
+    "description": "spglib 是晶体对称性分析库的 Python 接口，能够识别空间群、标准化晶胞、寻找对称操作、生成等价原子位置并分析网格点的对称性，可用于 pymatgen 和 ASE 结构预处理与验证。核心数值实现位于 C 扩展。",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。"
+    ],
+    "release_api": "https://api.github.com/repos/spglib/spglib/releases/latest",
+    "release_url": "https://github.com/spglib/spglib/releases/tag/v2.7.0"
+  },
+  {
+    "name": "jarvis-tools",
+    "index": 50,
+    "directory": "jarvis-tools",
+    "modules": [
+      "jarvis"
+    ],
+    "repository": "https://github.com/atomgptlab/jarvis",
+    "documentation": "https://jarvis-tools.readthedocs.io/en/master/",
+    "description": "JARVIS-Tools提供原子结构、材料描述符、数据库和多种电子结构计算工具接口，用于数据驱动材料设计。独立Atoms对象需转换后才能与pymatgen状态共用。",
+    "tag": "v2026.4.2",
+    "pypi": "https://pypi.org/project/jarvis-tools/",
+    "pypi_version": "2026.6.12",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/atomgptlab/jarvis/releases/latest",
+    "release_url": "https://github.com/atomgptlab/jarvis/releases/tag/v2026.4.2",
+    "release_published_at": "2026-04-06T02:29:34Z",
+    "github_prerelease": false,
+    "commit": "add61f2ad1f7020d23ffc2a815f604071ac03c86",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。",
+      "PyPI主页指向atomgptlab/jarvis-tools并重定向atomgptlab/jarvis；原usnistgov/jarvis不是当前PyPI指向的发布源。按指南优先最新GitHub非预发布Release v2026.4.2；PyPI当前2026.6.12，版本差异保留，不将默认分支当Release。"
+    ]
+  },
+  {
+    "name": "matminer",
+    "index": 18,
+    "repository": "https://github.com/hackingmaterials/matminer",
+    "documentation": "https://hackingmaterials.github.io/matminer/",
+    "pypi": "https://pypi.org/project/matminer/",
+    "pypi_version": "0.10.1",
+    "tag": "v0.10.1",
+    "commit": "25cd8f2778d73e54f80b38ee1983a28643368118",
+    "release_published_at": "2026-04-14T22:15:48Z",
+    "checked_on": "2026-09-17",
+    "github_prerelease": false,
+    "directory": "matminer",
+    "source_root": "src",
+    "modules": [
+      "matminer"
+    ],
+    "description": "matminer 是材料信息学特征工程和数据集工具包，提供结构、组成、局部环境和工艺信息的描述符生成器、数据集读取以及表格化转换，可把 pymatgen 或 ASE 对象转为机器学习特征。模型训练和数据集质量需另行验证。",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。"
+    ],
+    "release_api": "https://api.github.com/repos/hackingmaterials/matminer/releases/latest",
+    "release_url": "https://github.com/hackingmaterials/matminer/releases/tag/v0.10.1"
+  },
+  {
+    "name": "seekpath",
+    "index": 51,
+    "directory": "seekpath",
+    "modules": [
+      "seekpath"
+    ],
+    "repository": "https://github.com/materialscloud-org/seekpath",
+    "documentation": "https://seekpath.readthedocs.io/en/latest/",
+    "description": "SeeK-path基于spglib识别晶体对称性，按HPKOT约定给出标准原胞、倒易晶格和高对称k路径，并支持按指定间距生成显式路径点。它不计算电子能带。",
+    "tag": "v2.2.1",
+    "pypi": "https://pypi.org/project/seekpath/",
+    "pypi_version": "2.2.1",
+    "checked_on": "2026-09-17",
+    "release_api": "https://api.github.com/repos/materialscloud-org/seekpath/releases/latest",
+    "release_url": "https://github.com/materialscloud-org/seekpath/releases/tag/v2.2.1",
+    "release_published_at": "2026-01-31T12:55:52Z",
+    "github_prerelease": false,
+    "commit": "7b18ca9ad1038e4380d605b2d6a94f01a2b96ce7",
+    "notes": [
+      "2026-09-17核对官方PyPI身份、当前发布源及本地remote/tag/HEAD/工作区。",
+      "新全量索引保存在独立scenario_collection子目录，保留历史包和02场景产物。"
+    ]
+  }
+]
