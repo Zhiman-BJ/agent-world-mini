@@ -44,6 +44,7 @@ class ResourceCatalog:
         scope_root: Callable[[str], Path],
         *,
         workspace_root: Path | None = None,
+        public_workspace_root: Path | None = None,
         scope_mounts: dict[str, str] | None = None,
     ) -> None:
         self.environment = environment
@@ -53,21 +54,30 @@ class ResourceCatalog:
             for item in environment.get("filesystem_scopes", [])
         }
         self._workspace_root = workspace_root.resolve() if workspace_root else None
+        self._public_workspace_root = (
+            public_workspace_root.resolve() if public_workspace_root else self._workspace_root
+        )
         self._scope_mounts = {
             str(key): PurePosixPath(value)
             for key, value in (scope_mounts or {}).items()
         }
 
     def _business_relative(self, scope_id: str, value: str) -> PurePosixPath:
-        """Convert a cwd path (or legacy Scope path) to a Scope-relative path."""
+        """Convert a model-workspace path to a Scope-relative path."""
         raw = Path(value)
         root = self._scope_root(scope_id).resolve()
         if raw.is_absolute():
             if self._workspace_root is None:
                 raise ValueError(f"资源路径必须是 Scope 内相对路径：{value}")
-            target = raw.resolve(strict=False)
-            if not (target == self._workspace_root or target.is_relative_to(self._workspace_root)):
+            public_root = self._public_workspace_root or self._workspace_root
+            public_target = raw.resolve(strict=False)
+            if not (
+                public_target == public_root
+                or public_target.is_relative_to(public_root)
+            ):
                 raise ValueError(f"资源路径越出当前工作目录：{value}")
+            workspace_relative = public_target.relative_to(public_root)
+            target = (self._workspace_root / workspace_relative).resolve(strict=False)
             if not (target == root or target.is_relative_to(root)):
                 raise ValueError(f"资源路径不属于 Scope {scope_id}：{value}")
             relative = target.relative_to(root)
@@ -78,10 +88,13 @@ class ResourceCatalog:
         relative = _relative_path(value)
         mount = self._scope_mounts.get(scope_id)
         if mount is not None and mount != PurePosixPath("."):
-            if relative.parts[: len(mount.parts)] == mount.parts:
-                relative = PurePosixPath(*relative.parts[len(mount.parts):])
-                if not relative.parts:
-                    raise ValueError("资源路径必须指向 Scope 内的条目")
+            if relative.parts[: len(mount.parts)] != mount.parts:
+                raise ValueError(
+                    f"资源路径必须相对于当前工作目录并包含 Scope 挂载目录 {mount.as_posix()}/：{value}"
+                )
+            relative = PurePosixPath(*relative.parts[len(mount.parts):])
+            if not relative.parts:
+                raise ValueError("资源路径必须指向 Scope 内的条目")
         target = (root / Path(*relative.parts)).resolve(strict=False)
         if not (target == root or target.is_relative_to(root)):
             raise ValueError(f"资源路径越出 Scope：{scope_id}/{value}")

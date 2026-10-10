@@ -308,9 +308,9 @@ def _task_mcp_launch(
     trace = paths.raw / "environment_tool_calls.jsonl"
     budget_stop_marker = paths.raw / "tool_budget_stop.json"
     tool_budget_counter = paths.raw / "tool_budget_counter.json"
-    workspace = getattr(paths, "model_workspace", paths.execution_state)
-    record_database = getattr(paths, "record_database", paths.execution_state / "records.sqlite")
-    path_map = getattr(paths, "path_map", paths.execution_state / "path-map.json")
+    workspace = paths.model_workspace
+    record_database = paths.record_database
+    path_map = paths.path_map
     arguments = [
         str(server_path),
         "--binding", str(delivery.binding_path),

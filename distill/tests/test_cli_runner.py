@@ -681,7 +681,22 @@ def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch):
             Path("docker"), tuple(kwargs["arguments"]), {}
         ),
     )
-    paths = SimpleNamespace(execution_state=state, raw=trace.parent)
+    private_state = tmp_path / "private-state"
+    private_state.mkdir()
+    record_database = private_state / "records.sqlite"
+    record_database.touch()
+    path_map = private_state / "path-map.json"
+    path_map.write_text(json.dumps({
+        "workspace_root": str(state),
+        "record_database": str(record_database),
+        "scope_mounts": {},
+    }))
+    paths = SimpleNamespace(
+        model_workspace=state,
+        record_database=record_database,
+        path_map=path_map,
+        raw=trace.parent,
+    )
     launch = _task_mcp_launch(
         {
             "binding_path": str(binding),

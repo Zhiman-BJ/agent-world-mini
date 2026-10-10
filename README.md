@@ -39,8 +39,12 @@ python -m distill --help
 ```
 
 交付包以 `delivery/environments/<environment_id>/binding.json` 为入口，绑定环境、正式工具、验证回执与软件或镜像。
-下游读取 binding，不手工拼接不同批次的工具和软件目录。业务文件参数依照工具 Schema 使用 Scope 相对路径；
-MCP 资源发现返回的 `aw://` 引用由资源解析器处理。
+下游读取 binding，不手工拼接不同批次的工具和软件目录。ToolGen 通用服务的业务文件参数使用 Scope 相对路径，
+资源发现返回 `aw://` 引用。任务服务的文件参数使用模型工作区相对路径，或该工作区内的绝对路径；多 Scope 工作区
+需要包含对应挂载目录。两种路径均由 Harness 校验资源边界。
+
+ToolGen MCP 提供工具调用和资源发现；任务 MCP 提供环境工具调用，模型通过受限的原生 Read/Grep/Glob 访问工作区文件。
+记录数据库保存在任务私有状态目录。Program 的参考执行直接使用独立状态副本，不创建模型工作区。
 
 Program 的两种调用方式共用三个业务阶段：`python -m task_gen.program` 管理配置、运行状态与接续；
 `python -m task_gen.program.run_pipeline` 提供显式阶段选择和已有阶段产物复用。

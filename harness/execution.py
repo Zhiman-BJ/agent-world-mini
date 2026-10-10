@@ -74,6 +74,7 @@ def call_environment_tool(
     runtime: dict[str, Any] | None = None,
     record_database: Path | None = None,
     scope_mounts: dict[str, str] | None = None,
+    public_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     """Execute one tool transaction without exposing the state root to the model."""
     tool = tools.get(name)
@@ -99,7 +100,11 @@ def call_environment_tool(
         catalog = ResourceCatalog(
             environment,
             scope_root,
-            **({"workspace_root": state_root, "scope_mounts": mounts} if workspace_mode else {}),
+            **({
+                "workspace_root": state_root,
+                "public_workspace_root": public_workspace_root,
+                "scope_mounts": mounts,
+            } if workspace_mode else {}),
         )
         known_scopes = {
             str(item["scope_id"])

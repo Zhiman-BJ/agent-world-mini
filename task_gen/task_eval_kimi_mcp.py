@@ -202,6 +202,9 @@ def _server_config(options):
     if options.path_map is not None:
         path_map = json.loads(options.path_map.read_text(encoding='utf-8'))
         config['scope_mounts'] = path_map.get('scope_mounts', {})
+        public_workspace_root = path_map.get('workspace_root')
+        if isinstance(public_workspace_root, str) and public_workspace_root:
+            config['public_workspace_root'] = public_workspace_root
     if options.review_choice_seed is not None:
         config['review_choice_seed'] = json.loads(
             options.review_choice_seed.read_text(encoding='utf-8')

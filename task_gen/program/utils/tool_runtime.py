@@ -1,9 +1,9 @@
 """Program-form Solution 与 clean replay 共用的 Harness Runtime。
 
-每次执行都通过 ``create_task_run_layout`` 分离 ``execution-state`` 与
-``model-workspace``，所有业务工具统一委托 ``call_environment_tool`` 完成
-Schema、资源 Scope、沙箱、状态提交和失败回滚。运行后端由 ToolGen
-``binding.json`` 对应的 ``runtime.json`` 决定。
+参考程序在内部完整状态副本上执行，所有业务工具统一委托
+``call_environment_tool`` 完成 Schema、资源 Scope、执行限制、状态提交和
+失败回滚。这个完整状态目录不暴露给模型；Kimi 蒸馏使用独立的
+``TaskRunLayout`` workspace 契约。
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from typing import Any, Callable
 
 from harness.resources import ResourceCatalog
 from harness.execution import call_environment_tool
-from harness.layout import create_task_run_layout
 
 from .schema import Draft202012Validator
 
@@ -332,13 +331,12 @@ class CompleteEnvironmentRuntime:
         self._temporary = tempfile.TemporaryDirectory(
             prefix="agent-world-program-runtime-", ignore_cleanup_errors=True,
         )
-        self.layout = create_task_run_layout(
-            package.state_root,
-            Path(self._temporary.name) / "task-run",
-        )
-        self.state_root = self.layout.execution_state
-        # 模型工作区与工具执行状态严格分离；业务工具只接触 state_root。
-        self.workspace_root = self.layout.model_workspace
+        self.state_root = Path(self._temporary.name) / "state"
+        shutil.copytree(package.state_root, self.state_root)
+        # Program-form reference execution has no model-visible cwd. Keep its
+        # complete state as an internal backend detail instead of manufacturing
+        # the removed execution-state/model-workspace compatibility layout.
+        self.workspace_root = self.state_root
         self.records_path = self.state_root / "records.sqlite"
         self.filesystem_scopes_root = self.state_root / "filesystem_scopes"
         self.software_root = package.software_root or package.package_root

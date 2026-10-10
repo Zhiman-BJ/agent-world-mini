@@ -16,8 +16,6 @@ from harness.execution import (  # noqa: E402, F401
     _schema_error,
 )
 from task_gen.tool_runtime import call_environment_tool
-from harness.resources import ResourceCatalog  # noqa: E402
-from harness.mcp_resources import list_mcp_resources, read_mcp_resource  # noqa: E402
 from harness.tool_budget import claim_tool_call  # noqa: E402
 from harness.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
@@ -85,7 +83,7 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
 
 
 class TaskEvalMcpServer:
-    """Task-scoped executor using ToolGen's shared public MCP contract."""
+    """Task-scoped tool executor; model-native tools access workspace files."""
 
     def __init__(self, config: dict[str, Any]):
         config = bind_delivery(config)
@@ -111,6 +109,12 @@ class TaskEvalMcpServer:
         ):
             raise ValueError("MCP 配置 scope_mounts 必须是字符串映射")
         self.scope_mounts = mounts
+        public_workspace_value = config.get("public_workspace_root")
+        self.public_workspace_root = (
+            Path(public_workspace_value).resolve()
+            if isinstance(public_workspace_value, str) and public_workspace_value
+            else self.workspace
+        )
         self.trace = Path(config["trace"]).resolve()
         marker_value = config.get("budget_stop_marker")
         self.budget_stop_marker = (
@@ -124,16 +128,6 @@ class TaskEvalMcpServer:
             if isinstance(counter_value, str) and counter_value
             else None
         )
-        self.resources = None
-        if config.get("environment", {}).get("filesystem_scopes"):
-            self.resources = ResourceCatalog(
-                config["environment"],
-                self._scope_root,
-                **({
-                    "workspace_root": self.workspace,
-                    "scope_mounts": self.scope_mounts,
-                } if self.scope_mounts else {}),
-            )
         self.calls = 0
         self.choices = None
         self.choice_tool = None
@@ -154,33 +148,19 @@ class TaskEvalMcpServer:
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
         method = request.get("method")
         if method == "initialize":
-            result = {"protocolVersion": PROTOCOL_VERSION, "capabilities": {
-                          "tools": {"listChanged": False},
-                          "resources": {"listChanged": False, "subscribe": False},
-                      },
-                      "serverInfo": {"name": "agent-world-task-eval", "version": SERVER_VERSION}}
-            if self.resources is not None:
-                result["instructions"] = (
-                    "Use resources/list and resources/read to find files. "
-                    "For business tools, pass the returned working-directory-relative "
-                    "path or an absolute path inside the working directory; do not pass "
-                    "the resource URI as a business argument."
-                )
-            return result
+            return {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {"listChanged": False}},
+                "serverInfo": {
+                    "name": "agent-world-task-eval",
+                    "version": SERVER_VERSION,
+                },
+            }
         if method == "tools/list":
             tools = public_tools(self.tools.values())
             if self.choice_tool:
                 tools.append(self.choice_tool)
             return {"tools": tools}
-        if method == "resources/list":
-            return {"resources": self._resource_list(request.get("params"))}
-        if method == "resources/read":
-            params = request.get("params")
-            if not isinstance(params, dict) or not isinstance(params.get("uri"), str):
-                raise RpcError(-32602, "resources/read 需要 uri")
-            return {"contents": [self._resource_read(params["uri"])]}
-        if method == "resources/templates/list":
-            return {"resourceTemplates": []}
         if method == "tools/call":
             return self._call(request.get("params"))
         if method == "ping":
@@ -253,6 +233,7 @@ class TaskEvalMcpServer:
                 binding_path=self.config.get("binding_path"),
                 record_database=self.record_database,
                 scope_mounts=self.scope_mounts or None,
+                public_workspace_root=self.public_workspace_root,
                 **({'software': self.config['software']} if self.config.get('software') else {}),
                 **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )
@@ -275,19 +256,6 @@ class TaskEvalMcpServer:
                 "retryable": timeout,
             }, "tool_result": payload}
         return tool_call_result(payload, is_error=record["error"] is not None or business_failure)
-
-    def _scope_root(self, scope_id: str) -> Path:
-        mount = self.scope_mounts.get(scope_id)
-        if mount is None:
-            return self.state_root / "filesystem_scopes" / scope_id
-        return self.workspace if mount == "." else self.workspace / mount
-
-    def _resource_list(self, params: Any) -> list[dict[str, Any]]:
-        return list_mcp_resources(self.resources, params)
-
-    def _resource_read(self, uri: str) -> dict[str, Any]:
-        return read_mcp_resource(self.resources, uri)
-
 
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:
     server = TaskEvalMcpServer(json.loads(config_path.read_text(encoding="utf-8")))

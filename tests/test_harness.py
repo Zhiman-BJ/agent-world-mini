@@ -12,19 +12,29 @@ from harness.execution import call_environment_tool
 from harness.kimi_file_policy import KimiFileAccessPolicy, build_kimi_file_hook_command
 from harness.layout import create_task_run_layout
 from harness.mcp_tools import expected_mcp_tool_names
+from harness.resources import ResourceCatalog
 
 
-def test_task_layout_separates_execution_state_from_model_workspace(tmp_path):
+def test_task_layout_requires_the_workspace_contract(tmp_path):
     initial = tmp_path / "initial"
-    initial.mkdir()
-    (initial / "private.txt").write_text("STATE_ONLY", encoding="utf-8")
+    (initial / "filesystem_scopes/reports").mkdir(parents=True)
+    (initial / "filesystem_scopes/reports/public.txt").write_text(
+        "VISIBLE", encoding="utf-8"
+    )
+    sqlite3.connect(initial / "records.sqlite").close()
+    environment = {
+        "environment_id": "reports",
+        "record_sets": [],
+        "filesystem_scopes": [{"scope_id": "reports", "access": "read_only"}],
+    }
 
-    layout = create_task_run_layout(initial, tmp_path / "run")
+    layout = create_task_run_layout(
+        initial, tmp_path / "run", environment=environment,
+    )
 
-    assert (layout.execution_state / "private.txt").read_text() == "STATE_ONLY"
-    assert list(layout.model_workspace.iterdir()) == []
-    assert layout.execution_state != layout.model_workspace
-    assert not layout.execution_state.is_symlink()
+    assert (layout.model_workspace / "public.txt").read_text() == "VISIBLE"
+    assert layout.record_database.parent == layout.private_state
+    assert not (layout.model_workspace / "records.sqlite").exists()
     assert not layout.model_workspace.is_symlink()
 
 
@@ -132,6 +142,65 @@ def test_workspace_tool_accepts_cwd_relative_and_absolute_paths(tmp_path):
             write_limit=1024**2, environment=environment,
             record_database=layout.record_database, scope_mounts=layout.scope_mounts,
         )
+
+
+def test_multi_scope_paths_are_always_workspace_relative(tmp_path):
+    workspace = tmp_path / "workspace"
+    reports = workspace / "reports"
+    reports.mkdir(parents=True)
+    (reports / "daily.txt").write_text("ready", encoding="utf-8")
+    environment = {
+        "filesystem_scopes": [
+            {"scope_id": "reports"},
+            {"scope_id": "attachments"},
+        ]
+    }
+    catalog = ResourceCatalog(
+        environment,
+        lambda scope_id: workspace / scope_id,
+        workspace_root=workspace,
+        scope_mounts={"reports": "reports", "attachments": "attachments"},
+    )
+    schema = {
+        "type": "string",
+        "x-resource-scope": "reports",
+        "x-resource-kind": "file",
+    }
+
+    assert catalog.normalize_arguments(
+        "reports/daily.txt", schema=schema, allowed_scopes={"reports"},
+    ) == "daily.txt"
+    with pytest.raises(ValueError, match="当前工作目录"):
+        catalog.normalize_arguments(
+            "daily.txt", schema=schema, allowed_scopes={"reports"},
+        )
+
+
+def test_container_runtime_maps_model_visible_absolute_workspace_path(tmp_path):
+    public_workspace = tmp_path / "host/task-workspace"
+    runtime_workspace = tmp_path / "container/external/0/task-workspace"
+    reports = runtime_workspace / "reports"
+    reports.mkdir(parents=True)
+    (reports / "daily.txt").write_text("ready", encoding="utf-8")
+    environment = {"filesystem_scopes": [{"scope_id": "reports"}]}
+    catalog = ResourceCatalog(
+        environment,
+        lambda _scope_id: reports,
+        workspace_root=runtime_workspace,
+        public_workspace_root=public_workspace,
+        scope_mounts={"reports": "reports"},
+    )
+    schema = {
+        "type": "string",
+        "x-resource-scope": "reports",
+        "x-resource-kind": "file",
+    }
+
+    assert catalog.normalize_arguments(
+        str(public_workspace / "reports/daily.txt"),
+        schema=schema,
+        allowed_scopes={"reports"},
+    ) == "daily.txt"
 
 
 def test_workspace_direct_tool_does_not_apply_uid_wide_process_limit(tmp_path):
@@ -305,7 +374,7 @@ def test_task_layout_rejects_symlinked_initial_state(tmp_path):
     (initial / "link").symlink_to(outside)
 
     with pytest.raises(ValueError, match="symbolic links"):
-        create_task_run_layout(initial, tmp_path / "run")
+        create_task_run_layout(initial, tmp_path / "run", environment={})
 
 
 def test_task_layout_rejects_symlink_as_initial_state(tmp_path):
@@ -315,7 +384,7 @@ def test_task_layout_rejects_symlink_as_initial_state(tmp_path):
     initial.symlink_to(actual, target_is_directory=True)
 
     with pytest.raises(ValueError, match="symbolic links"):
-        create_task_run_layout(initial, tmp_path / "run")
+        create_task_run_layout(initial, tmp_path / "run", environment={})
 
 
 def test_expected_tool_names_exclude_protocol_resources_and_native_tools():
@@ -507,25 +576,24 @@ def test_kimi_native_file_hook_exits_two_and_audits_denial(tmp_path):
     assert record["requested_path"] == str(secret)
 
 
-def test_resource_protocol_uses_standard_list_and_read_methods(tmp_path):
+def test_task_mcp_exposes_tools_without_resource_uri_protocol(tmp_path):
+    from harness.mcp_protocol import RpcError
     from task_gen.task_eval_mcp import TaskEvalMcpServer
 
-    state = tmp_path / "state/filesystem_scopes/reports"
-    state.mkdir(parents=True)
-    (state / "daily.txt").write_text("ready", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
     server = TaskEvalMcpServer({
-        "state_root": str(tmp_path / "state"),
+        "workspace_root": str(workspace),
         "trace": str(tmp_path / "trace.jsonl"),
         "max_tool_calls": 10,
         "timeout": 10,
         "memory_limit": 1024 * 1024,
         "write_limit": 1024 * 1024,
         "tools": [],
-        "environment": {"filesystem_scopes": [{"scope_id": "reports", "access": "read_only"}]},
+        "environment": {"filesystem_scopes": []},
     })
-    listed = server.handle({"method": "resources/list", "params": {}})
-    assert listed["resources"][0]["uri"] == "aw://reports/daily.txt"
-    assert listed["resources"][0]["scope_id"] == "reports"
-    assert listed["resources"][0]["relative_path"] == "daily.txt"
-    read = server.handle({"method": "resources/read", "params": {"uri": "aw://reports/daily.txt"}})
-    assert read["contents"][0]["text"] == "ready"
+    initialized = server.handle({"method": "initialize", "id": 1})
+    assert initialized["capabilities"] == {"tools": {"listChanged": False}}
+    assert "instructions" not in initialized
+    with pytest.raises(RpcError, match="不支持"):
+        server.handle({"method": "resources/list", "params": {}, "id": 2})

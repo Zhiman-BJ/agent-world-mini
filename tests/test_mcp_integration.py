@@ -51,14 +51,6 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
     server = TaskEvalMcpServer(config)
     with KimiMcpServer(delivery) as original:
         assert server.handle({'method': 'tools/list'}) == original.handle({'method': 'tools/list'})
-        listed = server.handle({'method': 'resources/list', 'params': {}})
-        assert listed == original.handle({'method': 'resources/list', 'params': {}})
-        uri = next(
-            item['uri'] for item in listed['resources']
-            if item['relative_path'] == 'daily.json'
-        )
-        request = {'method': 'resources/read', 'params': {'uri': uri}}
-        assert server.handle(request) == original.handle(request)
     response = server.handle({'method': 'tools/call', 'params': {
         'name': 'resolve_ticket', 'arguments': {'ticket_id': 'task-only'}}})
     assert response['structuredContent']['data']['status'] == 'resolved'
