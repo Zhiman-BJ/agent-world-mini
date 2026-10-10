@@ -1,21 +1,29 @@
 import os
+import json
 from pathlib import Path
 import shutil
 import sqlite3
 
 import pytest
 
-from harness.execution import call_environment_tool
+from task_gen.tool_runtime import call_environment_tool
 
 
 @pytest.fixture(params=['python_profile', 'docker'])
-def runtime(request):
+def runtime(request, tmp_path):
     if request.param == 'docker':
         image = os.environ.get('TOOLGEN_DOCKER_TEST_IMAGE')
         if not image:
             pytest.skip('配置真实测试镜像后运行')
-        return {'backend': 'docker', 'image': image, 'python_command': 'python',
-                'software_root': '/opt/tool-software'}
+        from tests.test_kimi_mcp import KimiMcpTests
+        binding = KimiMcpTests()._make_delivery(tmp_path / 'delivery-fixture')
+        document = json.loads(binding.read_text())
+        runtime_path = tmp_path / 'delivery-fixture/delivery' / document['runtime_path']
+        runtime = {'schema_version': '1.0', 'backend': 'docker', 'image': image,
+                   'python_command': 'python', 'software_root': '/opt/tool-software',
+                   'delivery_mount': '/delivery', 'code_mount': '/opt/agent-world'}
+        runtime_path.write_text(json.dumps(runtime))
+        return {**runtime, 'binding_path': str(binding)}
     if shutil.which('bwrap') is None:
         pytest.skip('配置 bubblewrap 后运行')
     return None
@@ -42,6 +50,7 @@ def invoke(package, runtime, code, *, write=False, timeout=15):
             'internal': {'code': code}}
     return call_environment_tool('inspect', {}, {'inspect': tool}, state,
         environment=environment, runtime=runtime, timeout=timeout,
+        binding_path=(runtime or {}).get('binding_path'),
         memory_limit=2 * 1024**3, write_limit=1024**2)
 
 

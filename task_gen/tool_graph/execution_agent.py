@@ -113,6 +113,8 @@ class _Session:
                   'software': (runtime or {}).get('software')}
         if runtime and runtime.get('runtime'):
             server['runtime'] = runtime['runtime']
+        if runtime and runtime.get('binding_path'):
+            server['binding_path'] = runtime['binding_path']
         server['review_choice_seed'] = config.llm.get('review_choice_seed', secrets.randbits(64)) + index
         _write(root / 'server.json', server)
         self.budget = int(config.llm.get('timeout_seconds', 1800))

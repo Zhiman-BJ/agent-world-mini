@@ -76,13 +76,9 @@ def call_environment_tool(
             for item in tool.get("usageConditions", {}).get("targetResources", [])
         }
         allowed_scopes = known_scopes & declared
-        try:
-            arguments = catalog.normalize_arguments(
-                arguments, schema=tool['inputSchema'], allowed_scopes=allowed_scopes,
-            )
-        except (ValueError, OSError) as error:
-            return {'tool': name, 'arguments': arguments, 'result': None,
-                    'error': str(error), 'failure_kind': 'invalid_arguments'}
+        arguments = catalog.normalize_arguments(
+            arguments, schema=tool['inputSchema'], allowed_scopes=allowed_scopes,
+        )
     schema_error = _schema_error(tool["inputSchema"], arguments)
     if schema_error:
         return {"tool": name, "arguments": arguments, "result": None, "error": schema_error}

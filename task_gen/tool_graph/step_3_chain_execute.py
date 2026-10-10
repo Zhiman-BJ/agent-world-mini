@@ -126,6 +126,7 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
                 runtime.get('software'),
                 runtime.get('runtime'),
                 process_limit,
+                runtime.get('binding_path'),
             ) for candidate in tasks
         ]
         output = [future.result() for future in futures]
@@ -174,6 +175,7 @@ def _execute_candidate(
     software: dict[str, str] | None = None,
     runtime: dict[str, Any] | None = None,
     process_limit: int = 1024,
+    binding_path: str | None = None,
 ) -> dict[str, Any]:
     result = deepcopy(candidate)
     task_id = candidate["task_id"]
@@ -232,7 +234,8 @@ def _execute_candidate(
                     break
                 outcome = _call_tool(
                     tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
-                    runtime=runtime, process_limit=process_limit, **({'software': software} if software else {}),
+                    runtime=runtime, binding_path=binding_path,
+                    process_limit=process_limit, **({'software': software} if software else {}),
                 )
                 if outcome["kind"] is not None:
                     failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
@@ -531,6 +534,7 @@ def _workspace_signature(root: Path) -> tuple[tuple[str, int, str], ...]:
 
 # Historical imports remain aliases of the shared Harness implementation.
 from harness.sandbox import (
-    _call_tool, _run_tool, _run_docker_tool, _workspace_usage,
+    _run_tool, _workspace_usage,
     _read_limited, _context_source, _TOOL_WORKER, _MAX_SANDBOX_OUTPUT_BYTES,
 )
+from task_gen.tool_runtime import call_tool as _call_tool

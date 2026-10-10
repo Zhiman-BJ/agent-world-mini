@@ -139,7 +139,8 @@ def test_scope_less_environment_still_rejects_aw_as_plain_business_value(tmp_pat
         "internal": {"code": "unused by fixture"},
     }
 
-    record = call_environment_tool(
+    with pytest.raises(ValueError, match="未标注"):
+        call_environment_tool(
             "echo",
             {"value": "aw://reports/daily.json"},
             {"echo": tool},
@@ -154,8 +155,6 @@ def test_scope_less_environment_still_rejects_aw_as_plain_business_value(tmp_pat
                 "error": None,
             },
         )
-    assert '未标注' in record['error']
-    assert record['failure_kind'] == 'invalid_arguments'
 
 
 def test_kimi_native_file_policy_bounds_workspace_and_current_session(tmp_path):

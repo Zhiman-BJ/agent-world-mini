@@ -14,8 +14,8 @@ from harness.delivery import load_delivery  # noqa: E402
 from harness.execution import (  # noqa: E402, F401
     CallToolFn,
     _schema_error,
-    call_environment_tool,
 )
+from task_gen.tool_runtime import call_environment_tool
 from harness.resources import ResourceCatalog  # noqa: E402
 from env_gen.tool_gen.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
@@ -164,7 +164,8 @@ class TaskEvalMcpServer:
                 write_limit=int(self.config["write_limit"]),
                 process_limit=int(self.config.get("process_limit", 1024)),
                 environment=self.config.get("environment", {}),
-                runtime=self.config.get("runtime"),
+                runtime=self.config.get("runtime") or self.config.get("delivery_runtime"),
+                binding_path=self.config.get("binding_path"),
                 **({'software': self.config['software']} if self.config.get('software') else {}),
                 **({'software_root': self.config['software_root']} if self.config.get('software_root') else {}),
             )

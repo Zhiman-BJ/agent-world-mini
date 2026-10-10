@@ -42,7 +42,7 @@ def _mcp_launch(
     binding_value = config.get("binding_path")
     if not isinstance(binding_value, str) or not binding_value:
         return StdioLaunch(
-            Path(sys.executable).absolute(),
+            Path(sys.executable).resolve(),
             (str(server_path), str(private_server)),
             {},
         )

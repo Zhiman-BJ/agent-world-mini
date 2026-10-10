@@ -957,8 +957,6 @@ class CompleteEnvironmentRuntime:
             and not record.get("failure_kind")
         )
         if record.get("error") and not is_business_failure:
-            if record.get("failure_kind") == "invalid_arguments":
-                raise ValueError(record["error"])
             raise RuntimeError(
                 f"工具 {name} 执行失败"
                 f"[{record.get('failure_kind') or 'validation'}]：{record['error']}"

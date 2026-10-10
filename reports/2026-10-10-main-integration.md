@@ -1,5 +1,32 @@
 # main 合并试验
 
+## 最新调整：公共实现以远端为准
+
+用户在初次合并后明确要求：功能相同但实现不同的公共部分采用远端版本，由我们的调用端适配。下文“冲突处理”记录的是首次合并 `d676a0d` 的决策；本节覆盖其中保留本地公共实现的部分。
+
+- `harness/`、`env_gen/tool_gen/`、`task_gen/program/`、`task_gen/task_eval_kimi.py` 已与远端 `8e4dd5a` 逐文件完全一致。包括字节及换行，不仅逻辑一致。
+- 删除本地共享沙箱的另一套Docker执行、镜像源和启动修复；不再通过修改上游来满足DAG调用端。
+- 撤销上一轮Program参数异常兼容修改：Harness恢复原来的抛错契约后，Program无需修改。
+- 新增下游 `task_gen/tool_runtime.py`：将Harness抛出的参数异常转换为MCP/ReAct可见的错误记录；Docker通过上游Program已有的 `_docker_call_tool` 执行，使用其binding和worker协议，不另写容器执行器。超时转换为timeout记录，外层事务仍负责失败回滚。
+- MCP、ReAct及历史固定链执行入口改用该适配层；Step3传入binding路径。没有修改任务设计、链长门槛、复核策略或最终正文规则。
+- 此适配层依赖上游Program的内部Docker函数签名，未来上游调整该接口时需要同步检查。未启用上游的Docker兼容旁路环境开关。
+
+### 本轮验证结果
+
+第一组：`test_taskgen_runtime_adapter test_harness test_step3_single_session test_tool_graph_execution test_tool_resources test_task_eval_react test_program_form_v2 test_tool_delivery_runtime test_tool_software test_software_profile_versions test_mcp_integration`：115通过、3失败。
+
+第二组：`test_execution_resources test_task_eval_kimi test_tool_result_reader test_codex_agent_client`：13通过、23跳过。
+
+3个失败在纯远端 `8e4dd5a` 工作区同样复现：
+
+1. `test_profile_native_library_paths_reach_tool_sandbox`：沙箱未传递profile原生库路径。
+2. `test_tool_sandbox_resolves_its_user_id`：缺少系统用户记录，getpwuid失败。
+3. `test_native_shutdown_logs_do_not_extend_tool_response`：退出日志追加到JSON后导致Extra data。
+
+这是采用远端后重新暴露的既有问题，相比第一次整合版确实失去了对应本地修复。测试没有删除、放宽或标记为预期失败。后续如果要修，宜在共享实现中单独讨论修复，不能宣称当前版本全绿或与实测f030985完全等效。
+
+新增适配测试覆盖非法资源参数回传后继续成功调用、复用上游Docker执行器且失败回滚、Docker超时记录。Docker测试使用模拟worker验证接线，未实际启动交付镜像；Kimi/镜像等外部依赖测试有跳过。没有运行付费模型、没有更新main或推送。
+
 本地基线：`f030985`（GPT6sol 十环境实测的 Harness 适配版）。
 远端基线：`8e4dd5a`（2026-10-02，ShuoSun-CN）。
 整合分支：`integration/main-20261010`。本次只在独立工作区整合，不更新 main、不推送。

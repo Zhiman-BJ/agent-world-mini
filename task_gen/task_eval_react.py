@@ -117,7 +117,8 @@ def run_react_agent(
                     software_root=config.get("software_root"),
                     write_limit=int(config.get("write_limit", 256 * 1024**2)),
                     environment=config.get("environment", {}),
-                    runtime=config.get("runtime"),
+                    runtime=config.get("runtime") or config.get("delivery_runtime"),
+                    binding_path=config.get("binding_path"),
                     **({'software': config['software']} if config.get('software') else {}),
                 )
                 with trace.open("a", encoding="utf-8") as stream:
