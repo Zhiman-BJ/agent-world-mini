@@ -89,7 +89,8 @@ def _restrict_writes_with_landlock(writable_roots):
         for root in writable_roots:
             parent_fd = os.open(root, os.O_PATH | os.O_CLOEXEC)
             try:
-                rule = PathBeneath(handled, parent_fd)
+                access = handled if os.path.isdir(root) else landlock_access_fs_write_file
+                rule = PathBeneath(access, parent_fd)
                 if libc.syscall(
                     landlock_add_rule,
                     ruleset_fd,
@@ -567,7 +568,7 @@ def run_tool_direct(
             "scope_roots": roots,
             "read_only": read_only,
             "direct_path_guard": True,
-            "writable_roots": [temporary],
+            "writable_roots": [temporary, "/dev/null"],
             "memory_limit": memory_limit,
             "write_limit": write_limit,
             # RLIMIT_NPROC is counted across the real UID, not this tool process.
@@ -613,7 +614,9 @@ def run_tool_direct(
                         stderr=stderr,
                         timeout=timeout,
                         check=False,
-                        cwd=workspace,
+                        # Read-only scientific tools may assemble models in cwd.
+                        # Business paths remain available through the context.
+                        cwd=temporary if read_only else workspace,
                         env=environment_variables,
                     )
                 except subprocess.TimeoutExpired:
