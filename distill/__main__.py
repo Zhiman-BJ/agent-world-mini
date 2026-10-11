@@ -217,6 +217,26 @@ def _is_task_local_upstream_timeout(result: dict[str, Any]) -> bool:
     )
 
 
+def _concurrency_environment_error_count(result: dict[str, Any]) -> int:
+    errors = result.get("environment_errors")
+    if not isinstance(errors, list):
+        return int(result.get("environment_error_count", 0))
+    count = 0
+    for error in errors:
+        message = str(error.get("message", "")).lower()
+        resource_failure = any(marker in message for marker in (
+            "cannot allocate memory", "no space left on device", "failed to map segment",
+            "resource temporarily unavailable", "can't start new thread",
+        ))
+        missing_dependency = error.get("code") == "software_dependency_missing" or any(
+            marker in message for marker in (
+                "no module named", "cannot open shared object file", "no such file or directory",
+            )
+        )
+        count += resource_failure or not missing_dependency
+    return count
+
+
 class _AdaptiveConcurrencyController:
     """Adjust new dispatch without terminating already-running task workers."""
 
@@ -245,7 +265,7 @@ class _AdaptiveConcurrencyController:
             for item in self._recent
             if not _is_task_local_upstream_timeout(item)
         )
-        environment_errors = sum(item.get("environment_error_count", 0) for item in self._recent)
+        environment_errors = sum(_concurrency_environment_error_count(item) for item in self._recent)
         startup_errors = sum(item.get("mcp_startup_failure_count", 0) for item in self._recent)
         verifier_errors = sum(
             item.get("verification", {}).get("status") == "verification_error"

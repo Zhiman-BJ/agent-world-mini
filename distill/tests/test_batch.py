@@ -291,6 +291,27 @@ def test_bounded_results_stops_dispatching_at_environment_error_limit():
     assert reason == "environment_error_limit_reached: 2 >= 2"
 
 
+def test_adaptive_concurrency_keeps_dispatch_for_missing_delivery_dependencies(monkeypatch):
+    from distill.__main__ import _AdaptiveConcurrencyController
+
+    monkeypatch.setattr("distill.__main__.os.getloadavg", lambda: (0, 0, 0))
+    monkeypatch.setattr("distill.__main__._available_memory_bytes", lambda: 1024**4)
+    monkeypatch.setattr("distill.__main__._io_full_pressure_avg10", lambda: 0)
+    controller = _AdaptiveConcurrencyController(maximum=8, minimum=1)
+    for _ in range(3):
+        controller.observe({"environment_error_count": 1, "environment_errors": [{
+            "code": "software_dependency_missing",
+            "message": "OSError: libOpenGL.so.0: cannot open shared object file",
+        }]})
+    assert controller.current == 8
+    assert controller.history == []
+    for _ in range(3):
+        controller.observe({"environment_error_count": 1, "environment_errors": [{
+            "code": "analysis_failed", "message": "PermissionError: Permission denied",
+        }]})
+    assert controller.current == 4
+
+
 def test_adaptive_concurrency_halves_after_repeated_upstream_errors(monkeypatch):
     from distill.__main__ import _AdaptiveConcurrencyController
 
