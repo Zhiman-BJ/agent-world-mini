@@ -106,15 +106,23 @@ def test_environment_errors_exclude_business_failures(tmp_path):
             "error": "工具调用超过 300 秒",
             "failure_kind": "timeout",
         },
+        {
+            "tool": "layer_stack",
+            "result": {"success": False, "error": {
+                "code": "invalid_layer_stack",
+                "message": "gdsfactory failed: PermissionError: [Errno 13] Permission denied",
+            }},
+            "error": "tool returned success=false",
+        },
     ])
 
     errors = _environment_errors(trace)
 
     assert [error["tool"] for error in errors] == [
-        "compute", "simulate", "modes", "threaded_analysis",
+        "compute", "simulate", "modes", "threaded_analysis", "layer_stack",
     ]
     assert [error["code"] for error in errors] == [
-        "backend_unavailable", "runtime_error", "runtime_error", "analysis_failed",
+        "backend_unavailable", "runtime_error", "runtime_error", "analysis_failed", "invalid_layer_stack",
     ]
 
     from distill.environment_errors import tool_timeouts

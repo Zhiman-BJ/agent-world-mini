@@ -90,6 +90,11 @@ def _restrict_writes_with_landlock(writable_roots):
             parent_fd = os.open(root, os.O_PATH | os.O_CLOEXEC)
             try:
                 access = handled if os.path.isdir(root) else landlock_access_fs_write_file
+                if root == '/dev/shm':
+                    # POSIX semaphores back multiprocessing/loguru queues.
+                    access = (landlock_access_fs_write_file
+                              | landlock_access_fs_make_reg
+                              | landlock_access_fs_remove_file)
                 rule = PathBeneath(access, parent_fd)
                 if libc.syscall(
                     landlock_add_rule,
@@ -568,7 +573,7 @@ def run_tool_direct(
             "scope_roots": roots,
             "read_only": read_only,
             "direct_path_guard": True,
-            "writable_roots": [temporary, "/dev/null"],
+            "writable_roots": [temporary, "/dev/null", "/dev/shm"],
             "memory_limit": memory_limit,
             "write_limit": write_limit,
             # RLIMIT_NPROC is counted across the real UID, not this tool process.
@@ -591,6 +596,8 @@ def run_tool_direct(
             environment_variables = dict(os.environ)
         environment_variables.update({
             "HOME": temporary,
+            "USER": f"agent-world-{os.getuid()}",
+            "LOGNAME": f"agent-world-{os.getuid()}",
             "TMPDIR": temporary,
             "XDG_CACHE_HOME": str(Path(temporary) / "cache"),
             "XDG_CONFIG_HOME": str(Path(temporary) / "config"),
