@@ -48,3 +48,20 @@ def test_error_tool_result_uses_only_structured_content_for_kimi():
         "structuredContent": payload,
         "isError": True,
     }
+
+
+def test_kimi_adapter_records_actual_mcp_result(tmp_path):
+    from task_gen.task_eval_kimi_mcp import KimiMcpAdapter
+
+    expected = tool_call_result({"success": True, "data": {"value": 17}}, is_error=False)
+
+    class Server:
+        trace = tmp_path / "environment_tool_calls.jsonl"
+
+        def handle(self, request):
+            return expected
+
+    request = {"id": 23, "method": "tools/call", "params": {"name": "inspect", "arguments": {}}}
+    assert KimiMcpAdapter(Server()).handle(request) is expected
+    evidence = json.loads((tmp_path / "mcp_responses.jsonl").read_text())
+    assert evidence == {"request_id": 23, "tool": "inspect", "result": expected}
