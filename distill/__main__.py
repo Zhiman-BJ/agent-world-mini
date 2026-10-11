@@ -187,6 +187,21 @@ def _available_memory_bytes() -> int | None:
     return None
 
 
+def _task_local_request_error_count(path: Path) -> int:
+    """Ordinary request 400s cannot be fixed by throttling unrelated tasks."""
+    if not path.is_file():
+        return 0
+    count = 0
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and row.get("status") == 400 and not row.get("attempts"):
+            count += 1
+    return count
+
+
 def _io_full_pressure_avg10() -> float | None:
     """Return the ten-second full I/O PSI percentage when the kernel exposes it."""
     try:
@@ -261,7 +276,7 @@ class _AdaptiveConcurrencyController:
         # retry budget is exhausted. It is not evidence that local batch
         # concurrency is unhealthy, so do not throttle unrelated tasks for it.
         transport_errors = sum(
-            item.get("upstream_final_error_count", 0)
+            max(0, item.get("upstream_final_error_count", 0) - item.get("task_local_request_error_count", 0))
             for item in self._recent
             if not _is_task_local_upstream_timeout(item)
         )
@@ -668,6 +683,9 @@ def _run_taskgen(arguments: argparse.Namespace) -> None:
         result["model_request_count"] = requests
         result["upstream_final_error_count"] = final_errors
         result["upstream_retry_count"] = retries
+        result["task_local_request_error_count"] = _task_local_request_error_count(
+            output / "raw/model_responses.jsonl"
+        )
         upstream_stop_path = output / "raw/upstream_stop.json"
         result["upstream_stop_count"] = int(upstream_stop_path.is_file())
         if upstream_stop_path.is_file():

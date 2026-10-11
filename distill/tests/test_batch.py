@@ -354,6 +354,29 @@ def test_adaptive_concurrency_does_not_throttle_for_terminal_tokenhub_504(monkey
     assert controller.history == []
 
 
+def test_adaptive_concurrency_does_not_throttle_for_ordinary_request_400(monkeypatch):
+    from distill.__main__ import _AdaptiveConcurrencyController
+
+    monkeypatch.setattr("distill.__main__.os.getloadavg", lambda: (0.0, 0.0, 0.0))
+    monkeypatch.setattr("distill.__main__._available_memory_bytes", lambda: 512 * 1024 ** 3)
+    monkeypatch.setattr("distill.__main__._io_full_pressure_avg10", lambda: 0.0)
+    controller = _AdaptiveConcurrencyController(maximum=8, minimum=1)
+    for _ in range(20):
+        controller.observe({"upstream_final_error_count": 1, "task_local_request_error_count": 1})
+    assert controller.current == 8
+    assert controller.history == []
+
+
+def test_task_local_request_errors_exclude_retried_internal_400_and_500(tmp_path):
+    from distill.__main__ import _task_local_request_error_count
+
+    path = tmp_path / "model_responses.jsonl"
+    _jsonl(path, [{"status": 400, "attempts": []},
+                  {"status": 400, "attempts": [{"status": 400}]},
+                  {"status": 500, "attempts": []}])
+    assert _task_local_request_error_count(path) == 1
+
+
 def test_adaptive_concurrency_halves_after_repeated_mcp_startup_failures(monkeypatch):
     from distill.__main__ import _AdaptiveConcurrencyController
 
