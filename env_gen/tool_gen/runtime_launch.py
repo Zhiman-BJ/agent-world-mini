@@ -66,6 +66,12 @@ def docker_stdio_launch(
         if project_root is not None
         else server_path.resolve().parents[2]
     )
+    # The Docker daemon may run outside the evaluation Pod.  In that case the
+    # user-mounted source path is not visible to the daemon even though the
+    # executor can read it; callers can provide the daemon-visible mirror.
+    source_project_root = Path(
+        os.environ.get("AGENT_WORLD_DOCKER_PROJECT_ROOT", str(project_root))
+    ).expanduser().resolve()
     delivery_mount = str(runtime["delivery_mount"])
     code_mount = str(runtime["code_mount"])
     translated: list[str] = []
@@ -108,7 +114,7 @@ def docker_stdio_launch(
         "--mount",
         f"type=bind,source={delivery.delivery_root},target={delivery_mount},readonly",
         "--mount",
-        f"type=bind,source={project_root},target={code_mount},readonly",
+        f"type=bind,source={source_project_root},target={code_mount},readonly",
     ]
     for source, target in extra_mounts.items():
         command.extend(

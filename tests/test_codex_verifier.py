@@ -61,8 +61,10 @@ def test_os_sandbox_protects_evidence_and_hides_host(tmp_path):
     hidden = tmp_path / "host-secret"
     hidden.write_text("not accessible")
     prefix = sandbox_command(root, auth, runtime_paths=[])
-    script = f"""from pathlib import Path
+    script = f"""import os
+from pathlib import Path
 assert not Path({str(hidden)!r}).exists()
+assert not os.path.exists('/proc/1/root' + {str(hidden)!r})
 p = Path('evidence/actual/answer.txt')
 assert p.read_text() == '8'
 try:

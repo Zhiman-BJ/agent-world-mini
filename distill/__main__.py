@@ -22,6 +22,7 @@ from .environment_errors import environment_errors as _environment_errors, tool_
 from .relay import _stream_error
 from .runner import (
     KIMI_K3_CONTEXT_SIZE,
+    KIMI_K3_OUTPUT_SIZE,
     KIMI_K3_DEFAULT_EFFORT,
     KIMI_K3_EFFORTS,
     KIMI_DEFAULT_MAX_TOOL_CALLS,
@@ -58,6 +59,7 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "base_url": arguments.base_url,
         "api_key": api_key,
         "max_context_size": arguments.max_context_size,
+        "max_output_size": arguments.max_output_size,
         "model_id": arguments.model_id,
         "model_alias": arguments.model_alias,
         "provider_type": arguments.provider_type,
@@ -411,8 +413,12 @@ def _override_case_deliveries(cases: list[Any], delivery_root: Path) -> list[Any
             raise ValueError(f"delivery override environment mismatch: {binding}")
         environment = dict(delivery.package.environment)
         environment["tools"] = list(delivery.package.tools)
+        repaired_tools = delivery.binding_path.parent / "tools/tools_repaired.json"
+        if not repaired_tools.is_file():
+            raise ValueError(f"delivery is missing tools_repaired.json: {repaired_tools}")
         runtime = {
             "binding_path": str(delivery.binding_path),
+            "tools_path": str(repaired_tools),
             "initial_state": str(delivery.package.package_root / "state"),
         }
         if delivery.software_root is not None and delivery.python_path is not None:
@@ -636,9 +642,6 @@ def _run_taskgen(arguments: argparse.Namespace) -> None:
         result["tool_timeout_count"] = len(timeouts)
         if timeouts:
             result["tool_timeouts"] = timeouts
-            if result["status"] == "completed":
-                result["status"] = "failed"
-                result["error"] = "tool execution timed out; task is not retried"
         requests, final_errors, retries = _model_transport_stats(
             output / "raw/model_responses.jsonl"
         )
@@ -823,6 +826,12 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument("--model-id", default="kimi-k3")
+    parser.add_argument(
+        "--max-output-size",
+        type=int,
+        default=int(os.environ.get("KIMI_MAX_OUTPUT_SIZE", KIMI_K3_OUTPUT_SIZE)),
+        help="maximum output tokens for each model request",
+    )
     parser.add_argument("--model-alias", default="evaluation")
     parser.add_argument(
         "--provider-type",
@@ -1036,6 +1045,8 @@ def main() -> None:
         )
     if getattr(arguments, "max_upstream_retries", 0) < 0:
         parser.error("--max-upstream-retries must be non-negative")
+    if getattr(arguments, "max_output_size", 1) <= 0:
+        parser.error("--max-output-size must be positive")
     try:
         if hasattr(arguments, "base_url") and not arguments.base_url:
             raise ValueError("set --base-url or KIMI_BASE_URL")

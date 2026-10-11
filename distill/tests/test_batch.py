@@ -12,6 +12,55 @@ def _jsonl(path: Path, records: list[dict]) -> None:
     path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
 
 
+def test_cli_passes_explicit_output_limit_to_runner(tmp_path, monkeypatch):
+    from distill.__main__ import build_parser, _common
+
+    monkeypatch.setenv("KIMI_API_KEY", "test-key")
+    arguments = build_parser().parse_args([
+        "taskgen", "--input-root", str(tmp_path), "--output-root", str(tmp_path / "runs"),
+        "--max-context-size", "262144", "--max-output-size", "131072",
+    ])
+    options = _common(arguments)
+
+    assert options["max_context_size"] == 262144
+    assert options["max_output_size"] == 131072
+
+
+def test_completed_task_with_tool_timeout_is_still_verified(tmp_path, monkeypatch):
+    from distill import __main__ as cli
+    from task_gen.eval_cases import EvalCase
+
+    case = EvalCase(tmp_path / "source", {"task_id": "t1", "task_text": "Return 8.",
+                                         "environment_id": "example"},
+                    {}, tmp_path / "initial", None, [])
+    monkeypatch.setenv("KIMI_API_KEY", "test-key")
+    monkeypatch.setattr("task_gen.eval_cases.load_cases", lambda *a, **k: [case])
+    monkeypatch.setattr(cli, "make_server_config", lambda *a, **k: {})
+
+    def run(prompt, initial, config, output, **kwargs):
+        (output / "raw").mkdir(parents=True)
+        _jsonl(output / "raw/environment_tool_calls.jsonl", [{
+            "tool": "slow", "error": "tool timed out", "failure_kind": "timeout",
+        }])
+        return {"steps": [], "compactions": []}
+
+    monkeypatch.setattr(cli, "run_k3_distillation", run)
+    monkeypatch.setattr("distill.taskgen_verifier.verify_distilled_case", lambda *a, **k: {
+        "status": "verified", "outcome": "pass",
+    })
+    args = cli.build_parser().parse_args([
+        "taskgen", "--input-root", str(tmp_path), "--output-root", str(tmp_path / "runs"),
+        "--base-url", "http://localhost/v1", "--verify-after-each",
+    ])
+    cli._run_taskgen(args)
+    summary = json.loads(next((tmp_path / "runs").glob("*/summary.json")).read_text())
+    result = summary["results"][0]
+
+    assert result["status"] == "completed"
+    assert result["tool_timeout_count"] == 1
+    assert result["verification"]["outcome"] == "pass"
+
+
 def test_environment_errors_exclude_business_failures(tmp_path):
     from distill.__main__ import _environment_errors
 
@@ -572,6 +621,9 @@ def test_delivery_override_rebinds_tools_without_changing_task_state(tmp_path, m
     binding = tmp_path / "environments" / "example" / "binding.json"
     binding.parent.mkdir(parents=True)
     binding.write_text("{}", encoding="utf-8")
+    repaired_tools = binding.parent / "tools/tools_repaired.json"
+    repaired_tools.parent.mkdir()
+    repaired_tools.write_text('{"tools": []}', encoding="utf-8")
     initial_state = tmp_path / "task-initial"
     reference_state = tmp_path / "task-reference"
     package_root = tmp_path / "delivery-environment"
@@ -613,7 +665,13 @@ def test_delivery_override_rebinds_tools_without_changing_task_state(tmp_path, m
     assert result.reference_calls is case.reference_calls
     assert result.environment["tools"] == [tool]
     assert result.runtime["binding_path"] == str(binding.resolve())
+    assert result.runtime["tools_path"] == str(repaired_tools.resolve())
     assert result.runtime["initial_state"] == str(package_root / "state")
+
+    repaired_tools.unlink()
+    import pytest
+    with pytest.raises(ValueError, match="delivery is missing tools_repaired.json"):
+        _override_case_deliveries([case], tmp_path)
 
 
 def test_delivery_override_resolves_binding_environment_id_alias(tmp_path, monkeypatch):
@@ -623,6 +681,9 @@ def test_delivery_override_resolves_binding_environment_id_alias(tmp_path, monke
     binding = tmp_path / "environments" / "scenario-package" / "binding.json"
     binding.parent.mkdir(parents=True)
     binding.write_text(json.dumps({"environment_id": "tool-environment"}), encoding="utf-8")
+    repaired_tools = binding.parent / "tools/tools_repaired.json"
+    repaired_tools.parent.mkdir()
+    repaired_tools.write_text('{"tools": []}', encoding="utf-8")
     package_root = tmp_path / "delivery-environment"
     package_root.mkdir()
     delivery = SimpleNamespace(
