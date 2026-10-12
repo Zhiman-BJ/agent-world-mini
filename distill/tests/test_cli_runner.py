@@ -272,6 +272,19 @@ def test_kimi_config_can_select_max_reasoning_effort(tmp_path):
     ] == "max"
 
 
+def test_early_compaction_preserves_the_declared_context(tmp_path):
+    from distill.runner import _write_kimi_config
+
+    path = tmp_path / "config.toml"
+    _write_kimi_config(path, "http://127.0.0.1:1234/v1", "evaluation", "kimi-k3",
+                       262144, "kimi", "python /private/hook.py",
+                       compaction_trigger_ratio=0.5)
+    config = tomllib.loads(path.read_text())
+    assert config["models"]["evaluation"]["max_context_size"] == 262144
+    assert config["models"]["evaluation"]["max_output_size"] == 131072
+    assert config["loop_control"]["compaction_trigger_ratio"] == 0.5
+
+
 def test_mcp_config_uses_extended_startup_timeout(tmp_path):
     from distill.runner import (
         KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS,
@@ -802,6 +815,16 @@ def streaming_model():
             request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(request)
             serialized = json.dumps(request)
+            if "CONTEXT_OVERFLOW_PROBE" in serialized and len(requests) == 2:
+                body = json.dumps({"error": {"message": "Input exceeds the maximum context length",
+                                             "type": "invalid_request_error",
+                                             "code": "context_length_exceeded"}}).encode()
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             forbidden_probe = re.search(r"FORBIDDEN_READ_PROBE:(/[^\s\"\\]+)", serialized)
             if forbidden_probe is not None and len(requests) == 1:
                 delta = {
@@ -907,7 +930,8 @@ def streaming_model():
     thread.join()
 
 
-def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
+@pytest.mark.parametrize("overflow_after_tool", [False, True])
+def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, overflow_after_tool):
     from distill.runner import run_k3_distillation
 
     kimi_bin = os.environ.get("KIMI_CODE_BIN")
@@ -930,7 +954,7 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
     }
     output = tmp_path / "run"
     trajectory = run_k3_distillation(
-        "Inspect the environment and report the value.",
+        "Inspect the environment and report the value." + (" CONTEXT_OVERFLOW_PROBE" if overflow_after_tool else ""),
         initial,
         {
             "workspace_root": ".",
@@ -946,7 +970,8 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
         kimi_bin=Path(kimi_bin),
         base_url=base_url,
         api_key="test-key-never-written",
-        max_context_size=1_048_576,
+        max_context_size=262144 if overflow_after_tool else 1_048_576,
+        compaction_trigger_ratio=0.5 if overflow_after_tool else None,
     )
 
     assert trajectory["outcome"]["final_answer"] == "The value is 17."
@@ -954,7 +979,13 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
     call = trajectory["steps"][0]["tool_calls"][0]
     assert call["tool_kind"] == "environment_mcp"
     assert call["environment_record"]["result"]["value"] == 17
-    assert len(requests) == 2
+    if overflow_after_tool:
+        assert len(requests) >= 4
+        assert len(trajectory["compactions"]) >= 1
+        assert trajectory["model"]["max_context_size"] == 262144
+        assert json.loads((output / "raw/harness_policy.json").read_text())["compaction_trigger_ratio"] == 0.5
+    else:
+        assert len(requests) == 2
     expected = {
         "mcp__agent_world_distill__inspect",
         "Read", "Grep", "Glob",
@@ -967,7 +998,7 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
         assert "max_tokens" not in request
         assert {tool["function"]["name"] for tool in request["tools"]} == expected
     assert (output / "raw/kimi_session.zip").is_file()
-    assert len(list((output / "raw/model_io").glob("*.response.sse"))) == 2
+    assert len(list((output / "raw/model_io").glob("*.response.sse"))) == len(requests)
     assert "test-key-never-written" not in "".join(
         path.read_text(encoding="utf-8", errors="ignore")
         for path in (output / "raw").rglob("*") if path.is_file() and path.suffix != ".zip"

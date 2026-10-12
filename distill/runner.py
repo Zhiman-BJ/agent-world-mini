@@ -195,6 +195,7 @@ def _write_kimi_config(
     file_hook_command: str,
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
     max_output_size: int = KIMI_K3_OUTPUT_SIZE,
+    compaction_trigger_ratio: float | None = None,
 ) -> None:
     if not isinstance(file_hook_command, str) or not file_hook_command.strip():
         raise ValueError("file_hook_command must be non-empty")
@@ -207,6 +208,11 @@ def _write_kimi_config(
         'matcher = "^(Read|Grep|Glob)$"\n'
         f"command = {quote(file_hook_command)}\n"
         "timeout = 5\n"
+    )
+    compaction = (
+        "\n[loop_control]\n"
+        f"compaction_trigger_ratio = {compaction_trigger_ratio}\n"
+        if compaction_trigger_ratio is not None else ""
     )
     path.write_text(
         f"default_model = {quote(model_alias)}\n\n"
@@ -223,7 +229,7 @@ def _write_kimi_config(
         'capabilities = ["thinking", "always_thinking", "tool_use"]\n'
         f"support_efforts = {json.dumps(list(KIMI_K3_EFFORTS))}\n"
         f"default_effort = {quote(reasoning_effort)}\n"
-        f"{hook}",
+        f"{hook}{compaction}",
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -908,6 +914,7 @@ def run_k3_distillation(
     provider_type: str = "kimi",
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
     max_output_size: int = KIMI_K3_OUTPUT_SIZE,
+    compaction_trigger_ratio: float | None = None,
     max_upstream_retries: int = KIMI_UPSTREAM_MAX_RETRIES,
     max_environment_errors: int | None = None,
     environment_error_circuit_breaker: EnvironmentErrorCircuitBreaker | None = None,
@@ -933,6 +940,11 @@ def run_k3_distillation(
         raise ValueError("max_context_size must be a positive integer supported by the upstream model")
     if type(max_output_size) is not int or max_output_size < 1:
         raise ValueError("max_output_size must be a positive integer")
+    if compaction_trigger_ratio is not None and (
+        type(compaction_trigger_ratio) not in (int, float)
+        or not 0.5 <= compaction_trigger_ratio <= 0.99
+    ):
+        raise ValueError("compaction_trigger_ratio must be between 0.5 and 0.99")
     if max_environment_errors is not None and (
         type(max_environment_errors) is not int or max_environment_errors < 1
     ):
@@ -1015,6 +1027,7 @@ def run_k3_distillation(
         "declared_model_context_size": max_context_size,
         "declared_model_output_size": max_output_size,
         "reasoning_effort": reasoning_effort,
+        "compaction_trigger_ratio": compaction_trigger_ratio,
         "relay_normalizations": (
             [
                 "thinking.effort -> reasoning_effort",
@@ -1088,7 +1101,7 @@ def run_k3_distillation(
             _write_kimi_config(
                 kimi_home / "config.toml", relay.base_url, model_alias, model_id,
                 max_context_size, provider_type, file_hook_command, reasoning_effort,
-                max_output_size,
+                max_output_size, compaction_trigger_ratio,
             )
             mcp_config_path = kimi_home / "mcp.json"
             _write_mcp_config(

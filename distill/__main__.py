@@ -60,6 +60,7 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "api_key": api_key,
         "max_context_size": arguments.max_context_size,
         "max_output_size": arguments.max_output_size,
+        "compaction_trigger_ratio": arguments.compaction_trigger_ratio,
         "model_id": arguments.model_id,
         "model_alias": arguments.model_alias,
         "provider_type": arguments.provider_type,
@@ -871,6 +872,10 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         help="maximum output tokens for each model request",
     )
     parser.add_argument("--model-alias", default="evaluation")
+    parser.add_argument(
+        "--compaction-trigger-ratio", type=float,
+        help="official Kimi early-compaction threshold, between 0.5 and 0.99",
+    )
     parser.add_argument(
         "--provider-type",
         choices=tuple(sorted(PROVIDER_TYPES)),
