@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -283,6 +284,7 @@ def test_early_compaction_preserves_the_declared_context(tmp_path):
     assert config["models"]["evaluation"]["max_context_size"] == 262144
     assert config["models"]["evaluation"]["max_output_size"] == 131072
     assert config["loop_control"]["compaction_trigger_ratio"] == 0.5
+    assert config["loop_control"]["reserved_context_size"] == 131072
 
 
 def test_mcp_config_uses_extended_startup_timeout(tmp_path):
@@ -815,6 +817,9 @@ def streaming_model():
             request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(request)
             serialized = json.dumps(request)
+            early_blocking = "EARLY_BLOCKING_COMPACTION_PROBE" in serialized
+            if early_blocking and request.get("messages", [{}])[-1].get("content", "").startswith("You are about to run out of context."):
+                time.sleep(0.25)
             if "CONTEXT_OVERFLOW_PROBE" in serialized and len(requests) == 2:
                 body = json.dumps({"error": {"message": "Input exceeds the maximum context length",
                                              "type": "invalid_request_error",
@@ -897,6 +902,7 @@ def streaming_model():
                         ),
                     }
                     finish_reason = "stop"
+            input_tokens = 140000 if early_blocking and len(requests) == 1 else 100
             chunks = [
                 {
                     "id": f"test-{len(requests)}",
@@ -911,7 +917,7 @@ def streaming_model():
                     "created": 0,
                     "model": "kimi-k3",
                     "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
-                    "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+                    "usage": {"prompt_tokens": input_tokens, "completion_tokens": 10, "total_tokens": input_tokens + 10},
                 },
             ]
             body = ("".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n").encode()
@@ -930,8 +936,8 @@ def streaming_model():
     thread.join()
 
 
-@pytest.mark.parametrize("overflow_after_tool", [False, True])
-def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, overflow_after_tool):
+@pytest.mark.parametrize("compaction_probe", [None, "CONTEXT_OVERFLOW_PROBE", "EARLY_BLOCKING_COMPACTION_PROBE"])
+def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, compaction_probe):
     from distill.runner import run_k3_distillation
 
     kimi_bin = os.environ.get("KIMI_CODE_BIN")
@@ -954,7 +960,7 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, over
     }
     output = tmp_path / "run"
     trajectory = run_k3_distillation(
-        "Inspect the environment and report the value." + (" CONTEXT_OVERFLOW_PROBE" if overflow_after_tool else ""),
+        "Inspect the environment and report the value." + (" " + compaction_probe if compaction_probe else ""),
         initial,
         {
             "workspace_root": ".",
@@ -970,8 +976,8 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, over
         kimi_bin=Path(kimi_bin),
         base_url=base_url,
         api_key="test-key-never-written",
-        max_context_size=262144 if overflow_after_tool else 1_048_576,
-        compaction_trigger_ratio=0.5 if overflow_after_tool else None,
+        max_context_size=262144 if compaction_probe else 1_048_576,
+        compaction_trigger_ratio=0.5 if compaction_probe else None,
     )
 
     assert trajectory["outcome"]["final_answer"] == "The value is 17."
@@ -979,11 +985,15 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, over
     call = trajectory["steps"][0]["tool_calls"][0]
     assert call["tool_kind"] == "environment_mcp"
     assert call["environment_record"]["result"]["value"] == 17
-    if overflow_after_tool:
-        assert len(requests) >= 4
+    if compaction_probe:
+        assert len(requests) >= (4 if compaction_probe == "CONTEXT_OVERFLOW_PROBE" else 3)
         assert len(trajectory["compactions"]) >= 1
         assert trajectory["model"]["max_context_size"] == 262144
-        assert json.loads((output / "raw/harness_policy.json").read_text())["compaction_trigger_ratio"] == 0.5
+        policy = json.loads((output / "raw/harness_policy.json").read_text())
+        assert policy["compaction_trigger_ratio"] == 0.5
+        assert policy["compaction_reserved_context_size"] == 131072
+        if compaction_probe == "EARLY_BLOCKING_COMPACTION_PROBE":
+            assert requests[1]["messages"][-1]["content"].startswith("You are about to run out of context.")
     else:
         assert len(requests) == 2
     expected = {

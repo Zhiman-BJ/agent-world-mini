@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -185,6 +186,14 @@ def _resolve_kimi_bin(value: Path | str) -> Path:
     return candidate
 
 
+def _compaction_reserved_context(max_context_size: int, trigger_ratio: float | None) -> int | None:
+    # Kimi 0.43 rejects background summaries after the model changes history.
+    # Reserve enough context to block the next model step at the early trigger.
+    if trigger_ratio is None or trigger_ratio >= 0.85:
+        return None
+    return math.ceil(max_context_size * (1 - trigger_ratio))
+
+
 def _write_kimi_config(
     path: Path,
     relay_url: str,
@@ -214,6 +223,9 @@ def _write_kimi_config(
         f"compaction_trigger_ratio = {compaction_trigger_ratio}\n"
         if compaction_trigger_ratio is not None else ""
     )
+    reserved_context = _compaction_reserved_context(max_context_size, compaction_trigger_ratio)
+    if reserved_context is not None:
+        compaction += f"reserved_context_size = {reserved_context}\n"
     path.write_text(
         f"default_model = {quote(model_alias)}\n\n"
         "[providers.agent_world_distill]\n"
@@ -1028,6 +1040,7 @@ def run_k3_distillation(
         "declared_model_output_size": max_output_size,
         "reasoning_effort": reasoning_effort,
         "compaction_trigger_ratio": compaction_trigger_ratio,
+        "compaction_reserved_context_size": _compaction_reserved_context(max_context_size, compaction_trigger_ratio),
         "relay_normalizations": (
             [
                 "thinking.effort -> reasoning_effort",
