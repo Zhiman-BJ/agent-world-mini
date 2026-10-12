@@ -855,7 +855,7 @@ def streaming_model():
                                 "name": "Read",
                                 "arguments": json.dumps({
                                     "path": output_path.group(1),
-                                    "line_offset": 1,
+                                    "line_offset": 3,
                                     "column_offset": 299900,
                                     "max_chars": 1000,
                                 }),
