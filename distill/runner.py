@@ -318,7 +318,7 @@ def _task_mcp_launch(
     binding_path = config.get("binding_path")
     if not isinstance(binding_path, str) or not binding_path:
         return StdioLaunch(
-            Path(sys.executable).resolve(),
+            Path(sys.executable).absolute(),
             (str(server_path), str(private_server)),
             {},
         )
