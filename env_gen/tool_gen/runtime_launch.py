@@ -43,8 +43,9 @@ def local_stdio_launch(
             "PETSC_DIR",
             "PETSC_ARCH",
             "SLEPC_DIR",
+            "SSL_CERT_FILE",
         ):
-            if prepared.get(name):
+            if name in prepared:
                 environment[name] = prepared[name]
     return StdioLaunch(command, tuple(arguments), environment)
 

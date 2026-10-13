@@ -89,7 +89,12 @@ def _restrict_writes_with_landlock(writable_roots):
         for root in writable_roots:
             parent_fd = os.open(root, os.O_PATH | os.O_CLOEXEC)
             try:
-                rule = PathBeneath(handled, parent_fd)
+                access = handled if os.path.isdir(root) else landlock_access_fs_write_file
+                if root == '/dev/shm':
+                    access = (landlock_access_fs_write_file
+                              | landlock_access_fs_make_reg
+                              | landlock_access_fs_remove_file)
+                rule = PathBeneath(access, parent_fd)
                 if libc.syscall(
                     landlock_add_rule,
                     ruleset_fd,
@@ -320,6 +325,29 @@ def call_tool(
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
 
 
+def _container_procfs() -> bool:
+    """Deployment flags for runtimes that provide their own private PID namespace."""
+    return any(os.environ.get(name) == '1' for name in (
+        'AGENT_WORLD_DOCKER_RUNTIME', 'AGENT_WORLD_KUBERNETES_RUNTIME',
+    ))
+
+
+def _sandbox_namespaces() -> list[str]:
+    if _container_procfs():
+        # Reused procfs and the worker must describe the same container PIDs.
+        return ['--unshare-user', '--unshare-ipc', '--unshare-net',
+                '--unshare-uts', '--unshare-cgroup']
+    return ['--unshare-all']
+
+
+def _interpreter_home_mounts(home: Path, base: Path) -> list[Path]:
+    """Preserve a runtime alias together with its standard-library directory."""
+    mounts = [home]
+    if home.parent.resolve() == base.resolve():
+        mounts.append(home.parent)
+    return mounts
+
+
 def run_tool_in_sandbox(
     code, arguments, workspace, timeout, memory_limit, write_limit, environment=None, software_root=None,
     *, process_limit=1024, software=None, read_only=False,
@@ -362,7 +390,8 @@ def run_tool_in_sandbox(
                     if separator and key.strip() == 'home':
                         home = Path(value.strip()).absolute()
                         if home.is_dir():
-                            mount_paths.append(str(home))
+                            mount_paths.extend(str(path) for path in
+                                               _interpreter_home_mounts(home, Path(info['base'])))
             # Keep aliases from pyvenv.cfg mounted at the path Python reads.
             runtime_mounts = sorted({Path(p).absolute() for p in mount_paths}, key=lambda p: len(p.parts))
             software_prefix = str(Path(info['prefix']).resolve())
@@ -378,33 +407,36 @@ def run_tool_in_sandbox(
             runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
         except ValueError:
             return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
-    # Docker already supplies a private PID namespace. A nested unprivileged
-    # user namespace cannot mount a fresh procfs on this kernel, so reuse the
+    # Docker and non-hostPID Kubernetes Pods supply a private PID namespace.
+    # A nested unprivileged user namespace cannot mount a fresh procfs on
+    # this kernel, so reuse the
     # container's procfs there. Host execution keeps the stronger fresh procfs
     # mount. Network, user, IPC, UTS, cgroup and filesystem isolation remain
     # owned by bubblewrap in both modes.
     proc_mount = (
         ["--ro-bind", "/proc", "/proc"]
-        if os.environ.get("AGENT_WORLD_DOCKER_RUNTIME") == "1"
+        if _container_procfs()
         else ["--proc", "/proc"]
     )
     command = [
         sandbox,
-        "--unshare-all",
+        *_sandbox_namespaces(),
         "--die-with-parent",
         "--new-session",
         "--ro-bind-try", "/lib", "/lib",
         "--ro-bind-try", "/lib64", "/lib64",
         *proc_mount,
         "--dev", "/dev",
+        "--tmpfs", "/dev/shm",
         "--dir", "/etc",
         "--dir", "/tmp",
         "--dir", "/workspace",
         "--ro-bind" if read_only else "--bind", str(workspace), "/workspace",
-        "--chdir", "/workspace",
+        "--chdir", "/tmp" if read_only else "/workspace",
         "--clearenv",
         "--setenv", "HOME", "/tmp",
         "--setenv", "USER", "tool",
+        "--setenv", "LOGNAME", "tool",
         "--setenv", "TMPDIR", "/tmp",
         # 库的缓存与自动生成配置不属于环境状态。
         "--setenv", "XDG_CACHE_HOME", "/tmp/cache",
@@ -420,16 +452,23 @@ def run_tool_in_sandbox(
         "--setenv", "TF_NUM_INTEROP_THREADS", "1",
         "--setenv", "XLA_FLAGS", "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
     ]
-    # A minimal identity database lets standard libraries resolve the sandbox
-    # UID without exposing the rest of the host's /etc tree.
-    for identity_file in ("/etc/passwd", "/etc/group"):
-        if Path(identity_file).is_file():
-            command.extend(["--ro-bind", identity_file, identity_file])
+    # Read-only CPU topology supports native MPI hardware discovery.
+    for topology in ('/sys/devices/system/cpu', '/sys/devices/system/node'):
+        if Path(topology).is_dir():
+            command.extend(['--ro-bind', topology, topology])
     # Bind a disposable directory from the workspace filesystem as /tmp.
     # This keeps standard-library tempfile + os.replace operations on one
     # device while still isolating caches from the business workspace.
     tmp_mount = tempfile.mkdtemp(prefix=".tool-tmp-", dir=workspace.parent)
     command.extend(["--bind", tmp_mount, "/tmp"])
+    # Container images may omit the Kubernetes runAsUser from /etc/passwd.
+    # Supply only this call's identity, without changing the container image.
+    passwd = Path(tmp_mount) / 'passwd'
+    group = Path(tmp_mount) / 'group'
+    passwd.write_text(f'tool:x:{os.getuid()}:{os.getgid()}:tool:/tmp:/bin/sh\n', encoding='utf-8')
+    group.write_text(f'tool:x:{os.getgid()}:\n', encoding='utf-8')
+    command.extend(['--ro-bind', str(passwd), '/etc/passwd',
+                    '--ro-bind', str(group), '/etc/group'])
     if software_root is not None and not software:
         software_root = Path(software_root).expanduser().resolve()
         if not software_root.is_dir():
@@ -582,7 +621,7 @@ def run_tool_direct(
             "scope_roots": roots,
             "read_only": read_only,
             "direct_path_guard": True,
-            "writable_roots": [temporary],
+            "writable_roots": [temporary, "/dev/null", "/dev/shm"],
             "memory_limit": memory_limit,
             "write_limit": write_limit,
             # RLIMIT_NPROC is counted across the real UID, not this tool process.
@@ -605,6 +644,8 @@ def run_tool_direct(
             environment_variables = dict(os.environ)
         environment_variables.update({
             "HOME": temporary,
+            "USER": "tool",
+            "LOGNAME": "tool",
             "TMPDIR": temporary,
             "XDG_CACHE_HOME": str(Path(temporary) / "cache"),
             "XDG_CONFIG_HOME": str(Path(temporary) / "config"),
@@ -628,7 +669,7 @@ def run_tool_direct(
                         stderr=stderr,
                         timeout=timeout,
                         check=False,
-                        cwd=workspace,
+                        cwd=temporary if read_only else workspace,
                         env=environment_variables,
                     )
                 except subprocess.TimeoutExpired:
@@ -740,7 +781,7 @@ def run_tool_in_docker(
             "--mount", f"type=bind,source={passwd},target=/etc/passwd,readonly",
             "--mount", f"type=bind,source={workspace},target=/workspace"
                        + (",readonly" if read_only else ""),
-            "--workdir", "/workspace",
+            "--workdir", "/tmp" if read_only else "/workspace",
             "--env", "HOME=/tmp", "--env", "TMPDIR=/tmp",
             "--env", "XDG_CACHE_HOME=/tmp/cache",
             "--env", "XDG_CONFIG_HOME=/tmp/config",

@@ -352,7 +352,13 @@ class ResourceCatalog:
                     raise ValueError(f"未知 Filesystem Scope：{scope_id}")
                 if allowed_scopes is not None and scope_id not in allowed_scopes:
                     raise ValueError(f"工具未声明使用 Filesystem Scope：{scope_id}")
-                relative = self._business_relative(str(scope_id), current)
+                # Tool code returns Scope-relative paths; only public arguments
+                # contain the workspace mount prefix.
+                relative = (
+                    self._business_relative(str(scope_id), current)
+                    if Path(current).is_absolute()
+                    else _relative_path(current)
+                )
                 target = self.resolve_relative(str(scope_id), relative)
                 if not target.exists():
                     raise ValueError(f"输出资源不存在：{current}")
