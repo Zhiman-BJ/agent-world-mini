@@ -114,6 +114,13 @@ class KimiMcpAdapter:
             result = {'tools': [dict(tool) for tool in result['tools']]}
             for tool in result['tools']:
                 tool['inputSchema'] = _normalize_kimi_tool_schema(tool['inputSchema'])
+        elif method == 'tools/call' and getattr(self.server, 'trace', None) is not None:
+            evidence = self.server.trace.parent / 'mcp_responses.jsonl'
+            with evidence.open('a', encoding='utf-8') as stream:
+                stream.write(json.dumps({'request_id': request.get('id'),
+                                         'tool': request.get('params', {}).get('name'),
+                                         'result': result},
+                                        ensure_ascii=False, allow_nan=False) + '\n')
         return result
 
 

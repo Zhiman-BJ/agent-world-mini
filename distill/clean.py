@@ -89,7 +89,9 @@ def cleaned_prompt(
 def _canonical_tool_name(observed: str, canonical_names: set[str]) -> str:
     if observed in NATIVE_TOOL_NAMES:
         return observed
-    short = observed[len(MCP_PREFIX):] if observed.startswith(MCP_PREFIX) else observed
+    match = re.match(r"^mcp__[A-Za-z0-9_-]+?__", observed)
+    prefix = match.group() if match else MCP_PREFIX
+    short = observed[len(prefix):] if match else observed
     if short in canonical_names:
         return short
     suffix = _SHORTENED_SUFFIX.search(observed)
@@ -98,7 +100,7 @@ def _canonical_tool_name(observed: str, canonical_names: set[str]) -> str:
     candidates = [
         candidate
         for candidate in canonical_names
-        if (MCP_PREFIX + candidate).startswith(observed[:suffix.start()])
+        if (prefix + candidate).startswith(observed[:suffix.start()])
     ]
     return candidates[0] if len(candidates) == 1 else short
 
@@ -134,7 +136,7 @@ def _clean_string(
     for source in sorted(mapping, key=len, reverse=True):
         if source != mapping[source]:
             value = value.replace(source, mapping[source])
-    value = value.replace(MCP_PREFIX, "")
+    value = re.sub(r"mcp__[A-Za-z0-9_-]+?__", "", value)
     for path in sorted(runtime_paths, key=len, reverse=True):
         value = value.replace(path, workspace_path)
         if path.endswith("/model-workspace") and workspace_path.endswith("/model-workspace"):

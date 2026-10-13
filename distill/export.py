@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Iterable
 import uuid
 
@@ -90,8 +91,7 @@ def _tool_kind(name: str) -> str:
 
 
 def _short_tool_name(name: str) -> str:
-    marker = "mcp__agent_world_distill__"
-    return name[len(marker):] if name.startswith(marker) else name
+    return re.sub(r"^mcp__[A-Za-z0-9_-]+?__", "", name)
 
 
 def _attach_tool_records(

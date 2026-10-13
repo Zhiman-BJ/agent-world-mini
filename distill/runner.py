@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -185,6 +186,14 @@ def _resolve_kimi_bin(value: Path | str) -> Path:
     return candidate
 
 
+def _compaction_reserved_context(max_context_size: int, trigger_ratio: float | None) -> int | None:
+    # Kimi 0.43 rejects background summaries after the model changes history.
+    # Reserve enough context to block the next model step at the early trigger.
+    if trigger_ratio is None or trigger_ratio >= 0.85:
+        return None
+    return math.ceil(max_context_size * (1 - trigger_ratio))
+
+
 def _write_kimi_config(
     path: Path,
     relay_url: str,
@@ -195,6 +204,7 @@ def _write_kimi_config(
     file_hook_command: str,
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
     max_output_size: int = KIMI_K3_OUTPUT_SIZE,
+    compaction_trigger_ratio: float | None = None,
 ) -> None:
     if not isinstance(file_hook_command, str) or not file_hook_command.strip():
         raise ValueError("file_hook_command must be non-empty")
@@ -208,6 +218,14 @@ def _write_kimi_config(
         f"command = {quote(file_hook_command)}\n"
         "timeout = 5\n"
     )
+    compaction = (
+        "\n[loop_control]\n"
+        f"compaction_trigger_ratio = {compaction_trigger_ratio}\n"
+        if compaction_trigger_ratio is not None else ""
+    )
+    reserved_context = _compaction_reserved_context(max_context_size, compaction_trigger_ratio)
+    if reserved_context is not None:
+        compaction += f"reserved_context_size = {reserved_context}\n"
     path.write_text(
         f"default_model = {quote(model_alias)}\n\n"
         "[providers.agent_world_distill]\n"
@@ -223,13 +241,13 @@ def _write_kimi_config(
         'capabilities = ["thinking", "always_thinking", "tool_use"]\n'
         f"support_efforts = {json.dumps(list(KIMI_K3_EFFORTS))}\n"
         f"default_effort = {quote(reasoning_effort)}\n"
-        f"{hook}",
+        f"{hook}{compaction}",
         encoding="utf-8",
     )
     path.chmod(0o600)
 
 
-def _write_agent(path: Path) -> None:
+def _write_agent(path: Path, server_name: str = "agent_world_distill") -> None:
     path.write_text("""\
 ---
 name: agent-world-distill
@@ -253,7 +271,7 @@ subagents: []
 ---
 
 ${base_prompt}
-""", encoding="utf-8")
+""".replace("mcp__agent_world_distill__*", f"mcp__{server_name}__*"), encoding="utf-8")
 
 
 def _write_kimi_launcher(path: Path) -> None:
@@ -270,10 +288,11 @@ await import(pathToFileURL(cliPath).href);
     path.chmod(0o700)
 
 
-def _write_mcp_config(path: Path, launch: StdioLaunch, workspace: Path, timeout: int) -> None:
+def _write_mcp_config(path: Path, launch: StdioLaunch, workspace: Path, timeout: int,
+                      server_name: str = "agent_world_distill") -> None:
     payload = {
         "mcpServers": {
-            "agent_world_distill": {
+            server_name: {
                 "command": str(launch.command),
                 "args": list(launch.arguments),
                 "env": launch.environment,
@@ -908,6 +927,8 @@ def run_k3_distillation(
     provider_type: str = "kimi",
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
     max_output_size: int = KIMI_K3_OUTPUT_SIZE,
+    compaction_trigger_ratio: float | None = None,
+    mcp_server_name: str = "agent_world_distill",
     max_upstream_retries: int = KIMI_UPSTREAM_MAX_RETRIES,
     max_environment_errors: int | None = None,
     environment_error_circuit_breaker: EnvironmentErrorCircuitBreaker | None = None,
@@ -917,6 +938,8 @@ def run_k3_distillation(
     """Run one task through the official streaming Kimi CLI and export its trajectory."""
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be non-empty")
+    if not isinstance(mcp_server_name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,31}", mcp_server_name):
+        raise ValueError("mcp_server_name must be a 1-32 character identifier starting with a letter")
     if not isinstance(model_id, str) or not model_id.strip():
         raise ValueError("model_id must be non-empty")
     if not isinstance(model_alias, str) or not model_alias.strip():
@@ -933,6 +956,11 @@ def run_k3_distillation(
         raise ValueError("max_context_size must be a positive integer supported by the upstream model")
     if type(max_output_size) is not int or max_output_size < 1:
         raise ValueError("max_output_size must be a positive integer")
+    if compaction_trigger_ratio is not None and (
+        type(compaction_trigger_ratio) not in (int, float)
+        or not 0.5 <= compaction_trigger_ratio <= 0.99
+    ):
+        raise ValueError("compaction_trigger_ratio must be between 0.5 and 0.99")
     if max_environment_errors is not None and (
         type(max_environment_errors) is not int or max_environment_errors < 1
     ):
@@ -967,8 +995,6 @@ def run_k3_distillation(
     config["tool_budget_counter"] = str(paths.raw / "tool_budget_counter.json")
     environment_trace.touch()
     config.update({
-        "state_root": str(paths.model_workspace),
-        "workspace": str(paths.model_workspace),
         "workspace_root": str(paths.model_workspace),
         "record_database": str(paths.record_database),
         "scope_mounts": paths.scope_mounts,
@@ -979,17 +1005,18 @@ def run_k3_distillation(
     expected_names = expected_mcp_tool_names(
         config["tools"],
         config.get("environment"),
-        server_name="agent_world_distill",
+        server_name=mcp_server_name,
     ) | {"Read", "Grep", "Glob"}
     if "review_choice_seed" in config:
         from task_gen.tool_graph.review_choices import TOOL
         preflight_tool_names.add(TOOL["name"])
-        expected_names.add(f"mcp__agent_world_distill__{TOOL['name']}")
+        expected_names.add(f"mcp__{mcp_server_name}__{TOOL['name']}")
     (paths.raw / "harness_policy.json").write_text(json.dumps({
         "harness": "official_kimi_code_cli",
         "streaming_required": True,
         "system_prompt": "kimi_code_default",
-        "tools_enabled": ["mcp__agent_world_distill__*", "Read", "Grep", "Glob"],
+        "mcp_server_name": mcp_server_name,
+        "tools_enabled": [f"mcp__{mcp_server_name}__*", "Read", "Grep", "Glob"],
         "file_tools": ["Read", "Grep", "Glob"],
         "file_access_policy": "pre_tool_use_realpath_allowlist",
         "file_access_allowed": [
@@ -1017,6 +1044,8 @@ def run_k3_distillation(
         "declared_model_context_size": max_context_size,
         "declared_model_output_size": max_output_size,
         "reasoning_effort": reasoning_effort,
+        "compaction_trigger_ratio": compaction_trigger_ratio,
+        "compaction_reserved_context_size": _compaction_reserved_context(max_context_size, compaction_trigger_ratio),
         "relay_normalizations": (
             [
                 "thinking.effort -> reasoning_effort",
@@ -1046,7 +1075,7 @@ def run_k3_distillation(
         private_server.chmod(0o600)
         mcp_launch = _task_mcp_launch(config, private_server, paths)
         agent_file = kimi_home / "agent.md"
-        _write_agent(agent_file)
+        _write_agent(agent_file, mcp_server_name)
         prompt_file = kimi_home / "prompt.txt"
         prompt_file.write_text(prompt, encoding="utf-8")
         prompt_file.chmod(0o600)
@@ -1090,7 +1119,7 @@ def run_k3_distillation(
             _write_kimi_config(
                 kimi_home / "config.toml", relay.base_url, model_alias, model_id,
                 max_context_size, provider_type, file_hook_command, reasoning_effort,
-                max_output_size,
+                max_output_size, compaction_trigger_ratio,
             )
             mcp_config_path = kimi_home / "mcp.json"
             _write_mcp_config(
@@ -1098,6 +1127,7 @@ def run_k3_distillation(
                 mcp_launch,
                 paths.model_workspace,
                 int(config["timeout"]),
+                mcp_server_name,
             )
             shutil.copy2(mcp_config_path, paths.raw / "mcp.json")
             (paths.raw / "mcp_launch.json").write_text(
@@ -1341,7 +1371,7 @@ def make_server_config(
 
     runtime = runtime or {}
     return {
-        "state_root": ".",
+        "workspace_root": ".",
         "trace": "calls.jsonl",
         "max_tool_calls": max_tool_calls,
         "timeout": timeout,

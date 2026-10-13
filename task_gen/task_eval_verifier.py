@@ -230,7 +230,12 @@ def sandbox_command(run_dir: Path, auth_dir: Path, *, runtime_paths: list[Path])
     for path in ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc"):
         if Path(path).exists():
             cmd += ["--ro-bind", path, path]
-    cmd += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
+    # Kubernetes masks procfs mounts; retain its read-only procfs in the new namespaces.
+    if os.environ.get("AGENT_WORLD_KUBERNETES_RUNTIME") == "1":
+        cmd += ["--ro-bind", "/proc", "/proc"]
+    else:
+        cmd += ["--proc", "/proc"]
+    cmd += ["--dev", "/dev", "--tmpfs", "/tmp"]
     for path in dict.fromkeys(p.resolve() for p in runtime_paths):
         if path.exists():
             cmd += ["--ro-bind", str(path), str(path)]

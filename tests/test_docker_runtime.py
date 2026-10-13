@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from env_gen.tool_gen.delivery_contract import load_delivery
 from env_gen.tool_gen.docker_runtime import dockerfile, image_name
@@ -16,6 +17,30 @@ from env_gen.tool_gen.kimi_mcp import kimi_config
 
 
 class DockerRuntimeTests(unittest.TestCase):
+    def test_daemon_visible_code_root_preserves_argument_translation(self):
+        from types import SimpleNamespace
+        from env_gen.tool_gen.runtime_launch import docker_stdio_launch
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'executor-code'
+            mirror = root / 'daemon-code'
+            delivery_root = root / 'delivery'
+            delivery = SimpleNamespace(delivery_root=delivery_root, runtime={
+                'backend': 'docker', 'delivery_mount': '/delivery',
+                'code_mount': '/code', 'software_root': '/opt/software',
+                'image': 'existing-image', 'python_command': 'python',
+            })
+            server = source / 'task_gen/task_eval_kimi_mcp.py'
+            with patch.dict(os.environ, {'AGENT_WORLD_DOCKER_PROJECT_ROOT': str(mirror)}):
+                launch = docker_stdio_launch(delivery, server_path=server,
+                    arguments=[str(server), '--binding', str(delivery_root / 'binding.json')],
+                    project_root=source)
+            self.assertIn(f'type=bind,source={mirror},target=/code,readonly', launch.arguments)
+            self.assertNotIn(f'type=bind,source={source},target=/code,readonly', launch.arguments)
+            self.assertEqual(launch.arguments[-3:],
+                             ('/code/task_gen/task_eval_kimi_mcp.py', '--binding', '/delivery/binding.json'))
+
     @unittest.skipUnless(os.environ.get('TOOLGEN_DOCKER_TEST_IMAGE'), '设置测试镜像后执行')
     def test_existing_container_mcp_launch_remains_executable(self):
         from env_gen.tool_gen.runtime_launch import docker_stdio_launch

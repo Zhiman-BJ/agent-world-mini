@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -272,6 +273,20 @@ def test_kimi_config_can_select_max_reasoning_effort(tmp_path):
     ] == "max"
 
 
+def test_early_compaction_preserves_the_declared_context(tmp_path):
+    from distill.runner import _write_kimi_config
+
+    path = tmp_path / "config.toml"
+    _write_kimi_config(path, "http://127.0.0.1:1234/v1", "evaluation", "kimi-k3",
+                       262144, "kimi", "python /private/hook.py",
+                       compaction_trigger_ratio=0.5)
+    config = tomllib.loads(path.read_text())
+    assert config["models"]["evaluation"]["max_context_size"] == 262144
+    assert config["models"]["evaluation"]["max_output_size"] == 131072
+    assert config["loop_control"]["compaction_trigger_ratio"] == 0.5
+    assert config["loop_control"]["reserved_context_size"] == 131072
+
+
 def test_mcp_config_uses_extended_startup_timeout(tmp_path):
     from distill.runner import (
         KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS,
@@ -290,6 +305,32 @@ def test_mcp_config_uses_extended_startup_timeout(tmp_path):
     server = json.loads(path.read_text())["mcpServers"]["agent_world_distill"]
     assert server["startupTimeoutMs"] == KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS * 1000
     assert server["toolTimeoutMs"] == 300_000
+
+
+def test_workspace_namespace_matches_mcp_registration_and_agent_allowlist(tmp_path):
+    from distill.runner import _write_agent, _write_mcp_config
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+    from harness.mcp_tools import expected_mcp_tool_names
+
+    agent = tmp_path / "agent.md"
+    mcp = tmp_path / "mcp.json"
+    _write_agent(agent, "workspace")
+    _write_mcp_config(mcp, StdioLaunch(Path("python"), ("server.py",), {}), tmp_path, 300, "workspace")
+    assert set(json.loads(mcp.read_text())["mcpServers"]) == {"workspace"}
+    assert "mcp__workspace__*" in agent.read_text()
+    assert "mcp__agent_world_distill__*" not in agent.read_text()
+    assert expected_mcp_tool_names([{"name": "inspect"}], {}, server_name="workspace") == {
+        "mcp__workspace__inspect"}
+
+
+@pytest.mark.parametrize("server_name", ["", "../workspace", "name with spaces", "x" * 33])
+def test_runner_rejects_invalid_mcp_namespace_before_startup(tmp_path, server_name):
+    from distill.runner import run_k3_distillation
+
+    with pytest.raises(ValueError, match="mcp_server_name"):
+        run_k3_distillation("Inspect.", tmp_path, {}, tmp_path / "run", kimi_bin="unused",
+                            base_url="http://unused", api_key="unused", max_context_size=262144,
+                            mcp_server_name=server_name)
 
 
 def test_mcp_preflight_validates_initialize_and_tool_contract(tmp_path):
@@ -802,6 +843,19 @@ def streaming_model():
             request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(request)
             serialized = json.dumps(request)
+            early_blocking = "EARLY_BLOCKING_COMPACTION_PROBE" in serialized
+            if early_blocking and request.get("messages", [{}])[-1].get("content", "").startswith("You are about to run out of context."):
+                time.sleep(0.25)
+            if "CONTEXT_OVERFLOW_PROBE" in serialized and len(requests) == 2:
+                body = json.dumps({"error": {"message": "Input exceeds the maximum context length",
+                                             "type": "invalid_request_error",
+                                             "code": "context_length_exceeded"}}).encode()
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             forbidden_probe = re.search(r"FORBIDDEN_READ_PROBE:(/[^\s\"\\]+)", serialized)
             if forbidden_probe is not None and len(requests) == 1:
                 delta = {
@@ -834,7 +888,9 @@ def streaming_model():
                         "id": "inspect-1",
                         "type": "function",
                         "function": {
-                            "name": "mcp__agent_world_distill__inspect",
+                            "name": next((tool["function"]["name"] for tool in request.get("tools", [])
+                                          if tool["function"]["name"].endswith("__inspect")),
+                                         "mcp__agent_world_distill__inspect"),
                             "arguments": "{}",
                         },
                     }],
@@ -855,7 +911,7 @@ def streaming_model():
                                 "name": "Read",
                                 "arguments": json.dumps({
                                     "path": output_path.group(1),
-                                    "line_offset": 1,
+                                    "line_offset": 3,
                                     "column_offset": 299900,
                                     "max_chars": 1000,
                                 }),
@@ -874,6 +930,7 @@ def streaming_model():
                         ),
                     }
                     finish_reason = "stop"
+            input_tokens = 140000 if early_blocking and len(requests) == 1 else 100
             chunks = [
                 {
                     "id": f"test-{len(requests)}",
@@ -888,7 +945,7 @@ def streaming_model():
                     "created": 0,
                     "model": "kimi-k3",
                     "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
-                    "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+                    "usage": {"prompt_tokens": input_tokens, "completion_tokens": 10, "total_tokens": input_tokens + 10},
                 },
             ]
             body = ("".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n").encode()
@@ -907,7 +964,9 @@ def streaming_model():
     thread.join()
 
 
-def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
+@pytest.mark.parametrize("compaction_probe", [None, "CONTEXT_OVERFLOW_PROBE", "EARLY_BLOCKING_COMPACTION_PROBE"])
+@pytest.mark.parametrize("server_name", ["agent_world_distill", "workspace"])
+def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, compaction_probe, server_name):
     from distill.runner import run_k3_distillation
 
     kimi_bin = os.environ.get("KIMI_CODE_BIN")
@@ -930,10 +989,10 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
     }
     output = tmp_path / "run"
     trajectory = run_k3_distillation(
-        "Inspect the environment and report the value.",
+        "Inspect the environment and report the value." + (" " + compaction_probe if compaction_probe else ""),
         initial,
         {
-            "state_root": ".",
+            "workspace_root": ".",
             "trace": "calls.jsonl",
             "max_tool_calls": 10,
             "timeout": 30,
@@ -946,7 +1005,9 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
         kimi_bin=Path(kimi_bin),
         base_url=base_url,
         api_key="test-key-never-written",
-        max_context_size=1_048_576,
+        max_context_size=262144 if compaction_probe else 1_048_576,
+        compaction_trigger_ratio=0.5 if compaction_probe else None,
+        mcp_server_name=server_name,
     )
 
     assert trajectory["outcome"]["final_answer"] == "The value is 17."
@@ -954,9 +1015,19 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
     call = trajectory["steps"][0]["tool_calls"][0]
     assert call["tool_kind"] == "environment_mcp"
     assert call["environment_record"]["result"]["value"] == 17
-    assert len(requests) == 2
+    if compaction_probe:
+        assert len(requests) >= (4 if compaction_probe == "CONTEXT_OVERFLOW_PROBE" else 3)
+        assert len(trajectory["compactions"]) >= 1
+        assert trajectory["model"]["max_context_size"] == 262144
+        policy = json.loads((output / "raw/harness_policy.json").read_text())
+        assert policy["compaction_trigger_ratio"] == 0.5
+        assert policy["compaction_reserved_context_size"] == 131072
+        if compaction_probe == "EARLY_BLOCKING_COMPACTION_PROBE":
+            assert requests[1]["messages"][-1]["content"].startswith("You are about to run out of context.")
+    else:
+        assert len(requests) == 2
     expected = {
-        "mcp__agent_world_distill__inspect",
+        f"mcp__{server_name}__inspect",
         "Read", "Grep", "Glob",
     }
     for request in requests:
@@ -967,7 +1038,10 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model):
         assert "max_tokens" not in request
         assert {tool["function"]["name"] for tool in request["tools"]} == expected
     assert (output / "raw/kimi_session.zip").is_file()
-    assert len(list((output / "raw/model_io").glob("*.response.sse"))) == 2
+    policy = json.loads((output / "raw/harness_policy.json").read_text())
+    assert policy["mcp_server_name"] == server_name
+    assert set(json.loads((output / "raw/mcp.json").read_text())["mcpServers"]) == {server_name}
+    assert len(list((output / "raw/model_io").glob("*.response.sse"))) == len(requests)
     assert "test-key-never-written" not in "".join(
         path.read_text(encoding="utf-8", errors="ignore")
         for path in (output / "raw").rglob("*") if path.is_file() and path.suffix != ".zip"
@@ -992,7 +1066,7 @@ def test_official_cli_denies_native_read_of_execution_state(tmp_path, streaming_
         f"FORBIDDEN_READ_PROBE:{forbidden_path}",
         initial,
         {
-            "state_root": ".", "trace": "calls.jsonl", "max_tool_calls": 1,
+            "workspace_root": ".", "trace": "calls.jsonl", "max_tool_calls": 1,
             "timeout": 30, "memory_limit": 2 * 1024 * 1024 * 1024,
             "write_limit": 256 * 1024 * 1024, "tools": [],
             "environment": {"environment_id": "read-boundary", "schema_version": "1.0"},
@@ -1046,7 +1120,7 @@ def test_official_cli_reads_long_result_with_native_read(tmp_path, streaming_mod
         "Inspect the long sample and report the evidence in its middle.",
         initial,
         {
-            "state_root": ".", "trace": "calls.jsonl", "max_tool_calls": 2,
+            "workspace_root": ".", "trace": "calls.jsonl", "max_tool_calls": 2,
             "timeout": 30, "memory_limit": 2 * 1024 * 1024 * 1024,
             "write_limit": 256 * 1024 * 1024, "tools": [tool],
             "environment": {"environment_id": "long-cli-fixture", "schema_version": "1.0"},

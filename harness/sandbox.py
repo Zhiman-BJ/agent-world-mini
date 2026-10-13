@@ -644,8 +644,8 @@ def run_tool_direct(
             environment_variables = dict(os.environ)
         environment_variables.update({
             "HOME": temporary,
-            "USER": "tool",
-            "LOGNAME": "tool",
+            "USER": f"agent-world-{os.getuid()}",
+            "LOGNAME": f"agent-world-{os.getuid()}",
             "TMPDIR": temporary,
             "XDG_CACHE_HOME": str(Path(temporary) / "cache"),
             "XDG_CONFIG_HOME": str(Path(temporary) / "config"),

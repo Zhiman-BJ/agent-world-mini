@@ -345,6 +345,18 @@ def test_workspace_direct_read_only_tool_uses_landlock_without_copy(tmp_path):
             "    with tempfile.NamedTemporaryFile() as stream:\n"
             "        stream.write(b'ok')\n"
             "        stream.flush()\n"
+            "    from pathlib import Path\n"
+            "    Path('hx_temp.pt').write_bytes(b'model chunks')\n"
+            "    assert Path('hx_temp.pt').read_bytes() == b'model chunks'\n"
+            "    with open('/dev/null', 'wb') as sink:\n"
+            "        sink.write(b'library diagnostics')\n"
+            "    import multiprocessing\n"
+            "    queue = multiprocessing.SimpleQueue()\n"
+            "    queue.put('ipc-ready')\n"
+            "    assert queue.get() == 'ipc-ready'\n"
+            "    queue.close()\n"
+            "    import getpass, os\n"
+            "    assert getpass.getuser() == f'agent-world-{os.getuid()}'\n"
             "    return {'success': True, 'write_blocked': blocked, 'temporary_write': True}\n"
         )},
     }
@@ -364,6 +376,7 @@ def test_workspace_direct_read_only_tool_uses_landlock_without_copy(tmp_path):
         "temporary_write": True,
     }
     assert marker.read_text(encoding="utf-8") == "original"
+    assert not (workspace / "hx_temp.pt").exists()
 
 
 def test_task_layout_rejects_symlinked_initial_state(tmp_path):

@@ -9,9 +9,17 @@ The runner creates an isolated, temporary Kimi home for every task. Its agent pr
 - the task's `mcp__agent_world_distill__*` tools;
 - native Kimi `Read`, `Grep`, and `Glob` for the model workspace and Kimi-owned tool-result files.
 
+For new evaluations, select `--mcp-server-name workspace` to expose
+`mcp__workspace__<business_tool>`. The runner changes MCP registration, the
+agent allowlist, and request validation together, and records the namespace
+in `raw/harness_policy.json`. The default remains `agent_world_distill` for
+existing runs. Native file-tool names and the independent model-provider
+configuration name do not change. Use a separate output root when changing
+the namespace; this option does not repair omitted prefixes in model output.
+
 Official `Write`, `Edit`, `Bash`, `Agent`, `AgentSwarm`, network tools, other MCP servers, and `select_tools` are unavailable. Environment MCP results are returned in full; Kimi Code owns any externalization into its session-local `tool-results` directory. Native file tools are not an environment Scope browser.
 
-Native file calls pass through a `PreToolUse` realpath allowlist. Only `model-workspace`, the current session's main-agent `tool-results` and `wire.jsonl`, and current-session `kimi-file://` attachments are allowed. Absolute paths into `execution-state`, raw evidence, another task/session, or any symlink escape are denied before the native tool runs. Decisions are retained in `raw/native_file_access.jsonl`.
+Native file calls pass through a `PreToolUse` realpath allowlist. Only the task's model workspace, the current session's main-agent `tool-results` and `wire.jsonl`, and current-session `kimi-file://` attachments are allowed. Absolute paths into `private-state`, raw evidence, another task/session, or any symlink escape are denied before the native tool runs. Decisions are retained in `raw/native_file_access.jsonl`.
 
 The runner uses the official Kimi Code `kimi` provider (the validated installation is `0.43.0`) with K3 metadata: a 1,048,576-token default context window, an optional 262,144-token experimental cap, a separate 131,072-token output cap, always-on thinking, and supported efforts `low/high/max`. The separate output cap prevents the prompt plus `max_completion_tokens` from exceeding the upstream context window. Distillation runs default to `max`; select another supported level with `--reasoning-effort`. It does not override sampling, compaction thresholds, or loop limits. Model calls use streaming Chat Completions; the local relay rejects non-streaming requests and normalizes Kimi Code's provider fields to the public K3 API contract (`reasoning_effort`, `max_completion_tokens`, and explicit `parallel_tool_calls=true`). It retries transient upstream responses with exponential backoff and jitter. A 400 is retryable only when its JSON message explicitly reports rejection by an internal MaaS component; ordinary request/schema 400s are returned immediately. Use `--max-upstream-retries 0` to disable retries.
 
@@ -36,8 +44,8 @@ Each case contains:
 ```text
 case/
   trajectory.json
-  execution-state/          # MCP backend state; not the model cwd
-  model-workspace/          # empty Kimi cwd; environment state is not exposed here
+  <environment-id>_<task-id>/ # Kimi cwd and mounted Filesystem Scopes
+  private-state/            # records.sqlite and path-map.json; model-invisible
   raw/
     cli_stream.jsonl
     cli_stderr.txt

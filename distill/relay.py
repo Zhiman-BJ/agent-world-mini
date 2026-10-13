@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import random
+import select
+import socket
 import threading
 import time
 from typing import Any, Callable
@@ -135,6 +137,8 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         self.request_log.touch()
         self.response_log.touch()
         self._lock = threading.Lock()
+        self._closing = threading.Event()
+        self._active_connections: dict[threading.Thread, socket.socket | None] = {}
         self._sequence = 0
         self._first_model_request_checked = False
         self.first_model_request_event = threading.Event()
@@ -153,9 +157,24 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         return self
 
     def __exit__(self, *_args: object) -> None:
+        self._closing.set()
+        with self._lock:
+            active = list(self._active_connections.items())
+        for _, connection in active:
+            self._shutdown_socket(connection)
         self._server.shutdown()
         self._server.server_close()
         self._thread.join()
+        for worker, _ in active:
+            worker.join(timeout=5)
+
+    @staticmethod
+    def _shutdown_socket(connection: socket.socket | None) -> None:
+        if connection is not None:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
     def _next_id(self) -> int:
         with self._lock:
@@ -392,10 +411,40 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                 attempts: list[dict[str, Any]] = []
                 connection = None
                 prefetched_body: bytes | None = None
+                worker = threading.current_thread()
+                transfer_done = threading.Event()
+                client_disconnected = threading.Event()
+                with relay._lock:
+                    relay._active_connections[worker] = None
+
+                def watch_client() -> None:
+                    while not transfer_done.wait(0.25):
+                        try:
+                            readable = select.select([self.connection], [], [], 0)[0]
+                            disconnected = bool(readable) and not self.connection.recv(1, socket.MSG_PEEK)
+                        except (OSError, ValueError):
+                            disconnected = True
+                        if relay._closing.is_set() or disconnected:
+                            client_disconnected.set()
+                            with relay._lock:
+                                upstream_socket = relay._active_connections.get(worker)
+                            relay._shutdown_socket(upstream_socket)
+                            return
+
+                watcher = threading.Thread(target=watch_client, daemon=True)
+                watcher.start()
                 try:
                     response = None
                     for attempt in range(relay.max_retries + 1):
+                        if client_disconnected.is_set() or relay._closing.is_set():
+                            raise ConnectionAbortedError("Model relay client disconnected")
                         connection = relay._connection()
+                        connection.connect()
+                        with relay._lock:
+                            relay._active_connections[worker] = connection.sock
+                        if client_disconnected.is_set() or relay._closing.is_set():
+                            relay._shutdown_socket(connection.sock)
+                            raise ConnectionAbortedError("Model relay client disconnected")
                         connection.request(
                             self.command,
                             relay._upstream_path(self.path),
@@ -430,7 +479,8 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                         response.close()
                         connection.close()
                         connection = None
-                        time.sleep(delay)
+                        if client_disconnected.wait(delay) or relay._closing.is_set():
+                            raise ConnectionAbortedError("Model relay client disconnected")
                     if response is None:
                         raise RuntimeError("upstream returned no response")
                     self.send_response(response.status)
@@ -460,6 +510,8 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                                     self.wfile.flush()
                                 except (BrokenPipeError, ConnectionResetError):
                                     client_open = False
+                                    client_disconnected.set()
+                                    raise
                     finally:
                         if sink is not None:
                             sink.close()
@@ -474,6 +526,9 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "sha256": digest.hexdigest(),
                             "attempts": attempts,
                         }
+                        if client_disconnected.is_set() or relay._closing.is_set():
+                            record["error"] = "client_disconnected"
+                            record["client_disconnected"] = True
                         stream_error = _stream_error(response_path)
                         if stream_error is not None:
                             record["error"] = "upstream_stream_error"
@@ -491,16 +546,21 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "duration_ms": round((time.monotonic() - started) * 1000),
                             "bytes": received,
                             "error": f"{type(error).__name__}: {error}",
+                            "client_disconnected": client_disconnected.is_set() or relay._closing.is_set(),
                             "attempts": attempts,
                         })
-                    if not self.wfile.closed:
+                    if not client_disconnected.is_set() and not relay._closing.is_set() and not self.wfile.closed:
                         try:
                             self._json_error(502, "Model relay failed")
                         except (BrokenPipeError, ConnectionResetError):
                             pass
                 finally:
+                    transfer_done.set()
+                    watcher.join(timeout=1)
                     if connection is not None:
                         connection.close()
+                    with relay._lock:
+                        relay._active_connections.pop(worker, None)
                     self.close_connection = True
 
             def _json_error(self, status: int, message: str) -> None:

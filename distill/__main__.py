@@ -22,6 +22,7 @@ from .environment_errors import environment_errors as _environment_errors, tool_
 from .relay import _stream_error
 from .runner import (
     KIMI_K3_CONTEXT_SIZE,
+    KIMI_K3_OUTPUT_SIZE,
     KIMI_K3_DEFAULT_EFFORT,
     KIMI_K3_EFFORTS,
     KIMI_DEFAULT_MAX_TOOL_CALLS,
@@ -58,10 +59,13 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "base_url": arguments.base_url,
         "api_key": api_key,
         "max_context_size": arguments.max_context_size,
+        "max_output_size": arguments.max_output_size,
+        "compaction_trigger_ratio": arguments.compaction_trigger_ratio,
         "model_id": arguments.model_id,
         "model_alias": arguments.model_alias,
         "provider_type": arguments.provider_type,
         "reasoning_effort": arguments.reasoning_effort,
+        "mcp_server_name": getattr(arguments, "mcp_server_name", "agent_world_distill"),
         "max_upstream_retries": arguments.max_upstream_retries,
         "max_environment_errors": arguments.max_environment_errors_per_task,
     }
@@ -185,6 +189,21 @@ def _available_memory_bytes() -> int | None:
     return None
 
 
+def _task_local_request_error_count(path: Path) -> int:
+    """Ordinary request 400s cannot be fixed by throttling unrelated tasks."""
+    if not path.is_file():
+        return 0
+    count = 0
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and row.get("status") == 400 and not row.get("attempts"):
+            count += 1
+    return count
+
+
 def _io_full_pressure_avg10() -> float | None:
     """Return the ten-second full I/O PSI percentage when the kernel exposes it."""
     try:
@@ -215,6 +234,26 @@ def _is_task_local_upstream_timeout(result: dict[str, Any]) -> bool:
     )
 
 
+def _concurrency_environment_error_count(result: dict[str, Any]) -> int:
+    errors = result.get("environment_errors")
+    if not isinstance(errors, list):
+        return int(result.get("environment_error_count", 0))
+    count = 0
+    for error in errors:
+        message = str(error.get("message", "")).lower()
+        resource_failure = any(marker in message for marker in (
+            "cannot allocate memory", "no space left on device", "failed to map segment",
+            "resource temporarily unavailable", "can't start new thread",
+        ))
+        missing_dependency = error.get("code") == "software_dependency_missing" or any(
+            marker in message for marker in (
+                "no module named", "cannot open shared object file", "no such file or directory",
+            )
+        )
+        count += resource_failure or not missing_dependency
+    return count
+
+
 class _AdaptiveConcurrencyController:
     """Adjust new dispatch without terminating already-running task workers."""
 
@@ -239,11 +278,11 @@ class _AdaptiveConcurrencyController:
         # retry budget is exhausted. It is not evidence that local batch
         # concurrency is unhealthy, so do not throttle unrelated tasks for it.
         transport_errors = sum(
-            item.get("upstream_final_error_count", 0)
+            max(0, item.get("upstream_final_error_count", 0) - item.get("task_local_request_error_count", 0))
             for item in self._recent
             if not _is_task_local_upstream_timeout(item)
         )
-        environment_errors = sum(item.get("environment_error_count", 0) for item in self._recent)
+        environment_errors = sum(_concurrency_environment_error_count(item) for item in self._recent)
         startup_errors = sum(item.get("mcp_startup_failure_count", 0) for item in self._recent)
         verifier_errors = sum(
             item.get("verification", {}).get("status") == "verification_error"
@@ -411,10 +450,15 @@ def _override_case_deliveries(cases: list[Any], delivery_root: Path) -> list[Any
             raise ValueError(f"delivery override environment mismatch: {binding}")
         environment = dict(delivery.package.environment)
         environment["tools"] = list(delivery.package.tools)
+        repaired_tools = delivery.binding_path.parent / "tools/tools_repaired.json"
         runtime = {
             "binding_path": str(delivery.binding_path),
             "initial_state": str(delivery.package.package_root / "state"),
         }
+        if repaired_tools.exists():
+            if not repaired_tools.is_file():
+                raise ValueError(f"delivery repair must be a file: {repaired_tools}")
+            runtime["tools_path"] = str(repaired_tools)
         if delivery.software_root is not None and delivery.python_path is not None:
             runtime["software"] = {
                 "root": str(delivery.software_root),
@@ -636,15 +680,15 @@ def _run_taskgen(arguments: argparse.Namespace) -> None:
         result["tool_timeout_count"] = len(timeouts)
         if timeouts:
             result["tool_timeouts"] = timeouts
-            if result["status"] == "completed":
-                result["status"] = "failed"
-                result["error"] = "tool execution timed out; task is not retried"
         requests, final_errors, retries = _model_transport_stats(
             output / "raw/model_responses.jsonl"
         )
         result["model_request_count"] = requests
         result["upstream_final_error_count"] = final_errors
         result["upstream_retry_count"] = retries
+        result["task_local_request_error_count"] = _task_local_request_error_count(
+            output / "raw/model_responses.jsonl"
+        )
         upstream_stop_path = output / "raw/upstream_stop.json"
         result["upstream_stop_count"] = int(upstream_stop_path.is_file())
         if upstream_stop_path.is_file():
@@ -805,6 +849,8 @@ def _visualize(arguments: argparse.Namespace) -> None:
 
 
 def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--mcp-server-name", default="agent_world_distill",
+                        help="MCP namespace used by the official CLI; use workspace for new evaluations")
     default_bin = os.environ.get("KIMI_CODE_BIN") or shutil.which("kimi") or "kimi"
     parser.add_argument("--kimi-bin", type=Path, default=Path(default_bin))
     parser.add_argument(
@@ -823,7 +869,17 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument("--model-id", default="kimi-k3")
+    parser.add_argument(
+        "--max-output-size",
+        type=int,
+        default=int(os.environ.get("KIMI_MAX_OUTPUT_SIZE", KIMI_K3_OUTPUT_SIZE)),
+        help="maximum output tokens for each model request",
+    )
     parser.add_argument("--model-alias", default="evaluation")
+    parser.add_argument(
+        "--compaction-trigger-ratio", type=float,
+        help="official Kimi early-compaction threshold, between 0.5 and 0.99",
+    )
     parser.add_argument(
         "--provider-type",
         choices=tuple(sorted(PROVIDER_TYPES)),
@@ -1036,6 +1092,8 @@ def main() -> None:
         )
     if getattr(arguments, "max_upstream_retries", 0) < 0:
         parser.error("--max-upstream-retries must be non-negative")
+    if getattr(arguments, "max_output_size", 1) <= 0:
+        parser.error("--max-output-size must be positive")
     try:
         if hasattr(arguments, "base_url") and not arguments.base_url:
             raise ValueError("set --base-url or KIMI_BASE_URL")

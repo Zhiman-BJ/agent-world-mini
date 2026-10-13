@@ -12,6 +12,8 @@ _MARKERS = (
     "importerror:",
     "modulenotfounderror:",
     "oserror:",
+    "permissionerror:",
+    "getpwuid(): uid not found",
     "memoryerror",
     "failed to map segment",
     "cannot allocate memory",
