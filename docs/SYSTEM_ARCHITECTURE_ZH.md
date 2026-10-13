@@ -38,6 +38,19 @@ ToolGen 通用 MCP 同时提供工具与资源方法；任务 MCP 仅提供环�
 任务工作区只包含公开 Scope 文件，记录库保存在私有目录。文件参数采用工作区相对路径（多 Scope 包含挂载目录）
 或工作区内绝对路径；容器运行将模型看到的绝对路径映射到实际执行工作区。Program 参考执行则使用完整私有状态副本。
 
+## 容器与专业软件部署
+
+普通主机上的通用工具沙箱使用 bubblewrap 的独立 PID 和文件系统隔离。对于已有独立
+PID namespace 的 Docker 容器或非 hostPID Kubernetes Pod，设置
+`AGENT_WORLD_DOCKER_RUNTIME=1` 或 `AGENT_WORLD_KUBERNETES_RUNTIME=1`，使通用工具
+沙箱复用该容器的只读 procfs，并保持进程视图一致。私有共享内存和临时工作目录用于
+科学软件的缓存与 IPC；业务工作区的资源权限、Schema 检查和失败回滚仍由 Harness 执行。
+
+Python profile 优先使用自己的原生库、证书和 PETSc/SLEPc 路径，并过滤继承自其他
+Python 版本的扩展库目录。软件包、模型权重与镜像由交付依赖提供，部署时需从实际
+执行入口验证。Docker daemon 与 executor 的代码挂载路径不同时，可用
+`AGENT_WORLD_DOCKER_PROJECT_ROOT` 指定 daemon 可见的代码目录；两端必须使用相同源码版本。
+
 ## 任务生成入口
 
 Program 的 `pipeline.py` 管理配置、运行目录、暂停和接续；`run_pipeline.py` 管理显式阶段选择与阶段复用。

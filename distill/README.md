@@ -76,7 +76,7 @@ export KIMI_BASE_URL=https://gateway.example/v1
 export KIMI_API_KEY='...'
 export KIMI_MAX_CONTEXT_SIZE=1048576
 
-cd /home/sunshuo/AgenticDataGeneration/agent-world-mini
+cd /path/to/agent-world-mini
 python -m distill run \
   --prompt-file /path/to/task.txt \
   --initial-state /path/to/initial_state \
@@ -99,6 +99,25 @@ python -m distill taskgen \
 ```
 
 Every task gets a separate workspace, Kimi home, MCP process, result-ID namespace, session ZIP, and evidence directory. A failed task retains partial evidence and does not stop later tasks; the batch command exits nonzero after all cases finish if any failed.
+
+`--max-output-size` sets the per-request output-token cap. To request earlier
+official CLI compaction, pass `--compaction-trigger-ratio` between `0.5` and
+`0.99`. Values below `0.85` also reserve the corresponding context fraction,
+so the next model step waits for the summary. The default uses the CLI's
+compaction policy. Both settings are recorded in `raw/harness_policy.json`.
+
+`--delivery-root` selects the current delivery while retaining each task's
+initial and reference states. A package's optional `tools/tools_repaired.json`
+is selected when present and validated by task MCP; otherwise the package's
+published tools are used. Actual MCP responses are retained alongside the tool
+trace in `raw/mcp_responses.jsonl`.
+
+When a client disconnects or its task exits, the relay closes that request's
+upstream connection and keeps its captured evidence. Ordinary request 400s and
+missing software dependencies are tracked per task rather than being used to
+reduce unrelated task concurrency. Resource exhaustion remains an adaptive
+concurrency signal. Tool timeouts remain in the trace; task completion is
+decided by the verifier, including any successful recovery later in the run.
 
 For TaskGen batches, the original published `task_text` remains in trajectory metadata while the actual Kimi user prompt removes an initial paragraph only when it exactly equals `environment.summary`. MCP tool calls expose the complete business result once through `structuredContent`; the backwards-compatible `content` array is empty because every public tool has an `outputSchema`.
 

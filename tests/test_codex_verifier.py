@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -54,7 +55,12 @@ def verdict():
         "passed": True}], "non_blocking_issues": [], "summary": "Delivered", "failure_causes": [], "outcome": "pass"}
 
 
-def test_os_sandbox_protects_evidence_and_hides_host(tmp_path):
+@pytest.mark.parametrize('container_procfs', [False, True])
+def test_os_sandbox_protects_evidence_and_hides_host(tmp_path, monkeypatch, container_procfs):
+    if container_procfs:
+        monkeypatch.setenv('AGENT_WORLD_KUBERNETES_RUNTIME', '1')
+    else:
+        monkeypatch.delenv('AGENT_WORLD_KUBERNETES_RUNTIME', raising=False)
     root = prepare(tmp_path)
     auth = tmp_path / "auth"
     auth.mkdir()
@@ -65,6 +71,7 @@ def test_os_sandbox_protects_evidence_and_hides_host(tmp_path):
 from pathlib import Path
 assert not Path({str(hidden)!r}).exists()
 assert not os.path.exists('/proc/1/root' + {str(hidden)!r})
+assert not os.path.exists('/proc/{os.getpid()}/root' + {str(hidden)!r})
 p = Path('evidence/actual/answer.txt')
 assert p.read_text() == '8'
 try:

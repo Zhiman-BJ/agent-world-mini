@@ -22,7 +22,7 @@ class DockerRuntimeTests(unittest.TestCase):
         from env_gen.tool_gen.runtime_launch import docker_stdio_launch
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             source = root / 'executor-code'
             mirror = root / 'daemon-code'
             delivery_root = root / 'delivery'
