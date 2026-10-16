@@ -59,6 +59,8 @@ class GenerationModel:
         check_command = [sys.executable, '-m', self.check_module,
                          '--workspace', str(workspace), '--evidence', str(self.evidence_dir),
                          '--stage', stage, '--self-test', str(call/'scratch/self_test.py')]
+        if stage == 'final':
+            check_command += ['--method', self.final_method, '--config', str(call/'final_config.json')]
         checkpoint = call/'scratch/acceptance_ready.json'
         delivery_command = check_command + ['--completion-file', str(checkpoint)]
         prompt += (f'\n工作目录：{workspace}。在这里直接编辑交付文件，测试脚本放在 {call/"scratch/self_test.py"}。'
@@ -71,6 +73,13 @@ class GenerationModel:
         cfg=dict(self.config.get('codex',{}))
         timeout = float(self.config.get('generation_call_timeout_seconds',cfg.get('timeout_seconds',900)))
         reserve = min(120, timeout/10)
+        if stage == 'final':
+            native_timeout = float(self.config.get('program_timeout_seconds' if self.final_method == 'program'
+                                                  else 'application_timeout_seconds', cfg.get('timeout_seconds',900)))
+            timeout = float(self.config.get('final_review_timeout_seconds', max(3600, 2*native_timeout+600)))
+            reserve = native_timeout+60
+            if timeout <= reserve:
+                raise ValueError('final_review_timeout_seconds must leave time for repair and host native test')
         record={'stage':stage,'status':'running','method':'codex','model':cfg.get('model'),'usage':'unknown'}
         write_json(call/'call.json',record)
         try:
@@ -82,9 +91,17 @@ class GenerationModel:
                 executable=Path(shutil.which(cfg.get('executable','codex')) or '').resolve()
                 if not executable.is_file(): raise ValueError('Codex CLI not found')
                 runtimes=[repository,self.evidence_dir,Path(sys.prefix),Path(sys.base_prefix),executable.parents[3]]
+                runtimes += [Path(p) for p in self.config.get('runtime_paths', [])]
+                key_file = self.config.get('llm',{}).get('api_key_file')
+                if key_file:
+                    runtimes.append(Path(key_file).expanduser().resolve())
                 prefix=list(sandbox_command(call,auth,runtime_paths=runtimes))
                 prefix += ['--setenv','PYTHONPATH',str(repository),'--setenv','PYTHONDONTWRITEBYTECODE','1']
                 for k,v in environment.items(): prefix+=['--setenv',k,v]
+                if stage == 'final':
+                    native_config = dict(self.config, codex_home=str(auth))
+                    native_config['codex'] = dict(cfg, codex_home=str(auth))
+                    write_json(call/'final_config.json', native_config)
                 selected={k:v for k,v in cfg.items() if k in ['model','base_url','api_key','reasoning_effort']}
                 client=_VerifierClient(**selected,codex_home=auth,executable=str(executable),
                     record_usage=cfg.get('record_usage',False),
@@ -96,15 +113,18 @@ class GenerationModel:
                 if stage == 'design':
                     if set(after) != self.design_files:
                         raise ValueError(f'Designer must deliver only {sorted(self.design_files)} in verifier/')
-                elif {k:v for k,v in after.items() if k!=stage} != {k:v for k,v in before.items() if k!=stage}:
+                elif stage != 'final' and {k:v for k,v in after.items() if k!=stage} != {k:v for k,v in before.items() if k!=stage}:
                     raise ValueError('Implementation changed files outside its target')
                 remaining = timeout-(time.monotonic()-started)
                 if remaining <= 0:
                     raise TimeoutError('Generation budget exhausted before acceptance')
+                if stage == 'final':
+                    write_json(call/'final_config.json', native_config)
                 # Recheck immutable delivery files; tests may write only to private scratch.
                 replay = prefix + ['--ro-bind', str(workspace), str(workspace)] + check_command
                 with (call/'acceptance.stdout.log').open('w') as stdout, (call/'acceptance.stderr.log').open('w') as stderr:
-                    result = subprocess.run(replay,stdout=stdout,stderr=stderr,timeout=min(120,remaining))
+                    result = subprocess.run(replay,stdout=stdout,stderr=stderr,
+                                            timeout=remaining if stage == 'final' else min(120,remaining))
                 write_json(call/'acceptance.json',{'exit_code':result.returncode,'command':check_command})
                 if result.returncode:
                     raise RuntimeError('Workspace acceptance/self-test failed: '+(call/'acceptance.stderr.log').read_text()[-3000:])

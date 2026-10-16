@@ -57,3 +57,9 @@ python -m task_gen.test_verifier.codex_tool_verifier apply \
 ```bash
 python -m pytest -q task_gen/test_verifier/codex_tool_verifier/tests task_gen/test_verifier/program_verifier/tests
 ```
+# Final Codex Repair
+
+生成默认增加最终 Codex 会话，直接检查、修改整个任务生成包并运行真实主 Codex+工具验收。
+详细边界见 `../verifier_final_review_prd.md`。最终验收失败不 fallback；正式应用保留原回退行为。
+修复前文件在 `generation/before_final/`，交付哈希在 `generation/manifest.json`。
+`final_review_timeout_seconds` 控制最终会话和宿主试跑预算；`final_review_enabled=false` 只用于基线比较。

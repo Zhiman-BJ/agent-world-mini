@@ -31,7 +31,7 @@ def test_main_is_produced_during_design_and_never_changed_by_implementation(tmp_
         return workspace
     evidence=tmp_path/'evidence_bundle';evidence.mkdir()
     (evidence/'request.json').write_text(json.dumps({'task_id':'x','task_text':'检查数据'}))
-    result=generate(evidence, tmp_path, {}, model_call=model)
+    result=generate(evidence, tmp_path, {'final_review_enabled':False}, model_call=model)
     assert result['status']=='generated'
     assert calls==['design','rubrics/R1.py']
     assert (tmp_path/'verifier/main.py').read_text()==main

@@ -174,6 +174,11 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
         failure['worker_log'] = str(logs/'worker_result.json') if (logs/'worker_result.json').is_file() else None
         _write(output_dir/'program_error.json', failure)
         cost = _cost(logs, abandoned=True)
+        if config.get('fallback_enabled', True) is False:
+            result = {'mode':'program','status':'verification_error','score':None,
+                      'error':failure,'cost':cost,'seconds':time.monotonic()-started}
+            _write(output_dir/'result.json', result)
+            return result
         try:
             evidence = json.loads((evidence_dir/'fallback_input.json').read_text())
             for key in ('initial_state', 'actual_state', 'reference_state', 'reference_initial_state'):

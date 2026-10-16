@@ -43,7 +43,7 @@ def test_design_is_frozen_and_only_each_target_is_received(bundle, tmp_path):
             shutil.copyfile(bundle[0]/stage, workspace/stage)
             (workspace.parent/'self_test.py').write_text('assert True\n')
         return workspace
-    result = generate(evidence, output, model_call=model)
+    result = generate(evidence, output, {'final_review_enabled':False}, model_call=model)
     assert result['status'] == 'generated'
     assert calls == ['design', 'tools/T1.py']
     assert {name: (output/'verifier'/name).read_bytes() for name in DESIGN_FILES} == frozen
@@ -74,7 +74,7 @@ def test_each_tool_has_its_own_target_and_previous_tools_are_frozen(bundle, tmp_
                     (workspace/'tools/T1.py').write_text('changed')
             (workspace/stage).write_text('def tool(context, inputs):\n    return {"status":"missing"}\n')
         return workspace
-    result = generate(evidence, tmp_path/'run', model_call=model)
+    result = generate(evidence, tmp_path/'run', {'final_review_enabled':False}, model_call=model)
     assert result['status'] == ('generation_failed' if change_previous else 'generated')
     assert calls == ['design', 'tools/T1.py', 'tools/T2.py']
     assert (tmp_path/'run/verifier/tools/T1.py').read_text() == 'def tool(context, inputs):\n    return {"status":"missing"}\n'
@@ -93,7 +93,7 @@ def test_implementation_rejects_changes_outside_its_target_without_retry(bundle,
         shutil.copyfile(bundle[0]/stage, workspace/stage)
         (workspace/change).write_text('changed')
         return workspace
-    result = generate(evidence, tmp_path/'run', model_call=model)
+    result = generate(evidence, tmp_path/'run', {'final_review_enabled':False}, model_call=model)
     assert result['status'] == 'generation_failed'
     assert 'outside its target' in result['error']
     assert calls == ['design', 'tools/T1.py']
@@ -104,7 +104,7 @@ def test_zero_tools_needs_only_design(bundle, tmp_path):
     def model(prompt, *, stage, output_dir):
         calls.append(stage)
         return design_copy(bundle, output_dir/'design_workspace', zero_tools=True)
-    result = generate(bundle[1], tmp_path/'run', model_call=model)
+    result = generate(bundle[1], tmp_path/'run', {'final_review_enabled':False}, model_call=model)
     assert result['status'] == 'generated' and result['tool_count'] == 0
     assert calls == ['design']
     assert not (tmp_path/'run/verifier/main.py').exists()
@@ -119,6 +119,28 @@ def test_failed_design_is_recorded_without_retry(bundle, tmp_path):
     assert result['status'] == 'generation_failed' and result['stage'] == 'design'
     assert calls == ['design']
     assert json.loads((tmp_path/'run/generation/result.json').read_text()) == result
+
+
+def test_final_codex_can_complete_failed_tool_and_correct_design(bundle, tmp_path):
+    calls = []
+    def model(prompt, *, stage, output_dir):
+        calls.append(stage)
+        workspace = output_dir/f'workspace_{len(calls)}'
+        if stage == 'design':
+            return design_copy(bundle, workspace)
+        if stage == 'tools/T1.py':
+            raise RuntimeError('implementation failed')
+        assert stage == 'final'
+        shutil.copytree(output_dir/'verifier', workspace)
+        shutil.copyfile(bundle[0]/'tools/T1.py', workspace/'tools/T1.py')
+        doc = json.loads((workspace/'rubrics.json').read_text())
+        doc['rubrics'][0]['criteria']['1'] = 'The task requested data is valid.'
+        dump(workspace/'rubrics.json', doc)
+        return workspace
+    value = generate(bundle[1], tmp_path/'run', model_call=model)
+    assert value['status'] == 'generated'
+    assert calls == ['design','tools/T1.py','final']
+    assert 'rubrics.json' in value['final_review']['changed_files']
 
 
 def test_design_self_test_runs_and_cannot_live_in_package(bundle, tmp_path):

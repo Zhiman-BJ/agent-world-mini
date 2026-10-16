@@ -73,6 +73,17 @@ def test_writable_output_cannot_cover_evidence(bundle):
         application.apply(root, evidence, evidence/'run', {})
 
 
+def test_generation_acceptance_does_not_fallback(bundle, tmp_path, monkeypatch):
+    root, evidence = bundle
+    (root/'tools/T1.py').write_text('def tool(context, inputs):\n    raise RuntimeError("broken tool")\n')
+    fake_worker(monkeypatch, error=True)
+    monkeypatch.setattr(application, 'verify_execution', lambda **kw: pytest.fail('acceptance must not fallback'))
+    value = application.apply(root, evidence, tmp_path/'run', {'fallback_enabled':False})
+    assert value['mode'] == 'codex_with_tools' and value['status'] == 'verification_error'
+    assert 'broken tool' in value['error']['message']
+    assert value['score'] is None and not (tmp_path/'run/fallback').exists()
+
+
 def test_main_codex_sandbox_sees_tools_but_cannot_modify_inputs(bundle, tmp_path, monkeypatch):
     root, evidence = bundle
     from task_gen.test_verifier.codex_tool_verifier.tool_runner import ToolServer

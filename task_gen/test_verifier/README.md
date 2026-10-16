@@ -13,3 +13,19 @@ python -m task_gen.test_verifier.manual_npz_verifier --help
 ```
 
 历史模型调用日志保留原始内容。目录迁移只更新代码引用、说明和标准数组路径。原件保护范围仍待按讨论收窄至指定的18份数组。
+# 最终修复与 20 任务重复应用
+
+两种方法默认在生成尾部增加一个 Codex 会话，直接修复任务生成包、测试，再交付。
+完整试跑和修复均计入生成成本。冻结后对同一份证据独立应用两次：
+
+```bash
+.venv/bin/python -m task_gen.test_verifier.final_review_experiment \
+  --config task_gen/test_verifier/final_review_run_config.json \
+  --output task_gen/test_verifier/runs/final_review_20x2_20261016 \
+  --concurrency 4
+```
+
+默认使用 `runs/random20_20261015/task_ids.tsv` 的 20 任务、6.1sol/high、两种方法。
+新增目录保留全部 API 请求计量、生成与最终修复、两次应用结果及 `RESULTS.html`。
+同目录重启会复用已完成结果并核对冻结包；未完成的应用留档报错，不静默覆盖。
+费用无供应方确认价格时显示 unknown，原始 API usage 和返回的费用字段保留。

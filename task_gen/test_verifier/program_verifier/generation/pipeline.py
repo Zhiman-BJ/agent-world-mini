@@ -123,9 +123,11 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
     if not request_file.exists(): request_file=evidence_dir/'request.json'
     request=json.loads(request_file.read_text())
     started=time.monotonic();stage='design'
+    custom_model, owns_root = model_call is not None, False
     try:
         if root.exists(): raise ValueError('Verifier output already exists; use a new run directory, no silent repair')
         root.mkdir()
+        owns_root = True
         if model_call is None:
             from .model import GenerationModel
             model_call=GenerationModel(evidence_dir,config or {},logs)
@@ -162,5 +164,18 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
         result={'task_id':request['task_id'],'status':'generated','verifier_dir':str(root),'seconds':time.monotonic()-started,'rubric_count':len(design['rubrics'])}
     except Exception as e:
         result={'task_id':request['task_id'],'status':'generation_failed','stage':stage,'error':f'{type(e).__name__}: {e}','seconds':time.monotonic()-started}
+    if (config or {}).get('final_review_enabled', True) and owns_root and any(root.iterdir()):
+        write_json(logs/'staged_result.json', result)
+        try:
+            from ...final_review import run_final_review
+            final = run_final_review('program', evidence_dir, output_dir, config or {},
+                                     model_call=model_call if custom_model else None)
+            design = check_package(root, request['task_text'])
+            result = {'task_id':request['task_id'],'status':'generated','verifier_dir':str(root),
+                      'rubric_count':len(design['rubrics']),'final_review':final}
+        except Exception as error:
+            result = {'task_id':request['task_id'],'status':'generation_failed','stage':'final_review',
+                      'error':f'{type(error).__name__}: {error}'}
+        result['seconds'] = time.monotonic()-started
     write_json(logs/'result.json',result)
     return result

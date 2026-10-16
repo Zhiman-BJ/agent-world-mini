@@ -44,10 +44,12 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
         request_file = evidence_dir/'request.json'
     request = json.loads(request_file.read_text())
     started, stage = time.monotonic(), 'design'
+    custom_model, owns_root = model_call is not None, False
     try:
         if root.exists():
             raise ValueError('Verifier output already exists; use a new run directory, no silent repair')
         root.mkdir()
+        owns_root = True
         if model_call is None:
             model_call = GenerationModel(evidence_dir, config or {}, logs)
         prompt_dir = Path(__file__).parent/'prompts'
@@ -83,5 +85,18 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
     except Exception as error:
         result = {'task_id': request['task_id'], 'status': 'generation_failed', 'stage': stage,
                   'error': f'{type(error).__name__}: {error}', 'seconds': time.monotonic()-started}
+    if (config or {}).get('final_review_enabled', True) and owns_root and any(root.iterdir()):
+        write_json(logs/'staged_result.json', result)
+        try:
+            from ..final_review import run_final_review
+            final = run_final_review('codex_tools', evidence_dir, output_dir, config or {},
+                                     model_call=model_call if custom_model else None)
+            plan = validate_package(root, request['task_text'])
+            result = {'task_id':request['task_id'],'status':'generated','verifier_dir':str(root),
+                      'rubric_count':len(plan['rubrics']),'tool_count':len(plan['tools']),'final_review':final}
+        except Exception as error:
+            result = {'task_id':request['task_id'],'status':'generation_failed','stage':'final_review',
+                      'error':f'{type(error).__name__}: {error}'}
+        result['seconds'] = time.monotonic()-started
     write_json(logs/'result.json', result)
     return result

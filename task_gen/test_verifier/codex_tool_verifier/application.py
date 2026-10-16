@@ -183,6 +183,13 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
         model_record['usage'] = usage_events(logs/'codex')
     main_started = bool(model_record.get('started', process is not None))
     cost = {'calls': [model_record] if main_started else [], 'tools_seconds': sum(c.get('seconds', 0) for c in calls)}
+    if failure and config.get('fallback_enabled', True) is False:
+        result = {'mode':'codex_with_tools' if static_tools_enabled else 'codex_rubric_only',
+                  'status':'verification_error','score':None,'error':failure}
+        result.update(main_started=main_started, static_tools_enabled=static_tools_enabled,
+                      tool_calls=calls, cost=cost, seconds=time.monotonic()-started)
+        write_json(output/'result.json', result)
+        return result
     if failure:
         try:
             fallback_input = json.loads((evidence/'fallback_input.json').read_text())

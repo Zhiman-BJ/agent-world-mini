@@ -33,6 +33,16 @@ def test_weighted_scoring_and_invalid_results():
     validate_design({'rubrics': rubrics}, 'check data')
 
 
+def test_generation_acceptance_does_not_fallback(tmp_path, monkeypatch):
+    root, evidence = tmp_path/'verifier', tmp_path/'evidence'
+    root.mkdir(); evidence.mkdir()
+    monkeypatch.setattr(runner, 'verify_execution', lambda **kw: pytest.fail('acceptance must not fallback'))
+    value = runner.apply(root, evidence, tmp_path/'application', {'fallback_enabled':False})
+    assert value['mode'] == 'program' and value['status'] == 'verification_error'
+    assert value['score'] is None
+    assert not (tmp_path/'application/fallback').exists()
+
+
 def test_parallel_preserves_results_and_bounds_concurrency(tmp_path):
     sdk = SDK({'rubrics': [rubric()]}, tmp_path/'logs', tmp_path/'scratch', {'node_concurrency': 2})
     lock, running, maximum = threading.Lock(), 0, 0

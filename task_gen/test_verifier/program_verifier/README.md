@@ -63,3 +63,11 @@ python -m task_gen.test_verifier.program_verifier.random_sample \
 生成检查只核验文件、编译、契约和接口，不从源码推断调用覆盖。应用宿主核对每项 rubric 的真实执行记录与返回结果，漏执行或伪造结果均触发整任务回退。首轮失败记录保持原状；用户明确要求后的 S56/S71 重试另存 runs/checker_fix_20261015，复用原设计和 main.py，只补生成缺失实现并实际验收。
 
 生成调用日志含 prompt.txt、response.txt、scratch/verifier（实际编辑文件）、scratch/self_test.py、acceptance.json 及验收 stdout/stderr；最终文字回复不是代码来源。自测须实际调用交付函数，main 自测使用契约替身，不能代替真实参考验收。模型调用文件优先实现，再生成 helpers 和 rubrics，使后续自测能读取已有依赖。
+# Final Codex Repair
+
+生成默认增加最终 Codex 会话，允许它直接修复整个任务 verifier 并反复测试。
+`generation/before_final/` 保留修复前文件，`generation/*_final/` 保留修复与真实试跑日志，
+`generation/manifest.json` 记录交付哈希。设计冻结仅约束逐文件实现阶段，最终修复可同步更正设计与实现。
+最终试跑禁用 fallback，合法低分可通过；正式 apply 出错仍整任务回退。
+`final_review_timeout_seconds` 配置整个最终会话（含宿主独立试跑）的预算，默认至少 3600 秒；
+`final_review_enabled=false` 仅用于基线或宿主测试。最终验收及其全部模型调用属于生成成本。
