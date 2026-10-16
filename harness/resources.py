@@ -68,7 +68,7 @@ class ResourceCatalog:
         root = self._scope_root(scope_id).resolve()
         if raw.is_absolute():
             if self._workspace_root is None:
-                raise ValueError(f"资源路径必须使用相对于当前工作目录的相对路径：{value}")
+                raise ValueError(f"资源路径必须是 Scope 内相对路径：{value}")
             public_root = self._public_workspace_root or self._workspace_root
             public_target = raw.resolve(strict=False)
             if not (
@@ -248,7 +248,7 @@ class ResourceCatalog:
         if isinstance(value, str) and value.startswith(f"{RESOURCE_SCHEME}://"):
             if resource_scope is not None:
                 raise ValueError(
-                    "业务工具资源参数必须使用当前工作目录中的路径；"
+                    "业务工具资源参数必须使用 Scope 内相对路径；"
                     "URI 仅用于 MCP Resources"
                 )
             raise ValueError("未标注资源字段不能接收资源 URI")
@@ -294,7 +294,7 @@ class ResourceCatalog:
         allowed_scopes: set[str] | None = None,
         must_exist: bool = True,
     ) -> Any:
-        """Validate annotated results and expose model-workspace paths."""
+        """Validate annotated Scope-relative result paths for the public API."""
 
         def matches_shape(candidate: Any, current: Any) -> bool:
             if not isinstance(candidate, dict):
@@ -344,7 +344,7 @@ class ResourceCatalog:
                 or item.get("x-resource-kind") is not None
             }
             if isinstance(current, str) and current.startswith(f"{RESOURCE_SCHEME}://"):
-                raise ValueError("业务工具结果不能返回资源 URI；请返回当前工作目录中的路径")
+                raise ValueError("业务工具结果不能返回资源 URI；请返回 Scope 内相对路径")
             if isinstance(current, str) and annotations:
                 if len(annotations) != 1:
                     raise ValueError("输出资源字段包含互相冲突的 Scope 标注")
@@ -353,21 +353,13 @@ class ResourceCatalog:
                     raise ValueError(f"未知 Filesystem Scope：{scope_id}")
                 if allowed_scopes is not None and scope_id not in allowed_scopes:
                     raise ValueError(f"工具未声明使用 Filesystem Scope：{scope_id}")
-                root = self._scope_root(str(scope_id)).resolve()
-                raw = Path(current)
-                if raw.is_absolute():
-                    target = raw.resolve(strict=False)
-                    if not (target == root or target.is_relative_to(root)):
-                        raise ValueError(f"输出资源越出 Scope {scope_id}：{current}")
-                    relative_path = target.relative_to(root)
-                    if not relative_path.parts:
-                        raise ValueError("输出资源必须指向 Scope 内的条目")
-                    relative = PurePosixPath(relative_path.as_posix())
-                else:
-                    # Tool code receives Scope-relative inputs and returns the
-                    # same internal representation. The mount prefix is added
-                    # only when the result crosses back into the model view.
-                    relative = _relative_path(current)
+                # Tool code returns Scope-relative paths; only public arguments
+                # contain the workspace mount prefix.
+                relative = (
+                    self._business_relative(str(scope_id), current)
+                    if Path(current).is_absolute()
+                    else _relative_path(current)
+                )
                 target = self.resolve_relative(str(scope_id), relative)
                 if must_exist and not target.exists():
                     raise ValueError(f"输出资源不存在：{current}")

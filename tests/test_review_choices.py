@@ -11,7 +11,7 @@ class ChoicesTest(unittest.TestCase):
     def test_resume_restores_choice_state_and_call_budget(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            config = {'tools': [], 'workspace_root': str(root), 'trace': str(root / 'trace.jsonl'),
+            config = {'tools': [], 'workspace': str(root), 'trace': str(root / 'trace.jsonl'),
                       'max_tool_calls': 2, 'review_choice_seed': 42, 'resume_trace': True}
             request = {'method': 'tools/call', 'params': {'name': 'review_select_plan', 'arguments': {
                 'question': '选择对象', 'options': [
@@ -27,7 +27,7 @@ class ChoicesTest(unittest.TestCase):
     def test_mcp_choice_is_review_only_and_logged(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            config = {'tools': [], 'workspace_root': str(root), 'trace': str(root / 'trace.jsonl'),
+            config = {'tools': [], 'workspace': str(root), 'trace': str(root / 'trace.jsonl'),
                       'max_tool_calls': 10, 'review_choice_seed': 42}
             path = root / 'config.json'
             path.write_text(json.dumps(config))

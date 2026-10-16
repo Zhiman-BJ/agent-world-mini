@@ -17,12 +17,12 @@ ORIGINAL_HARNESS = draft.run_harness
 
 
 def test_author_prompt_separates_hardening_method_from_constraints():
-    assert draft.PROFILE == "single_agent_tool_list_draft_v9_mcp_only"
+    assert draft.PROFILE == "single_agent_tool_list_draft_v10_closed_loop"
     method = draft.AUTHOR_PROMPT.split("# 怎样增难\n", 1)[1].split("\n# 必要规则", 1)[0].strip()
     rules = draft.AUTHOR_PROMPT.split("# 必要规则\n", 1)[1].split("\n# 工作顺序", 1)[0].strip()
-    assert len(method.splitlines()) == 5
+    assert len(method.splitlines()) == 4
     assert len(method) < 350
-    for requirement in ("现实用途", "关键决定", "自行选择和编排工具", "不同工具返回",
+    for requirement in ("现实用途", "必要决定", "自行选择和编排工具", "不同工具返回",
                         "最短合理解法", "原解法不能直接完成新目标",
                         "真实结果依赖", "题文只呈现用户需求"):
         assert requirement in method
@@ -309,27 +309,6 @@ def test_container_sources_cover_every_leaf_once_without_weakening_provenance(so
             check(solution, protocol)
 
 
-def test_source_normalization_preserves_valid_schema_and_container_sources(solution, protocol):
-    proposal, original, observed, schemas = solution
-    observed[0]["visible_output"]["output"]["ids"] = ["W01", "W02"]
-    observed[1]["arguments"]["ids"] = ["W01", "W02"]
-    call = proposal["solution_calls"][1]
-    call["arguments"]["ids"] = ["W01", "W02"]
-    call["argument_sources"]["/ids"] = {"kind": "call", "call": 1, "pointer": "/output/ids"}
-    before = deepcopy(call["argument_sources"])
-    report = {"request": {"calls": [{"tool": item["tool"], "arguments": item["arguments"]}
-                                   for item in proposal["solution_calls"]]},
-              "result": {"validation_id": proposal["validation_id"], "execution_passed": True,
-                         "source_check_passed": False,
-                         "calls": [{"tool": item["name"].removeprefix("mcp__agent_world_distill__"),
-                                    "arguments": item["arguments"], "result": item["visible_output"]}
-                                   for item in observed]}}
-    result = draft.normalize_proposal_sources(proposal, [report], task=original, protocol=protocol, schemas=schemas)
-    assert result["inferred_parameter_sources"] == 0
-    assert call["argument_sources"] == before
-    assert check(solution, protocol)[1]["parameter_sources_match"] is True
-
-
 def test_parameter_source_coverage_handles_escaped_empty_and_root_paths():
     arguments = {"a/b": {"~key": [7]}, "": [8], "empty": []}
     assert draft.parameter_source_values(arguments, {"/a~1b": {}, "/": {}, "/empty": {}}) == {
@@ -497,14 +476,14 @@ def test_default_only_prepares_the_flow_and_never_starts_an_agent(pipeline):
     assert captured["sessions"] == captured["replays"] == []
 
 
-def test_execution_is_one_author_then_code_replay_then_one_blind_solver(pipeline):
+def test_execution_is_one_author_then_receipt_binding_then_one_blind_solver(pipeline):
     case, protocol, output, captured = pipeline
     result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET_KEY")
     assert result["status"] == "gpt_completed_pending_answer_review"
     assert len(captured["sessions"]) == 2
 
 
-    assert len(captured["replays"]) == 1
+    assert captured["replays"] == []
     assert set(captured["author_materials"]) == {"original_task.json", "original_calls.json",
         "public_tools.json", "protocol.json", "workspace_files.json"}
     assert captured["author_materials"]["original_task.json"]["reference_answer"] == "PRIVATE_OLD_ANSWER"
@@ -525,9 +504,10 @@ def test_execution_is_one_author_then_code_replay_then_one_blind_solver(pipeline
 def test_reference_only_mode_waits_for_semantic_verification_before_blind_solving(pipeline):
     case, protocol, output, captured = pipeline
     result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET_KEY", solve_independently=False)
-    assert result["status"] == "reference_replayed_pending_semantic_verification"
+    assert result["status"] == "reference_validated_pending_semantic_verification"
     assert result["independent_solver_started"] is result["correctness_verified"] is False
-    assert len(captured["sessions"]) == len(captured["replays"]) == 1
+    assert len(captured["sessions"]) == 1
+    assert captured["replays"] == []
 
 
 def test_support_call_between_business_calls_does_not_shift_the_selected_reference(pipeline, solution):
@@ -558,17 +538,6 @@ def test_changed_prepared_inputs_cannot_be_executed(pipeline, changed):
     with pytest.raises(ValueError):
         draft.run_case(case, protocol, output, execute=True, api_key="SECRET_KEY")
     assert captured["sessions"] == []
-
-
-def test_replay_difference_is_not_silently_accepted_or_counted_as_model_failure(pipeline, monkeypatch):
-    case, protocol, output, captured = pipeline
-    monkeypatch.setattr("task_gen.program.reference_replay.replay_reference",
-                        lambda *args: {"call_count": 2, "recorded_results_identical": False})
-    result = draft.run_case(case, protocol, output, execute=True, api_key="key")
-    assert result["status"] == "reference_replay_needs_review"
-    assert len(captured["sessions"]) == 1
-    assert result["independent_solver_started"] is False
-    assert result["correctness_verified"] is False
 
 
 def test_invalid_author_reference_stops_without_retry_or_other_agents(pipeline, solution):
@@ -661,7 +630,7 @@ def test_author_harness_alone_exposes_materials_and_validation(pipeline, actual_
     draft.run_harness(pipeline[0], task, protocol, tmp_path / "author-harness", "SECRET", author_materials=materials)
     assert captured["server_config"]["author_materials"] == materials
     assert captured["server_config"]["solution_validation"] == {
-        "max_attempts": 3, "read_default_chars": 80000, "read_max_chars": 128000,
+        "read_default_chars": 80000, "read_max_chars": 128000,
         "source_check": {"protocol": protocol, "original_task_text": "Original", "original_call_count": 1}}
     assert captured["run"]["max_environment_errors"] is None
 
@@ -720,7 +689,7 @@ def test_validation_reference_rejects_changed_task_or_missing_source_check(solut
         draft.validated_reference(proposal, [report])
 
 
-def test_validation_reference_can_use_host_final_source_check(solution):
+def test_validation_reference_never_bypasses_missing_author_source_check(solution):
     proposal = solution[0]
     for call in proposal["solution_calls"]:
         call.pop("observed_call")
@@ -729,7 +698,8 @@ def test_validation_reference_can_use_host_final_source_check(solution):
               "result": {"validation_id": proposal["validation_id"], "execution_passed": True,
                          "source_check_passed": False,
                          "calls": [{"error": None}, {"error": None}]}}
-    assert draft.validated_reference(proposal, [report], host_source_check=True)[0] == report
+    with pytest.raises(ValueError, match="source-checked"):
+        draft.validated_reference(proposal, [report])
 
 
 def test_schema_choices_are_public_enums_defaults_or_booleans_only(protocol):
@@ -740,6 +710,52 @@ def test_schema_choices_are_public_enums_defaults_or_booleans_only(protocol):
         draft.source_value(source, schema={"type": "string"}, **options)
     with pytest.raises(ValueError, match="actual public"):
         draft.source_value(source, schema={"type": "boolean"}, **options)
+
+
+@pytest.mark.parametrize("path,value,schema,accepted", [
+    ("/search_query", "laser overheating", {"type": "string"}, True),
+    ("/page", 2, {"type": "integer"}, True),
+    ("/fields", ["title", "status"], {"type": "array", "items": {"type": "string"}}, True),
+    ("/record_id", "invented-record", {"type": "string"}, False),
+    ("/input_file", "missing.csv", {"type": "string"}, False),
+    ("/value", 37, {"type": "number"}, False),
+    ("/filters/record_id", "invented-record", {"type": "string"}, False),
+    ("/page", True, {"type": "integer"}, False),
+])
+def test_agent_choices_allow_controls_but_require_evidence_for_business_values(protocol, path, value, schema, accepted):
+    declaration = {"kind": "agent_choice", "value": value, "reason": "Select a search or display control."}
+    options = dict(task={"task_text": "Task"}, protocol=protocol, preceding=[], current_start=None,
+                   schema=schema, argument_path=path)
+    if accepted:
+        assert sources.source_value(declaration, **options) == value
+    else:
+        with pytest.raises(ValueError):
+            sources.source_value(declaration, **options)
+
+
+@pytest.mark.parametrize("changed_field", ["task_text", "reference_answer", "argument_sources", "validation_id"])
+def test_submissions_changed_after_successful_validation_stop_without_host_reexecution(pipeline, monkeypatch, changed_field):
+    from task_gen.program import single_agent_hardening
+
+    case, protocol, output, captured = pipeline
+    author = single_agent_hardening.run_harness
+
+    def changed_submission(*args, **kwargs):
+        trajectory, observed = author(*args, **kwargs)
+        proposal = json.loads(trajectory["outcome"]["final_answer"])
+        if changed_field == "argument_sources":
+            proposal["solution_calls"][1]["argument_sources"]["/id"] = {"kind": "task", "quote": "W01"}
+        else:
+            proposal[changed_field] += " changed"
+        trajectory["outcome"]["final_answer"] = json.dumps(proposal)
+        return trajectory, observed
+
+    monkeypatch.setattr(single_agent_hardening, "run_harness", changed_submission)
+    result = single_agent_hardening.run_case(case, protocol, output, execute=True, api_key="key")
+    assert result["status"] == "stage_error"
+    assert len(captured["sessions"]) == 1
+    assert captured["replays"] == []
+    assert not (output / "author/final-validation").exists()
 
 
 @pytest.mark.parametrize("mutation", ["budget_stop", "upstream_stop", "request_model", "read_limits", "extra_tool"])

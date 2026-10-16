@@ -33,9 +33,9 @@ class ProgramFormRunnerTests(unittest.TestCase):
                 "--output-dir",
                 str(root / "out"),
                 "--clean-replays",
-                "1",
+                "0",
             ])
-            with self.assertRaisesRegex(ValueError, "clean_replays"):
+            with self.assertRaisesRegex(ValueError, "clean.replays"):
                 validate_arguments(arguments)
 
     def test_runner_reuses_complete_step0_without_loading_source(self):

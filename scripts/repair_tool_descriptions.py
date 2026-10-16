@@ -32,18 +32,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-DEFAULT_ROOTS = (
-    Path("/data1/agent_world/toolgen_environments/delivery"),
-    Path("/data1/agent_world/toolgen_semiconductor_expanded/delivery"),
-)
-DEFAULT_ENV_FILE = Path(
-    "/data1/home/sunshuo/AgenticDataGeneration/OmniaBench/EnvGen/.env"
-)
-DEFAULT_KIMI_ENV_FILE = Path("/home/sunshuo/.config/agent-world/kimi-k3.env")
-DEFAULT_PROGRESS_DIR = Path(
-    "/data1/agent_world/aw-data/tool_description_repair_20261004"
-)
-
 SCHEMA_CONTAINER_KEYS = {
     "properties",
     "patternProperties",
@@ -1003,16 +991,16 @@ def discover_environments(roots: Iterable[Path]) -> list[Path]:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", action="append", type=Path, dest="roots")
+    parser.add_argument("--root", action="append", type=Path, dest="roots", required=True)
     parser.add_argument("--environment", action="append", default=[])
-    parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE)
+    parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--model-slot", type=int, default=2)
     parser.add_argument(
         "--credential-profile",
         choices=("openai-slot", "kimi-primary", "kimi-backup"),
         default="openai-slot",
     )
-    parser.add_argument("--kimi-env-file", type=Path, default=DEFAULT_KIMI_ENV_FILE)
+    parser.add_argument("--kimi-env-file", type=Path, default=Path(".env"))
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--max-request-chars", type=int, default=180_000)
     parser.add_argument("--attempts", type=int, default=5)
@@ -1030,13 +1018,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="使用无交互 sudo 原子写入当前账号无写权限的交付目录。",
     )
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--progress-dir", type=Path, default=DEFAULT_PROGRESS_DIR)
+    parser.add_argument("--progress-dir", type=Path, required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    roots = tuple(args.roots or DEFAULT_ROOTS)
+    roots = tuple(args.roots)
     environments = discover_environments(roots)
     if args.environment:
         selected = set(args.environment)

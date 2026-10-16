@@ -455,13 +455,14 @@ def _override_case_deliveries(cases: list[Any], delivery_root: Path) -> list[Any
         environment = dict(delivery.package.environment)
         environment["tools"] = list(delivery.package.tools)
         repaired_tools = delivery.binding_path.parent / "tools/tools_repaired.json"
-        if not repaired_tools.is_file():
-            raise ValueError(f"delivery is missing tools_repaired.json: {repaired_tools}")
         runtime = {
             "binding_path": str(delivery.binding_path),
-            "tools_path": str(repaired_tools),
             "initial_state": str(delivery.package.package_root / "state"),
         }
+        if repaired_tools.exists():
+            if not repaired_tools.is_file():
+                raise ValueError(f"delivery repair must be a file: {repaired_tools}")
+            runtime["tools_path"] = str(repaired_tools)
         if delivery.software_root is not None and delivery.python_path is not None:
             runtime["software"] = {
                 "root": str(delivery.software_root),

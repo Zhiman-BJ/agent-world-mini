@@ -33,8 +33,8 @@ task-run/
 | 读取 ToolGen 交付包 | `harness.delivery.load_delivery` |
 | 创建任务目录 | `harness.layout.create_task_run_layout` |
 | 执行一个环境工具 | `harness.execution.call_environment_tool` |
-| 工具进程后端 | `harness.sandbox` |
-| workspace 路径校验 | `harness.resources.ResourceCatalog` |
+| 工具沙盒 | `harness.sandbox` |
+| 资源引用和 Resources | `harness.resources.ResourceCatalog` |
 | MCP wire contract | `harness.mcp_protocol` |
 | MCP Resources 投影 | `harness.mcp_resources` |
 | Kimi 文件访问边界 | `harness.kimi_file_policy.KimiFileAccessPolicy` |
@@ -120,7 +120,7 @@ record = call_environment_tool(
     name="query_records",
     arguments={"path": "daily.json"},
     tools=tool_map,
-    workspace_root=paths.model_workspace,
+    state_root=paths.model_workspace,
     timeout=300,
     memory_limit=2 * 1024 * 1024 * 1024,
     write_limit=256 * 1024 * 1024,
@@ -140,9 +140,9 @@ record = call_environment_tool(
 
 ```text
 参数 Schema 校验
-  -> workspace/Scope 路径校验
-  -> 可写调用备份 workspace 和私有数据库
-  -> 交付环境中的工具子进程执行
+  -> Scope/资源参数校验
+  -> 状态临时副本
+  -> bubblewrap 沙盒执行
   -> 返回 Schema 校验
   -> 检查状态差异和只读资源
   -> 成功提交；失败恢复调用前状态
@@ -163,7 +163,7 @@ record = call_environment_tool(
 模型侧业务工具的文件参数使用工作目录路径。Harness 会根据 Schema 的 Scope 标注转成工具代码原有的 Scope 内相对路径：
 
 ```text
-单 Scope 模型参数：source/mobility.py
+单 Scope 模型参数：mobility_models/source/mobility.py
 多 Scope 模型参数：reports/daily.json
 工具代码收到：      daily.json
 实际物理路径：      <task-run>/<workspace>/reports/daily.json
@@ -181,10 +181,16 @@ record = call_environment_tool(
 
 业务工具也接受当前 `model-workspace` 内的绝对路径；不接受工作目录外的宿主路径、`filesystem_scopes/...` 或 Resource URI。
 
-正式任务 MCP 不声明 Resources capability，也不提供 `resources/list` 或
-`resources/read`。Kimi 使用原生 `Read/Grep/Glob` 浏览 workspace；业务工具参数
-只接受 workspace 路径。`aw://` 只保留在独立 ToolGen 资源目录的内部协议和回归
-测试中，不进入正式蒸馏的 initialize 指令、工具参数或工具返回值。
+MCP Resources 使用标准方法：
+
+```text
+resources/list  -> 列出资源 URI、scope_id、relative_path
+resources/read  -> 使用 URI 读取资源
+```
+
+当前服务端生成的 URI scheme 是 `aw://`，它是 opaque 标识，只能交给 `resources/read`，不能由模型或业务工具自行拼接、解析或当作普通文件路径。
+
+`resources/list` 和 `resources/read` 是 MCP JSON-RPC 方法，不会出现在 `tools/list`，也不能通过 `tools/call` 调用。
 
 ## 7. Kimi / MCP 接入
 
@@ -279,16 +285,16 @@ raw/harness_policy.json
 本次 Harness 适配只改变了以下与用户明确要求直接相关的内容：
 
 - 把统一工具执行、目录布局、资源解析和文件访问策略收口到 `harness/`；
-- 让 MCP 业务工具统一使用 workspace 路径；
+- 让 MCP 业务工具使用 Scope 相对路径；
 - 移除旧的自定义长结果读取协议，改用 Kimi 原生 `tool-results`；
 - 开放 Kimi 原生 `Read/Grep/Glob`，并增加真实生效的路径 hook；
-- 正式任务 MCP 不再发布 `resources/list/read` 或资源 URI 提示；
+- 将 MCP `resources/list/read` 保留为协议方法，不伪装成普通 function tool；
 - 让 TaskGen、MCP 和蒸馏调用方使用上述统一入口。
 
 以下能力没有被重新设计：
 
 - ToolGen 业务工具生成方式；
-- Program/历史完整状态执行使用的内部隔离后端；
+- bubblewrap 工具执行后端；
 - 软件 Profile/依赖准备方式；
 - 工具输入输出 Schema 契约；
 - Kimi 的模型循环、流式请求和 session 持久化机制；

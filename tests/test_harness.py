@@ -170,12 +170,6 @@ def test_multi_scope_paths_are_always_workspace_relative(tmp_path):
     assert catalog.normalize_arguments(
         "reports/daily.txt", schema=schema, allowed_scopes={"reports"},
     ) == "daily.txt"
-    assert catalog.externalize_result(
-        "daily.txt", schema=schema, allowed_scopes={"reports"},
-    ) == "reports/daily.txt"
-    assert catalog.externalize_result(
-        str(reports / "daily.txt"), schema=schema, allowed_scopes={"reports"},
-    ) == "reports/daily.txt"
     with pytest.raises(ValueError, match="当前工作目录"):
         catalog.normalize_arguments(
             "daily.txt", schema=schema, allowed_scopes={"reports"},

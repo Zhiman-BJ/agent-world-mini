@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -336,6 +337,18 @@ def runtime_environment(
         return environment
 
     prefixes = sorted(path for path in root.glob("python-*") if path.is_dir())
+    versions = {match.group(1) for prefix in prefixes
+                if (match := re.fullmatch(r'python-(\d+\.\d+)', prefix.name))}
+    if len(versions) == 1 and environment.get('LD_LIBRARY_PATH'):
+        # A profile must not load another Python version's extension libraries
+        # inherited from the execution image (for example its training Torch).
+        expected = next(iter(versions))
+        compatible = []
+        for value in environment['LD_LIBRARY_PATH'].split(os.pathsep):
+            match = re.search(r'/python(\d+\.\d+)/(?:site|dist)-packages/', value)
+            if match is None or match.group(1) == expected:
+                compatible.append(value)
+        environment['LD_LIBRARY_PATH'] = os.pathsep.join(compatible)
     candidates = [root, *prefixes]
     bin_dirs: list[Path] = []
     lib_dirs: list[Path] = []
@@ -380,6 +393,14 @@ def runtime_environment(
                 if path.is_dir():
                     lib_dirs.append(path)
 
+    # Distribution packages may place alternatives such as BLAS under a
+    # library subdirectory instead of directly in the architecture directory.
+    for directory in tuple(dict.fromkeys(lib_dirs)):
+        lib_dirs.extend(
+            child for child in sorted(directory.iterdir())
+            if child.is_dir() and any(child.glob("*.so*"))
+        )
+
     bins = list(dict.fromkeys(str(path) for path in bin_dirs))
     libraries = list(dict.fromkeys(str(path) for path in lib_dirs))
     if bins:
@@ -393,9 +414,18 @@ def runtime_environment(
 
     prefix = prefixes[-1] if prefixes else None
     if prefix:
-        if (prefix / "lib/petsc").is_dir():
+        certificates = prefix / 'ssl/cert.pem'
+        configured = environment.get('SSL_CERT_FILE')
+        if certificates.is_file() and (not configured or not Path(configured).is_file()):
+            environment['SSL_CERT_FILE'] = str(certificates.resolve())
+        if (prefix / 'lib/libpetsc.so').is_file():
+            environment['PETSC_DIR'] = str(prefix)
+            environment['PETSC_ARCH'] = ''
+        elif (prefix / "lib/petsc").is_dir():
             environment.setdefault("PETSC_DIR", str(prefix))
-        if (prefix / "lib/slepc").is_dir():
+        if (prefix / 'lib/libslepc.so').is_file():
+            environment['SLEPC_DIR'] = str(prefix)
+        elif (prefix / "lib/slepc").is_dir():
             environment.setdefault("SLEPC_DIR", str(prefix))
     environment["TOOLGEN_SOFTWARE_ROOT"] = str(root)
     return environment

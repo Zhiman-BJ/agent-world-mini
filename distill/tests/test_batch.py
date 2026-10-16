@@ -736,8 +736,14 @@ def test_delivery_override_rebinds_tools_without_changing_task_state(tmp_path, m
     assert result.runtime["initial_state"] == str(package_root / "state")
 
     repaired_tools.unlink()
+    original = _override_case_deliveries([case], tmp_path)[0]
+    assert original.environment["tools"] == [tool]
+    assert "tools_path" not in original.runtime
+    assert original.initial_state == initial_state
+    assert original.runtime["binding_path"] == str(binding.resolve())
+    repaired_tools.mkdir()
     import pytest
-    with pytest.raises(ValueError, match="delivery is missing tools_repaired.json"):
+    with pytest.raises(ValueError, match="delivery repair must be a file"):
         _override_case_deliveries([case], tmp_path)
 
 

@@ -8,7 +8,12 @@ AppendOnlyBundle 是一次流水线运行中持续扩充的信息与产物集合
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, NotRequired, TypedDict
+from typing import Any
+
+try:
+    from typing import NotRequired, TypedDict
+except ImportError:
+    from typing_extensions import NotRequired, TypedDict
 
 AppendOnlyBundle = dict[str, Any]
 ToolCall = dict[str, Any]  # {"tool": str, "arguments": dict, "observation": dict}
@@ -179,18 +184,21 @@ class ExecuteChainsOutput(TypedDict):
     and plan selection calls. objective is the final core-preserving goal;
     llm_review keeps original_chain, original_objective and evidence-based reason.
     logic_score (0-5) and logic_reason reflect actual completion, value and call
-    contribution. Final selection ranks completion score, then balances diversity
-    using actual chains and the original graph score as a tie-breaker.
+    contribution. In candidate order, each batch executes only the remaining
+    success quota. Stop at keep_top_count successes or exhaustion of candidates.
 
     execution contains success, tool_calls, raw_tool_calls, answer, error and
     initial_state/final_state (paths relative to run_dir). attempts is retained as
     a per-round summary with objective, session ID, directory and outcome. The
-    parent explores a read-only copy, then reviews isolated execution rounds.
-    Same-goal repairs resume that round; changed goals start from original state.
+    agent explores and executes in one session, followed by a mandatory resumed
+    check/repair turn. It explicitly selects call_indices from the real trace
+    and explains chain_changes; exploratory calls are not automatically counted.
+    One short-chain deepening retry resumes the session or starts from original
+    state according to the agent's restart decision, sharing the task time budget.
     chain, tool_calls, raw_tool_calls, answer and final_state belong only to the
-    last accepted round (or last attempted round on failure), never preparation
-    or discarded rounds. All candidates retain every round's state and logs.
-    Default target length is 20; completed tasks below 10 calls are rejected.
+    last accepted round (or last attempted round on failure), never discarded
+    rounds. All tried candidates retain every round's state and logs.
+    Default target length is 20; completed tasks below 11 calls are rejected.
     Step 4 receives execution evidence, final answer and review reason.
     """
 

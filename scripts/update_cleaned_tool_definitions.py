@@ -17,10 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from distill.clean import apply_repaired_tool_definitions
 
 
-DEFAULT_DELIVERY_ROOTS = (
-    Path("/data1/agent_world/toolgen_environments/delivery"),
-    Path("/data1/agent_world/toolgen_semiconductor_expanded/delivery"),
-)
+
 
 
 def load(path: Path) -> Any:
@@ -125,11 +122,11 @@ def update_case(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("cleaned_root", type=Path, nargs="+")
-    parser.add_argument("--delivery-root", type=Path, action="append")
+    parser.add_argument("--delivery-root", type=Path, action="append", required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
-    roots = args.delivery_root or list(DEFAULT_DELIVERY_ROOTS)
+    roots = args.delivery_root
     index = delivery_index(roots)
     records = []
     for cleaned_root in args.cleaned_root:

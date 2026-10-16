@@ -1,0 +1,30 @@
+# 独立评测配置；不改变任务生成管线。SDK 路径可用 KIMI_CODE_SDK 环境变量提供。
+llm:
+  agent_backend: kimi
+  backend: api
+  model: gpt-5.6-sol  # 本轮实际试跑成功的模型；Terra 上次返回 503。
+  base_url: http://47.237.200.112:8080/v1
+  api_key_file: ~/.codex-task-eval/auth.json
+  temperature: 0
+  timeout_seconds: 600  # 普通 LLM 请求配置，不作为 Kimi 整任务时限。
+  kimi:
+    # 可选：正式交付包入口；工具和环境必须与所评测任务一致，状态仍使用任务初态副本。
+    # binding_path: /path/to/delivery/environments/package_id/binding.json
+    sdk_path: /data1/home/tianfang/kimi-code/packages/node-sdk/dist/index.mjs
+    node: node
+    provider_type: openai
+    # Kimi 接入层的长返回兜底；不修改环境 MCP 的正式定义，辅助读取不计入环境工具预算。
+    tool_result_page_chars: 6000
+    # 接入方声明的上下文预算，不代表服务端承诺支持更长输入。
+    max_context_size: 1000000
+    # 压缩策略及输出上限不额外覆盖，沿用官方 SDK/模型服务默认。
+    # 循环轮数、请求重试沿用 SDK 默认；不设置整任务超时。
+    # 官方模板继承机制；保留默认正文，工具权限仍独立限制。
+    # 实际渲染后的 system 消息另存为 system_prompts.jsonl。
+    system_prompt: '${base_prompt}'
+execution:
+  # CLI --max-tool-calls / --max-concurrency 优先于下面这两个独立评测参数。
+  evaluation_max_concurrency: 1
+  retry_count: 1
+  tool_max_memory_bytes: 2147483648
+  tool_max_write_bytes: 268435456

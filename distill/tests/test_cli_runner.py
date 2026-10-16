@@ -772,6 +772,20 @@ def test_server_config_uses_scientific_runtime_defaults():
     assert config["process_limit"] == 1024
 
 
+def test_host_mcp_launch_preserves_virtual_environment_interpreter(tmp_path, monkeypatch):
+    from distill.runner import _task_mcp_launch
+
+    base = tmp_path / "base-python"
+    base.touch()
+    interpreter = tmp_path / "venv/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.symlink_to(base)
+    monkeypatch.setattr("distill.runner.sys.executable", str(interpreter))
+    launch = _task_mcp_launch({}, tmp_path / "server.json", None)
+    assert launch.command == interpreter
+    assert launch.command != interpreter.resolve()
+
+
 @pytest.mark.parametrize("author_validation", [False, True])
 def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch, author_validation):
     from types import SimpleNamespace

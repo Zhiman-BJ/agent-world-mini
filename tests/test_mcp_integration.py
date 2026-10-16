@@ -6,17 +6,7 @@ from pathlib import Path
 import pytest
 
 from task_gen.task_eval_mcp import serve
-from task_gen.task_eval_mcp import TaskEvalMcpServer
 from task_gen.tool_graph.step_5_task_validate import _public_tool
-
-
-def test_task_mcp_rejects_removed_state_root_alias(tmp_path):
-    with pytest.raises(ValueError, match="workspace_root"):
-        TaskEvalMcpServer({
-            "tools": [],
-            "state_root": str(tmp_path),
-            "trace": str(tmp_path / "calls.jsonl"),
-        })
 
 
 def test_task_and_mcp_share_public_contract_and_business_failure(tmp_path):
@@ -28,7 +18,7 @@ def test_task_and_mcp_share_public_contract_and_business_failure(tmp_path):
     state = tmp_path / 'state'
     state.mkdir()
     config = tmp_path / 'server.json'
-    config.write_text(json.dumps({'workspace_root': str(state), 'trace': str(tmp_path / 'calls'),
+    config.write_text(json.dumps({'workspace': str(state), 'trace': str(tmp_path / 'calls'),
         'tools': [tool], 'max_tool_calls': 1, 'timeout': 10,
         'memory_limit': 2147483648, 'write_limit': 268435456}))
     requests = [{'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'},
@@ -56,7 +46,7 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
     shutil.copytree(delivery.package.package_root / 'state', state)
     with sqlite3.connect(state / 'records.sqlite') as db:
         db.execute("UPDATE tickets SET ticket_id='task-only'")
-    config = {'binding_path': str(binding), 'workspace_root': str(state), 'trace': str(tmp_path / 'calls'),
+    config = {'binding_path': str(binding), 'workspace': str(state), 'trace': str(tmp_path / 'calls'),
               'max_tool_calls': 3, 'timeout': 10, 'memory_limit': 2147483648, 'write_limit': 268435456}
     server = TaskEvalMcpServer(config)
     with KimiMcpServer(delivery) as original:
@@ -74,7 +64,7 @@ def test_binding_executes_task_initial_state_not_delivery_state(tmp_path):
 
 def test_bound_software_is_readable_but_not_writable_in_task_sandbox(tmp_path):
     import sys
-    from harness.execution import call_environment_tool
+    from task_gen.task_eval_mcp import call_environment_tool
     root = tmp_path / 'software'
     root.mkdir()
     (root / 'asset.txt').write_text('PROFILE_ASSET')
@@ -94,7 +84,7 @@ def test_bound_software_is_readable_but_not_writable_in_task_sandbox(tmp_path):
 def test_copied_venv_runs_with_its_own_import_paths(tmp_path):
     import subprocess
     import sys
-    from harness.execution import call_environment_tool
+    from task_gen.task_eval_mcp import call_environment_tool
     root = tmp_path / 'software'
     launcher = root / 'venv/bin/python'
     subprocess.run([sys.executable, '-m', 'venv', '--copies', '--without-pip',
@@ -152,7 +142,7 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
     from task_gen.task_eval_mcp import TaskEvalMcpServer
     binding = KimiMcpTests()._make_delivery(tmp_path)
     config = Config(environment_dir=binding.parent,
-                    execution={'min_tool_calls': 1, 'target_tool_calls': 1})
+                    execution={'min_tool_calls': 11, 'target_tool_calls': 11})
     bundle = load_environment({'config': config})
     software = tmp_path / 'software'
     launcher = software / 'venv/bin/python'
@@ -172,27 +162,30 @@ def test_merged_execution_uses_delivery_state_and_profile(tmp_path, monkeypatch)
         "assert (context.software_root / 'marker').read_text() == 'correct profile'\n    record = context.records.get")
     bundle['tasks'] = [{'task_id': 'task1', 'chain': ['get_ticket'], 'objective': 'Read ticket', 'score': 1}]
 
-    preparation_calls = 0
+    session_calls = 0
 
     def run(client, prompt, working_directory):
-        nonlocal preparation_calls
+        nonlocal session_calls
         client.session_id = client.session_id or f'test-{Path(client.server_config).parent.name}'
-        if 'preparation' in Path(client.server_config).parts:
-            preparation_calls += 1
-            action = 'execute' if preparation_calls == 1 else 'accept'
-            return json.dumps({'action': action, 'objective': 'Read ticket',
-                               'reason': 'Use the delivery state and profile.',
-                               'feedback': '', 'score': 0 if action == 'execute' else 4})
+        session_calls += 1
+        payload = {'objective': 'Read ticket', 'reason': 'Use the delivery state and profile.',
+                   'completed': True, 'answer': 'open', 'score': 4}
+        if session_calls == 2:
+            return json.dumps({**payload, 'call_indices': list(range(1, 12)),
+                               'chain_changes': 'The fixture checks each delivered call.', 'restart': False})
         server = TaskEvalMcpServer(json.loads(client.server_config.read_text()))
-        response = server.handle({'method': 'tools/call', 'params': {
-            'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
-        assert response['structuredContent']['data']['status'] == 'open', response
-        return json.dumps({'reason': 'Read actual ticket', 'completed': True, 'answer': 'open'})
+        for _ in range(11):
+            response = server.handle({'method': 'tools/call', 'params': {
+                'name': 'get_ticket', 'arguments': {'ticket_id': 'ticket-1'}}})
+            assert response['structuredContent']['data']['status'] == 'open', response
+        return json.dumps(payload)
 
     monkeypatch.setattr('task_gen.tool_graph.execution_agent._ReviewClient.run', run)
     result = execute_candidates(to_execute_chains_input(bundle, config, tmp_path / 'run'))
     assert result['tasks'][0]['execution']['success'] is True
     assert result['tasks'][0]['execution']['tool_calls'][0]['result']['data']['status'] == 'open'
+    assert len(result['tasks'][0]['execution']['tool_calls']) == 11
+    assert session_calls == 2
 
 
 def test_profile_missing_validation_dependencies_does_not_borrow_host_packages(tmp_path):

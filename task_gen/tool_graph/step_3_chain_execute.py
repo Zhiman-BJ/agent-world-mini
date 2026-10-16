@@ -1,9 +1,8 @@
-"""Step 3 delegates planning/review and isolated execution to execution_agent.
+"""Step 3 uses one session for exploration, execution and self-review.
 
-The parent explores initial state, searches references and grounds the objective.
-Each changed objective starts a fresh executor on original state; same-objective
-repairs resume the existing executor. Only the accepted round feeds later steps.
-Defaults: max_rounds=3, target_tool_calls=20, min_tool_calls=10.
+Completed chains shorter than target_tool_calls=20 get at most one fresh-state
+deepening attempt. Only the final attempt counts; min_tool_calls=11.
+Candidates are dispatched in batches equal to the remaining accepted-task quota.
 
 The sandbox helpers below are shared by MCP tools. execute_frozen_chains retains
 the historical fixed-chain implementation for experiment replay only.
@@ -30,9 +29,11 @@ tool_max_processes=1024.
 IDs and directory conflicts are checked before any concurrent work.
 Each worker receives its own copy of the caller's tracing context.
 
-Historical fixed-chain calls delegate execution, validation, transactions and
-backend selection to the shared Harness entry point. Source signatures still
-detect modifications outside the candidate state copy.
+Untrusted internal.code runs in bubblewrap filesystem/network/PID isolation,
+with only the candidate workspace writable. Missing isolation fails closed.
+Resource limits, subprocess timeout, limited stdout/stderr, workspace usage
+checks and source signatures bound effects and detect invalid filesystem nodes.
+No host API credentials are passed to tools.
 """
 from __future__ import annotations
 
@@ -53,7 +54,7 @@ import tempfile
 from typing import Any
 
 from jsonschema import validators
-from harness.execution import call_environment_tool
+from harness.resources import ResourceCatalog
 from .prompt_principles import REVIEW_GUIDANCE, TASK_STATE_CHAIN
 
 from .contracts import ExecuteChainsInput, ExecuteChainsOutput
@@ -123,7 +124,9 @@ def execute_frozen_chains(stage_input: ExecuteChainsInput) -> ExecuteChainsOutpu
                 memory_limit,
                 write_limit,
                 runtime.get('software'),
+                runtime.get('runtime'),
                 process_limit,
+                runtime.get('binding_path'),
             ) for candidate in tasks
         ]
         output = [future.result() for future in futures]
@@ -170,7 +173,9 @@ def _execute_candidate(
     memory_limit: int,
     write_limit: int,
     software: dict[str, str] | None = None,
+    runtime: dict[str, Any] | None = None,
     process_limit: int = 1024,
+    binding_path: str | None = None,
 ) -> dict[str, Any]:
     result = deepcopy(candidate)
     task_id = candidate["task_id"]
@@ -217,44 +222,49 @@ def _execute_candidate(
                     failure = parameter_failure
                     break
 
+                known_scopes = {str(item['scope_id']) for item in environment.get('filesystem_scopes', [])}
+                declared_resources = set(tool.get('usageConditions', {}).get('targetResources', []))
+                catalog = ResourceCatalog(environment, lambda scope_id: final / 'filesystem_scopes' / scope_id)
                 try:
-                    record = call_environment_tool(
-                        tool_name,
-                        arguments,
-                        tools,
-                        final,
-                        timeout=timeout,
-                        memory_limit=memory_limit,
-                        write_limit=write_limit,
-                        process_limit=process_limit,
-                        environment=environment,
-                        **({"software": software} if software else {}),
+                    arguments = catalog.normalize_arguments(
+                        arguments, schema=tool['inputSchema'], allowed_scopes=known_scopes & declared_resources,
+                    )
+                except ValueError as error:
+                    failure = _failure(tool_name, arguments, 'input_schema', None, str(error))
+                    break
+                outcome = _call_tool(
+                    tool["internal"]["code"], arguments, final, timeout, memory_limit, write_limit, environment,
+                    runtime=runtime, binding_path=binding_path,
+                    process_limit=process_limit, **({'software': software} if software else {}),
+                )
+                if outcome["kind"] is not None:
+                    failure = _failure(tool_name, arguments, outcome["kind"], outcome.get("result"), outcome["error"])
+                    break
+                tool_result = outcome["result"]
+                if not isinstance(tool_result, dict):
+                    failure = _failure(tool_name, arguments, "output_schema", tool_result, "工具返回值必须是 object")
+                    break
+                if tool_result.get("success") is not True:
+                    failure = _failure(tool_name, arguments, "business", tool_result, _business_error(tool_result))
+                    break
+                try:
+                    tool_result = catalog.externalize_result(
+                        tool_result,
+                        schema=tool["outputSchema"],
+                        allowed_scopes=known_scopes & declared_resources,
                     )
                 except ValueError as error:
                     failure = _failure(
                         tool_name,
                         arguments,
-                        "input_schema",
-                        None,
+                        "output_schema",
+                        tool_result,
                         str(error),
                     )
                     break
-                arguments = record.get("arguments", arguments)
-                tool_result = record.get("result")
-                if record.get("error") is not None:
-                    business_failure = (
-                        isinstance(tool_result, dict)
-                        and tool_result.get("success") is False
-                    )
-                    failure = _failure(
-                        tool_name,
-                        arguments,
-                        "business" if business_failure else record.get("failure_kind", "output_schema"),
-                        tool_result,
-                        _business_error(tool_result)
-                        if business_failure
-                        else str(record["error"]),
-                    )
+                schema_error = _schema_error(tool["outputSchema"], tool_result)
+                if schema_error is not None:
+                    failure = _failure(tool_name, arguments, "output_schema", tool_result, schema_error)
                     break
                 calls.append({"tool": tool_name, "arguments": arguments, "result": tool_result})
                 argument_cache[position] = deepcopy(arguments)
@@ -522,9 +532,9 @@ def _workspace_signature(root: Path) -> tuple[tuple[str, int, str], ...]:
     return tuple(entries)
 
 
+# Historical imports remain aliases of the shared Harness implementation.
 from harness.sandbox import (
-    call_tool as _call_tool,
-    run_tool as _run_tool,
-    workspace_usage as _workspace_usage,
-    _read_limited,
+    _run_tool, _workspace_usage,
+    _read_limited, _context_source, _TOOL_WORKER, _MAX_SANDBOX_OUTPUT_BYTES,
 )
+from task_gen.tool_runtime import call_tool as _call_tool

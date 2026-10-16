@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import tempfile
 from typing import Any
+from urllib.parse import urlsplit
 
 from utils.io import write_json
 
@@ -77,7 +78,7 @@ def _container_spec(plan: dict[str, Any]) -> dict[str, Any]:
             candidates = list(SYSTEM_EXECUTABLES.get(normalized, ()))
         if candidates:
             executable_groups.append(candidates)
-    return {
+    spec = {
         "recipe_version": IMAGE_RECIPE_VERSION,
         "base_image": base_image,
         "apt_packages": sorted(set(apt_packages)),
@@ -86,6 +87,18 @@ def _container_spec(plan: dict[str, Any]) -> dict[str, Any]:
         "environment": dict(sorted(environment.items())),
         "system_executables": executable_groups,
     }
+    mirror = container.get("apt_mirror")
+    if mirror is not None:
+        if not isinstance(mirror, str):
+            raise ValueError("container.apt_mirror 必须是 HTTP(S) 镜像站根地址")
+        parsed = urlsplit(mirror)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+                or any(character in mirror for character in "\\\n\r\t |'\";`$")):
+            raise ValueError("container.apt_mirror 必须是 HTTP(S) 镜像站根地址")
+        spec["apt_mirror"] = mirror.rstrip("/")
+    return spec
 
 
 def image_name(plan: dict[str, Any]) -> str:
@@ -110,6 +123,17 @@ def dockerfile(plan: dict[str, Any]) -> str:
     for key, value in sorted(environment.items()):
         lines.append(f"ENV {key}={json.dumps(value)}")
     if apt_packages:
+        if mirror := spec.get("apt_mirror"):
+            # Keep Debian security updates on their existing signed upstream.
+            replacement = (
+                r"s#https?://deb\.debian\.org/debian([ /]|$)#"
+                + mirror + r"/debian\1#g"
+            )
+            lines.append(
+                "RUN find /etc/apt -maxdepth 2 -type f "
+                "\\( -name '*.list' -o -name '*.sources' \\) "
+                f"-exec sed -i -E {shlex.quote(replacement)} {{}} +"
+            )
         names = " ".join(shlex.quote(item) for item in apt_packages)
         lines.append(
             "RUN apt-get update && apt-get install -y --no-install-recommends "

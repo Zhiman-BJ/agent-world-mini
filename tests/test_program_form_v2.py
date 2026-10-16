@@ -222,11 +222,11 @@ class ProgramFormV2Tests(unittest.TestCase):
             _clear_snapshot_database_cache()
             with (
                 patch(
-                    "task_gen.program.utils.tool_runtime._snapshot_record_sets",
+                    "harness.state_snapshot._snapshot_record_sets",
                     return_value=record_snapshot,
                 ) as snapshot_records,
                 patch(
-                    "task_gen.program.utils.tool_runtime._snapshot_sqlite_metadata",
+                    "harness.state_snapshot._snapshot_sqlite_metadata",
                     return_value=metadata_snapshot,
                 ) as snapshot_metadata,
             ):

@@ -73,7 +73,9 @@ class ToolGraphSkeletonTest(unittest.TestCase):
         from task_gen.tool_graph import run
         from task_gen.tool_graph.pipeline import run as pipeline_run
 
-        self.assertIs(run, pipeline_run)
+        with patch("task_gen.tool_graph.pipeline.run", return_value="forwarded") as entry:
+            self.assertEqual(run(Path("config.yaml")), "forwarded")
+        entry.assert_called_once_with(Path("config.yaml"))
 
     def test_run_contracts_are_instantiable(self) -> None:
         from task_gen.tool_graph.contracts import Config, RunResult

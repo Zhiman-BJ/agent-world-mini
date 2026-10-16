@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from typing import Any
 
 from .retry_zero_task_environments import (
-    DEFAULT_DELIVERY_ROOTS,
     _bindings,
     _read_json,
     _run_one,
@@ -60,6 +59,7 @@ def _active_environment_ids(batch_root: Path) -> set[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--delivery-root", type=Path, action="append", required=True)
     parser.add_argument("--batch-root", type=Path, required=True)
     parser.add_argument("--source-status-name", default="retry_zero_status.json")
     parser.add_argument("--source-pid-file-name", default="retry_zero_supervisor.pid")
@@ -125,7 +125,7 @@ def main() -> None:
         raise RuntimeError("已有零任务跟随监督器正在运行") from error
 
     source_pid = int(source_pid_path.read_text(encoding="utf-8").strip())
-    bindings = _bindings([path.resolve() for path in DEFAULT_DELIVERY_ROOTS])
+    bindings = _bindings([path.resolve() for path in arguments.delivery_root])
     run_arguments = SimpleNamespace(
         model=arguments.model,
         task_count=arguments.task_count,

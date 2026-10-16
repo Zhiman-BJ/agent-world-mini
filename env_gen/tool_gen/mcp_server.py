@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.runtime import ToolRuntime, state_diff
+from harness.execution import call_environment_tool
 from harness.mcp_resources import list_mcp_resources, read_mcp_resource
 
 from .delivery_contract import DeliveryPackage
@@ -124,7 +125,54 @@ class ToolMcpServer:
         before = None if read_only else self.runtime.snapshot()
         runtime_error: str | None = None
         try:
-            result = self.runtime.call(name, arguments)
+            software = None
+            software_root = None
+            if self.delivery.runtime.get("backend") == "docker":
+                software_root = Path(str(self.delivery.runtime.get("software_root", "/opt/tool-software")))
+            elif self.delivery.software_root is not None and self.delivery.python_path is not None:
+                software_root = self.delivery.software_root
+                software = {
+                    "root": str(self.delivery.software_root),
+                    "python": str(self.delivery.python_path),
+                }
+            record = call_environment_tool(
+                name,
+                arguments,
+                self._tools,
+                self.runtime.root / "state",
+                timeout=self.timeout,
+                memory_limit=self.memory_limit,
+                write_limit=self.write_limit,
+                process_limit=self.process_limit,
+                environment=self.delivery.package.environment,
+                software=software,
+                software_root=software_root,
+                runtime=self.delivery.runtime,
+            )
+            result = record.get("result")
+            # Harness reports schema/transaction failures in ``error`` but
+            # keeps a valid business ``success=false`` result as normal
+            # tool output. Preserve that distinction on the MCP wire.
+            runtime_error = (
+                record.get("error")
+                if not (
+                    isinstance(result, dict)
+                    and result.get("success") is False
+                    and not record.get("failure_kind")
+                )
+                else None
+            )
+            if not isinstance(result, dict):
+                runtime_error = runtime_error or "工具返回值必须是 object"
+                result = {
+                    "success": False,
+                    "error": {
+                        "code": "runtime_error",
+                        "path": "$",
+                        "message": runtime_error,
+                        "retryable": False,
+                    },
+                }
         except Exception as error:
             runtime_error = f"{type(error).__name__}: {error}"
             result = {

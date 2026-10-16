@@ -61,7 +61,7 @@ def call_environment_tool(
     name: str,
     arguments: dict[str, Any],
     tools: dict[str, dict[str, Any]],
-    workspace_root: Path,
+    state_root: Path,
     *,
     timeout: int,
     memory_limit: int,
@@ -76,7 +76,7 @@ def call_environment_tool(
     scope_mounts: dict[str, str] | None = None,
     public_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Execute one tool transaction against the caller's validated workspace."""
+    """Execute one tool transaction without exposing the state root to the model."""
     tool = tools.get(name)
     if tool is None:
         return {"tool": name, "arguments": arguments, "result": None, "error": "未知工具"}
@@ -87,10 +87,10 @@ def call_environment_tool(
     # URI from silently becoming an ordinary business string in a scope-less
     # tool invocation.
     workspace_mode = record_database is not None or scope_mounts is not None
-    workspace_root = workspace_root.resolve()
+    state_root = state_root.resolve()
     mounts = {str(key): str(value) for key, value in (scope_mounts or {}).items()}
 
-    def scope_root(scope_id: str, root: Path = workspace_root) -> Path:
+    def scope_root(scope_id: str, root: Path = state_root) -> Path:
         mount = mounts.get(scope_id)
         if mount is None:
             return root / "filesystem_scopes" / scope_id
@@ -101,7 +101,7 @@ def call_environment_tool(
             environment,
             scope_root,
             **({
-                "workspace_root": workspace_root,
+                "workspace_root": state_root,
                 "public_workspace_root": public_workspace_root,
                 "scope_mounts": mounts,
             } if workspace_mode else {}),
@@ -122,7 +122,13 @@ def call_environment_tool(
     if schema_error:
         return {"tool": name, "arguments": arguments, "result": None, "error": schema_error}
 
-    active_call = call_tool_fn or (_direct_call_tool if workspace_mode else _sandbox_call_tool)
+    if runtime and runtime.get("backend") == "docker" and workspace_mode and call_tool_fn is None:
+        from functools import partial
+        from .sandbox import run_tool_in_docker
+
+        active_call = partial(run_tool_in_docker, runtime=runtime)
+    else:
+        active_call = call_tool_fn or (_direct_call_tool if workspace_mode else _sandbox_call_tool)
     read_only = (
         call_tool_fn is None
         and tool.get("usageConditions", {}).get("sideEffects") == []
@@ -136,11 +142,11 @@ def call_environment_tool(
         database_existed = bool(database and database.is_file())
         if not read_only:
             temporary_context = tempfile.TemporaryDirectory(
-                prefix=".task-eval-backup-", dir=workspace_root.parent
+                prefix=".task-eval-backup-", dir=state_root.parent
             )
             temporary_path = Path(temporary_context.name)
             workspace_backup = temporary_path / "workspace"
-            shutil.copytree(workspace_root, workspace_backup)
+            shutil.copytree(state_root, workspace_backup)
             database_backup = temporary_path / "records.sqlite"
             if database_existed and database is not None:
                 shutil.copy2(database, database_backup)
@@ -148,7 +154,7 @@ def call_environment_tool(
             outcome = active_call(
                 tool["internal"]["code"],
                 arguments,
-                workspace_root,
+                state_root,
                 timeout,
                 memory_limit,
                 write_limit,
@@ -178,7 +184,7 @@ def call_environment_tool(
                 except (ValueError, OSError) as caught:
                     error = str(caught)
             if error is not None and workspace_backup is not None:
-                _restore_directory(workspace_root, workspace_backup)
+                _restore_directory(state_root, workspace_backup)
                 if database is not None:
                     if database_existed:
                         database.parent.mkdir(parents=True, exist_ok=True)
@@ -188,7 +194,7 @@ def call_environment_tool(
                         database.unlink()
         except BaseException:
             if workspace_backup is not None:
-                _restore_directory(workspace_root, workspace_backup)
+                _restore_directory(state_root, workspace_backup)
                 if database is not None:
                     if database_existed:
                         database.parent.mkdir(parents=True, exist_ok=True)
@@ -205,11 +211,11 @@ def call_environment_tool(
             record["failure_kind"] = outcome["kind"]
         return record
 
-    with tempfile.TemporaryDirectory(prefix=".task-eval-tool-", dir=workspace_root.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".task-eval-tool-", dir=state_root.parent) as temporary:
         temporary_path = Path(temporary)
-        candidate = workspace_root if read_only else temporary_path / "state"
+        candidate = state_root if read_only else temporary_path / "state"
         if not read_only:
-            shutil.copytree(workspace_root, candidate, symlinks=True)
+            shutil.copytree(state_root, candidate, symlinks=True)
         runtime_options: dict[str, Any] = {
             **({"software": software} if software else {}),
             **({"software_root": software_root} if software_root is not None else {}),
@@ -252,11 +258,11 @@ def call_environment_tool(
                 error = str(caught)
         if error is None and not read_only:
             previous = temporary_path / "previous"
-            workspace_root.rename(previous)
+            state_root.rename(previous)
             try:
-                candidate.rename(workspace_root)
+                candidate.rename(state_root)
             except Exception:
-                previous.rename(workspace_root)
+                previous.rename(state_root)
                 raise
     record = {"tool": name, "arguments": arguments, "result": result, "error": error}
     if outcome.get("kind") is not None:

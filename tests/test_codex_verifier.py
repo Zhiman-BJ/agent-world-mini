@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -54,7 +55,12 @@ def verdict():
         "passed": True}], "non_blocking_issues": [], "summary": "Delivered", "failure_causes": [], "outcome": "pass"}
 
 
-def test_os_sandbox_protects_evidence_and_hides_host(tmp_path):
+@pytest.mark.parametrize('container_procfs', [False, True])
+def test_os_sandbox_protects_evidence_and_hides_host(tmp_path, monkeypatch, container_procfs):
+    if container_procfs:
+        monkeypatch.setenv('AGENT_WORLD_KUBERNETES_RUNTIME', '1')
+    else:
+        monkeypatch.delenv('AGENT_WORLD_KUBERNETES_RUNTIME', raising=False)
     root = prepare(tmp_path)
     auth = tmp_path / "auth"
     auth.mkdir()
@@ -65,6 +71,7 @@ def test_os_sandbox_protects_evidence_and_hides_host(tmp_path):
 from pathlib import Path
 assert not Path({str(hidden)!r}).exists()
 assert not os.path.exists('/proc/1/root' + {str(hidden)!r})
+assert not os.path.exists('/proc/{os.getpid()}/root' + {str(hidden)!r})
 p = Path('evidence/actual/answer.txt')
 assert p.read_text() == '8'
 try:
@@ -183,5 +190,45 @@ def test_verifier_rejects_missing_initial_state(tmp_path):
     with pytest.raises(VerificationError, match="Missing state"):
         verify_execution(run_dir=tmp_path / "missing-evidence",
                          task={"task_id": "t1", "task_text": "Return 8."},
+                         environment=ENVIRONMENT, initial_state=tmp_path / "absent",
+                         actual_state=initial, calls=[], answer="8", execution={})
+
+
+def test_interrupted_solver_still_supplies_real_trace_to_verifier(tmp_path):
+    from task_gen.task_eval import EvalCase, evaluate_case
+    initial = tmp_path / "initial"
+    initial.mkdir()
+    case = EvalCase(tmp_path, {"task_id": "t1", "task_text": "Write result.", "available_tools": [PUBLIC_TOOL]},
+                    ENVIRONMENT, initial, None, [])
+    def solver(prompt, state, config, trace):
+        (state / "partial.txt").write_text("partial work")
+        trace.write_text(json.dumps({"tool": "write", "result": {"success": True}}) + "\n")
+        raise RuntimeError("context exhausted")
+    def verifier(**kwargs):
+        assert len(kwargs["calls"]) == 1
+        assert "context exhausted" in kwargs["execution"]["error"]
+        assert (kwargs["actual_state"] / "partial.txt").read_text() == "partial work"
+        assert kwargs["config"] == {}  # Solver model must not select the verifier model.
+        return {"outcome": "fail", "requirements": [], "summary": "Incomplete"}
+    result = evaluate_case(case, tmp_path / "state", {"model": "qwen"},
+                           agent_run_fn=solver, verifier_run_fn=verifier)
+    assert result["outcome"] == "fail"
+    assert result["tool_calls"] and "context exhausted" in result["agent_error"]
+
+
+def test_verifier_outage_is_not_a_task_failure(tmp_path):
+    from task_gen.task_eval import EvalCase, evaluate_case
+    initial = tmp_path / "initial"
+    initial.mkdir()
+    case = EvalCase(tmp_path, {"task_id": "t1", "task_text": "Return 8.", "available_tools": [PUBLIC_TOOL]},
+                    ENVIRONMENT, initial, None, [])
+    def unavailable(**kwargs):
+        raise VerificationError("API unavailable")
+    result = evaluate_case(case, tmp_path / "state", {}, agent_run_fn=lambda *args: "8",
+                           verifier_run_fn=unavailable)
+    assert result["outcome"] == "verification_error"
+    assert result["agent_answer"] == "8"
+    with pytest.raises(VerificationError, match="Missing state"):
+        verify_execution(run_dir=tmp_path / "missing-evidence", task=case.task,
                          environment=ENVIRONMENT, initial_state=tmp_path / "absent",
                          actual_state=initial, calls=[], answer="8", execution={})

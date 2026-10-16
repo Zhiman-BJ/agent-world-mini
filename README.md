@@ -1,185 +1,82 @@
 # Agent-World Mini
 
-Agent-World Mini 用真实公开数据构建可复用的 Agent 环境，再基于环境中的工具生成可执行、
-可重放的任务。项目当前重点不是一次生成一条任务，而是先构造内容丰富、关系闭合、来源
-可审计的环境，使同一个环境能够支持大量不同参数、不同实体和不同调用链的任务。
+用真实公开数据构建可执行的工具环境，生成可重放的任务，再收集和验证模型的工具调用轨迹。
+`Zhiman-BJ/agent-world-mini` 的 `main` 是正式代码来源。批次配置、数据、运行日志和软件镜像按各自运行目录保存。
 
-整个系统以四类正式协议为边界：
-
-- 环境种子：描述业务范围、参考工具和初始任务线索；
-- 环境：描述 Raw、Entity、Derived、Output 资源及实体关系；
-- 工具：描述公开输入输出 Schema 和环境内部实现；
-- 完整环境：把环境资源与工具组合成 ToolGen、TaskGen 可读取的包。
-
-`schemas/*.json` 是给 Agent 阅读的结构示例，`schemas/*契约*.md` 解释字段语义，
-`schemas/validation/*.json` 才是程序执行的 JSON Schema。三者职责不同，但表达的正式数据
-结构必须一致。
-
-## 当前实现状态
-
-| 模块 | 状态 | 作用 |
-| --- | --- | --- |
-| `seed_gen/` | 可用 | 保存和校验最终 Smithery Seed，提供正式 `global_id` |
-| `env_gen/data_gen/` | 可用 | 调用 Codex 采集真实数据，画像、冻结、声明、校验并发布环境 |
-| `env_gen/tool_gen/` | 待完善 | 预留从环境数据生成并验证工具的阶段 |
-| `task_gen/program_form/` | 可用 | 从 v2 `environment.json + state/ + tools.json` 生成并重放 Program-form 任务 |
-| `task_gen/dag_form/` | 待完善 | 预留 DAG-form 任务生成阶段 |
-| `dashboard/` | 可用 | 查看环境的资源层次、文件内容、实体、关系、能力和来源 |
-
-因此，当前最完整的链路是“Seed -> DataGen 环境包”；Program-form TaskGen 也已实现，但它
-还需要一份通过工具契约的 `tools.json`。当前仓库还没有把 v2 ToolGen 自动接到
-DataGen 和 TaskGen 之间。
-
-## 项目职责图
+## 数据流
 
 ```text
-最终 Seed
-   |
-   v
-DataGen
-   职能：获取真实数据，整理实体与关系，验证并发布环境
-   产物：environment.json + state + provenance
-   |
-   v
-ToolGen（待完善）
-   职能：根据环境资源生成工具接口与内部实现，并执行验证
-   产物：通过输入/输出 Schema 和真实执行验证的 tools.json
-   |
-   v
-TaskGen
-   职能：生成业务任务与隐藏参考程序，并在隔离环境中重放
-   产物：tasks.json + validation.json
+Seed → DataGen → ToolGen 交付包 → TaskGen → 模型执行与 Verifier → 训练轨迹
+                    │              │              │
+                    └────────────── Harness ───────┘
 ```
 
-## DataGen 的检查边界
-
-DataGen 不把“Codex 已经完成”当成通过依据。Agent 负责理解业务、寻找来源、选择数据来源和
-整理语义；Python 负责可以从文件事实确定的硬检查。
-
-| 阶段 | 主要检查 | 目的 |
+| 模块 | 输入和产物 | 正式代码 |
 | --- | --- | --- |
-| 场景研究 | Seed 身份、主题化完整综合、候选引用、来源线索、保存收据和输入哈希 | 在下载前把简略 Seed 具象化，同时允许公开前景未知或不可能的数据需求被如实保留 |
-| 深调与采集 | 精确 URL、Raw 路径、下载完整性、空间预算、下载收据 | 继续验证场景假设，保证 Raw 来自本次真实访问且可追溯 |
-| 受控导入 | Entity 结构、字段集合、标量类型、Raw 血缘、导入收据 | 防止程序文件、脏结构或无来源数据进入业务目录 |
-| 独立评估 | 文件事实、记录量、字段变化、数据需求、必要领域文件和闭合关系 | 判断环境是否具有可验证的数据充分性；操作组合只作诊断 |
-| 冻结声明 | checkpoint 哈希、独立复核、业务文件与采集证据快照 | 防止声明阶段偷偷修改数据来迎合契约 |
-| 最终校验 | 资源覆盖、实体 Schema、来源映射、关系闭合、参考工具覆盖、冻结完整性 | 保证最终声明与真实落盘文件一致 |
-| 发布 | 最终 assess、质量分层、清理控制文件、目录原子重命名 | 防止半成品出现在正式环境目录 |
+| Seed | 场景、业务范围和参考能力 | `seed_gen/` |
+| DataGen | 真实数据 → 环境声明、记录库、文件区域、来源和校验报告 | `env_gen/data_gen/` |
+| ToolGen | 环境 → 工具计划、实现、真实执行验证、软件绑定和交付包 | `env_gen/tool_gen/` |
+| Harness | 隔离执行、资源访问、任务状态、MCP 协议 | `harness/`、`utils/record_store.py` |
+| Program TaskGen | 交付包 → 场景调研、业务任务、参考程序和重放结果 | `task_gen/program/` |
+| Tool-graph TaskGen | 交付包 → 工具关系图、调用链、执行轨迹和任务 | `task_gen/tool_graph/` |
+| 评测与蒸馏 | 模型执行轨迹、最终状态、Verifier 判定和原始请求 | `task_gen/task_eval*.py`、`distill/` |
+| 训练数据构建 | 已验证轨迹 → 标准 JSONL、工具定义、上下文窗口和审计信息 | `distill/dataset/` |
 
-DataGen 的完整流程、每项检查和失败语义见
-[DataGen README](env_gen/data_gen/README.md)。
+Program 和 Tool-graph 是两种任务生成策略，各自保留正式入口，使用同一份工具交付与执行契约。
+工具包已交付表示包内工具通过验收；计划中的 `rejected/skipped` 能力仍见报告，不计为已实现。
 
-## 目录结构
+任务评测和训练轨迹采集按用途分工：`task_gen.task_eval` 提供 ReAct/SDK 独立评测，
+`distill` 使用官方 Kimi CLI 采集训练轨迹。二者由 `task_gen/eval_cases.py` 加载同一任务契约，
+共享 Harness 与任务 Verifier。
 
-```text
-agent-world-mini/
-├── schemas/                    四类正式结构示例、契约和 validation Schema
-├── seed_gen/                   Seed 数据、读取和维护脚本
-├── env_gen/
-│   ├── data_gen/               真实数据环境生成管线
-│   └── tool_gen/               ToolGen 预留目录
-├── task_gen/
-│   ├── program_form/           Program-form 任务生成与执行验证
-│   └── dag_form/               DAG-form 预留目录
-├── utils/search_agent/         Codex CLI 调用封装
-├── dashboard/                  三个环境的静态可视化页面
-├── scripts/                    环境维护、统计和 Dashboard 快照脚本
-└── tests/                      DataGen、TaskGen 和 Seed 脚本测试
-```
+## 安装与运行
 
-## 安装
-
-需要 Python 3.10 或更高版本。DataGen 还需要本机能够直接运行并已经认证的 Codex CLI；
-默认沿用 `~/.codex/config.toml`。
+需要 Python 3.10+。隔离执行使用 Linux bubblewrap 或交付绑定的 Docker 镜像；生成与评测需各自的模型配置。
 
 ```bash
-cd /home/sunshuo/AgenticDataGeneration/agent-world-mini
 python -m pip install -e .
-codex --version
+python -m env_gen.data_gen --help
+python -m env_gen.tool_gen --help
+python -m task_gen.program --help
+python -m task_gen.tool_graph --help
+python -m distill --help
 ```
 
-## 生成一个数据环境
+交付包以 `delivery/environments/<environment_id>/binding.json` 为入口，绑定环境、正式工具、验证回执与软件或镜像。
+下游读取 binding，不手工拼接不同批次的工具和软件目录。ToolGen 通用服务的业务文件参数使用 Scope 相对路径，
+资源发现返回 `aw://` 引用。任务服务的文件参数使用模型工作区相对路径，或该工作区内的绝对路径；多 Scope 工作区
+需要包含对应挂载目录。两种路径均由 Harness 校验资源边界。
 
-下面的命令直接读取最终 Seed 数组，不生成 `research_request.json`：
+ToolGen MCP 提供工具调用和资源发现；任务 MCP 提供环境工具调用，模型通过受限的原生 Read/Grep/Glob 访问工作区文件。
+记录数据库保存在任务私有状态目录。Program 的参考执行直接使用独立状态副本，不创建模型工作区。
+
+Program 的两种调用方式共用三个业务阶段：`python -m task_gen.program` 管理配置、运行状态与接续；
+`python -m task_gen.program.run_pipeline` 提供显式阶段选择和已有阶段产物复用。
+实际生成及重放逻辑位于 `step_0_environment_load.py`、`step_1_task_research.py`、`step_2_solution_generate.py`。
+
+## 训练数据
+
+轨迹采集和训练数据构建分开执行。标准导出保留真实工具调用及结果，Verifier 的判定用于选择训练样本。
+`distill/dataset` 的输入和输出均由命令行明确指定：
 
 ```bash
-python -m env_gen.data_gen \
-  --seed-path seed_gen/data/smithery_140_v1_0824.json \
-  --global-id smithery_theagenttimes_news_1 \
-  --schema-path schemas/environment.schema.json
+python -m distill.dataset.training --help
+python -m distill.dataset.paths --help
+python -m distill.dataset.merge --help
+python -m distill.dataset.windows --help
+python -m distill.dataset.append --help
 ```
 
-一个 Seed 数组文件包含多条记录时，使用容错批量入口。它会逐条预检，跳过已有环境；单条失败不会
-中断其他 Seed。Step 内部修复用尽后，仅对超时、限流、服务端 `500/502/503/504` 和连接中断等瞬时故障重试
-整条 Seed，确定性的 Schema、覆盖或数据不足问题直接记入批次报告：
+输出保存训练记录及对应审计信息；已有输出目录受保护。详见 [数据构建说明](distill/dataset/README.md)。
 
-```bash
-python -m env_gen.data_gen.batch \
-  --seed-path /path/to/seeds.json \
-  --output-root /home/sunshuo/AgenticDataGeneration/generated/data_gen_batch \
-  --model gpt-5.6-sol \
-  --timeout-seconds 7200 \
-  --concurrency 2 \
-  --max-attempts 2
-```
-
-批次状态持续写入 `<output-root>/batch_runs/<batch-id>/report.json`。即使部分 Seed 无效或失败，所有
-可运行 Seed 仍会继续；命令最终在存在失败时返回非零状态，方便调度系统识别不完整批次。
-
-默认使用 `gpt-5.6-terra` 和 `high` 推理强度，输出分类发布到：
-
-```text
-/mnt/oss-bucket/sunshuo/AgentWorld/environment/data_gen_v3/
-├── rich/<global_id>/
-├── not_rich/<global_id>/
-├── failed/<global_id>-<timestamp>/
-└── .building/
-```
-
-本地调试时显式指定最终目录：
-
-```bash
-python -m env_gen.data_gen \
-  --seed-path seed_gen/data/smithery_140_v1_0824.json \
-  --global-id smithery_theagenttimes_news_1 \
-  --schema-path schemas/environment.schema.json \
-  --output-dir /tmp/agent-world/example
-```
-
-## 生成 Program-form 任务
-
-输入必须是已通过 DataGen 校验的 v2 环境包，并在包根目录提供
-`tools.json`（或用 `--tools-path` 显式指定）：
-
-```bash
-python -m task_gen.program_form \
-  --step all \
-  --environment-package /path/to/complete_environment \
-  --output-dir /tmp/program_tasks \
-  --task-count 2 \
-  --min-tool-calls 6 \
-  --min-distinct-tools 3
-```
-
-TaskGen 使用五个显式步骤：冻结 DataGen `state/`、调研真实工作任务、联合生成任务与
-隐藏 Solution 并真实重放、生成答案/状态/Rubric 三类评分规则、运行多个独立 Agent
-做困难测试后返工或发布。全程隐藏 `tools[].internal.code`，校验工具 Schema、访问边界
-和失败回滚；Agent 自报成功不会被当作验收依据。
-详细说明见
-[Program-form README](task_gen/program_form/README.md)。
-
-## 查看环境
-
-```bash
-python scripts/build_environment_dashboard.py
-python -m http.server 8765 --directory dashboard
-```
-
-访问 `http://127.0.0.1:8765/`。页面逐项解释 Raw、Entity、Derived、Output、非实体文件、
-实体字段、闭合关系和来源血缘。使用方法见 [Dashboard README](dashboard/README.md)。
-
-## 测试
+## 检查与维护
 
 ```bash
 python -m pytest -q
 ```
+
+涉及 Docker 的集成测试可通过 `TOOLGEN_DOCKER_TEST_IMAGE` 指定已有测试镜像。
+需要外部场景 CSV 或真实模型凭据的测试，按测试自身的输入要求提供材料；测试跳过与通过分别报告。
+
+模块说明：[DataGen](env_gen/data_gen/README.md)、[ToolGen](env_gen/tool_gen/README.md)、
+[Program](task_gen/program/README.md)、[Distill](distill/README.md)、[系统架构](docs/SYSTEM_ARCHITECTURE_ZH.md)。

@@ -22,6 +22,7 @@ from typing import Any, Callable
 from jsonschema import Draft202012Validator
 
 from harness.resources import ResourceCatalog
+from utils.record_store import RecordStore
 
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas"
 MAX_CAPTURED_TOOL_STDOUT = 16 * 1024 * 1024
@@ -161,6 +162,11 @@ def _validate_v2_package(package_root: Path, environment: dict[str, Any]) -> Non
     if errors:
         raise ValueError("environment.json 不符合 v2 Schema：" + " | ".join(errors[:12]))
     state = package_root / "state"
+    if not state.is_dir() or state.is_symlink():
+        raise ValueError("state 必须是普通目录")
+    for path in state.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"state 不允许符号链接：{path}")
     record_sets = environment.get("record_sets", [])
     database = state / "records.sqlite"
     if record_sets and not database.is_file():
@@ -181,27 +187,6 @@ def _validate_v2_package(package_root: Path, environment: dict[str, Any]) -> Non
         scope_root = scopes_root / str(scope["scope_id"])
         if not scope_root.is_dir():
             raise ValueError(f"Filesystem Scope 不存在：{scope['scope_id']}")
-
-
-def _decode_record(row: sqlite3.Row, fields: dict[str, Any]) -> dict[str, Any]:
-    result = dict(row)
-    for name, definition in fields.items():
-        value = result.get(name)
-        if value is not None and definition.get("type") in {"object", "array"}:
-            result[name] = json.loads(value)
-        elif value is not None and definition.get("type") == "boolean":
-            result[name] = bool(value)
-    return result
-
-
-def _encode_value(value: Any, definition: dict[str, Any]) -> Any:
-    if value is None:
-        return None
-    if definition.get("type") in {"object", "array"}:
-        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    if definition.get("type") == "boolean":
-        return int(bool(value))
-    return value
 
 
 @dataclass(frozen=True)
@@ -254,131 +239,6 @@ class ToolPackage:
         return cls(package_root, environment, tuple(normalized))
 
 
-class RecordStore:
-    def __init__(self, database: Path, environment: dict[str, Any]) -> None:
-        self.database = database
-        self.definitions = {
-            str(item["record_set_id"]): item
-            for item in environment.get("record_sets", [])
-        }
-
-    def _definition(self, record_set_id: str) -> dict[str, Any]:
-        try:
-            return self.definitions[record_set_id]
-        except KeyError as error:
-            raise ValueError(f"未知 Record Set：{record_set_id}") from error
-
-    def _where(
-        self,
-        definition: dict[str, Any],
-        filters: dict[str, Any],
-    ) -> tuple[str, list[Any]]:
-        fields = definition["fields"]
-        unknown = sorted(set(filters) - set(fields))
-        if unknown:
-            raise ValueError(f"未知字段：{', '.join(unknown)}")
-        clauses: list[str] = []
-        values: list[Any] = []
-        for name, value in filters.items():
-            clauses.append(f"{_quote(name)} IS NULL" if value is None else f"{_quote(name)} = ?")
-            if value is not None:
-                values.append(_encode_value(value, fields[name]))
-        return (" AND ".join(clauses) or "1 = 1"), values
-
-    def list(
-        self,
-        record_set_id: str,
-        *,
-        filters: dict[str, Any] | None = None,
-        limit: int = 100,
-        offset: int = 0,
-        order_by: str | None = None,
-        descending: bool = False,
-    ) -> list[dict[str, Any]]:
-        definition = self._definition(record_set_id)
-        if not 1 <= limit <= 1000 or offset < 0:
-            raise ValueError("limit 必须在 1..1000，offset 不能小于 0")
-        fields = definition["fields"]
-        if order_by is not None and order_by not in fields:
-            raise ValueError(f"未知排序字段：{order_by}")
-        where, values = self._where(definition, filters or {})
-        order = f" ORDER BY {_quote(order_by)} {'DESC' if descending else 'ASC'}" if order_by else ""
-        sql = f"SELECT * FROM {_quote(record_set_id)} WHERE {where}{order} LIMIT ? OFFSET ?"
-        with closing(sqlite3.connect(self.database)) as connection:
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(sql, [*values, limit, offset]).fetchall()
-        return [_decode_record(row, fields) for row in rows]
-
-    def get(self, record_set_id: str, key: dict[str, Any]) -> dict[str, Any] | None:
-        definition = self._definition(record_set_id)
-        if not key or set(key) != set(definition.get("key_fields", [])):
-            raise ValueError(f"key 必须恰好包含：{definition.get('key_fields', [])}")
-        rows = self.list(record_set_id, filters=key, limit=2)
-        return rows[0] if rows else None
-
-    def create(self, record_set_id: str, record: dict[str, Any]) -> None:
-        definition = self._definition(record_set_id)
-        fields = definition["fields"]
-        if set(record) != set(fields):
-            raise ValueError("record 必须包含且只包含声明字段")
-        columns = list(fields)
-        values = [_encode_value(record[name], fields[name]) for name in columns]
-        sql = (
-            f"INSERT INTO {_quote(record_set_id)} "
-            f"({', '.join(_quote(name) for name in columns)}) VALUES "
-            f"({', '.join('?' for _ in columns)})"
-        )
-        with closing(sqlite3.connect(self.database)) as connection:
-            try:
-                connection.execute(sql, values)
-                connection.commit()
-            except Exception:
-                connection.rollback()
-                raise
-
-    def update(
-        self,
-        record_set_id: str,
-        key: dict[str, Any],
-        changes: dict[str, Any],
-    ) -> int:
-        definition = self._definition(record_set_id)
-        fields = definition["fields"]
-        if not changes:
-            raise ValueError("changes 不能为空")
-        unknown = sorted(set(changes) - set(fields))
-        if unknown:
-            raise ValueError(f"未知字段：{', '.join(unknown)}")
-        where, where_values = self._where(definition, key)
-        assignments = ", ".join(f"{_quote(name)} = ?" for name in changes)
-        values = [_encode_value(value, fields[name]) for name, value in changes.items()]
-        with closing(sqlite3.connect(self.database)) as connection:
-            try:
-                cursor = connection.execute(
-                    f"UPDATE {_quote(record_set_id)} SET {assignments} WHERE {where}",
-                    [*values, *where_values],
-                )
-                connection.commit()
-                return cursor.rowcount
-            except Exception:
-                connection.rollback()
-                raise
-
-    def delete(self, record_set_id: str, key: dict[str, Any]) -> int:
-        definition = self._definition(record_set_id)
-        where, values = self._where(definition, key)
-        with closing(sqlite3.connect(self.database)) as connection:
-            try:
-                cursor = connection.execute(
-                    f"DELETE FROM {_quote(record_set_id)} WHERE {where}", values
-                )
-                connection.commit()
-                return cursor.rowcount
-            except Exception:
-                connection.rollback()
-                raise
-
-
 def snapshot_state(root: Path, environment: dict[str, Any]) -> dict[str, Any]:
     database = root / "state/records.sqlite"
     records = {
@@ -418,8 +278,15 @@ class ToolRuntime:
         software_root: Path | None = None,
         temp_root: Path | None = None,
         session_root: Path | None = None,
+        isolated: bool = False,
+        execution_runtime: dict[str, Any] | None = None,
     ) -> None:
         self.package = package
+        self.isolated = isolated
+        self.execution_runtime = execution_runtime
+        receipt = package.package_root / "tool_generation/container_runtime.json"
+        if self.execution_runtime is None and receipt.is_file():
+            self.execution_runtime = json.loads(receipt.read_text(encoding="utf-8"))
         self._temporary: tempfile.TemporaryDirectory[str] | None = None
         initialize_state = True
         if session_root is not None:
@@ -460,7 +327,7 @@ class ToolRuntime:
         self._software_root_path = self._software_root(software_root)
         self._software_environment = self._software_environment_for(self._software_root_path)
         self._tools = {str(tool["name"]): deepcopy(tool) for tool in package.tools}
-        self._handlers = {
+        self._handlers = {} if isolated else {
             name: self._compile_handler(name, tool["internal"]["code"])
             for name, tool in self._tools.items()
         }
@@ -565,6 +432,32 @@ class ToolRuntime:
         input_errors = _schema_errors(tool["inputSchema"], arguments)
         if input_errors:
             raise ValueError(f"工具 {name} 输入不符合 Schema：{' | '.join(input_errors)}")
+
+        if self.isolated:
+            from harness.execution import call_environment_tool
+            from .software import runtime_info
+
+            info = runtime_info(self.package.package_root)
+            software = ({'python': info['python'], 'prefix': info['prefix'], 'root': info['root']} if info
+                        else {'python': sys.executable, 'prefix': sys.prefix,
+                              'root': str(self._software_root_path if self._software_root_path.is_dir() else Path(sys.prefix))})
+            record = call_environment_tool(
+                name, arguments, self._tools, self.root / 'state',
+                timeout=int(os.environ.get('TOOLGEN_TOOL_TIMEOUT_SECONDS', '300')),
+                memory_limit=int(os.environ.get('TOOLGEN_TOOL_MEMORY_BYTES', str(2 * 1024**3))),
+                write_limit=int(os.environ.get('TOOLGEN_TOOL_WRITE_BYTES', str(256 * 1024**2))),
+                environment=self.package.environment, software=software,
+                software_root=self._software_root_path, runtime=self.execution_runtime,
+            )
+            result = record.get('result')
+            business_failure = (isinstance(result, dict) and result.get('success') is False
+                                and record.get('error') == '工具返回值必须包含 success=true')
+            if record.get('error') and not business_failure:
+                raise RuntimeError(str(record['error']))
+            output_errors = _schema_errors(tool['outputSchema'], result)
+            if output_errors:
+                raise ValueError('工具输出不符合 Schema：' + ' | '.join(output_errors))
+            return deepcopy(result)
 
         before = self.snapshot()
         with tempfile.TemporaryDirectory(prefix="agent-world-tool-backup-") as temporary:

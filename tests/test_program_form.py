@@ -329,7 +329,7 @@ class ProgramFormContractTests(unittest.TestCase):
         self.assertNotIn("min_tool_calls", policy.to_dict())
         self.assertNotIn("min_distinct_tools", policy.to_dict())
         with self.assertRaisesRegex(ValueError, "clean_replays"):
-            ProgramGenerationPolicy(clean_replays=1).validate()
+            ProgramGenerationPolicy(clean_replays=0).validate()
         with self.assertRaisesRegex(ValueError, "max_repair_rounds"):
             ProgramGenerationPolicy(max_repair_rounds=-1).validate()
         with self.assertRaisesRegex(ValueError, "execution_timeout_seconds"):

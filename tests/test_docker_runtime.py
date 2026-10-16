@@ -22,7 +22,7 @@ class DockerRuntimeTests(unittest.TestCase):
         from env_gen.tool_gen.runtime_launch import docker_stdio_launch
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             source = root / 'executor-code'
             mirror = root / 'daemon-code'
             delivery_root = root / 'delivery'
@@ -339,13 +339,13 @@ class DockerRuntimeTests(unittest.TestCase):
             state = root / "task_state"
             shutil.copytree(delivery.package.package_root / "state", state)
             config = _server_config({
-                "binding_path": str(binding), "workspace_root": str(state),
+                "binding_path": str(binding), "state_root": str(state),
                 "trace": str(root / "task_calls.jsonl"), "max_tool_calls": 3,
                 "timeout": 30, "memory_limit": 2 * 1024**3,
                 "write_limit": 256 * 1024**2,
                 "tools": list(delivery.package.tools),
             })
-            self.assertEqual(config["runtime"]["backend"], "docker")
+            self.assertEqual(config["delivery_runtime"]["backend"], "docker")
             server = TaskEvalMcpServer(config)
             update = server.handle({
                 "method": "tools/call", "params": {

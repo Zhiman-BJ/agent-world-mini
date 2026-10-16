@@ -240,4 +240,4 @@ Python 解释器不在其运行时目录中
 
 验收完成前准确的状态是：**数据和定义具备接入基础；交付运行时存在问题；我们的执行及目录适配尚未完整；八环境全流程可用性未被证明。**
 
-主要证据入口：上游各包的 `binding.json`、`software/profile.json`、`tools/tool_validation.json`；同事快照的 `env_gen/tool_gen/delivery.py` 与 `mcp_protocol.py`；本地 `step_0_environment_load.py`、`step_3_chain_execute.py`、`review_agent.py`、`task_eval_mcp.py`。当时的 Kimi SDK 集成文档及执行入口现已删除；当前运行方式以 `distill/README.md` 和 `docs/HARNESS阶段接入说明.md` 为准，不能用本历史审计报告代替当前交付验收。
+主要证据入口：上游各包的 `binding.json`、`software/profile.json`、`tools/tool_validation.json`；同事快照的 `env_gen/tool_gen/delivery.py` 与 `mcp_protocol.py`；本地 `step_0_environment_load.py`、`step_3_chain_execute.py`、`review_agent.py`、`task_eval_mcp.py`。历史 Kimi 集成范围见同目录 `KIMI_EVALUATION.md`，不能代替本批交付验收。

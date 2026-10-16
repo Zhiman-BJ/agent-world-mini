@@ -14,8 +14,8 @@ from harness.delivery import load_delivery  # noqa: E402
 from harness.execution import (  # noqa: E402, F401
     CallToolFn,
     _schema_error,
-    call_environment_tool,
 )
+from task_gen.tool_runtime import call_environment_tool
 from harness.tool_budget import claim_tool_call  # noqa: E402
 from harness.mcp_protocol import (  # noqa: E402
     PROTOCOL_VERSION, SERVER_VERSION, RpcError, public_tools, serve_jsonrpc, tool_call_result,
@@ -83,7 +83,7 @@ def bind_delivery(config: dict[str, Any]) -> dict[str, Any]:
 
 
 class TaskEvalMcpServer:
-    """Task-scoped executor using ToolGen's shared public MCP contract."""
+    """Task-scoped tool executor; model-native tools access workspace files."""
 
     def __init__(self, config: dict[str, Any]):
         config = bind_delivery(config)
@@ -91,10 +91,11 @@ class TaskEvalMcpServer:
         self.tools = {tool["name"]: tool for tool in config["tools"]}
         if len(self.tools) != len(config["tools"]):
             raise ValueError("重复工具名")
-        workspace_value = config.get("workspace_root")
-        if not isinstance(workspace_value, str) or not workspace_value:
-            raise ValueError("MCP 配置缺少 workspace_root")
-        self.workspace_root = Path(workspace_value).resolve()
+        state_value = config.get("workspace_root", config.get("state_root", config.get("workspace")))
+        if not isinstance(state_value, str) or not state_value:
+            raise ValueError("MCP 配置缺少 state_root（兼容字段：workspace）")
+        self.state_root = Path(state_value).resolve()
+        self.workspace = self.state_root
         database_value = config.get("record_database")
         self.record_database = (
             Path(database_value).resolve()
@@ -112,7 +113,7 @@ class TaskEvalMcpServer:
         self.public_workspace_root = (
             Path(public_workspace_value).resolve()
             if isinstance(public_workspace_value, str) and public_workspace_value
-            else self.workspace_root
+            else self.workspace
         )
         self.trace = Path(config["trace"]).resolve()
         marker_value = config.get("budget_stop_marker")
@@ -241,11 +242,13 @@ class TaskEvalMcpServer:
                 record = {'tool': name, 'arguments': arguments, 'result': None, 'error': str(error)}
         else:
             record = call_environment_tool(
-                name, arguments, self.tools, self.workspace_root,
+                name, arguments, self.tools, self.state_root,
                 timeout=int(self.config["timeout"]), memory_limit=int(self.config["memory_limit"]),
                 write_limit=int(self.config["write_limit"]),
                 process_limit=int(self.config.get("process_limit", 1024)),
                 environment=self.config.get("environment", {}),
+                runtime=self.config.get("runtime") or self.config.get("delivery_runtime"),
+                binding_path=self.config.get("binding_path"),
                 record_database=self.record_database,
                 scope_mounts=self.scope_mounts or None,
                 public_workspace_root=self.public_workspace_root,
@@ -257,7 +260,7 @@ class TaskEvalMcpServer:
             stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
         payload = record["result"]
         # Business failures retain their schema-defined shape; the trace keeps
-        # the existing error semantics used by evaluators and trajectory export.
+        # the existing error semantics used by evaluators and ReAct.
         business_failure = (
             name in self.tools and not is_choice and isinstance(payload, dict) and payload.get("success") is False
             and _schema_error(self.tools[name]["outputSchema"], payload) is None

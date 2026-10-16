@@ -129,6 +129,7 @@ def _arguments(argv=None):
     parser.add_argument('config', type=Path, nargs='?')
     parser.add_argument('--binding', type=Path)
     parser.add_argument('--tools-path', type=Path)
+    parser.add_argument('--state-root', type=Path)
     parser.add_argument('--workspace-root', type=Path)
     parser.add_argument('--record-database', type=Path)
     parser.add_argument('--path-map', type=Path)
@@ -149,6 +150,7 @@ def _arguments(argv=None):
             for value in (
                 options.binding,
                 options.tools_path,
+                options.state_root,
                 options.workspace_root,
                 options.record_database,
                 options.path_map,
@@ -167,7 +169,7 @@ def _arguments(argv=None):
         return options
     required = {
         '--binding': options.binding,
-        '--workspace-root': options.workspace_root,
+        '--state-root/--workspace-root': options.state_root or options.workspace_root,
         '--trace': options.trace,
         '--max-tool-calls': options.max_tool_calls,
         '--timeout': options.timeout,
@@ -188,7 +190,7 @@ def _server_config(options):
         return json.loads(options.config.read_text(encoding='utf-8'))
     config = {
         'binding_path': str(options.binding),
-        'workspace_root': str(options.workspace_root),
+        'state_root': str(options.state_root or options.workspace_root),
         'trace': str(options.trace),
         'max_tool_calls': options.max_tool_calls,
         'timeout': options.timeout,
@@ -202,6 +204,8 @@ def _server_config(options):
         config['tool_budget_counter'] = str(options.tool_budget_counter)
     if options.tools_path is not None:
         config['tools_path'] = str(options.tools_path)
+    if options.workspace_root is not None:
+        config['workspace_root'] = str(options.workspace_root)
     if options.record_database is not None:
         config['record_database'] = str(options.record_database)
     if options.path_map is not None:

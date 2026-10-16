@@ -7,7 +7,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from harness.execution import call_environment_tool
+from task_gen.task_eval_mcp import call_environment_tool
 
 
 def main():

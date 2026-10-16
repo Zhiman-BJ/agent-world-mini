@@ -23,10 +23,6 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_DELIVERY_ROOTS = (
-    Path("/data1/agent_world/toolgen_semiconductor_expanded/delivery/environments"),
-    Path("/data1/agent_world/toolgen_environments/delivery/environments"),
-)
 TOOL_FAILURE_MARKERS = (
     "tool_unavailable",
     "tool_timed_out",
@@ -343,7 +339,7 @@ def _run_one(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batch-root", type=Path, required=True)
-    parser.add_argument("--delivery-root", type=Path, action="append")
+    parser.add_argument("--delivery-root", type=Path, action="append", required=True)
     parser.add_argument("--workers", type=int, default=30)
     parser.add_argument(
         "--max-workers",
@@ -460,7 +456,7 @@ def main() -> None:
 
     bindings = _bindings([
         path.resolve()
-        for path in (arguments.delivery_root or list(DEFAULT_DELIVERY_ROOTS))
+        for path in (arguments.delivery_root)
     ])
     targets = []
     explicit_ids = set(arguments.environment_ids or [])

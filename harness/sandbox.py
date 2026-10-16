@@ -91,7 +91,6 @@ def _restrict_writes_with_landlock(writable_roots):
             try:
                 access = handled if os.path.isdir(root) else landlock_access_fs_write_file
                 if root == '/dev/shm':
-                    # POSIX semaphores back multiprocessing/loguru queues.
                     access = (landlock_access_fs_write_file
                               | landlock_access_fs_make_reg
                               | landlock_access_fs_remove_file)
@@ -175,7 +174,8 @@ else:
 try:
     memory_limit = int(payload["memory_limit"])
     write_limit = int(payload["write_limit"])
-    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
+    if not payload.get("memory_cgroup"):
+        resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write_limit, write_limit))
     process_limit = payload.get("process_limit")
     if process_limit is not None:
@@ -224,7 +224,7 @@ def _context_source() -> str:
     resources = (project / "harness/resources.py").read_text(
         encoding="utf-8"
     ).replace("from __future__ import annotations", "")
-    context = (project / "task_gen/tool_graph/state_runtime.py").read_text(
+    context = (project / "harness/state.py").read_text(
         encoding="utf-8"
     )
     context = context.replace(
@@ -273,19 +273,24 @@ def call_tool(
     process_limit: int = 1024,
     software: dict[str, str] | None = None,
     read_only: bool = False,
+    runtime: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from functools import partial
-    run_tool_fn = partial(
-        run_tool_in_sandbox, software=software, read_only=read_only
-    ) if software else partial(run_tool_in_sandbox, read_only=read_only)
-    if software_root is not None:
-        run_tool_fn = partial(run_tool_fn, software_root=software_root)
+    if runtime and runtime.get("backend") == "docker" and _inside_docker_runtime():
+        run_tool_fn = partial(run_tool_direct, software=software, read_only=read_only,
+                              software_root=software_root)
+    elif runtime and runtime.get("backend") == "docker":
+        run_tool_fn = partial(run_tool_in_docker, runtime=runtime, read_only=read_only)
+    else:
+        run_tool_fn = partial(run_tool_in_sandbox, software=software, read_only=read_only)
+        if software_root is not None:
+            run_tool_fn = partial(run_tool_fn, software_root=software_root)
     if not environment or environment.get('schema_version') != '2.0':
         return run_tool_fn(
             code, arguments, workspace, timeout, memory_limit, write_limit, environment,
             process_limit=process_limit,
         )
-    from task_gen.tool_graph.state_runtime import snapshot_state, state_diff
+    from .state import snapshot_state, state_diff
     workspace = workspace.resolve()
     try:
         _, _, error = _workspace_usage(workspace)
@@ -318,6 +323,29 @@ def call_tool(
             return outcome
     except Exception as error:
         return {'kind': 'exception', 'result': None, 'error': f'{type(error).__name__}: {error}'}
+
+
+def _container_procfs() -> bool:
+    """Deployment flags for runtimes that provide their own private PID namespace."""
+    return any(os.environ.get(name) == '1' for name in (
+        'AGENT_WORLD_DOCKER_RUNTIME', 'AGENT_WORLD_KUBERNETES_RUNTIME',
+    ))
+
+
+def _sandbox_namespaces() -> list[str]:
+    if _container_procfs():
+        # Reused procfs and the worker must describe the same container PIDs.
+        return ['--unshare-user', '--unshare-ipc', '--unshare-net',
+                '--unshare-uts', '--unshare-cgroup']
+    return ['--unshare-all']
+
+
+def _interpreter_home_mounts(home: Path, base: Path) -> list[Path]:
+    """Preserve a runtime alias together with its standard-library directory."""
+    mounts = [home]
+    if home.parent.resolve() == base.resolve():
+        mounts.append(home.parent)
+    return mounts
 
 
 def run_tool_in_sandbox(
@@ -354,8 +382,18 @@ def run_tool_in_sandbox(
             # Preserve the launcher's venv and the absolute paths in pyvenv.cfg.
             # Only declared software/runtime directories are visible, not their parents.
             runtime_executable = launcher
-            runtime_mounts = sorted({Path(p).resolve() for p in
-                [info['base'], info['prefix'], software['root']]}, key=lambda p: len(p.parts))
+            mount_paths = [info['base'], info['prefix'], software['root']]
+            config = venv / 'pyvenv.cfg'
+            if config.is_file():
+                for line in config.read_text(encoding='utf-8').splitlines():
+                    key, separator, value = line.partition('=')
+                    if separator and key.strip() == 'home':
+                        home = Path(value.strip()).absolute()
+                        if home.is_dir():
+                            mount_paths.extend(str(path) for path in
+                                               _interpreter_home_mounts(home, Path(info['base'])))
+            # Keep aliases from pyvenv.cfg mounted at the path Python reads.
+            runtime_mounts = sorted({Path(p).absolute() for p in mount_paths}, key=lambda p: len(p.parts))
             software_prefix = str(Path(info['prefix']).resolve())
             for value in dict.fromkeys(info['imports']):
                 path = Path(value)
@@ -369,33 +407,36 @@ def run_tool_in_sandbox(
             runtime_executable = Path("/runtime") / executable.relative_to(runtime_root)
         except ValueError:
             return {"kind": "exception", "result": None, "error": "Python 解释器不在其运行时目录中"}
-    # Docker already supplies a private PID namespace. A nested unprivileged
-    # user namespace cannot mount a fresh procfs on this kernel, so reuse the
+    # Docker and non-hostPID Kubernetes Pods supply a private PID namespace.
+    # A nested unprivileged user namespace cannot mount a fresh procfs on
+    # this kernel, so reuse the
     # container's procfs there. Host execution keeps the stronger fresh procfs
     # mount. Network, user, IPC, UTS, cgroup and filesystem isolation remain
     # owned by bubblewrap in both modes.
     proc_mount = (
         ["--ro-bind", "/proc", "/proc"]
-        if os.environ.get("AGENT_WORLD_DOCKER_RUNTIME") == "1"
+        if _container_procfs()
         else ["--proc", "/proc"]
     )
     command = [
         sandbox,
-        "--unshare-all",
+        *_sandbox_namespaces(),
         "--die-with-parent",
         "--new-session",
         "--ro-bind-try", "/lib", "/lib",
         "--ro-bind-try", "/lib64", "/lib64",
         *proc_mount,
         "--dev", "/dev",
+        "--tmpfs", "/dev/shm",
         "--dir", "/etc",
         "--dir", "/tmp",
         "--dir", "/workspace",
         "--ro-bind" if read_only else "--bind", str(workspace), "/workspace",
-        "--chdir", "/workspace",
+        "--chdir", "/tmp" if read_only else "/workspace",
         "--clearenv",
         "--setenv", "HOME", "/tmp",
         "--setenv", "USER", "tool",
+        "--setenv", "LOGNAME", "tool",
         "--setenv", "TMPDIR", "/tmp",
         # 库的缓存与自动生成配置不属于环境状态。
         "--setenv", "XDG_CACHE_HOME", "/tmp/cache",
@@ -411,16 +452,23 @@ def run_tool_in_sandbox(
         "--setenv", "TF_NUM_INTEROP_THREADS", "1",
         "--setenv", "XLA_FLAGS", "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
     ]
-    # A minimal identity database lets standard libraries resolve the sandbox
-    # UID without exposing the rest of the host's /etc tree.
-    for identity_file in ("/etc/passwd", "/etc/group"):
-        if Path(identity_file).is_file():
-            command.extend(["--ro-bind", identity_file, identity_file])
+    # Read-only CPU topology supports native MPI hardware discovery.
+    for topology in ('/sys/devices/system/cpu', '/sys/devices/system/node'):
+        if Path(topology).is_dir():
+            command.extend(['--ro-bind', topology, topology])
     # Bind a disposable directory from the workspace filesystem as /tmp.
     # This keeps standard-library tempfile + os.replace operations on one
     # device while still isolating caches from the business workspace.
     tmp_mount = tempfile.mkdtemp(prefix=".tool-tmp-", dir=workspace.parent)
     command.extend(["--bind", tmp_mount, "/tmp"])
+    # Container images may omit the Kubernetes runAsUser from /etc/passwd.
+    # Supply only this call's identity, without changing the container image.
+    passwd = Path(tmp_mount) / 'passwd'
+    group = Path(tmp_mount) / 'group'
+    passwd.write_text(f'tool:x:{os.getuid()}:{os.getgid()}:tool:/tmp:/bin/sh\n', encoding='utf-8')
+    group.write_text(f'tool:x:{os.getgid()}:\n', encoding='utf-8')
+    command.extend(['--ro-bind', str(passwd), '/etc/passwd',
+                    '--ro-bind', str(group), '/etc/group'])
     if software_root is not None and not software:
         software_root = Path(software_root).expanduser().resolve()
         if not software_root.is_dir():
@@ -621,8 +669,6 @@ def run_tool_direct(
                         stderr=stderr,
                         timeout=timeout,
                         check=False,
-                        # Read-only scientific tools may assemble models in cwd.
-                        # Business paths remain available through the context.
                         cwd=temporary if read_only else workspace,
                         env=environment_variables,
                     )
@@ -666,3 +712,120 @@ _workspace_usage = _workspace_usage
 _read_limited = _read_limited
 
 __all__ = ["call_tool", "run_tool", "run_tool_direct", "workspace_usage", "_call_tool", "_run_tool", "_workspace_usage", "_read_limited"]
+
+
+def _inside_docker_runtime() -> bool:
+    return os.environ.get("AGENT_WORLD_DOCKER_RUNTIME") == "1" and Path("/.dockerenv").is_file()
+
+
+def run_tool_in_docker(
+    code, arguments, workspace, timeout, memory_limit, write_limit,
+    environment=None, *, process_limit=1024, runtime, read_only=False, record_database=None, scope_roots=None,
+    software_root=None, software=None,
+):
+    if _inside_docker_runtime():
+        return run_tool_direct(
+            code, arguments, workspace, timeout, memory_limit, write_limit, environment,
+            process_limit=process_limit, software_root=Path(runtime["software_root"]),
+            read_only=read_only, record_database=record_database, scope_roots=scope_roots,
+        )
+    workspace = workspace.resolve()
+    before_bytes, before_entries, workspace_error = _workspace_usage(workspace)
+    if workspace_error:
+        return {"kind": "exception", "result": None, "error": workspace_error}
+    docker = shutil.which("docker")
+    if docker is None:
+        return {"kind": "exception", "result": None, "error": "找不到 Docker 命令"}
+
+    database = Path(record_database).resolve() if record_database else None
+    mounts = {}
+    for scope, value in (scope_roots or {}).items():
+        location = Path(value).resolve()
+        if not location.is_relative_to(workspace):
+            raise ValueError("Scope root 必须位于当前任务工作目录内")
+        mounts[str(scope)] = str(Path("/workspace") / location.relative_to(workspace))
+    payload = json.dumps({
+        "code": code,
+        "arguments": arguments,
+        "environment": environment or {},
+        "context_source": _context_source(),
+        "memory_limit": memory_limit,
+        "write_limit": write_limit,
+        "process_limit": process_limit,
+        "software_root": runtime["software_root"],
+        "software_prefix": None,
+        "software_import_paths": [],
+        "memory_cgroup": True,
+        "read_only": read_only,
+        "record_database": "/records/records.sqlite" if database else None,
+        "scope_roots": mounts,
+    }, ensure_ascii=False)
+    with tempfile.TemporaryDirectory(prefix=".tool-docker-", dir=workspace.parent) as control:
+        cidfile = Path(control) / "container.cid"
+        passwd = Path(control) / "passwd"
+        passwd.write_text(
+            f"root:x:0:0:root:/root:/bin/sh\n"
+            f"tool:x:{os.getuid()}:{os.getgid()}:tool:/tmp:/bin/sh\n",
+            encoding="utf-8",
+        )
+        database_mount = (["--tmpfs", f"/records:rw,size={write_limit}",
+                           "--mount", f"type=bind,source={database},target=/records/records.sqlite"
+                           + (",readonly" if read_only else "")] if database else [])
+        command = [
+            docker, "run", "--rm", "-i", "--runtime", "runc", "--cidfile", str(cidfile),
+            "--user", f"{os.getuid()}:{os.getgid()}",
+            "--network", "none", "--read-only",
+            "--memory", str(memory_limit), "--pids-limit", str(process_limit),
+            "--tmpfs", f"/tmp:rw,exec,size={write_limit}",
+            "--tmpfs", f"{runtime['software_root']}/cache:rw,exec,size=256m",
+            "--mount", f"type=bind,source={passwd},target=/etc/passwd,readonly",
+            "--mount", f"type=bind,source={workspace},target=/workspace"
+                       + (",readonly" if read_only else ""),
+            "--workdir", "/tmp" if read_only else "/workspace",
+            "--env", "HOME=/tmp", "--env", "TMPDIR=/tmp",
+            "--env", "XDG_CACHE_HOME=/tmp/cache",
+            "--env", "XDG_CONFIG_HOME=/tmp/config",
+            "--env", f"TOOLGEN_SOFTWARE_ROOT={runtime['software_root']}",
+            "--env", "OPENBLAS_NUM_THREADS=1", "--env", "OMP_NUM_THREADS=1",
+            *database_mount,
+            runtime["image"], runtime["python_command"], "-I", "-c", _TOOL_WORKER,
+        ]
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            try:
+                completed = subprocess.run(
+                    command, input=payload.encode("utf-8"), stdout=stdout,
+                    stderr=stderr, timeout=timeout, check=False,
+                )
+            except subprocess.TimeoutExpired:
+                if cidfile.is_file():
+                    subprocess.run(
+                        [docker, "rm", "-f", cidfile.read_text().strip()],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=15, check=False,
+                    )
+                return {"kind": "timeout", "result": None, "error": f"工具调用超过 {timeout} 秒"}
+            except OSError as error:
+                return {"kind": "exception", "result": None, "error": f"启动 Docker 工具失败：{error}"}
+            stdout_value = _read_limited(stdout)
+            stderr_value = _read_limited(stderr, 2000)
+    if completed.returncode != 0:
+        detail = (stderr_value or stdout_value).decode("utf-8", errors="replace").strip()[-2000:]
+        return {"kind": "exception", "result": None, "error": f"Docker 工具异常退出：{detail}"}
+    if len(stdout_value) > _MAX_SANDBOX_OUTPUT_BYTES:
+        return {"kind": "exception", "result": None, "error": "工具沙箱输出超过 16 MiB"}
+    after_bytes, after_entries, workspace_error = _workspace_usage(workspace)
+    if workspace_error:
+        return {"kind": "exception", "result": None, "error": workspace_error}
+    if after_bytes > before_bytes + write_limit:
+        return {"kind": "exception", "result": None, "error": f"workspace 文件总增长超过 {write_limit} 字节"}
+    if after_entries > before_entries + max(1024, write_limit // 4096):
+        return {"kind": "exception", "result": None, "error": "workspace 新增条目数量超过限制"}
+    try:
+        message = json.loads(stdout_value)
+    except json.JSONDecodeError as error:
+        return {"kind": "exception", "result": None, "error": f"Docker 工具返回无效 JSON：{error}"}
+    if not isinstance(message, dict) or set(message) != {"result", "error"}:
+        return {"kind": "exception", "result": None, "error": "Docker 工具返回结构非法"}
+    if message["error"] is not None:
+        return {"kind": "exception", "result": None, "error": message["error"]}
+    return {"kind": None, "result": message["result"], "error": None}

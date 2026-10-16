@@ -16,7 +16,7 @@ mcp__agent_world_distill__<business_tool>
 - `Read/Grep/Glob` 是 Kimi 原生文件工具。
 - `<business_tool>` 来自当前 ToolGen 交付包的 `tools.json`。
 - `mcp__agent_world_distill__` 是 Kimi MCP Client 添加的命名空间，不是业务工具名，也不写入 ToolGen Schema。
-- `initialize`、`tools/list`、`tools/call` 是正式任务 MCP 的 JSON-RPC 方法，不是额外的模型 function tools。
+- `initialize`、`tools/list`、`tools/call`、`resources/list`、`resources/read` 是 MCP JSON-RPC 方法，不是额外的模型 function tools。
 - 当前没有自定义 `read_tool_result`；长结果由 Kimi 自己写入 session 的 `tool-results/`。
 
 ## 2. 正式测评主链
@@ -66,6 +66,8 @@ Kimi home 是每条任务独享的临时目录。任务结束时，其 session �
 
 同一 Agent 的完整 wire 位于相邻的 `wire.jsonl`。
 
+`TaskRunLayout.execution_state` 在新布局中只是指向 `private-state` 的兼容属性，不是文件 Scope 的物理根。新代码应使用：
+
 - `model_workspace`：Kimi cwd 和文件 Scope；
 - `record_database`：私有数据库；
 - `scope_mounts`：Scope 到工作目录的映射；
@@ -81,8 +83,14 @@ Kimi home 是每条任务独享的临时目录。任务结束时，其 session �
 
 ToolGen Schema 上的 `x-resource-scope` 和 `x-resource-kind` 告诉 Harness 该字段属于哪个 Scope、应是文件还是目录。`ResourceCatalog.normalize_arguments()` 会把模型路径转换为工具代码原有的 Scope 内相对路径；`externalize_result()` 再把工具返回路径转换为模型可见的 workspace 路径。
 
-业务工具参数和返回值不得包含 `aw://`。正式任务 MCP 不发布 Resources
-capability，因此该 URI 不进入 Kimi 的 initialize 指令或正常任务调用链。
+`aw://scope/path` 只属于 MCP Resources 标识空间：
+
+```text
+resources/list -> 返回 aw://... URI 和 workspace-relative relative_path
+resources/read -> 接收上一步 URI 并读取对应资源
+```
+
+业务工具参数和返回值不得包含 `aw://`。正式 Kimi 工具表也不会把 `resources/list/read` 注册成 function tool，因此 URI 不进入正常任务调用链。
 
 ## 5. 代码归属
 
@@ -91,7 +99,7 @@ capability，因此该 URI 不进入 Kimi 的 initialize 指令或正常任务�
 | 任务布局 | 建立 workspace、私有 DB、路径映射和 raw | `harness/layout.py` |
 | 资源路径 | Scope、workspace 路径与 Resource URI 转换 | `harness/resources.py` |
 | MCP wire | JSON-RPC、公开 Tool Schema、调用结果格式 | `harness/mcp_protocol.py` |
-| 可选 MCP Resources | 独立 ToolGen 资源目录的 list/read 投影 | `harness/mcp_resources.py` |
+| MCP Resources | 两套 Server 共用的 list/read 投影与 50 MiB 限制 | `harness/mcp_resources.py` |
 | 业务事务 | 参数/结果 Schema、状态副本、提交和回滚 | `harness/execution.py` |
 | 沙盒后端 | bubblewrap/直接进程、资源限制、Context | `harness/sandbox.py` |
 | 文件权限 | Read/Grep/Glob realpath 白名单 | `harness/kimi_file_policy.py` |
@@ -107,12 +115,11 @@ capability，因此该 URI 不进入 Kimi 的 initialize 指令或正常任务�
 - `env_gen/tool_gen/mcp_server.py::ToolMcpServer`：运行一个独立 ToolGen 交付包，自建 session 状态并在关闭时写 receipt。
 - `task_gen/task_eval_mcp.py::TaskEvalMcpServer`：运行一条已有任务状态，接收 task workspace、私有数据库、工具预算、trace 和可选 review choice。
 
-两者共用 MCP wire contract。通用 ToolGen MCP 直接代理 `ToolRuntime.call()`；
-任务 MCP 委托 `harness.execution.call_environment_tool()`，因为它使用已经创建好的
-task workspace 和私有数据库。两者都不再自行实现工具业务逻辑。
+两者共用 `harness.mcp_protocol`、`harness.mcp_resources` 和 `harness.execution.call_environment_tool`。不应把二者生命周期强行合成一个大类。
 
 ## 7. 其他调用方
 
+- `task_gen/task_eval_react.py`：ReAct 评测，直接调用 `call_environment_tool`。
 - `task_gen/program/utils/tool_runtime.py`：Program-form TaskGen 的参考解/重放包装器，业务调用最终委托 `call_environment_tool`。
 - `env_gen/tool_gen/runtime.py`：ToolGen 生成和交付验收的 Runtime，保留自己的 package/session 生命周期。
 - `task_gen/tool_graph/step_3_chain_execute.py`：历史 fixed-chain replay；不是正式 Kimi 测评入口，不应被新代码依赖。
@@ -137,7 +144,8 @@ python -m pytest -q \
   tests/test_mcp_integration.py \
   tests/test_harness.py \
   tests/test_kimi_mcp.py \
-  tests/test_eval_cases.py \
+  tests/test_task_eval.py \
+  tests/test_task_eval_react.py \
   tests/test_program_form_v2.py
 ```
 

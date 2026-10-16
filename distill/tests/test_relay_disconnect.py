@@ -52,6 +52,14 @@ def test_abandoned_model_request_releases_upstream_and_retains_evidence(tmp_path
     try:
         client.sendall(request)
         assert request_started.wait(3)
+        if send_headers:
+            response_path = raw / 'model_io/000001.response.sse'
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                if response_path.is_file() and b'partial' in response_path.read_bytes():
+                    break
+                time.sleep(0.01)
+            assert response_path.is_file() and b'partial' in response_path.read_bytes()
         if stop == 'client_disconnect':
             client.close()
             assert upstream_closed.wait(3)

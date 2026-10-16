@@ -229,6 +229,8 @@ def replay_distilled_case_state(case: Any, source_task_dir: Path, target_task_di
         runtime=case.runtime,
     )
     config.update({
+        "state_root": str(layout.model_workspace),
+        "workspace": str(layout.model_workspace),
         "workspace_root": str(layout.model_workspace),
         "record_database": str(layout.record_database),
         "scope_mounts": layout.scope_mounts,

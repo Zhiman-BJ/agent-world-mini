@@ -112,7 +112,7 @@ class ResourceCatalogTests(unittest.TestCase):
                     "properties": {"ticket_id": {"type": "string"}},
                 },
             )
-        with self.assertRaisesRegex(ValueError, "当前工作目录"):
+        with self.assertRaisesRegex(ValueError, "相对路径"):
             self.catalog.normalize_arguments(
                 {"path": "aw://reports/daily.json"},
                 schema={
@@ -355,7 +355,7 @@ class ResourceCatalogTests(unittest.TestCase):
             result = runtime.call("locate_report", {})
         self.assertEqual(result["data"]["report"], "daily.json")
 
-    def test_program_runtime_uses_the_same_workspace_path_contract(self) -> None:
+    def test_program_runtime_uses_the_same_scope_relative_path_contract(self) -> None:
         package_root = self.root / "program-package"
         scope_root = package_root / "state/filesystem_scopes/reports"
         scope_root.mkdir(parents=True)
@@ -429,7 +429,7 @@ class ResourceCatalogTests(unittest.TestCase):
             self.assertEqual(result["data"]["text"], '{"status":"ok"}')
             with self.assertRaisesRegex(ValueError, "相对路径"):
                 runtime.call("read_report", {"path": str(scope_root / "daily.json")})
-            with self.assertRaisesRegex(ValueError, "当前工作目录"):
+            with self.assertRaisesRegex(ValueError, "相对路径"):
                 runtime.call("read_report", {"path": "aw://reports/daily.json"})
 
 

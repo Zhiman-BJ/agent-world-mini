@@ -11,6 +11,10 @@ from utils.io import write_json
 
 from .runtime import ToolPackage, ToolRuntime, state_diff
 from .semantic_contract import CONTRACT_REVIEW_GUIDANCE, contract_issues
+from .test_contract import (
+    TEST_GUIDANCE, TestBaselines, baseline_changes, check_numbers, normalize_tests,
+    success_gate, validate_tests,
+)
 
 
 PROVENANCE_FILES = (
@@ -71,7 +75,12 @@ def _validate_resource_annotations(
                     f"工具草稿 {tool_name} 的 {path}.x-resource-kind "
                     "必须是 file 或 directory"
                 )
-            if node.get("type") != "string":
+            nullable_output = (
+                schema_name == "outputSchema"
+                and isinstance(node.get("type"), list)
+                and set(node["type"]) == {"string", "null"}
+            )
+            if node.get("type") != "string" and not nullable_output:
                 raise ToolGenerationError(
                     f"工具草稿 {tool_name} 的资源参数必须是 string：{path}"
                 )
@@ -79,6 +88,26 @@ def _validate_resource_annotations(
             visit(item, f"{path}.{key}")
 
     visit(schema)
+
+
+def _removed_resource_annotations(before: dict, after: dict) -> list[str]:
+    def fields(node: Any, path: str = "") -> set[str]:
+        found: set[str] = set()
+        if isinstance(node, list):
+            for item in node:
+                found.update(fields(item, path))
+        elif isinstance(node, dict):
+            if "x-resource-scope" in node or "x-resource-kind" in node:
+                found.add(path)
+            for key, value in node.items():
+                child = path if key in {"oneOf", "anyOf", "allOf", "items"} else f"{path}.{key}"
+                found.update(fields(value, child))
+        return found
+    return sorted(
+        f"{schema}{path}"
+        for schema in ("inputSchema", "outputSchema")
+        for path in fields(before.get(schema)) - fields(after.get(schema))
+    )
 
 
 @dataclass(frozen=True)
@@ -115,6 +144,7 @@ class ToolGenerator:
         self.draft_batch_size = draft_batch_size
         self.max_repairs = max_repairs
         self.software_repair_attempts = software_repair_attempts
+        self._test_baselines: TestBaselines | None = None
 
     def generate(
         self,
@@ -124,6 +154,7 @@ class ToolGenerator:
     ) -> ToolGenerationResult:
         package_root, environment = self._load_data_environment(package_path)
         output_dir = package_root / "tool_generation"
+        self._test_baselines = TestBaselines(output_dir)
         drafts_dir = output_dir / "drafts"
         self._prepare_agent_workspace(
             package_root,
@@ -183,20 +214,36 @@ class ToolGenerator:
                     )
         self._prepare_software(package_root)
         action_plan_path = output_dir / "action_plan.json"
+        plan_repair_note = ""
+        plan_requires_verification = False
         if action_plan_path.is_file():
             try:
                 actions = self._load_action_plan(environment, inventory, action_plan_path)
-            except ToolGenerationError:
+            except ToolGenerationError as error:
+                try:
+                    saved_plan = json.loads(action_plan_path.read_text(encoding="utf-8"))
+                    plan_requires_verification = isinstance(saved_plan, dict) and saved_plan.get("verification_version") == 1
+                except (OSError, ValueError):
+                    pass
+                version = 1
+                previous_plan = action_plan_path.with_name(f"action_plan.invalid.{version}.json")
+                while previous_plan.exists():
+                    version += 1
+                    previous_plan = action_plan_path.with_name(f"action_plan.invalid.{version}.json")
+                action_plan_path.rename(previous_plan)
+                plan_repair_note = (
+                    f"\n读取 {previous_plan.name}，保留已规划的能力和动作，修正以下格式问题后写入 action_plan.json：{error}"
+                )
                 actions = None
         else:
             actions = None
         if actions is None:
             self._run_agent_until(
-                self._build_action_plan_prompt(package_root),
+                self._build_action_plan_prompt(package_root) + plan_repair_note,
                 working_directory=output_dir,
                 required_path=action_plan_path,
             )
-            actions = self._load_action_plan(environment, inventory, action_plan_path)
+            actions = self._load_action_plan(environment, inventory, action_plan_path, require_verification=not bool(plan_repair_note) or plan_requires_verification)
 
         generation_failures = self._generate_draft_batches(
             package_root, output_dir, drafts_dir, actions, status="generating"
@@ -234,17 +281,24 @@ class ToolGenerator:
             status="drafts_ready" if not generation_failures else "drafts_ready_with_skips",
         )
 
+        draft_failures: dict[str, str] = {}
         _actions, drafts = self._load_agent_drafts(
             environment,
             inventory,
             action_plan_path,
             drafts_dir,
             allow_missing=True,
+            draft_failures=draft_failures,
         )
+        drafts = self._test_baselines.bind(drafts)
         self._prepare_software(package_root)
         reports = [
             {"tool": name, "status": "skipped", "failures": [reason], "tests": []}
             for name, reason in generation_failures.items()
+            if name not in draft_failures
+        ] + [
+            {"tool": name, "status": "rejected", "failures": [reason], "tests": []}
+            for name, reason in draft_failures.items()
         ] + self._validate(package_root, environment, drafts)
         validation_path = output_dir / "tool_validation.json"
         write_json(
@@ -256,8 +310,10 @@ class ToolGenerator:
             failed = [report for report in reports if report["status"] == "rejected"]
             if not failed:
                 break
+            before_repair = {draft["tool"]["name"]: draft["tool"] for draft in drafts}
             repair_done_path = output_dir / "repair_done.json"
             repair_done_path.unlink(missing_ok=True)
+            repair_interrupted = False
             try:
                 self._run_agent_until(
                     self._build_repair_prompt(repair_round, failed),
@@ -269,14 +325,17 @@ class ToolGenerator:
                 write_json(output_dir / "repair_error.json", {
                     "round": repair_round, "error": f"{type(error).__name__}: {error}",
                 })
-                break
-            if not repair_done_path.is_file():
+                if not getattr(error, "retryable", False):
+                    break
+                repair_interrupted = True
+            if not repair_done_path.is_file() and not repair_interrupted:
                 write_json(output_dir / "repair_error.json", {
                     "round": repair_round, "error": "工具修复 Agent 没有写入 repair_done.json",
                 })
                 break
             passed = {report["tool"] for report in reports if report["status"] == "passed"}
             passed_drafts = [draft for draft in drafts if draft["tool"]["name"] in passed]
+            draft_failures = {}
             try:
                 _actions, drafts = self._load_agent_drafts(
                     environment,
@@ -284,6 +343,7 @@ class ToolGenerator:
                     action_plan_path,
                     drafts_dir,
                     allow_missing=True,
+                    draft_failures=draft_failures,
                 )
             except Exception as error:
                 write_json(output_dir / "repair_error.json", {
@@ -291,16 +351,30 @@ class ToolGenerator:
                 })
                 break
             drafts = passed_drafts + [draft for draft in drafts if draft["tool"]["name"] not in passed]
+            preserved = []
+            for draft in drafts:
+                name = draft["tool"]["name"]
+                removed = _removed_resource_annotations(before_repair.get(name, {}), draft["tool"])
+                if removed:
+                    draft_failures[name] = "resource_annotations_removed_after_repair:" + ",".join(removed)
+                else:
+                    preserved.append(draft)
+            drafts = preserved
+            drafts = self._test_baselines.bind(drafts)
             available = {draft["tool"]["name"] for draft in drafts}
+            draft_failures = {name: reason for name, reason in draft_failures.items() if name not in passed}
             generation_failures = {
                 action["name"]: generation_failures.get(action["name"], "missing_or_invalid_draft_after_repair")
-                for action in actions if action["name"] not in available
+                for action in actions if action["name"] not in available and action["name"] not in draft_failures
             }
             self._prepare_software(package_root)
             reports = self._validate(package_root, environment, drafts)
             reports = [
                 {"tool": name, "status": "skipped", "failures": [reason], "tests": []}
                 for name, reason in generation_failures.items()
+            ] + [
+                {"tool": name, "status": "rejected", "failures": [reason], "tests": []}
+                for name, reason in draft_failures.items()
             ] + reports
             write_json(
                 validation_path,
@@ -398,6 +472,21 @@ class ToolGenerator:
         selected: list[dict[str, Any]] | None = None,
     ) -> dict[str, str]:
         targets = selected if selected is not None else actions
+        if self._test_baselines is None:
+            self._test_baselines = TestBaselines(output_dir)
+        for action in targets:
+            name = str(action["name"])
+            self._test_baselines.capture(name, verification_tests=action.get("verification_tests"))
+            history = output_dir / "draft_history"
+            candidates = sorted(history.glob(f"{name}.*.json"), key=lambda p: p.stat().st_mtime) if history.is_dir() else []
+            candidates.append(drafts_dir / f"{name}.json")
+            for candidate in candidates:
+                try:
+                    saved = json.loads(candidate.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if isinstance(saved, dict):
+                    self._test_baselines.capture(name, tests=saved.get("tests"))
         pending = [
             action
             for action in targets
@@ -421,17 +510,32 @@ class ToolGenerator:
                 status=status,
             )
             agent_error: str | None = None
+            previous_drafts = []
+            for action, path in zip(batch, paths):
+                error = self._ensure_draft_ready(path, str(action['name']), action)
+                if path.is_file() and error is not None:
+                    history = output_dir / 'draft_history'
+                    history.mkdir(exist_ok=True)
+                    version = len(list(history.glob(f"{action['name']}.*.json"))) + 1
+                    previous = history / f"{action['name']}.{version}.json"
+                    path.rename(previous)
+                    previous_drafts.append({'tool': action['name'], 'saved_draft': str(previous.relative_to(output_dir)), 'error': error})
             try:
+                prompt = self._with_probe_directory(
+                    self._build_action_batch_prompt(package_root, batch), output_dir
+                )
+                if previous_drafts:
+                    prompt += '\n以下草稿已保存，请读取并按具体错误修正后写回 drafts/<name>.json：\n' + json.dumps(previous_drafts, ensure_ascii=False)
                 run_until_files = getattr(self.draft_agent, "run_until_files", None)
                 if callable(run_until_files):
                     run_until_files(
-                        self._build_action_batch_prompt(package_root, batch),
+                        prompt,
                         working_directory=output_dir,
                         required_paths=paths,
                     )
                 else:
                     self.draft_agent.run(
-                        self._build_action_batch_prompt(package_root, batch),
+                        prompt,
                         working_directory=output_dir,
                     )
             except Exception as error:
@@ -441,11 +545,6 @@ class ToolGenerator:
                 error = self._ensure_draft_ready(path, name, action)
                 if error is not None:
                     failures[name] = agent_error or error
-                    if path.is_file():
-                        history = output_dir / "draft_history"
-                        history.mkdir(exist_ok=True)
-                        version = len(list(history.glob(f"{name}.*.json"))) + 1
-                        path.rename(history / f"{name}.{version}.json")
             self._write_progress(
                 output_dir,
                 actions,
@@ -499,6 +598,15 @@ class ToolGenerator:
                 return "draft_condition_fields_missing:" + ",".join(missing_fields)
         return None
 
+    @staticmethod
+    def _with_probe_directory(prompt: str, working_directory: Path) -> str:
+        probe_directory = working_directory / "agent_tmp"
+        probe_directory.mkdir(exist_ok=True)
+        return prompt + (
+            f"\n软件探测的临时下载、试装和数据副本放在 {probe_directory.resolve()} 内，"
+            "使用 tempfile 时沿用 TMPDIR；下载缓存沿用 UV_CACHE_DIR、PIP_CACHE_DIR。"
+        )
+
     def _run_agent_until(
         self,
         prompt: str,
@@ -507,6 +615,7 @@ class ToolGenerator:
         required_path: Path,
         agent: ToolCodingAgent | None = None,
     ) -> str:
+        prompt = self._with_probe_directory(prompt, working_directory)
         active_agent = agent or self.agent
         run_until_files = getattr(active_agent, "run_until_files", None)
         for attempt in range(2):
@@ -681,7 +790,11 @@ software_plan.json 示例：
     def _build_action_plan_prompt(package_root: Path) -> str:
         return f"""你负责为 {package_root.name} 安排工具动作。
 
+{TEST_GUIDANCE}
+
 读取 approved_capabilities.json 和 context.json，为其中全部 decision=implement 的能力安排业务工具。approved_capabilities.json 是逐项检查后通过的清单，待修复项另存于 capability_review.json。一个工具应完成一个完整、常用的用户目的：同一对象的多种筛选、排序或统计维度可以参数化，目标或副作用不同的动作分别保留。不要把检索、分析、编辑和导出塞进同一个万能工具，也不要把一个正常动作拆成字段级小工具。
+
+工具输入或输出引用真实文件时，asset_ids 和 usageConditions.targetResources 同时包含文件所属 Scope；即使动作只查询 Record Set、返回记录中的文件路径，也需要列入对应 Scope。根据 environment.json 的字段说明和实际文件确认所属目录。
 
 只写 action_plan.json，格式为 {{"environment_id":"...","actions":[{{"name":"snake_case","description":"...","capability_ids":["cap_..."],"asset_ids":["record_set_id 或 scope_id"],"effect":"read|write","usageConditions":{{"targetResources":["asset_id"],"targetObjects":[{{"objectType":"业务对象","identifiedBy":["inputSchema 参数名"]}}],"preconditions":["调用前必须满足的对象状态"],"sideEffects":["成功调用后的可观察变化；只读工具为空数组"]}}}}]}}。每个 implement 能力只归入一个动作。条件描述业务状态，不写 Python、SQL 或内部路径。不要写工具草稿，不要修改上游环境包。写完后结束。"""
 
@@ -696,12 +809,17 @@ software_plan.json 示例：
 
 {CONTRACT_REVIEW_GUIDANCE}
 
+{TEST_GUIDANCE}
+
 动作计划如下：
 {action_json}
 
-读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。对外 Schema 描述必须说明路径相对于 Agent 当前工作目录；多个 Filesystem Scope 时公开路径包含 Scope 挂载目录。Harness 会校验 workspace 和 Scope 归属，再把路径归一化为 Scope 内相对路径交给 run(arguments, context)；工具代码通过 context.scope_root(scope_id) 访问文件，返回资源字段也使用 Scope 内相对路径，由 Harness 转换成 workspace 路径。不要把 MCP Resource URI、服务器绝对路径或容器路径写入业务参数、返回值或描述。工具代码通过 context.records 访问 Record Set，不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
+读取 context.json、environment.json、runtime_api.md、tool.schema.json 和 draft_example.json，并只抽样这些动作涉及的真实记录或文件。每个动作分别写入 drafts/<name>.json，格式为 {{"tool": ToolSpec, "tests": [...]}}。将动作中的 usageConditions 原样写入工具的 usageConditions。文件或目录参数仍使用字符串，在对应 inputSchema 字段中增加 `x-resource-scope`（填写 scope_id）和 `x-resource-kind`（file 或 directory）；返回文件或目录的 outputSchema 字段使用相同标注。工具内部接收并返回 Scope 内相对路径，通过 context.scope_root(scope_id) 访问文件；Runtime 会核对 Scope、路径边界和实际文件；公开业务参数和返回值均使用 Scope 内相对路径。不要把 workspace、服务器绝对路径或容器路径写入公开参数和返回值。工具代码定义 run(arguments, context)，通过 context.records 访问 Record Set；不要直接打开 records.sqlite。专业软件动作必须调用真实接口或处理真实项目文件，不得用另建状态文件模拟。
 
-保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
+usageConditions.targetObjects.identifiedBy 中的字段都应在 inputSchema.properties 中声明，并在代码中用于选择操作对象。x-resource-scope 填写 environment.json 中真实的 scope_id 值，不使用占位名称；多个文件参数分别标注所属 Scope。路径数组在 items 上标注文件引用，不在整个数组上标注。
+测试通过 Runtime 的公开接口调用，文件引用参数和预期返回值使用实际 Scope 内相对路径；MCP 资源发现返回的 aw:// URI 仅用于 resources/read，不传给业务工具。测试预期值以原始记录、官方实例或独立计算为依据。复算动作重新执行算法，保存的历史结果用于比较。
+
+保持 action_plan 中的业务边界，不再扩展或合并动作。测试参数必须来自真实状态。先查看该动作实际会处理的数据类型、文件格式或对象状态，为当前环境中真实存在、且会进入不同主要处理逻辑的代表情况分别准备测试；不要枚举参数组合，相同处理逻辑只保留一个代表样例。至少包含一个 expect_success=true 的正常调用，并在 expected_data 中核对关键返回内容。查询和汇总应核对已知记录或数量，数值计算应核对代表数值或明确的计算性质；写操作可用 expected_records=[{{record_set_id, key, values}}] 核对修改后的关键字段。所需专业依赖准备好后运行正常调用；当当前环境中能直接构造不存在对象、错误状态或缺失文件等业务失败时，再加入一个失败调用。写操作还要验证成功时 expect_changed=true，失败时状态不变。完成全部 {len(actions)} 个草稿后结束，不要修改上游环境、状态或其他工具草稿。"""
 
     @staticmethod
     def _build_inventory_repair_prompt(
@@ -717,7 +835,10 @@ software_plan.json 示例：
         names = ", ".join(str(item["tool"]) for item in failed)
         return f"""这是 ToolGen 第 {repair_round} 次工具修复。请读取 tool_validation.json，只处理这些失败工具：{names}。
 
-查看对应 drafts/<name>.json、runtime_api.md、tool.schema.json、实际环境状态和失败原因。先确认 software_environment.json 中的软件是否可用；缺少依赖时修正 software_plan.json 并重新准备，不能把真实专业算法替换成复制、占位或简单字符串处理。直接修正工具代码、Schema 或调用样例。不要改变 action_plan.json，不要修改已经通过的工具，也不要修改上游环境包。修好后写 repair_done.json，内容为 {{"status":"ready"}}，然后结束。"""
+{TEST_GUIDANCE}
+
+查看对应 drafts/<name>.json、runtime_api.md、tool.schema.json、实际环境状态和失败原因。先确认 software_environment.json 中的软件是否可用；缺少依赖时修正 software_plan.json 并重新准备，不能把真实专业算法替换成复制、占位或简单字符串处理。直接修正工具代码、Schema 或调用样例。不要改变 action_plan.json，不要修改已经通过的工具，也不要修改上游环境包。
+文件和目录输入输出保留 x-resource-scope、x-resource-kind 标注。工具内部使用 Scope 相对路径，公开结果由 Runtime 验证并保留 Scope 内相对路径；可为空的输出引用声明为 string/null。以原始测试验收；返回值与测试预期不一致时记录具体差异，保持 rejected，不能删除资源标注或修改预期来消除失败。修好后写 repair_done.json，内容为 {{"status":"ready"}}，然后结束。"""
 
     @staticmethod
     def _load_capability_inventory(
@@ -826,6 +947,7 @@ software_plan.json 示例：
         drafts_dir: Path,
         *,
         allow_missing: bool = False,
+        draft_failures: dict[str, str] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         actions = ToolGenerator._load_action_plan(environment, inventory, action_plan_path)
 
@@ -879,6 +1001,8 @@ software_plan.json 示例：
                     write_json(draft_path, draft)
             if draft["tool"].get("usageConditions") != action["usageConditions"]:
                 if allow_missing:
+                    if draft_failures is not None:
+                        draft_failures[name] = 'draft_usage_conditions_mismatch'
                     continue
                 raise ToolGenerationError(f"工具草稿 {name} 的 usageConditions 与动作计划不一致")
             input_fields = set(
@@ -891,6 +1015,8 @@ software_plan.json 示例：
             }
             if not condition_fields.issubset(input_fields):
                 if allow_missing:
+                    if draft_failures is not None:
+                        draft_failures[name] = 'draft_condition_fields_missing:' + ','.join(sorted(condition_fields - input_fields))
                     continue
                 missing = ", ".join(sorted(condition_fields - input_fields))
                 raise ToolGenerationError(f"工具草稿 {name} 的对象定位字段未在 inputSchema 声明：{missing}")
@@ -902,29 +1028,34 @@ software_plan.json 示例：
                 str(item) for item in action["usageConditions"]["targetResources"]
             }
 
-            _validate_resource_annotations(
-                name,
-                draft["tool"].get("inputSchema"),
-                known_scopes,
-                target_resources,
-            )
-            _validate_resource_annotations(
-                name,
-                draft["tool"].get("outputSchema"),
-                known_scopes,
-                target_resources,
-                schema_name="outputSchema",
-            )
-            issues = contract_issues(draft["tool"])
-            if issues:
-                if allow_missing:
-                    continue
-                raise ToolGenerationError(f"工具草稿 {name} 的公开契约不一致：{json.dumps(issues, ensure_ascii=False)}")
+            try:
+                _validate_resource_annotations(
+                    name, draft["tool"].get("inputSchema"), known_scopes, target_resources,
+                )
+                _validate_resource_annotations(
+                    name, draft["tool"].get("outputSchema"), known_scopes, target_resources,
+                    schema_name="outputSchema",
+                )
+                issues = contract_issues(draft["tool"])
+                if issues:
+                    raise ToolGenerationError(f"工具草稿 {name} 的公开契约不一致：{json.dumps(issues, ensure_ascii=False)}")
+            except ToolGenerationError as error:
+                if not allow_missing:
+                    raise
+                if draft_failures is not None:
+                    draft_failures[name] = str(error)
+                continue
+            test_contract_error = None
+            try:
+                tests = _normalize_tests(draft.get("tests", []))
+            except ValueError as error:
+                tests, test_contract_error = [], str(error)
             drafts.append(
                 {
                     "action": action,
                     "tool": dict(draft["tool"]),
-                    "tests": _normalize_tests(draft.get("tests")),
+                    "tests": tests,
+                    "test_contract_error": test_contract_error,
                 }
             )
         return actions, drafts
@@ -934,6 +1065,8 @@ software_plan.json 示例：
         environment: dict[str, Any],
         inventory: list[dict[str, Any]],
         action_plan_path: Path,
+        *,
+        require_verification: bool = False,
     ) -> list[dict[str, Any]]:
         if not action_plan_path.is_file():
             raise ToolGenerationError("工具生成 Agent 没有写入 action_plan.json")
@@ -941,6 +1074,11 @@ software_plan.json 示例：
             plan = json.loads(action_plan_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as error:
             raise ToolGenerationError(f"action_plan.json 不是合法 JSON：{error}") from error
+        if isinstance(plan, dict):
+            if require_verification:
+                plan["verification_version"] = 1
+                write_json(action_plan_path, plan)
+            require_verification = require_verification or plan.get("verification_version") == 1
         raw_actions = plan.get("actions") if isinstance(plan, dict) else None
         if not isinstance(raw_actions, list) or not raw_actions:
             raise ToolGenerationError("action_plan.json 没有业务动作")
@@ -965,6 +1103,16 @@ software_plan.json 示例：
             if not _is_snake_case(name) or name in names:
                 raise ToolGenerationError(f"工具动作名无效或重复：{name}")
             action = dict(raw)
+            verification = raw.get("verification_tests")
+            if verification is not None or require_verification:
+                try:
+                    verification = _normalize_tests(verification)
+                except ValueError as error:
+                    raise ToolGenerationError(f"工具动作 {name} 的 verification_tests 无效：{error}") from error
+                errors = validate_tests(verification) or success_gate(verification)
+                if errors or any(not t.get("reference") or t["calls"][-1]["tool"] != name for t in verification):
+                    raise ToolGenerationError(f"工具动作 {name} 的验收案例需要有效断言、reference 和对应末次调用：{errors}")
+                action["verification_tests"] = verification
             action["capability_ids"] = [
                 str(value)
                 for value in raw.get("capability_ids", [])
@@ -1042,7 +1190,14 @@ software_plan.json 示例：
             return
         for attempt in range(self.software_repair_attempts + 1):
             try:
-                prepare_software(package_root)
+                plan = json.loads((output / 'software_plan.json').read_text(encoding='utf-8'))
+                if plan.get('container'):
+                    from .docker_runtime import build_image
+                    build_image(package_root)
+                    write_json(package_root / 'tool_runtime.json', plan)
+                else:
+                    prepare_software(package_root)
+                    (output / 'container_runtime.json').unlink(missing_ok=True)
                 write_json(output / "software_status.json", {"status": "ready", "repairs": attempt})
                 return
             except Exception as error:
@@ -1066,6 +1221,8 @@ software_plan.json 示例：
         self, package_root: Path, environment: dict[str, Any], drafts: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         from .software import validate_in_runtime
+        if (package_root / 'tool_generation/container_runtime.json').is_file():
+            return self._validate_local(package_root, environment, drafts)
         reports = validate_in_runtime(package_root, drafts)
         return reports if reports is not None else self._validate_local(package_root, environment, drafts)
 
@@ -1084,13 +1241,26 @@ software_plan.json 示例：
             tool_name = str(draft["tool"]["name"])
             if target_tools is not None and tool_name not in target_tools:
                 continue
+            baseline = draft.get("test_baseline", {})
+            cases = deepcopy(draft["tests"])
+            verification = baseline.get("verification_tests", draft.get("action", {}).get("verification_tests", []))
+            for test in verification:
+                if test not in cases:
+                    cases.append(deepcopy(test))
+            contract_errors = validate_tests(cases)
+            if draft.get("test_contract_error"):
+                contract_errors.append(draft["test_contract_error"])
+            if baseline_changes(baseline.get("tests", []), draft["tests"]):
+                contract_errors.append("test_baseline_changed_requires_review")
             required = {tool_name} | {
                 str(call.get("tool"))
-                for test in draft["tests"]
+                for test in cases if isinstance(test, dict)
                 for call in test.get("calls", [])
                 if isinstance(call, dict)
-            }
+            } if not contract_errors else {tool_name}
             try:
+                if contract_errors:
+                    raise ValueError(";".join(contract_errors))
                 # Load only the tools this draft's tests actually call.
                 missing = required - tools_by_name.keys()
                 if missing:
@@ -1098,11 +1268,13 @@ software_plan.json 示例：
                 package = ToolPackage.load(package_root, tools=[
                     deepcopy(tools_by_name[name]) for name in sorted(required)
                 ])
-                failures = self._run_tests(package, tool_name, draft["tests"])
+                failures = self._run_tests(package, tool_name, cases)
             except Exception as error:
                 failures = [f"tool_load_error:{type(error).__name__}: {error}"]
             reports.append({"tool": tool_name, "status": "passed" if not failures else "rejected",
-                            "failures": failures, "tests": draft["tests"]})
+                            "failures": failures, "tests": cases,
+                            "verification_origin": "action_plan" if verification else "draft",
+                            "test_baseline_preserved": not baseline_changes(baseline.get("tests", []), draft["tests"])})
         if not apply_dependency_status:
             return reports
         return self._apply_dependency_status(drafts, reports)
@@ -1114,8 +1286,9 @@ software_plan.json 示例：
         dependencies = {
             str(draft["tool"]["name"]): {
                 str(call.get("tool"))
-                for test in draft["tests"]
-                for call in test.get("calls", [])
+                for test in next((r["tests"] for r in reports if r["tool"] == draft["tool"]["name"]), draft["tests"])
+                if isinstance(test, dict) and isinstance(test.get("calls"), list)
+                for call in test["calls"]
                 if isinstance(call, dict)
                 and str(call.get("tool")) != str(draft["tool"]["name"])
             }
@@ -1139,8 +1312,13 @@ software_plan.json 示例：
         tool_name: str,
         tests: list[dict[str, Any]],
     ) -> list[str]:
-        if not tests:
-            return ["missing_executable_test"]
+        try:
+            tests = _normalize_tests(tests)
+        except ValueError as error:
+            return [str(error)]
+        errors = success_gate(tests) or validate_tests(tests)
+        if errors:
+            return errors
         tool = next(item for item in package.tools if str(item["name"]) == tool_name)
         target_resources = set(tool["usageConditions"]["targetResources"])
         failures: list[str] = []
@@ -1150,14 +1328,16 @@ software_plan.json 示例：
                 failures.append(f"test_{index}:final_call_must_be_{tool_name}")
                 continue
             try:
-                with ToolRuntime(package) as runtime:
-                    before = runtime.snapshot()
+                with ToolRuntime(package, isolated=True) as runtime:
+                    read_only = all(next(t for t in package.tools if t['name'] == call['tool'])
+                                    ['usageConditions']['sideEffects'] == [] for call in calls)
+                    before = None if read_only else runtime.snapshot()
                     result: dict[str, Any] | None = None
                     for call in calls:
                         result = runtime.call(str(call["tool"]), dict(call.get("arguments", {})))
                     assert result is not None
-                    after = runtime.snapshot()
-                    change = state_diff(before, after)
+                    change = ({'record_sets': [], 'filesystem_scopes': []} if read_only
+                              else state_diff(before, runtime.snapshot()))
                     changed = any(change.values())
                     changed_assets = {
                         *change["record_sets"],
@@ -1179,6 +1359,30 @@ software_plan.json 示例：
                     expected = test.get("expected_data")
                     if isinstance(expected, dict) and not _contains(result.get("data"), expected):
                         failures.append(f"test_{index}:returned_data_does_not_match_expectation")
+                    if "expected_data" in test and expected is None and result.get("data") is not None:
+                        failures.append(f"test_{index}:returned_data_does_not_match_expectation")
+                    if "expected_error" in test and not _contains(result.get("error"), test["expected_error"]):
+                        failures.append(f"test_{index}:returned_error_does_not_match_expectation")
+                    failures.extend(f"test_{index}:{error}" for error in check_numbers(result.get("data"), test.get("data_checks", [])))
+                    for check in test.get("expected_files", []):
+                        try:
+                            if check["scope_id"] not in target_resources:
+                                raise ValueError("file_check_scope_not_declared")
+                            root = runtime.context.scope_root(check["scope_id"]).resolve()
+                            path = (root / check["path"]).resolve()
+                            if Path(check["path"]).is_absolute() or not path.is_relative_to(root):
+                                raise ValueError("file_check_path_outside_scope")
+                            content = path.read_text(encoding="utf-8")
+                            if "expected_json" in check and not _contains(json.loads(content), check["expected_json"]):
+                                failures.append(f"test_{index}:file_json_does_not_match_expectation:{check['path']}")
+                            if "contains_text" in check and check["contains_text"] not in content:
+                                failures.append(f"test_{index}:file_text_does_not_match_expectation:{check['path']}")
+                        except (OSError, ValueError) as error:
+                            failures.append(f"test_{index}:file_check_error:{check['path']}:{error}")
+                    for check in test.get('expected_records', []):
+                        actual = runtime.context.records.get(check['record_set_id'], check['key'])
+                        if not _contains(actual, check['values']):
+                            failures.append(f"test_{index}:record_does_not_match_expectation:{check['record_set_id']}")
             except Exception as error:
                 failures.append(f"test_{index}:runtime_error:{type(error).__name__}: {error}")
         return failures
@@ -1216,26 +1420,15 @@ def _contains(actual: Any, expected: Any) -> bool:
     if isinstance(expected, dict):
         return isinstance(actual, dict) and all(key in actual and _contains(actual[key], value) for key, value in expected.items())
     if isinstance(expected, list):
-        return isinstance(actual, list) and all(item in actual for item in expected)
+        return isinstance(actual, list) and all(
+            any(_contains(candidate, item) for candidate in actual)
+            for item in expected
+        )
     return actual == expected
 
 
 def _normalize_tests(value: Any) -> list[dict[str, Any]]:
-    tests = [dict(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
-    if tests and all("tool" in item and "calls" not in item for item in tests):
-        final = tests[-1]
-        normalized = {
-            "calls": [
-                {"tool": str(item["tool"]), "arguments": dict(item.get("arguments", {}))}
-                for item in tests
-            ],
-            "expect_success": bool(final.get("expect_success", True)),
-            "expect_changed": bool(final.get("expect_changed", False)),
-        }
-        if isinstance(final.get("expected_data"), dict):
-            normalized["expected_data"] = dict(final["expected_data"])
-        return [normalized]
-    return tests
+    return normalize_tests(value)
 
 
 def _asset_ids(environment: dict[str, Any]) -> set[str]:
@@ -1382,16 +1575,13 @@ context.records.create(record_set_id, record)
 context.records.update(record_set_id, key, changes)
 context.records.delete(record_set_id, key)
 context.scope_root(scope_id)
-context.resources.list(scope_id=None, query=None, limit=100)
+context.resources.list(scope_id=None, query=None, limit=100, offset=0)
 context.resources.inspect(resource_ref)
 ```
 
 `get` 的 key 必须包含该 Record Set 声明的全部 key_fields。`create` 接收完整记录；
-`update` 和 `delete` 返回受影响记录数。`scope_root` 返回任务隔离副本中的 pathlib.Path。
-文件输入和输出字段分别在 inputSchema、outputSchema 上声明 `x-resource-scope` 和 `x-resource-kind`；
-模型和业务工具参数使用该 Scope 内的相对路径，例如 `daily.json`。Runtime 会在执行前校验
-Scope、路径和文件类型，再把相对路径交给工具代码。工具代码和返回值不得暴露 workspace、
-服务器绝对路径、容器路径或 MCP Resource URI。
+`create` 返回创建的记录，`update` 和 `delete` 返回受影响记录数，key 必须是完整定位字段。过滤和写入值使用环境声明的类型，布尔字段使用 true/false。分页 limit 是非负整数，大结果分批读取。`scope_root` 返回任务隔离副本中的 pathlib.Path。
+业务工具传入 Scope 内相对路径；MCP 的 `aw://scope_id/relative/path` URI 仅用于资源发现与 resources/read。文件输入和输出字段分别在 inputSchema、outputSchema 上声明 `x-resource-scope` 和 `x-resource-kind`。工具代码内部返回 Scope 内相对路径，Runtime 校验后保留公开返回值的 Scope 相对路径。工具代码和返回值不得暴露 workspace、服务器绝对路径或容器路径。
 只对 `access=copy_on_write` 的 Record Set 或 Scope 执行写操作。
 """
 
