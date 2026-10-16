@@ -49,6 +49,20 @@ def test_final_check_rejects_native_error_and_preserves_report(tmp_path, monkeyp
     assert json.loads((tmp_path/'native_result.json').read_text())['status'] == 'verification_error'
 
 
+def test_successful_self_test_exit_cannot_skip_native_run(tmp_path, monkeypatch):
+    from task_gen.test_verifier import final_review
+    from task_gen.test_verifier.program_verifier.application import runner
+    root, evidence, test = program_bundle(tmp_path)
+    test.write_text('raise SystemExit(0)\n')
+    def apply(verifier, source, output, config):
+        output.mkdir()
+        (output/'executed').touch()
+        return {'mode':'program','status':'completed','score':0}
+    monkeypatch.setattr(runner, 'apply', apply)
+    value = final_review.check_workspace('program', root, evidence, test, {}, tmp_path/'native')
+    assert value['score'] == 0 and (tmp_path/'native/executed').is_file()
+
+
 def test_final_session_can_change_main_and_rubric_together(tmp_path):
     from task_gen.test_verifier.final_review import run_final_review
     root, evidence, _ = program_bundle(tmp_path)

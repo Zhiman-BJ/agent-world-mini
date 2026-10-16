@@ -81,6 +81,12 @@ class GenerationModel:
             if timeout <= reserve:
                 raise ValueError('final_review_timeout_seconds must leave time for repair and host native test')
         record={'stage':stage,'status':'running','method':'codex','model':cfg.get('model'),'usage':'unknown'}
+        if stage == 'final':
+            files = [repository/'task_gen/test_verifier/final_review.py', Path(__file__),
+                     repository/'task_gen/test_verifier/program_verifier/application/runner.py',
+                     repository/'task_gen/test_verifier/program_verifier/application/sdk.py',
+                     repository/'task_gen/test_verifier/codex_tool_verifier/application.py']
+            record['host_files'] = {str(p.relative_to(repository)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
         write_json(call/'call.json',record)
         try:
             with tempfile.TemporaryDirectory(prefix='verifier-generation-auth-') as temporary:

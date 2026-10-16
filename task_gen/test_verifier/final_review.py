@@ -37,7 +37,11 @@ def check_workspace(method, root, evidence, self_test, config, native_output):
     sys.path.insert(0, str(root))
     sys.argv = [str(self_test)]
     try:
-        runpy.run_path(str(self_test), run_name='__main__')
+        try:
+            runpy.run_path(str(self_test), run_name='__main__')
+        except SystemExit as error:
+            if error.code not in (None, 0):
+                raise
     finally:
         sys.path[:], sys.argv = previous_path, previous_argv
     if snapshot(root) != before:
