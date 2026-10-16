@@ -1,0 +1,17 @@
+{
+  "codex": {"model": "gpt-6.1-sol", "reasoning_effort": "high", "timeout_seconds": 3600},
+  "llm": {
+    "backend": "api",
+    "model": "gpt-6.1-sol",
+    "base_url": "http://47.237.200.112:8080/v1",
+    "api_key_file": "/data1/home/tianfang/.codex/auth.json",
+    "reasoning_effort": "high",
+    "temperature": 0,
+    "max_tokens": 20000,
+    "timeout_seconds": 600
+  },
+  "generation_call_timeout_seconds": 3600,
+  "program_timeout_seconds": 5400,
+  "node_concurrency": 4,
+  "model_concurrency": 2
+}

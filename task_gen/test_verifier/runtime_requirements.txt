@@ -1,0 +1,4 @@
+# Additional readers for Parquet, HDF5, and VCD verification inputs.
+pyarrow==26.0.0
+h5py==3.16.0
+pyvcd==0.5.0

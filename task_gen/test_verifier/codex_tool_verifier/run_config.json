@@ -1,0 +1,12 @@
+{
+  "codex": {
+    "model": "gpt-6-astra",
+    "reasoning_effort": "medium",
+    "timeout_seconds": 900
+  },
+  "generation_call_timeout_seconds": 900,
+  "application_timeout_seconds": 900,
+  "tool_timeout_seconds": 120,
+  "tool_concurrency": 2,
+  "case_concurrency": 2
+}

@@ -1,0 +1,707 @@
+{
+  "trusted": {
+    "task": "这是一个面向材料计算团队的 AiiDA 远程 DFT 作业谱系与失败恢复工作环境。研究人员和工作流维护者在其中定位缺失输出，并仅对证据支持的情形创建可追溯重试。\n\n我要把官方演示归档中 MoS₂ 弛豫的完整轨迹交给使用独立分析软件的合作者，让他能重新绘制几何、能量分解和收敛过程。请为 scope_id=aiida_demo_archive 中节点 bf67bdd6-e7d2-4e6e-b15d-2ae47abcfb0b 制作一套可再用的 NPZ 数组文件，覆盖下面全部原始数组，每个来源独立转换，不合并不同数组；转换摘要中的数据类型和形状须与原数组分析一致，原子种类的字符串类型也要一致。\n\n以下清单的所有路径都相对于 aiida_demo_archive 区域；每一行依次给出仓储对象名、原始文件、派生文件和转换报告的确切路径：\n\n- atomic_species_name.npy；repo/90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7；derived/mos2_relaxation/atomic_species_name.report.converted.npz；derived/mos2_relaxation/atomic_species_name.report.json\n- cells.npy；repo/1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695；derived/mos2_relaxation/cells.report.converted.npz；derived/mos2_relaxation/cells.report.json\n- energy.npy；repo/9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793；derived/mos2_relaxation/energy.report.converted.npz；derived/mos2_relaxation/energy.report.json\n- energy_accuracy.npy；repo/dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae；derived/mos2_relaxation/energy_accuracy.report.converted.npz；derived/mos2_relaxation/energy_accuracy.report.json\n- energy_ewald.npy；repo/0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9；derived/mos2_relaxation/energy_ewald.report.converted.npz；derived/mos2_relaxation/energy_ewald.report.json\n- energy_hartree.npy；repo/de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8；derived/mos2_relaxation/energy_hartree.report.converted.npz；derived/mos2_relaxation/energy_hartree.report.json\n- energy_one_electron.npy；repo/473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f；derived/mos2_relaxation/energy_one_electron.report.converted.npz；derived/mos2_relaxation/energy_one_electron.report.json\n- energy_smearing.npy；repo/fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788；derived/mos2_relaxation/energy_smearing.report.converted.npz；derived/mos2_relaxation/energy_smearing.report.json\n- energy_threshold.npy；repo/f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737；derived/mos2_relaxation/energy_threshold.report.converted.npz；derived/mos2_relaxation/energy_threshold.report.json\n- energy_vdw.npy；repo/516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09；derived/mos2_relaxation/energy_vdw.report.converted.npz；derived/mos2_relaxation/energy_vdw.report.json\n- energy_xc.npy；repo/2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25；derived/mos2_relaxation/energy_xc.report.converted.npz；derived/mos2_relaxation/energy_xc.report.json\n- fermi_energy.npy；repo/c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d；derived/mos2_relaxation/fermi_energy.report.converted.npz；derived/mos2_relaxation/fermi_energy.report.json\n- forces.npy；repo/79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1；derived/mos2_relaxation/forces.report.converted.npz；derived/mos2_relaxation/forces.report.json\n- positions.npy；repo/424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8；derived/mos2_relaxation/positions.report.converted.npz；derived/mos2_relaxation/positions.report.json\n- scf_iterations.npy；repo/5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6；derived/mos2_relaxation/scf_iterations.report.converted.npz；derived/mos2_relaxation/scf_iterations.report.json\n- steps.npy；repo/318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553；derived/mos2_relaxation/steps.report.converted.npz；derived/mos2_relaxation/steps.report.json\n- stress.npy；repo/47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c；derived/mos2_relaxation/stress.report.converted.npz；derived/mos2_relaxation/stress.report.json\n- total_force.npy；repo/c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76；derived/mos2_relaxation/total_force.report.converted.npz；derived/mos2_relaxation/total_force.report.json\n\n只有来源能唯一对应指定节点、原始文件存在且内容哈希相符、数组非空且数值数组没有 NaN 或无穷大时才纳入交付。每个 NPZ 配套一份上述 JSON 转换报告，留下原件路径、SHA-256、来源和输出字节数、转换后的类型及形状，保持原始仓储文件不变。\n\n请在最终交接说明中逐一列出原数组名、类型、形状、元素数、数值有限性（非数值数组标为不适用），以及原件路径与 SHA-256、NPZ 路径和报告路径。比较 steps、cells、positions 的帧数与 energy、forces、stress 的记录数：明确是否能直接逐帧配对；如果数量不同，只报告实际差异，不猜测哪条应删除；交付各来源的完整格式转换，不自行裁剪或补齐。最后说明文件是否全部成功生成及原件是否保留，并注明这些是派生分析文件，不是可导入的 AiiDA 归档。",
+    "requirements": [
+      {
+        "id": "A01",
+        "requirement": "逐一交代 atomic_species_name.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A02",
+        "requirement": "逐一交代 cells.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A03",
+        "requirement": "逐一交代 energy.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A04",
+        "requirement": "逐一交代 energy_accuracy.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A05",
+        "requirement": "逐一交代 energy_ewald.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A06",
+        "requirement": "逐一交代 energy_hartree.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A07",
+        "requirement": "逐一交代 energy_one_electron.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A08",
+        "requirement": "逐一交代 energy_smearing.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A09",
+        "requirement": "逐一交代 energy_threshold.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A10",
+        "requirement": "逐一交代 energy_vdw.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A11",
+        "requirement": "逐一交代 energy_xc.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A12",
+        "requirement": "逐一交代 fermi_energy.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A13",
+        "requirement": "逐一交代 forces.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A14",
+        "requirement": "逐一交代 positions.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A15",
+        "requirement": "逐一交代 scf_iterations.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A16",
+        "requirement": "逐一交代 steps.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A17",
+        "requirement": "逐一交代 stress.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A18",
+        "requirement": "逐一交代 total_force.npy 的类型、形状、元素数、数值有限性（非数值不适用）、原件路径与SHA-256、NPZ路径、报告路径；正确且完整。"
+      },
+      {
+        "id": "A19",
+        "requirement": "比较 steps/cells/positions 帧数与 energy/forces/stress 记录数，明确不能直接逐帧配对；如实报告数量差异，不猜测应删除哪条，不宣称已裁剪或补齐。"
+      },
+      {
+        "id": "A20",
+        "requirement": "明确文件是否全部成功生成及原件是否保留，陈述必须符合程序审计事实。"
+      },
+      {
+        "id": "A21",
+        "requirement": "说明这些是派生分析文件，不是可导入的 AiiDA 归档；整体回复不能包含与已核实事实冲突或夸大的陈述。"
+      }
+    ],
+    "facts": {
+      "checks": [
+        {
+          "id": "originals",
+          "passed": true,
+          "evidence": [],
+          "reason": "checked 2008 original repository files; 0 missing/changed"
+        },
+        {
+          "id": "array:atomic_species_name.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:atomic_species_name.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.json"
+          ]
+        },
+        {
+          "id": "array:cells.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:cells.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.json"
+          ]
+        },
+        {
+          "id": "array:energy.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_accuracy.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_accuracy.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_ewald.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_ewald.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_hartree.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_hartree.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_one_electron.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_one_electron.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_smearing.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_smearing.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_threshold.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_threshold.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_vdw.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_vdw.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.json"
+          ]
+        },
+        {
+          "id": "array:energy_xc.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:energy_xc.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.json"
+          ]
+        },
+        {
+          "id": "array:fermi_energy.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:fermi_energy.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.json"
+          ]
+        },
+        {
+          "id": "array:forces.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:forces.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.json"
+          ]
+        },
+        {
+          "id": "array:positions.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:positions.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.json"
+          ]
+        },
+        {
+          "id": "array:scf_iterations.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:scf_iterations.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.json"
+          ]
+        },
+        {
+          "id": "array:steps.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:steps.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.json"
+          ]
+        },
+        {
+          "id": "array:stress.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:stress.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.json"
+          ]
+        },
+        {
+          "id": "array:total_force.npy",
+          "passed": true,
+          "reason": "dtype, shape and all elements equal reference",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.converted.npz"
+          ]
+        },
+        {
+          "id": "report:total_force.npy",
+          "passed": true,
+          "reason": "report fields match actual artifacts",
+          "evidence": [
+            "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.json"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "name": "atomic_species_name.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.json",
+          "sha256": "90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7",
+          "dtype": "|S2",
+          "shape": [
+            3
+          ],
+          "elements": 3,
+          "finite": null,
+          "source_bytes": 86,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 208
+        },
+        {
+          "name": "cells.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.json",
+          "sha256": "1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695",
+          "dtype": "float64",
+          "shape": [
+            11,
+            3,
+            3
+          ],
+          "elements": 99,
+          "finite": true,
+          "source_bytes": 872,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 596
+        },
+        {
+          "name": "energy.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.json",
+          "sha256": "9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 282
+        },
+        {
+          "name": "energy_accuracy.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.json",
+          "sha256": "dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 293
+        },
+        {
+          "name": "energy_ewald.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.json",
+          "sha256": "0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 295
+        },
+        {
+          "name": "energy_hartree.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.json",
+          "sha256": "de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 301
+        },
+        {
+          "name": "energy_one_electron.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.json",
+          "sha256": "473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 305
+        },
+        {
+          "name": "energy_smearing.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.json",
+          "sha256": "fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 295
+        },
+        {
+          "name": "energy_threshold.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.json",
+          "sha256": "f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 257
+        },
+        {
+          "name": "energy_vdw.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.json",
+          "sha256": "516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 300
+        },
+        {
+          "name": "energy_xc.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.json",
+          "sha256": "2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 292
+        },
+        {
+          "name": "fermi_energy.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.json",
+          "sha256": "c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 291
+        },
+        {
+          "name": "forces.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.json",
+          "sha256": "79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1",
+          "dtype": "float64",
+          "shape": [
+            12,
+            3,
+            3
+          ],
+          "elements": 108,
+          "finite": true,
+          "source_bytes": 944,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 557
+        },
+        {
+          "name": "positions.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.json",
+          "sha256": "424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8",
+          "dtype": "float64",
+          "shape": [
+            11,
+            3,
+            3
+          ],
+          "elements": 99,
+          "finite": true,
+          "source_bytes": 872,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 483
+        },
+        {
+          "name": "scf_iterations.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.json",
+          "sha256": "5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6",
+          "dtype": "int64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 225
+        },
+        {
+          "name": "steps.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.json",
+          "sha256": "318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553",
+          "dtype": "int64",
+          "shape": [
+            11
+          ],
+          "elements": 11,
+          "finite": true,
+          "source_bytes": 168,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 231
+        },
+        {
+          "name": "stress.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.json",
+          "sha256": "47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c",
+          "dtype": "float64",
+          "shape": [
+            12,
+            3,
+            3
+          ],
+          "elements": 108,
+          "finite": true,
+          "source_bytes": 944,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 469
+        },
+        {
+          "name": "total_force.npy",
+          "source": "filesystem_scopes/aiida_demo_archive/repo/c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76",
+          "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.converted.npz",
+          "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.json",
+          "sha256": "c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76",
+          "dtype": "float64",
+          "shape": [
+            12
+          ],
+          "elements": 12,
+          "finite": true,
+          "source_bytes": 176,
+          "array_passed": true,
+          "report_passed": true,
+          "output_bytes": 304
+        }
+      ],
+      "originals_preserved": true
+    }
+  },
+  "candidate_answer": "已为区域 aiida_demo_archive 的节点 bf67bdd6-e7d2-4e6e-b15d-2ae47abcfb0b 生成 18 个 NPZ 及 18 份 JSON 转换报告。每个原数组均独立转换为 NPZ，转换摘要的数据类型和形状与原数组分析一致；来源唯一且哈希核验通过，所有源数组非空、源数值数组全部有限。全部原始仓储文件均已保留。\n帧数：steps=11，cells=11，positions=11；记录数：energy=12，forces=12，stress=12。不能直接逐帧配对：energy 比 steps 多 1 条记录。各来源均独立完成格式转换，没有自行裁剪、补齐或猜测删除对象。\n交付清单：\n- o/atomic_species_name.npy：类型 |S2，形状 [3]，元素数 3，数值有限性：不适用（非数值数组）；原件 repo/90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7，SHA-256 90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7；NPZ derived/mos2_relaxation/atomic_species_name.report.converted.npz；报告 derived/mos2_relaxation/atomic_species_name.report.json。\n- o/cells.npy：类型 float64，形状 [11, 3, 3]，元素数 99，数值有限性：全部有限；原件 repo/1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695，SHA-256 1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695；NPZ derived/mos2_relaxation/cells.report.converted.npz；报告 derived/mos2_relaxation/cells.report.json。\n- o/energy.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793，SHA-256 9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793；NPZ derived/mos2_relaxation/energy.report.converted.npz；报告 derived/mos2_relaxation/energy.report.json。\n- o/energy_accuracy.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae，SHA-256 dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae；NPZ derived/mos2_relaxation/energy_accuracy.report.converted.npz；报告 derived/mos2_relaxation/energy_accuracy.report.json。\n- o/energy_ewald.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9，SHA-256 0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9；NPZ derived/mos2_relaxation/energy_ewald.report.converted.npz；报告 derived/mos2_relaxation/energy_ewald.report.json。\n- o/energy_hartree.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8，SHA-256 de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8；NPZ derived/mos2_relaxation/energy_hartree.report.converted.npz；报告 derived/mos2_relaxation/energy_hartree.report.json。\n- o/energy_one_electron.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f，SHA-256 473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f；NPZ derived/mos2_relaxation/energy_one_electron.report.converted.npz；报告 derived/mos2_relaxation/energy_one_electron.report.json。\n- o/energy_smearing.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788，SHA-256 fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788；NPZ derived/mos2_relaxation/energy_smearing.report.converted.npz；报告 derived/mos2_relaxation/energy_smearing.report.json。\n- o/energy_threshold.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737，SHA-256 f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737；NPZ derived/mos2_relaxation/energy_threshold.report.converted.npz；报告 derived/mos2_relaxation/energy_threshold.report.json。\n- o/energy_vdw.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09，SHA-256 516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09；NPZ derived/mos2_relaxation/energy_vdw.report.converted.npz；报告 derived/mos2_relaxation/energy_vdw.report.json。\n- o/energy_xc.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25，SHA-256 2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25；NPZ derived/mos2_relaxation/energy_xc.report.converted.npz；报告 derived/mos2_relaxation/energy_xc.report.json。\n- o/fermi_energy.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d，SHA-256 c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d；NPZ derived/mos2_relaxation/fermi_energy.report.converted.npz；报告 derived/mos2_relaxation/fermi_energy.report.json。\n- o/forces.npy：类型 float64，形状 [12, 3, 3]，元素数 108，数值有限性：全部有限；原件 repo/79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1，SHA-256 79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1；NPZ derived/mos2_relaxation/forces.report.converted.npz；报告 derived/mos2_relaxation/forces.report.json。\n- o/positions.npy：类型 float64，形状 [11, 3, 3]，元素数 99，数值有限性：全部有限；原件 repo/424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8，SHA-256 424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8；NPZ derived/mos2_relaxation/positions.report.converted.npz；报告 derived/mos2_relaxation/positions.report.json。\n- o/scf_iterations.npy：类型 int64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6，SHA-256 5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6；NPZ derived/mos2_relaxation/scf_iterations.report.converted.npz；报告 derived/mos2_relaxation/scf_iterations.report.json。\n- o/steps.npy：类型 int64，形状 [11]，元素数 11，数值有限性：全部有限；原件 repo/318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553，SHA-256 318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553；NPZ derived/mos2_relaxation/steps.report.converted.npz；报告 derived/mos2_relaxation/steps.report.json。\n- o/stress.npy：类型 float64，形状 [12, 3, 3]，元素数 108，数值有限性：全部有限；原件 repo/47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c，SHA-256 47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c；NPZ derived/mos2_relaxation/stress.report.converted.npz；报告 derived/mos2_relaxation/stress.report.json。\n- o/total_force.npy：类型 float64，形状 [12]，元素数 12，数值有限性：全部有限；原件 repo/c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76，SHA-256 c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76；NPZ derived/mos2_relaxation/total_force.report.converted.npz；报告 derived/mos2_relaxation/total_force.report.json。\n这些 NPZ 和转换报告是派生分析文件，不是可导入的 AiiDA 归档。"
+}

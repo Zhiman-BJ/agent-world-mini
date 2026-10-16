@@ -250,6 +250,32 @@ def sandbox_command(run_dir: Path, auth_dir: Path, *, runtime_paths: list[Path])
 
 
 class _VerifierClient(CodexAgentClient):
+    def __init__(self, *, record_usage=False, **kwargs):
+        self.record_usage = record_usage
+        if record_usage:
+            kwargs['persistent_session'] = True
+        super().__init__(**kwargs)
+
+    def _run_process(self, *args, **kwargs):
+        if not self.record_usage:
+            return super()._run_process(*args, **kwargs)
+        from .test_verifier.codex_tool_verifier.usage import collect_usage
+        # Persist only for usage recovery; every invocation remains a fresh session.
+        self.session_id = None
+        self.last_log_directory = None
+        started = time.monotonic()
+        try:
+            return super()._run_process(*args, **kwargs)
+        finally:
+            if self.last_log_directory is not None:
+                try:
+                    record = collect_usage(self.last_log_directory, self.codex_home)
+                except Exception as error:
+                    record = {'usage': None, 'source': 'unknown', 'collection_error': str(error)}
+                record.update(model=self.model, reasoning_effort=self.reasoning_effort,
+                              seconds=time.monotonic()-started)
+                _write(self.last_log_directory/'api_usage.json', record)
+
     def _llm_arguments(self, environment: dict[str, str]) -> list[str]:
         return super()._llm_arguments(environment) + ["--json", "--config", "mcp_servers={}",
                                                     "--config", 'web_search="disabled"']
@@ -298,6 +324,7 @@ def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
         if env_key and os.environ.get(env_key):
             prefix += ["--setenv", env_key, os.environ[env_key]]
         client = _VerifierClient(model=model, codex_home=auth, executable=executable,
+            record_usage=config.get('record_usage', False),
             reasoning_effort=config.get("reasoning_effort") or settings.get("model_reasoning_effort"),
             timeout_seconds=timeout, bypass_approvals_and_sandbox=True,
             log_directory=logs, command_prefix=tuple(prefix))

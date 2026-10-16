@@ -1,0 +1,615 @@
+{
+  "checks": [
+    {
+      "id": "originals",
+      "passed": true,
+      "evidence": [],
+      "reason": "checked 2008 original repository files; 0 missing/changed"
+    },
+    {
+      "id": "array:atomic_species_name.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:atomic_species_name.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.json"
+      ]
+    },
+    {
+      "id": "array:cells.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:cells.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.json"
+      ]
+    },
+    {
+      "id": "array:energy.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_accuracy.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_accuracy.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_ewald.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_ewald.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_hartree.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_hartree.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_one_electron.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_one_electron.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_smearing.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_smearing.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_threshold.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_threshold.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_vdw.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_vdw.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.json"
+      ]
+    },
+    {
+      "id": "array:energy_xc.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:energy_xc.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.json"
+      ]
+    },
+    {
+      "id": "array:fermi_energy.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:fermi_energy.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.json"
+      ]
+    },
+    {
+      "id": "array:forces.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:forces.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.json"
+      ]
+    },
+    {
+      "id": "array:positions.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:positions.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.json"
+      ]
+    },
+    {
+      "id": "array:scf_iterations.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:scf_iterations.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.json"
+      ]
+    },
+    {
+      "id": "array:steps.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:steps.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.json"
+      ]
+    },
+    {
+      "id": "array:stress.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:stress.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.json"
+      ]
+    },
+    {
+      "id": "array:total_force.npy",
+      "passed": true,
+      "reason": "dtype, shape and all elements equal reference",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.converted.npz"
+      ]
+    },
+    {
+      "id": "report:total_force.npy",
+      "passed": true,
+      "reason": "report fields match actual artifacts",
+      "evidence": [
+        "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.json"
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "name": "atomic_species_name.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/atomic_species_name.report.json",
+      "sha256": "90cc7bb09bb6911a3e761d728b730669242e87c29ccd3770e22444c8283b87e7",
+      "dtype": "|S2",
+      "shape": [
+        3
+      ],
+      "elements": 3,
+      "finite": null,
+      "source_bytes": 86,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 208
+    },
+    {
+      "name": "cells.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/cells.report.json",
+      "sha256": "1ed44d88ec0c761c0b76dd75791c228498defad088f8348d1bf42893c1ef7695",
+      "dtype": "float64",
+      "shape": [
+        11,
+        3,
+        3
+      ],
+      "elements": 99,
+      "finite": true,
+      "source_bytes": 872,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 596
+    },
+    {
+      "name": "energy.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy.report.json",
+      "sha256": "9a0ef576ccf5aae0ea3906aed83d90ad90fc3bc18a3b9308e10f02a374d54793",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 282
+    },
+    {
+      "name": "energy_accuracy.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_accuracy.report.json",
+      "sha256": "dbdeccb607c03ca4b2f415b0be705e3245120c8607fcebb674969a640c183dae",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 293
+    },
+    {
+      "name": "energy_ewald.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_ewald.report.json",
+      "sha256": "0b8e7d0aea9f9f221adc9227b42018a392956a5f21151fb2ab05541b82c853c9",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 295
+    },
+    {
+      "name": "energy_hartree.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_hartree.report.json",
+      "sha256": "de6e35601f2514f3c150e5b7f1927757ede40ee850798f25b89a4afc05ca12a8",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 301
+    },
+    {
+      "name": "energy_one_electron.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_one_electron.report.json",
+      "sha256": "473a63ac86ed42ac44dc5a152b0e5ab98c8cd288c9d1a4b4d638b252e41f952f",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 305
+    },
+    {
+      "name": "energy_smearing.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_smearing.report.json",
+      "sha256": "fd403ded3a23d5b61515eb68c48e38ee3ede1f50aa6bbb8575f6f9c86a5fa788",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 295
+    },
+    {
+      "name": "energy_threshold.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_threshold.report.json",
+      "sha256": "f728c8083bfe67f66854613bc34747e1a82e93c19f90a18d9c603af854754737",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 257
+    },
+    {
+      "name": "energy_vdw.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_vdw.report.json",
+      "sha256": "516ea5290e77f1031c4f0e72e0c3692a78c9c67b04ff38e6466d648abb792a09",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 300
+    },
+    {
+      "name": "energy_xc.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/energy_xc.report.json",
+      "sha256": "2ef3a2c9fdc76c3099311bff2cab089ca6159e58edba558976cf196251bf6e25",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 292
+    },
+    {
+      "name": "fermi_energy.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/fermi_energy.report.json",
+      "sha256": "c55c1bde668e85b6236031225e2ec446d07f0d687dba5635ee0487356704b18d",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 291
+    },
+    {
+      "name": "forces.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/forces.report.json",
+      "sha256": "79c0164a13ed7ae545a5304f32e28daa07d424f334447e0893467f599fb441e1",
+      "dtype": "float64",
+      "shape": [
+        12,
+        3,
+        3
+      ],
+      "elements": 108,
+      "finite": true,
+      "source_bytes": 944,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 557
+    },
+    {
+      "name": "positions.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/positions.report.json",
+      "sha256": "424605910f1104c960adad66b4154d8916a1b54bc097a0522f65b0e9e54aa5d8",
+      "dtype": "float64",
+      "shape": [
+        11,
+        3,
+        3
+      ],
+      "elements": 99,
+      "finite": true,
+      "source_bytes": 872,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 483
+    },
+    {
+      "name": "scf_iterations.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/scf_iterations.report.json",
+      "sha256": "5036d3c5501c553903b41fd8567d32f739c3fa40db263a94911fb4ecec9ec4f6",
+      "dtype": "int64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 225
+    },
+    {
+      "name": "steps.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/steps.report.json",
+      "sha256": "318f96af5f6d6c8269ceafc013ff4b1660af1a641d2f57dd26bf45cd34fd0553",
+      "dtype": "int64",
+      "shape": [
+        11
+      ],
+      "elements": 11,
+      "finite": true,
+      "source_bytes": 168,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 231
+    },
+    {
+      "name": "stress.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/stress.report.json",
+      "sha256": "47bbb4dfc5301a74c81649d0b70b1d2c64118ec3820b2ca741e62e957872e42c",
+      "dtype": "float64",
+      "shape": [
+        12,
+        3,
+        3
+      ],
+      "elements": 108,
+      "finite": true,
+      "source_bytes": 944,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 469
+    },
+    {
+      "name": "total_force.npy",
+      "source": "filesystem_scopes/aiida_demo_archive/repo/c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76",
+      "output": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.converted.npz",
+      "report": "filesystem_scopes/aiida_demo_archive/derived/mos2_relaxation/total_force.report.json",
+      "sha256": "c6218cc8129d19b1f9a505e89a86d688a210da62a5c6ffaf610177c6be0f3b76",
+      "dtype": "float64",
+      "shape": [
+        12
+      ],
+      "elements": 12,
+      "finite": true,
+      "source_bytes": 176,
+      "array_passed": true,
+      "report_passed": true,
+      "output_bytes": 304
+    }
+  ],
+  "originals_preserved": true
+}

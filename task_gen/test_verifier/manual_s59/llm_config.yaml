@@ -1,0 +1,13 @@
+llm:
+  api_key_file: ~/.codex-task-eval/auth.json
+  backend: api
+  base_url: http://47.237.200.112:8080/v1
+  codex_home: ~/.codex-task-eval
+  max_concurrency: 16
+  max_tokens: 6500
+  model: gpt-5.6-sol
+  reasoning_effort: medium
+  response_format:
+    type: json_object
+  temperature: 0
+  timeout_seconds: 180

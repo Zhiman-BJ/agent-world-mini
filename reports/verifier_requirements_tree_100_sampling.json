@@ -1,0 +1,514 @@
+{
+  "method": "Python random.Random(seed).sample(pool, 50); pool in manifest environment order then task list order; exclude previous 50 task_ids only; no reroll or postselection",
+  "seed": "17772470115575243715",
+  "eligible_tasks": 3720,
+  "manifest_sha256": "359a73b4ab627176f22d29029c66417e80a1938f96b31345f0aae28a31e31447",
+  "total_tasks": 3770,
+  "previous_sample_count": 50,
+  "added_sample_count": 50,
+  "new_environment_count": 48,
+  "combined_environment_count": 69,
+  "python_random_algorithm": "random.Random integer seed; sample without replacement; no reroll",
+  "draws": [
+    {
+      "id": "S51",
+      "task_id": "semiconductor_scenario_05_02_02_0334_program_002",
+      "environment_id": "semiconductor_scenario_05_02_02_0334",
+      "manifest_index": 222,
+      "task_index": 2,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_05_02_02_0334/tasks.json",
+      "sha256": "ff91db9509f475bc1e330f0019be8cb11cfc7109c387ccd1d60798c5a92b00a9"
+    },
+    {
+      "id": "S52",
+      "task_id": "semiconductor_scenario_08_01_01_program_000",
+      "environment_id": "semiconductor_scenario_08_01_01",
+      "manifest_index": 347,
+      "task_index": 0,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_08_01_01/tasks.json",
+      "sha256": "ab1a44e358aaaeb26b62ea04fd72d60d0332b48b67bbf3f38928ad61a32ca84c"
+    },
+    {
+      "id": "S53",
+      "task_id": "itri_secs_gem_emulator_program_008",
+      "environment_id": "semiconductor_scenario_06_01_03",
+      "manifest_index": 241,
+      "task_index": 8,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_01_03/tasks.json",
+      "sha256": "817a12c5d84e24e53bf5ed58d7f2c8fc66b2c0da58fc99adeaf546f03857b182"
+    },
+    {
+      "id": "S54",
+      "task_id": "semiconductor_scenario_04_04_02_program_006",
+      "environment_id": "semiconductor_scenario_04_04_02",
+      "manifest_index": 213,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_04_04_02/tasks.json",
+      "sha256": "38858f714320c6d890defdfc269a92439b8e6b188a3b340835d4082a7bcfc592"
+    },
+    {
+      "id": "S55",
+      "task_id": "photonics_mode_overlap_001_program_001",
+      "environment_id": "semiconductor_scenario_02_08_02_0172",
+      "manifest_index": 147,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_08_02_0172/tasks.json",
+      "sha256": "04ee5b167611049aed658e5c177c4ac07249b2ffd9650b28818cec20e1154af3"
+    },
+    {
+      "id": "S56",
+      "task_id": "sic_oxygen_pl6_research_program_005",
+      "environment_id": "semiconductor_scenario_01_04_02_0030",
+      "manifest_index": 54,
+      "task_index": 5,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_04_02_0030/tasks.json",
+      "sha256": "4cd2fe9e7e492d682d2357c933906559ae0864631c5ef12f2cd848f44759baef"
+    },
+    {
+      "id": "S57",
+      "task_id": "organic_overlayer_xrr_001_program_005",
+      "environment_id": "semiconductor_scenario_07_05_03_0470",
+      "manifest_index": 331,
+      "task_index": 5,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_07_05_03_0470/tasks.json",
+      "sha256": "38c91ab98c6e7dc80cf9d7a202426918d0c4b95a793f24b2aa3a483cba347ed2"
+    },
+    {
+      "id": "S58",
+      "task_id": "ingaas_gaas_qd_radiation_review_program_009",
+      "environment_id": "semiconductor_scenario_01_08_01_0071",
+      "manifest_index": 101,
+      "task_index": 9,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_08_01_0071/tasks.json",
+      "sha256": "0078158b7cba06ef67de3b756ec64fb8db8b62956ca0769b24ec60b09d01d387"
+    },
+    {
+      "id": "S59",
+      "task_id": "aiida_dft_provenance_recovery_program_000",
+      "environment_id": "semiconductor_scenario_01_03_03_0023",
+      "manifest_index": 45,
+      "task_index": 0,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_03_03_0023/tasks.json",
+      "sha256": "f45dcd254912edb64e4b16f108dd143a736d3cb5a384933bc16b7a07c62263c5"
+    },
+    {
+      "id": "S60",
+      "task_id": "photonics_layout_budget_workspace_program_006",
+      "environment_id": "semiconductor_scenario_03_01_01_0205",
+      "manifest_index": 159,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_03_01_01_0205/tasks.json",
+      "sha256": "a1c7b67ebafa2ac44f036ca2e3edf2fa2fa8505cf72b9195c77350e03f82f7eb"
+    },
+    {
+      "id": "S61",
+      "task_id": "silicon_crystallography_exchange_program_002",
+      "environment_id": "semiconductor_scenario_01_02_01_0015",
+      "manifest_index": 35,
+      "task_index": 2,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_02_01_0015/tasks.json",
+      "sha256": "1634f15b2184166c45bee400ae700c20ecbaaad63bf3774432b46f252e551e0f"
+    },
+    {
+      "id": "S62",
+      "task_id": "nife2o4_oxide_spintronics_2020_program_003",
+      "environment_id": "semiconductor_scenario_07_05_02_0461",
+      "manifest_index": 326,
+      "task_index": 3,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_07_05_02_0461/tasks.json",
+      "sha256": "80e3658a8f614196c32d513e946fe9f01d3542378b520b0f7f9d656d15c88b4b"
+    },
+    {
+      "id": "S63",
+      "task_id": "semiconductor_iv_validity_0314_program_003",
+      "environment_id": "semiconductor_scenario_04_01_01_0314",
+      "manifest_index": 205,
+      "task_index": 3,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_04_01_01_0314/tasks.json",
+      "sha256": "9c16448f5a83ccd55b903823e0d7752774e0a350a327c24690270f020955bfa9"
+    },
+    {
+      "id": "S64",
+      "task_id": "vasp_magnetism_electronic_structure_program_003",
+      "environment_id": "semiconductor_scenario_01_06_01_0064",
+      "manifest_index": 91,
+      "task_index": 3,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_06_01_0064/tasks.json",
+      "sha256": "6a9daffeb6307f035cbad384e847ca94609ac02b5474e07326ad9b00c5473550"
+    },
+    {
+      "id": "S65",
+      "task_id": "semiconductor_netlist_execution_1_program_008",
+      "environment_id": "semiconductor_netlist_execution_1",
+      "manifest_index": 11,
+      "task_index": 8,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_netlist_execution_1/tasks.json",
+      "sha256": "422a017222cc228866484ea3395a636ba2720a77d1fb5a82b48d91f92bc4d9ef"
+    },
+    {
+      "id": "S66",
+      "task_id": "semiconductor_fdc_model_maintenance_program_001",
+      "environment_id": "semiconductor_scenario_06_02_01_0377",
+      "manifest_index": 245,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_02_01_0377/tasks.json",
+      "sha256": "bac6e69c3983a15a1afc452a1ffbe9bb531040c5b5149af948534b2c8a0316b8"
+    },
+    {
+      "id": "S67",
+      "task_id": "tfln_mutc_pd_qualification_program_001",
+      "environment_id": "semiconductor_scenario_02_07_01_0159",
+      "manifest_index": 142,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_07_01_0159/tasks.json",
+      "sha256": "2e6baa4ef81243b3592f2629e5125ca10979b55a69f0df2bfa34f8a0dd1d7043"
+    },
+    {
+      "id": "S68",
+      "task_id": "semiconductor_defect_thermodynamics_workspace_program_008",
+      "environment_id": "semiconductor_scenario_01_04_04",
+      "manifest_index": 61,
+      "task_index": 8,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_04_04/tasks.json",
+      "sha256": "cd07ea27138ad7992120646fe17f8353837c74fad61e225a68841b4f66843da8"
+    },
+    {
+      "id": "S69",
+      "task_id": "semiconductor_scenario_01_02_02_program_008",
+      "environment_id": "semiconductor_scenario_01_02_02",
+      "manifest_index": 37,
+      "task_index": 8,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_02_02/tasks.json",
+      "sha256": "94736efa835eec160889fef3b5aeddade0d25269665874367367535767e9ce53"
+    },
+    {
+      "id": "S70",
+      "task_id": "vna_repeatability_review_01_program_000",
+      "environment_id": "semiconductor_scenario_02_06_01_0143",
+      "manifest_index": 131,
+      "task_index": 0,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_06_01_0143/tasks.json",
+      "sha256": "f826d2b82bb8878a926e660df0d7740a03327080367cd68c9a9bea0e8d010ba5"
+    },
+    {
+      "id": "S71",
+      "task_id": "semiconductor_scenario_08_02_w1_0514_program_003",
+      "environment_id": "semiconductor_scenario_08_02_w1_0514",
+      "manifest_index": 371,
+      "task_index": 3,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_08_02_w1_0514/tasks.json",
+      "sha256": "c84a92486690cef80fe68cb959be66409ea5dc7ad47b88fa2b3ab7701ad4d320"
+    },
+    {
+      "id": "S72",
+      "task_id": "semiconductor_qw_tandem_modeling_program_005",
+      "environment_id": "semiconductor_scenario_02_01_03_0115",
+      "manifest_index": 125,
+      "task_index": 5,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_01_03_0115/tasks.json",
+      "sha256": "8bb1d226c53ad78c0a36fb21b9931701602fd93206ffae1d3ba0d8c5369bb8b8"
+    },
+    {
+      "id": "S73",
+      "task_id": "semiconductor_scenario_06_01_01_0365_program_001",
+      "environment_id": "semiconductor_scenario_06_01_01_0365",
+      "manifest_index": 237,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_01_01_0365/tasks.json",
+      "sha256": "2f95ed1f0f3d1794fb45a27e59dc9014001ac37de2a11751221766fc5b405beb"
+    },
+    {
+      "id": "S74",
+      "task_id": "semiconductor_scenario_06_03_02_0392_program_009",
+      "environment_id": "semiconductor_scenario_06_03_02_0392",
+      "manifest_index": 256,
+      "task_index": 9,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_03_02_0392/tasks.json",
+      "sha256": "0c7df7ea0f3e5279aa122d240a142def1f264f05e1f5f11965395c0ec64a13c8"
+    },
+    {
+      "id": "S75",
+      "task_id": "semiconductor_trace_segmentation_060202_program_004",
+      "environment_id": "semiconductor_scenario_06_02_02",
+      "manifest_index": 248,
+      "task_index": 4,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_02_02/tasks.json",
+      "sha256": "8bd98a36551822845f16693007114a8963ee17fc15f541e8c809c1ebef33bb0f"
+    },
+    {
+      "id": "S76",
+      "task_id": "semiconductor_scenario_06_04_01_program_006",
+      "environment_id": "semiconductor_scenario_06_04_01",
+      "manifest_index": 258,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_04_01/tasks.json",
+      "sha256": "018f9cf5356d70c9726a65a1aeec80e2453d364691a120e18f4558b56b5f5527"
+    },
+    {
+      "id": "S77",
+      "task_id": "semiconductor_bandgap_review_program_001",
+      "environment_id": "semiconductor_scenario_01_06_01_0060",
+      "manifest_index": 87,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_06_01_0060/tasks.json",
+      "sha256": "2216e1a0a2f219174eca9c0ee569e400b8c3ab84921c5bb4355d1366424f868f"
+    },
+    {
+      "id": "S78",
+      "task_id": "rf_nport_macro_model_workspace_program_004",
+      "environment_id": "semiconductor_scenario_02_06_01_0151",
+      "manifest_index": 137,
+      "task_index": 4,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_06_01_0151/tasks.json",
+      "sha256": "419a76073cce5f4e431f6c391e9366a305587980fe66a933cf0a635fb4a7ea5e"
+    },
+    {
+      "id": "S79",
+      "task_id": "algan_kp_parameter_validation_program_001",
+      "environment_id": "semiconductor_scenario_01_08_01_0076",
+      "manifest_index": 104,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_08_01_0076/tasks.json",
+      "sha256": "f1dfbbf0deef21fb5ba6478972d57198977aa4576d5eee85d3b6ce9a55429276"
+    },
+    {
+      "id": "S80",
+      "task_id": "rf_receiver_linearity_review_program_000",
+      "environment_id": "semiconductor_scenario_02_06_01_0148",
+      "manifest_index": 135,
+      "task_index": 0,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_06_01_0148/tasks.json",
+      "sha256": "bc18cc7dd566d1f801efb0fe0e8450e22251e550a9d999d9723f2e9f2d7253c1"
+    },
+    {
+      "id": "S81",
+      "task_id": "peled_interfacial_analysis_program_009",
+      "environment_id": "semiconductor_scenario_07_03_04_0439",
+      "manifest_index": 302,
+      "task_index": 9,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_07_03_04_0439/tasks.json",
+      "sha256": "744ea42fcff7193f00a2a8643fb9f9452a2c8c846f4ed1fadb8b6dc59effd054"
+    },
+    {
+      "id": "S82",
+      "task_id": "semiconductor_scenario_06_05_04_program_005",
+      "environment_id": "semiconductor_scenario_06_05_04",
+      "manifest_index": 270,
+      "task_index": 5,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_05_04/tasks.json",
+      "sha256": "17ed96ef7cbce74ef9ceea87addde872f1c7524633f7f6f9a27d54265dfb4aa2"
+    },
+    {
+      "id": "S83",
+      "task_id": "oxide_stem_eels_damage_review_program_001",
+      "environment_id": "semiconductor_scenario_07_04_02_0449",
+      "manifest_index": 313,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_07_04_02_0449/tasks.json",
+      "sha256": "7f318a5ccf16d7898f4defcc2ddc349abbb0a8cc290465bef3c35d476d9054de"
+    },
+    {
+      "id": "S84",
+      "task_id": "semiconductor_stem_analysis_070202_program_007",
+      "environment_id": "semiconductor_scenario_07_02_02",
+      "manifest_index": 285,
+      "task_index": 7,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_07_02_02/tasks.json",
+      "sha256": "62f1934aa962ffe2a366342be07d3a519190b1d1c0855931c5567e1ef7621aa1"
+    },
+    {
+      "id": "S85",
+      "task_id": "semiconductor_scenario_08_02_04_program_006",
+      "environment_id": "semiconductor_scenario_08_02_04",
+      "manifest_index": 365,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_08_02_04/tasks.json",
+      "sha256": "a18f2f146b56686d588027342b36da2a5d68b81c5c1adb89e8c15edc961157ed"
+    },
+    {
+      "id": "S86",
+      "task_id": "semiconductor_scenario_02_06_01_0145_program_003",
+      "environment_id": "semiconductor_scenario_02_06_01_0145",
+      "manifest_index": 133,
+      "task_index": 3,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_06_01_0145/tasks.json",
+      "sha256": "9fff9937d728ac8ed5d6e8f4938efbc8a1960ae619892dec7bb0d24262f36976"
+    },
+    {
+      "id": "S87",
+      "task_id": "semiconductor_scenario_05_02_02_0334_program_006",
+      "environment_id": "semiconductor_scenario_05_02_02_0334",
+      "manifest_index": 222,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_05_02_02_0334/tasks.json",
+      "sha256": "163ea0c4e3bd7223443709dcae67d9764e491d7def4d53002fa266a48ef07d5c"
+    },
+    {
+      "id": "S88",
+      "task_id": "semiconductor_rf_vna_measurements_program_004",
+      "environment_id": "semiconductor_scenario_02_06_02_0155",
+      "manifest_index": 139,
+      "task_index": 4,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_06_02_0155/tasks.json",
+      "sha256": "18dba02d53aaa3adf0d055e3bec117ad8fd5bbb8d4296073885b8e16ccb2c8d2"
+    },
+    {
+      "id": "S89",
+      "task_id": "semiconductor_scenario_01_01_03_0008_program_004",
+      "environment_id": "semiconductor_scenario_01_01_03_0008",
+      "manifest_index": 28,
+      "task_index": 4,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_01_03_0008/tasks.json",
+      "sha256": "79ff4c7497c47bbfdc4e11ae1ddd50716d4ef022e3ded8341f15c87056cc463a"
+    },
+    {
+      "id": "S90",
+      "task_id": "semiconductor_dlts_dft_evidence_program_001",
+      "environment_id": "semiconductor_scenario_01_04_03_0032",
+      "manifest_index": 56,
+      "task_index": 1,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_04_03_0032/tasks.json",
+      "sha256": "3e342732805b857aae38f5fa7da617cc0dc00c8a311d75a3e573ed39b3f6201e"
+    },
+    {
+      "id": "S91",
+      "task_id": "semiconductor_scenario_02_10_01_0181_program_002",
+      "environment_id": "semiconductor_scenario_02_10_01_0181",
+      "manifest_index": 150,
+      "task_index": 2,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_02_10_01_0181/tasks.json",
+      "sha256": "9a51ce97314d9c98de60edc129dab27c68b7e48b42f6deb3481b78e4963d9206"
+    },
+    {
+      "id": "S92",
+      "task_id": "eels_batch_qc_001_program_007",
+      "environment_id": "semiconductor_scenario_07_04_02_0452",
+      "manifest_index": 316,
+      "task_index": 7,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_07_04_02_0452/tasks.json",
+      "sha256": "708ee62ee25eac75f1edd22763ef13043cf7fba4d3107a5c7def65f472b0d61b"
+    },
+    {
+      "id": "S93",
+      "task_id": "semiconductor_scenario_06_04_04_program_000",
+      "environment_id": "semiconductor_scenario_06_04_04",
+      "manifest_index": 262,
+      "task_index": 0,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_06_04_04/tasks.json",
+      "sha256": "e6cb9c31a9c2254a7ee60b9811c90c9251ecfc8b724237f82130f7498b1cf8e9"
+    },
+    {
+      "id": "S94",
+      "task_id": "semiconductor_quality_investigation_program_006",
+      "environment_id": "semiconductor_scenario_08_02_w1_0520",
+      "manifest_index": 374,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_08_02_w1_0520/tasks.json",
+      "sha256": "fbb809a3b0be1bd21303378edce9a4eeb96372336efe14a0a4cb02d6083c328a"
+    },
+    {
+      "id": "S95",
+      "task_id": "semiconductor_etch_particle_investigation_program_003",
+      "environment_id": "semiconductor_scenario_08_02_w1_0511",
+      "manifest_index": 369,
+      "task_index": 3,
+      "source_batch": "program_batch_added49_10_gpt61sol_high_20261004",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_08_02_w1_0511/tasks.json",
+      "sha256": "179fc1897f7d72ee2978fecc8aa0f62ec9c106bf2874516a4980f6c0b112fce5"
+    },
+    {
+      "id": "S96",
+      "task_id": "silicon_donor_exchange_review_program_008",
+      "environment_id": "semiconductor_scenario_01_08_02_0080",
+      "manifest_index": 108,
+      "task_index": 8,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_08_02_0080/tasks.json",
+      "sha256": "b1b0ced348ed4ffeedc8adc60fe6faaf5e52d26d62b13e96501195ee035eee2b"
+    },
+    {
+      "id": "S97",
+      "task_id": "semiconductor_scenario_04_03_01_program_005",
+      "environment_id": "semiconductor_scenario_04_03_01",
+      "manifest_index": 212,
+      "task_index": 5,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_04_03_01/tasks.json",
+      "sha256": "1b2ea0691fc08b12272f19e10d4d258b31adb95805305877cb03ab6e98ef41d9"
+    },
+    {
+      "id": "S98",
+      "task_id": "cdte_defect_thermodynamics_scan_program_006",
+      "environment_id": "semiconductor_scenario_01_04_04_0039",
+      "manifest_index": 64,
+      "task_index": 6,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_04_04_0039/tasks.json",
+      "sha256": "6087b1c964652bbe79d55ef068606821486e9338f1d11409a7907446dd73ea27"
+    },
+    {
+      "id": "S99",
+      "task_id": "vo2_thermal_cycle_environment_program_007",
+      "environment_id": "semiconductor_scenario_01_02_01_0013",
+      "manifest_index": 33,
+      "task_index": 7,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_02_01_0013/tasks.json",
+      "sha256": "1b40452ffa5e59f1a3b97b64f32edd0946985a6267478986e1b610b3f9a50d31"
+    },
+    {
+      "id": "S100",
+      "task_id": "algan_kp_parameter_validation_program_005",
+      "environment_id": "semiconductor_scenario_01_08_01_0076",
+      "manifest_index": 104,
+      "task_index": 5,
+      "source_batch": "program_batch_all519_10_gpt6sol_high_20261002",
+      "source": "/data1/agent_world/task_program/complete_10_task_environments_20261005/environments/semiconductor_scenario_01_08_01_0076/tasks.json",
+      "sha256": "73cb816f56417537c2b2cf12474b615ce3e5f6655c6dcf3a60deb71875497dd0"
+    }
+  ]
+}
