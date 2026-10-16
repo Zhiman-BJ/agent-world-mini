@@ -116,6 +116,67 @@ def test_retries_invalid_result_and_preserves_failure(tmp_path):
             run_verification_agent(root, {"codex_home": str(home), "attempts": 1})
 
 
+def test_verdict_quote_error_identifies_requirement_without_changing_acceptance(tmp_path):
+    root = prepare(tmp_path)
+    value = verdict()
+    value["requirements"][0]["task_quote"] = "Return the value."
+    with pytest.raises(ValueError, match="requirement 'R1': task_quote is not an exact task excerpt") as failure:
+        validate_verdict(value, root)
+    assert "Return the value." in str(failure.value)
+    assert "contiguous substring" in str(failure.value)
+    assert validate_verdict(verdict(), root)["outcome"] == "pass"
+    value = verdict()
+    value["requirements"].append(dict(value["requirements"][0]))
+    with pytest.raises(ValueError, match="duplicate requirement id 'R1'"):
+        validate_verdict(value, root)
+
+
+def test_retry_receives_specific_invalid_quote_instead_of_generic_schema_message(tmp_path):
+    root = prepare(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.toml").write_text('model="test"')
+    invalid = verdict()
+    invalid["requirements"][0]["task_quote"] = "Return the value."
+    with patch("task_gen.task_eval_verifier._VerifierClient.run", side_effect=[json.dumps(invalid), json.dumps(verdict())]) as run:
+        result = run_verification_agent(root, {"codex_home": str(home)})
+    assert result["outcome"] == "pass"
+    assert "requirement 'R1'" in run.call_args_list[1].args[0]
+    assert "Return the value." in run.call_args_list[1].args[0]
+    assert "contiguous substring" in run.call_args_list[1].args[0]
+
+
+@pytest.mark.parametrize("enabled", [None, False, True])
+def test_submission_preflight_is_explicit_and_does_not_change_default_prompt(tmp_path, enabled):
+    root = prepare(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.toml").write_text('model="test"')
+    config = {"codex_home": str(home)}
+    if enabled is not None:
+        config["submission_preflight"] = enabled
+    with patch("task_gen.task_eval_verifier._VerifierClient.run", return_value=json.dumps(verdict())) as run:
+        assert run_verification_agent(root, config)["outcome"] == "pass"
+    prompt = run.call_args.args[0]
+    assert ("提交前格式自检" in prompt) == (enabled is True)
+    assert prompt.startswith((root / "prompt.txt").read_text())
+
+
+def test_submission_preflight_does_not_accept_an_invalid_quote(tmp_path):
+    root = prepare(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.toml").write_text('model="test"')
+    invalid = verdict()
+    invalid["requirements"][0]["task_quote"] = "Return the value."
+    with patch("task_gen.task_eval_verifier._VerifierClient.run", return_value=json.dumps(invalid)):
+        with pytest.raises(VerificationError):
+            run_verification_agent(root, {
+                "codex_home": str(home), "submission_preflight": True, "attempts": 1,
+            })
+    assert not (root / "verdict.json").exists()
+
+
 def test_verifier_rejects_missing_initial_state(tmp_path):
     initial = tmp_path / "initial"
     initial.mkdir()

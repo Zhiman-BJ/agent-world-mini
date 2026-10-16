@@ -3,6 +3,11 @@
 `task_gen/program_form` 是 `task_gen/program` 的兼容软链接。当前模块的职责到生成任务、
 验证参考 Solution 并保存可重放 Ground Truth 为止，不包含 Verifier 或任务评测。
 
+已有任务的增难流程见 [SINGLE_AGENT_HARDENING.md](SINGLE_AGENT_HARDENING.md)：
+一个 Agent 读材料、改题、实测并通过快速验证反馈修正参考列表；代码检查来源和正式重放，
+再由独立 GPT 会话求解。
+增难不进入下面的 Program Step 1/2；当前草案等待确认，默认不调用模型。
+
 ## 1. 流程
 
 ```text

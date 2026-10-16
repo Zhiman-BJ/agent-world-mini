@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Iterable
 import uuid
 
@@ -86,12 +87,13 @@ def _new_step(index: int, event: dict[str, Any], wire_line: int) -> dict[str, An
 def _tool_kind(name: str) -> str:
     if name in {"Read", "Grep", "Glob"}:
         return "native_file_tool"
+    if _short_tool_name(name) == "validate_solution_calls":
+        return "harness_support"
     return "environment_mcp"
 
 
 def _short_tool_name(name: str) -> str:
-    marker = "mcp__agent_world_distill__"
-    return name[len(marker):] if name.startswith(marker) else name
+    return re.sub(r"^mcp__[A-Za-z0-9_-]+?__", "", name)
 
 
 def _attach_tool_records(

@@ -273,6 +273,28 @@ def test_kimi_config_can_select_max_reasoning_effort(tmp_path):
     ] == "max"
 
 
+def test_kimi_config_preserves_explicit_provider_headers(tmp_path):
+    from distill.runner import _write_kimi_config
+
+    path = tmp_path / "config.toml"
+    headers = {"User-Agent": "codex_cli_rs/0.115.0", "originator": "codex_cli_rs",
+               "OpenAI-Beta": "responses=experimental"}
+    _write_kimi_config(path, "http://127.0.0.1:1234/v1", "evaluation", "test-model", 262144,
+                       "openai_responses", "python /private/hook.py", provider_headers=headers)
+    provider = tomllib.loads(path.read_text())["providers"]["agent_world_distill"]
+    assert provider["custom_headers"] == headers
+    assert provider["api_key"] == "relay-only-not-an-upstream-credential"
+
+
+def test_provider_header_configuration_rejects_invalid_names_and_values():
+    import pytest
+    from distill.runner import _validate_provider_headers
+
+    for headers in ([], {"bad name": "value"}, {"valid": "line\r\nbreak"}, {"valid": 1}):
+        with pytest.raises(ValueError):
+            _validate_provider_headers(headers)
+
+
 def test_early_compaction_preserves_the_declared_context(tmp_path):
     from distill.runner import _write_kimi_config
 
@@ -285,6 +307,32 @@ def test_early_compaction_preserves_the_declared_context(tmp_path):
     assert config["models"]["evaluation"]["max_output_size"] == 131072
     assert config["loop_control"]["compaction_trigger_ratio"] == 0.5
     assert config["loop_control"]["reserved_context_size"] == 131072
+
+
+def test_read_limits_are_explicit_in_official_cli_config(tmp_path):
+    from distill.runner import _write_kimi_config
+
+    path = tmp_path / "config.toml"
+    _write_kimi_config(path, "http://127.0.0.1:1234/v1", "evaluation", "kimi-k3",
+                       262144, "kimi", "python /private/hook.py")
+    assert tomllib.loads(path.read_text())["read"] == {
+        "default_max_chars": 80000, "max_chars": 128000,
+    }
+    _write_kimi_config(path, "http://127.0.0.1:1234/v1", "evaluation", "kimi-k3",
+                       262144, "kimi", "python /private/hook.py",
+                       read_default_max_chars=25000, read_max_chars=50000)
+    assert tomllib.loads(path.read_text())["read"] == {
+        "default_max_chars": 25000, "max_chars": 50000,
+    }
+
+
+def test_invalid_read_limits_are_rejected():
+    import pytest
+    from distill.runner import _validate_read_limits
+
+    for default, maximum in ((0, 128000), (80000, -1), (128001, 128000), (True, 128000)):
+        with pytest.raises(ValueError):
+            _validate_read_limits(default, maximum)
 
 
 def test_mcp_config_uses_extended_startup_timeout(tmp_path):
@@ -305,6 +353,32 @@ def test_mcp_config_uses_extended_startup_timeout(tmp_path):
     server = json.loads(path.read_text())["mcpServers"]["agent_world_distill"]
     assert server["startupTimeoutMs"] == KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS * 1000
     assert server["toolTimeoutMs"] == 300_000
+
+
+def test_workspace_namespace_matches_mcp_registration_and_agent_allowlist(tmp_path):
+    from distill.runner import _write_agent, _write_mcp_config
+    from env_gen.tool_gen.runtime_launch import StdioLaunch
+    from harness.mcp_tools import expected_mcp_tool_names
+
+    agent = tmp_path / "agent.md"
+    mcp = tmp_path / "mcp.json"
+    _write_agent(agent, "workspace")
+    _write_mcp_config(mcp, StdioLaunch(Path("python"), ("server.py",), {}), tmp_path, 300, "workspace")
+    assert set(json.loads(mcp.read_text())["mcpServers"]) == {"workspace"}
+    assert "mcp__workspace__*" in agent.read_text()
+    assert "mcp__agent_world_distill__*" not in agent.read_text()
+    assert expected_mcp_tool_names([{"name": "inspect"}], {}, server_name="workspace") == {
+        "mcp__workspace__inspect"}
+
+
+@pytest.mark.parametrize("server_name", ["", "../workspace", "name with spaces", "x" * 33])
+def test_runner_rejects_invalid_mcp_namespace_before_startup(tmp_path, server_name):
+    from distill.runner import run_k3_distillation
+
+    with pytest.raises(ValueError, match="mcp_server_name"):
+        run_k3_distillation("Inspect.", tmp_path, {}, tmp_path / "run", kimi_bin="unused",
+                            base_url="http://unused", api_key="unused", max_context_size=262144,
+                            mcp_server_name=server_name)
 
 
 def test_mcp_preflight_validates_initialize_and_tool_contract(tmp_path):
@@ -651,6 +725,38 @@ def test_streaming_relay_forwards_public_k3_contract_and_keeps_both_requests(
     assert record["harness_request"] == harness_request
 
 
+def test_streaming_relay_maps_backend_effort_and_records_original_request(tmp_path, streaming_model):
+    from distill.relay import StreamingRelay
+
+    base_url, requests = streaming_model
+    raw = tmp_path / "raw"
+    harness_request = {
+        "model": "kimi-k3", "messages": [{"role": "user", "content": "hello"}],
+        "thinking": {"type": "enabled", "effort": "max"}, "max_tokens": 131072, "stream": True,
+    }
+    with StreamingRelay(base_url, "test-key", raw, reasoning_effort_map={"max": "xhigh"}) as relay:
+        request = Request(relay.base_url + "/chat/completions", data=json.dumps(harness_request).encode(),
+                          headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=5) as response:
+            assert "data: [DONE]" in response.read().decode()
+
+    assert requests[0]["reasoning_effort"] == "xhigh"
+    assert requests[0]["messages"] == harness_request["messages"]
+    assert harness_request["thinking"]["effort"] == "max"
+    record = json.loads((raw / "model_requests.jsonl").read_text())
+    assert record["harness_request"] == harness_request
+    assert record["request"] == requests[0]
+    assert "reasoning_effort:max->xhigh" in record["normalizations"]
+
+
+@pytest.mark.parametrize("mapping", [[], {"max": ""}, {"": "xhigh"}, {"max": None}])
+def test_streaming_relay_rejects_invalid_effort_map(tmp_path, mapping):
+    from distill.relay import StreamingRelay
+
+    with pytest.raises(ValueError, match="reasoning_effort_map"):
+        StreamingRelay("http://127.0.0.1:1/v1", "test-key", tmp_path / "raw", reasoning_effort_map=mapping)
+
+
 def test_server_config_uses_scientific_runtime_defaults():
     from distill.runner import make_server_config
 
@@ -666,7 +772,8 @@ def test_server_config_uses_scientific_runtime_defaults():
     assert config["process_limit"] == 1024
 
 
-def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch):
+@pytest.mark.parametrize("author_validation", [False, True])
+def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch, author_validation):
     from types import SimpleNamespace
 
     from distill.runner import _task_mcp_launch
@@ -708,6 +815,7 @@ def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch):
     }))
     paths = SimpleNamespace(
         model_workspace=state,
+        private_state=private_state,
         record_database=record_database,
         path_map=path_map,
         raw=trace.parent,
@@ -720,6 +828,7 @@ def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch):
             "memory_limit": 1024,
             "write_limit": 1024,
             "process_limit": 4,
+            **({"solution_validation": {"max_attempts": 3}} if author_validation else {}),
         },
         private_server,
         paths,
@@ -727,6 +836,9 @@ def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch):
     assert launch.command == Path("docker")
     assert "--binding" in launch.arguments
     assert str(state) in launch.arguments
+    assert ("--solution-validation" in launch.arguments) is author_validation
+    if author_validation:
+        assert json.loads((private_state / "solution_validation.json").read_text()) == {"max_attempts": 3}
 
 
 def test_tool_policy_accepts_kimi_code_shortened_long_name():
@@ -862,7 +974,9 @@ def streaming_model():
                         "id": "inspect-1",
                         "type": "function",
                         "function": {
-                            "name": "mcp__agent_world_distill__inspect",
+                            "name": next((tool["function"]["name"] for tool in request.get("tools", [])
+                                          if tool["function"]["name"].endswith("__inspect")),
+                                         "mcp__agent_world_distill__inspect"),
                             "arguments": "{}",
                         },
                     }],
@@ -937,7 +1051,8 @@ def streaming_model():
 
 
 @pytest.mark.parametrize("compaction_probe", [None, "CONTEXT_OVERFLOW_PROBE", "EARLY_BLOCKING_COMPACTION_PROBE"])
-def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, compaction_probe):
+@pytest.mark.parametrize("server_name", ["agent_world_distill", "workspace"])
+def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, compaction_probe, server_name):
     from distill.runner import run_k3_distillation
 
     kimi_bin = os.environ.get("KIMI_CODE_BIN")
@@ -978,6 +1093,7 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, comp
         api_key="test-key-never-written",
         max_context_size=262144 if compaction_probe else 1_048_576,
         compaction_trigger_ratio=0.5 if compaction_probe else None,
+        mcp_server_name=server_name,
     )
 
     assert trajectory["outcome"]["final_answer"] == "The value is 17."
@@ -997,7 +1113,7 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, comp
     else:
         assert len(requests) == 2
     expected = {
-        "mcp__agent_world_distill__inspect",
+        f"mcp__{server_name}__inspect",
         "Read", "Grep", "Glob",
     }
     for request in requests:
@@ -1008,6 +1124,9 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, comp
         assert "max_tokens" not in request
         assert {tool["function"]["name"] for tool in request["tools"]} == expected
     assert (output / "raw/kimi_session.zip").is_file()
+    policy = json.loads((output / "raw/harness_policy.json").read_text())
+    assert policy["mcp_server_name"] == server_name
+    assert set(json.loads((output / "raw/mcp.json").read_text())["mcpServers"]) == {server_name}
     assert len(list((output / "raw/model_io").glob("*.response.sse"))) == len(requests)
     assert "test-key-never-written" not in "".join(
         path.read_text(encoding="utf-8", errors="ignore")

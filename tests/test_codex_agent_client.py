@@ -20,6 +20,26 @@ def executable(path: Path, body: str) -> Path:
 
 
 class CodexAgentClientTests(unittest.TestCase):
+    def test_missing_mcp_server_does_not_create_an_incomplete_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            client = CodexAgentClient(disabled_mcp_servers=("openaiDeveloperDocs",))
+            environment = {"CODEX_HOME": directory}
+            self.assertEqual(client._mcp_arguments(environment), [])
+            (Path(directory) / "config.toml").write_text('model = "test"\n', encoding="utf-8")
+            self.assertEqual(client._mcp_arguments(environment), [])
+
+    def test_only_configured_mcp_servers_are_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "config.toml").write_text(
+                '[mcp_servers.openaiDeveloperDocs]\nurl = "https://example.com/mcp"\n',
+                encoding="utf-8",
+            )
+            client = CodexAgentClient(disabled_mcp_servers=("openaiDeveloperDocs", "missing"))
+            self.assertEqual(
+                client._mcp_arguments({"CODEX_HOME": directory}),
+                ["--config", 'mcp_servers."openaiDeveloperDocs".enabled=false'],
+            )
+
     def test_missing_executable_is_non_retryable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             client = CodexAgentClient(executable=str(Path(directory) / "missing"))

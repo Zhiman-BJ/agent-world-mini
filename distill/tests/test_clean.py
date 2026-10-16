@@ -1,6 +1,20 @@
 import json
 
 
+def test_clean_workspace_namespace_and_shortened_aliases():
+    from distill.clean import _canonical_tool_name, _clean_string, tool_name_mapping
+
+    names = {"inspect", "generate_solution_driven_background_mesh"}
+    assert _canonical_tool_name("mcp__workspace__inspect", names) == "inspect"
+    assert _canonical_tool_name("mcp__workspace__generate_solution_driven_background_mesh_abcd1234", names) == (
+        "generate_solution_driven_background_mesh")
+    trajectory = {"environment": {"tool_names": ["inspect"]},
+                  "steps": [{"tool_calls": [{"name": "mcp__workspace__inspect"}]}]}
+    mapping = tool_name_mapping(trajectory)
+    assert mapping["mcp__workspace__inspect"] == "inspect"
+    assert _clean_string("Call mcp__workspace__inspect.", mapping) == "Call inspect."
+
+
 def _trajectory():
     return {
         "schema_version": "agent_world.kimi_trajectory.v1",

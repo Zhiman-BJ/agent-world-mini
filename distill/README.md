@@ -9,6 +9,14 @@ The runner creates an isolated, temporary Kimi home for every task. Its agent pr
 - the task's `mcp__agent_world_distill__*` tools;
 - native Kimi `Read`, `Grep`, and `Glob` for the model workspace and Kimi-owned tool-result files.
 
+For new evaluations, select `--mcp-server-name workspace` to expose
+`mcp__workspace__<business_tool>`. The runner changes MCP registration, the
+agent allowlist, and request validation together, and records the namespace
+in `raw/harness_policy.json`. The default remains `agent_world_distill` for
+existing runs. Native file-tool names and the independent model-provider
+configuration name do not change. Use a separate output root when changing
+the namespace; this option does not repair omitted prefixes in model output.
+
 Official `Write`, `Edit`, `Bash`, `Agent`, `AgentSwarm`, network tools, other MCP servers, and `select_tools` are unavailable. Environment MCP results are returned in full; Kimi Code owns any externalization into its session-local `tool-results` directory. Native file tools are not an environment Scope browser.
 
 Native file calls pass through a `PreToolUse` realpath allowlist. Only the task's model workspace, the current session's main-agent `tool-results` and `wire.jsonl`, and current-session `kimi-file://` attachments are allowed. Absolute paths into `private-state`, raw evidence, another task/session, or any symlink escape are denied before the native tool runs. Decisions are retained in `raw/native_file_access.jsonl`.
@@ -57,6 +65,23 @@ case/
 ```
 
 `model_requests.jsonl` contains the exact context and tool definitions sent on every model call, including compaction calls and the first inference call after each compaction. `model_io` retains exact request bytes, the pre-normalization Kimi Code request, and raw streamed SSE. `wire.jsonl` is the official Kimi Session Wire, including tool events, compaction boundaries, before/after token counts, compacted message counts, and recovery summaries. `trajectory.json` links the exact pre-compaction request and post-compaction inference context while retaining all originals.
+
+Immediate TaskGen verification combines original MCP records with completed native
+`Read`, `Grep`, and `Glob` results from the exported trajectory, including EOF notes
+and failed calls. Every raw MCP record is retained unchanged, with duplicate
+counts preserved, even when path normalization prevents its attachment to an
+exported call. Attached records are checked against the raw trace. MCP results
+stay in raw completion order; native results follow separately, not as a claimed
+joint timeline. `actual/execution.json` includes the CLI invocation manifest with
+original arguments and event sequences. Incomplete native results or conflicting
+attached records are verification errors, not task FAILs.
+The state-mutation count still uses only raw environment calls. Older verdicts
+created with MCP-only evidence require separate review; this change does not
+overwrite them or update an already-running batch's imported verifier.
+New immediate verifications also enable submission-format preflight: the grader
+checks exact task excerpts and evidence references before submitting its JSON.
+The host still validates every verdict and rejects invalid submissions; this
+does not relax any task requirement or change PASS/FAIL acceptance rules.
 
 ## Run one case
 
@@ -135,3 +160,11 @@ python -m distill visualize \
 ```
 
 Each viewer includes the step timeline, reasoning, the complete first model request and system prompt, environment and support tool calls, final answer, verifier requirements, token usage, compactions, and the hashed artifact manifest.
+
+## 原生 Read 输出限制
+
+新会话默认使用 `--read-default-max-chars 80000 --read-max-chars 128000`。
+两项限制按 UTF-16 码元计数，不是 token 数；写入官方 CLI 的 `[read]` 配置，
+并记录在运行策略中，确保工具说明与实际截断上限一致。
+超大请求会被截断，并返回续读偏移参数；已有会话需要重启才能应用新配置。
+这些字符限制不会动态控制剩余 token 预算，也不会汇总并行工具返回预算，仍然需要自动压缩。

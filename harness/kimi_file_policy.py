@@ -28,6 +28,7 @@ def build_kimi_file_hook_command(
     budget_counter: Path | None = None,
     budget_stop_marker: Path | None = None,
     max_tool_calls: int | None = None,
+    read_roots: tuple[Path, ...] = (),
 ) -> str:
     """Return the shell command used by Kimi's external hook runner."""
     budget_values = (budget_counter, budget_stop_marker, max_tool_calls)
@@ -48,16 +49,20 @@ def build_kimi_file_hook_command(
             "--budget-stop-marker", str(budget_stop_marker.expanduser().resolve()),
             "--max-tool-calls", str(max_tool_calls),
         ])
+    for root in read_roots:
+        command.extend(["--read-root", str(root.expanduser().resolve())])
     return shlex.join(command)
 
 
 class KimiFileAccessPolicy:
     """Allow native file tools only within one model workspace/session."""
 
-    def __init__(self, workspace: Path, home: Path, audit_log: Path) -> None:
+    def __init__(self, workspace: Path, home: Path, audit_log: Path,
+                 *, read_roots: tuple[Path, ...] = ()) -> None:
         self.workspace = workspace.expanduser().resolve()
         self.home = home.expanduser().resolve()
         self.audit_log = audit_log.expanduser().resolve()
+        self.read_roots = tuple(root.expanduser().resolve() for root in read_roots)
 
     @staticmethod
     def _is_within(path: Path, root: Path) -> bool:
@@ -131,6 +136,8 @@ class KimiFileAccessPolicy:
             return self._decision(
                 True, "model_workspace", normalized_path=normalized, **base
             )
+        if any(self._is_within(target, root) for root in self.read_roots):
+            return self._decision(True, "explicit_read_root", normalized_path=normalized, **base)
         kind = self._session_path_kind(
             target, session_id if isinstance(session_id, str) else ""
         )
@@ -168,6 +175,7 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--budget-counter", type=Path)
     parser.add_argument("--budget-stop-marker", type=Path)
     parser.add_argument("--max-tool-calls", type=int)
+    parser.add_argument("--read-root", type=Path, action="append", default=[])
     return parser.parse_args(argv)
 
 
@@ -182,7 +190,8 @@ def main(argv: list[str] | None = None) -> int:
         value is not None for value in budget_values
     ):
         raise SystemExit("native file tool budget requires counter, marker, and limit")
-    policy = KimiFileAccessPolicy(options.workspace, options.home, options.audit_log)
+    policy = KimiFileAccessPolicy(options.workspace, options.home, options.audit_log,
+                                  read_roots=tuple(options.read_root))
     try:
         payload = json.load(sys.stdin)
         decision = policy.check(payload)

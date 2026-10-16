@@ -10,6 +10,8 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 
+import tomlkit
+
 _CODEX_LLM_API_KEY_ENV = "AGENT_WORLD_LLM_API_KEY"
 _PARENT_SESSION_ENV = (
     "CODEX_THREAD_ID",
@@ -171,6 +173,21 @@ class CodexAgentClient:
             )
         return arguments
 
+    def _mcp_arguments(self, environment: dict[str, str]) -> list[str]:
+        if not self.disabled_mcp_servers:
+            return []
+        config_root = Path(environment.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+        config_path = config_root / "config.toml"
+        settings = tomlkit.parse(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
+        servers = settings.get("mcp_servers", {})
+        arguments: list[str] = []
+        for server_name in self.disabled_mcp_servers:
+            if server_name in servers:
+                arguments.extend(
+                    ["--config", f"mcp_servers.{_toml_string(server_name)}.enabled=false"]
+                )
+        return arguments
+
     def run(self, prompt: str, *, working_directory: Path) -> str:
         """执行一次不保留会话的 Codex 调用，并返回最终响应。"""
 
@@ -263,12 +280,7 @@ class CodexAgentClient:
                 # --search 是 Codex 顶层参数，必须写在 exec 子命令之前。
                 command.append("--search")
             command.append("exec")
-            for server_name in self.disabled_mcp_servers:
-                # Codex 当前没有通用的 --no-mcp 参数；将指定用户 MCP 标记为
-                # disabled，避免失效的远程服务阻塞本次 Agent 调用。
-                command.extend(
-                    ["--config", f"mcp_servers.{server_name}.enabled=false"]
-                )
+            command.extend(self._mcp_arguments(environment))
             if self.reasoning_effort:
                 if self.reasoning_effort not in {"minimal", "low", "medium", "high", "xhigh"}:
                     raise ValueError(

@@ -141,6 +141,7 @@ def _arguments(argv=None):
     parser.add_argument('--write-limit', type=int)
     parser.add_argument('--process-limit', type=int, default=1024)
     parser.add_argument('--review-choice-seed', type=Path)
+    parser.add_argument('--solution-validation', type=Path)
     options = parser.parse_args(argv)
     if options.config is not None:
         if any(
@@ -159,6 +160,7 @@ def _arguments(argv=None):
                 options.memory_limit,
                 options.write_limit,
                 options.review_choice_seed,
+                options.solution_validation,
             )
         ):
             parser.error('config positional argument cannot be combined with binding options')
@@ -212,6 +214,8 @@ def _server_config(options):
         config['review_choice_seed'] = json.loads(
             options.review_choice_seed.read_text(encoding='utf-8')
         )
+    if options.solution_validation is not None:
+        config['solution_validation'] = json.loads(options.solution_validation.read_text(encoding='utf-8'))
     return config
 
 

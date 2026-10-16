@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ import time
 import tomllib
 from typing import Any
 
+from .acceptance_contract import strict_policy
 from .tool_graph.codex import CodexAgentClient
 from .tool_graph.step_3_chain_execute import _workspace_signature
 
@@ -127,7 +129,9 @@ def prepare_verification_workspace(
     actual_state: Path, calls: list[dict], answer: str, execution: dict,
     reference_state: Path | None = None, reference_calls: list[dict] | None = None,
     reference_answer: str = "", reference_initial_state: Path | None = None,
+    verification_profile: str | None = None, acceptance_contract: dict | None = None,
 ) -> Path:
+    policy = strict_policy(verification_profile, acceptance_contract, task)
     run_dir = run_dir.resolve()
     run_dir.mkdir(parents=True, exist_ok=False)
     evidence = run_dir / "evidence"
@@ -149,14 +153,20 @@ def prepare_verification_workspace(
     _write(evidence / "actual/execution.json", execution)
     # Make the v2 Context available for experiments without exposing the repository.
     shutil.copyfile(Path(__file__).with_name("tool_graph") / "state_runtime.py", evidence / "state_runtime.py")
-    _write(run_dir / "request.json", {
+    request = {
         "task_id": task["task_id"], "task_text": task["task_text"],
         "environment": "evidence/environment.json", "tools": "evidence/tools.json",
         "initial": "evidence/initial", "actual": "evidence/actual",
         "reference": "evidence/reference" if reference_state is not None else None,
         "reference_initial": "evidence/reference/initial" if reference_initial_state is not None else "evidence/initial",
         "runtime": "evidence/state_runtime.py: Context(state_root, environment)",
-    })
+    }
+    if policy:
+        _write(evidence / "acceptance_contract.json", acceptance_contract)
+        request.update(verification_profile=verification_profile,
+                       acceptance_contract="evidence/acceptance_contract.json",
+                       acceptance_contract_sha256=policy["acceptance_contract_sha256"])
+    _write(run_dir / "request.json", request)
     (run_dir / "prompt.txt").write_text(build_verifier_prompt(), encoding="utf-8")
     (run_dir / "scratch").mkdir()
     return run_dir
@@ -187,6 +197,15 @@ def validate_verdict(value: Any, run_dir: Path) -> dict:
     rows = value["requirements"]
     if not isinstance(rows, list) or not rows:
         raise ValueError("requirements must be nonempty")
+    contract = _request_contract(request, run_dir)
+    if contract is not None:
+        expected_ids = [row["id"] for row in contract["requirements"]]
+        actual_ids = [row.get("id") if isinstance(row, dict) else None for row in rows]
+        if actual_ids != expected_ids:
+            raise ValueError(f"verdict must cover every frozen requirement exactly once in order: {expected_ids}")
+        for actual, expected in zip(rows, contract["requirements"]):
+            if any(actual.get(field) != expected[field] for field in ("task_quote", "requirement")):
+                raise ValueError(f"verdict changed frozen requirement {expected['id']}")
     ids = set()
     for row in rows:
         if not isinstance(row, dict) or set(row) != {"id", "task_quote", "requirement", "analysis", "evidence", "passed"}:
@@ -194,8 +213,13 @@ def validate_verdict(value: Any, run_dir: Path) -> dict:
         for field in ("id", "task_quote", "requirement", "analysis"):
             if not isinstance(row[field], str) or not row[field].strip():
                 raise ValueError(f"empty requirement {field}")
-        if row["id"] in ids or row["task_quote"] not in request["task_text"]:
-            raise ValueError("duplicate requirement id or task_quote is not an exact task excerpt")
+        if row["id"] in ids:
+            raise ValueError(f"duplicate requirement id {row['id']!r}; assign unique ids and keep investigation.md aligned")
+        if row["task_quote"] not in request["task_text"]:
+            raise ValueError(f"requirement {row['id']!r}: task_quote is not an exact task excerpt; "
+                             f"received {row['task_quote'][:500]!r}. Copy a contiguous substring from "
+                             "request.json task_text, preserving punctuation and whitespace; "
+                             "do not paraphrase or join separate excerpts")
         ids.add(row["id"])
         if row["id"] not in investigation_text:
             raise ValueError(f"Investigation record does not cover {row['id']}")
@@ -218,6 +242,23 @@ def validate_verdict(value: Any, run_dir: Path) -> dict:
     if (expected == "fail") != bool(value["failure_causes"]):
         raise ValueError("failure_causes must be nonempty exactly when outcome is fail")
     return value
+
+
+def _request_contract(request: dict, run_dir: Path) -> dict | None:
+    profile = request.get("verification_profile")
+    if profile is None:
+        if "acceptance_contract" in request or "acceptance_contract_sha256" in request:
+            raise ValueError("acceptance contract is missing its verification profile")
+        return None
+    relative = Path(request.get("acceptance_contract", ""))
+    path = (run_dir / relative).resolve()
+    if relative.is_absolute() or not path.is_relative_to((run_dir / "evidence").resolve()):
+        raise ValueError("acceptance contract must be stored in read-only evidence")
+    contract = json.loads(path.read_text(encoding="utf-8"))
+    policy = strict_policy(profile, contract, request)
+    if request.get("acceptance_contract_sha256") != policy["acceptance_contract_sha256"]:
+        raise ValueError("frozen acceptance contract digest changed")
+    return contract
 
 
 def sandbox_command(run_dir: Path, auth_dir: Path, *, runtime_paths: list[Path]) -> tuple[str, ...]:
@@ -257,6 +298,15 @@ class _VerifierClient(CodexAgentClient):
 
 def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
     config = dict(config or {})
+    request_data = json.loads((run_dir / "request.json").read_text())
+    if config.get("verification_profile") not in (None, request_data.get("verification_profile")):
+        raise ValueError("verifier configuration differs from the prepared verification profile")
+    contract = _request_contract(request_data, run_dir)
+    if contract is not None:
+        for flag in ("orchestration_only", "submission_preflight"):
+            if flag in config and config[flag] is not True:
+                raise ValueError(f"frozen verification profile requires {flag}=true")
+            config[flag] = True
     home = Path(config.get("codex_home") or Path.home() / ".codex").expanduser().resolve()
     original = tomllib.loads((home / "config.toml").read_text())
     executable = shutil.which("codex")
@@ -275,6 +325,39 @@ def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
     before = _workspace_signature(run_dir / "evidence")
     history = []
     prompt = (run_dir / "prompt.txt").read_text() + f"\n\n可用独立 Python 解释器：{sys.executable}。"
+    if contract is not None:
+        prompt += """\n\n本轮使用已冻结的验收清单，读取 evidence/acceptance_contract.json。
+按清单中的编号、task_quote和requirement逐项调查并原样列入最终requirements，不得删项、
+合并、重编号、改写要求或另选更弱的验收口径。每项均须包含直接核查证据和passed判定。
+清单解释公开题文，不是参考答案；不得增加任务外要求或替执行者补交成果。
+同一条内的所有条件都要检查，不能只核对其中一项。不能证明已满足的要求不得判为通过。
+"""
+    if config.get("orchestration_only") is True:
+        prompt += """\n\n本轮新增计算权限约束（覆盖前述通用的库复验许可，不改变题文要求）：
+Python只能做分支、遍历已有记录、值传递和简单加减乘除/比较。不得使用NumPy、SciPy、
+SymPy等计算库，也不得手写等价优化、拟合、数值求解、假想组合穷举或复杂边界证明。
+专业计算只能来自当前已有公开领域工具的实际执行，工具原有内部实现不变。
+可以解析JSON、读已有文件/SQLite、检查哈希与提交格式；这些不构成额外解题计算能力。
+核查execution.json内的参考程序是否遵守该边界，实际答案是否由真实工具结果产生。
+不得用审核者私有专业计算补齐未交付内容或证明超出该边界的任务可解。
+"""
+    if config.get("submission_preflight") is True:
+        prompt += """\n\n提交前格式自检（不改变任务要求或 PASS/FAIL 标准）：
+先在 scratch 写出完整候选 JSON，并使用 Python 实际检查后再作为最终响应提交。
+task_quote 必须直接从 request.json 的 task_text 截取连续子串，不手抄、改写、拼接或
+替换标点。多个不连续片段需要拆分要求。逐项检查 quote in task_text 为真。
+固定要求编号后，让 scratch/investigation.md 覆盖最终 JSON 中每个编号；修改编号时
+同时更新调查记录，不能用另一套编号代替。检查每条证据的相对路径真实存在且在
+evidence/ 或 scratch/ 下，字段、布尔值、字符串数组、总体 outcome 与各项 passed 一致。
+保留自检脚本和输出，不要修改 request.json、prompt.txt 或 evidence。格式检查不替代
+实际调查，也不能因为候选格式正确就改判 PASS。只提交经过检查的完整 JSON。
+"""
+    if contract is not None:
+        _write(logs / "verification_policy.json", {
+            **strict_policy(request_data["verification_profile"], contract, request_data),
+            "model": model, "reasoning_effort": config.get("reasoning_effort") or settings.get("model_reasoning_effort"),
+            "effective_prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        })
     with tempfile.TemporaryDirectory(prefix="codex-verifier-auth-") as temporary:
         auth = Path(temporary)
         if (home / "auth.json").is_file():
@@ -340,6 +423,10 @@ def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
 
 def verify_execution(*, run_dir: Path, config: dict | None = None, **evidence: Any) -> dict:
     try:
+        config = dict(config or {})
+        if config.get("verification_profile") is not None:
+            evidence.update(verification_profile=config["verification_profile"],
+                            acceptance_contract=config.get("acceptance_contract"))
         # Directory traversal alone can saturate the shared ext4 volume when
         # many large cases finish together. Only preparation is serialized;
         # the model investigations remain concurrent.

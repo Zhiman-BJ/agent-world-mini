@@ -128,6 +128,11 @@ class TaskEvalMcpServer:
             else None
         )
         self.calls = 0
+        self.solution_validator = None
+        if config.get("solution_validation"):
+            from task_gen.program.solution_validation import SolutionValidator
+
+            self.solution_validator = SolutionValidator(config, defer_baseline=True)
         self.choices = None
         self.choice_tool = None
         if 'review_choice_seed' in config:
@@ -159,6 +164,10 @@ class TaskEvalMcpServer:
             tools = public_tools(self.tools.values())
             if self.choice_tool:
                 tools.append(self.choice_tool)
+            if self.solution_validator is not None:
+                from task_gen.program.solution_validation import TOOL
+
+                tools.append(TOOL)
             return {"tools": tools}
         if method == "tools/call":
             return self._call(request.get("params"))
@@ -173,8 +182,9 @@ class TaskEvalMcpServer:
             raise RpcError(-32602, "tools/call 缺少 params")
         name, arguments = params.get("name"), params.get("arguments", {})
         is_choice = self.choice_tool is not None and name == self.choice_tool['name']
+        is_validation = self.solution_validator is not None and name == "validate_solution_calls"
         if not isinstance(name, str) or (
-            name not in self.tools and not is_choice
+            name not in self.tools and not is_choice and not is_validation
         ):
             raise RpcError(-32602, f"未知工具：{name}")
         if not isinstance(arguments, dict):
@@ -213,6 +223,14 @@ class TaskEvalMcpServer:
                 }, ensure_ascii=False, allow_nan=False) + "\n")
             raise RpcError(-32000, "工具调用次数已达到上限")
         self.calls += 1
+        if is_validation:
+            try:
+                payload = self.solution_validator.validate(arguments)
+            except ValueError as error:
+                return tool_call_result({"execution_passed": False, "error": str(error)}, is_error=True)
+            return tool_call_result(payload, is_error=False)
+        if self.solution_validator is not None:
+            self.solution_validator.ensure_baseline()
         if is_choice:
             try:
                 error = _schema_error(self.choice_tool['inputSchema'], arguments)

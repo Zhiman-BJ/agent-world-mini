@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Create tools_repaired.json files with complete, context-aware descriptions.
 
-The source tools.json files are never modified.  Existing environment field
-descriptions and stable MCP result-envelope descriptions are reused first; an
-LLM then reviews every tool's public description and fills the remaining schema
-nodes while seeing the complete environment and executable tool definition.
+The source tools.json files are never modified. Stable MCP result-envelope
+descriptions are seeded by structural position. An LLM reviews every public description while seeing the complete environment,
+existing descriptions, and executable tool definition.
 """
 
 from __future__ import annotations
@@ -28,6 +27,9 @@ from typing import Any, Iterable, Iterator
 
 from dotenv import dotenv_values
 from openai import OpenAI
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 DEFAULT_ROOTS = (
@@ -102,6 +104,29 @@ GENERIC_DESCRIPTION_PATTERNS = (
     re.compile(r"^业务字段[。.]?$"),
     re.compile(r"^字段[。.]?$"),
 )
+
+SEMANTIC_REVIEW_VERSION = 2
+
+
+def review_receipt_matches(source: Path, output: Path, environment: Path) -> bool:
+    receipt_path = output.with_name(output.stem + '.review.json')
+    try:
+        receipt = json.loads(receipt_path.read_text())
+        return receipt == review_receipt(source, output, environment)
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def review_receipt(source: Path, output: Path, environment: Path) -> dict[str, Any]:
+    from env_gen.tool_gen.semantic_contract import contract_issues
+    return {
+        'semantic_review_version': SEMANTIC_REVIEW_VERSION,
+        'reviewer_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'contract_checker_sha256': hashlib.sha256(Path(contract_issues.__code__.co_filename).read_bytes()).hexdigest(),
+        'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+        'output_sha256': hashlib.sha256(output.read_bytes()).hexdigest(),
+        'environment_sha256': hashlib.sha256(environment.read_bytes()).hexdigest(),
+    }
 
 
 @dataclass(frozen=True)
@@ -305,6 +330,38 @@ def parent_description(tool: dict[str, Any], pointer: str) -> str | None:
     return None
 
 
+def envelope_description(tool: dict[str, Any], target: SchemaTarget) -> str | None:
+    """Recognize result envelopes by their structure and branch success value."""
+    match = re.fullmatch(
+        r"(/outputSchema(?:/(?:oneOf|anyOf|allOf)/[0-9]+)*)/properties/"
+        r"(success|data|error)(?:/properties/(code|path|message|retryable))?",
+        target.pointer,
+    )
+    if not match:
+        return None
+    branch = get_pointer(tool, match[1])
+    properties = branch.get("properties", {})
+    status = properties.get("success", {}).get("const")
+    if not isinstance(status, bool):
+        return None
+    field, error_field = match[2], match[3]
+    if field == "success" and error_field is None:
+        return success_description(target.node)
+    if status and field == "data" and error_field is None:
+        return RESULT_FIELD_DESCRIPTIONS["data"]
+    if not status and field == "error":
+        return RESULT_FIELD_DESCRIPTIONS.get(error_field or "error")
+    return None
+
+
+def misplaced_envelope_description(tool: dict[str, Any], target: SchemaTarget) -> bool:
+    description = target.node.get("description", "")
+    templates = tuple(value.rstrip("。.") for value in RESULT_FIELD_DESCRIPTIONS.values())
+    if not isinstance(description, str) or not description.startswith(templates):
+        return False
+    return description != envelope_description(tool, target)
+
+
 def deterministic_description(
     tool: dict[str, Any],
     target: SchemaTarget,
@@ -312,20 +369,12 @@ def deterministic_description(
     global_fields: dict[str, list[str]],
 ) -> str | None:
     name = target.field_name
-    if name == "success":
-        return success_description(target.node)
-    if name in RESULT_FIELD_DESCRIPTIONS:
-        return RESULT_FIELD_DESCRIPTIONS[name]
+    envelope = envelope_description(tool, target)
+    if envelope:
+        return envelope
 
-    resource_matches = resource_fields.get(name, [])
-    if len(resource_matches) == 1:
-        return resource_matches[0]
-    global_matches = global_fields.get(name, [])
-    if len(global_matches) == 1:
-        return global_matches[0]
-    if name in COMMON_FIELD_DESCRIPTIONS:
-        return COMMON_FIELD_DESCRIPTIONS[name]
-
+    # Field names alone cannot establish resource identity or business meaning.
+    # Environment definitions remain available to the semantic review prompt.
     if name == "<items>":
         parent = parent_description(tool, target.parent_pointer)
         if parent:
@@ -438,6 +487,7 @@ def build_prompt(
     tools: list[dict[str, Any]],
     work_items: list[dict[str, Any]],
 ) -> str:
+    from env_gen.tool_gen.semantic_contract import CONTRACT_REVIEW_GUIDANCE
     payload = {
         "environment": environment,
         "tools": tools,
@@ -449,14 +499,19 @@ def build_prompt(
         "枚举、字段名、代码或业务行为。\n\n"
         "对每个工具执行两件事：\n"
         "1. 阅读现有顶层 description、usageConditions、输入输出 schema 和实现代码。只有当"
-        "现有 description 不完整、过短、模板化或遗漏关键限制/副作用时，返回更完整、自然、"
+        "现有 description 与实际能力不符、不完整、过短、模板化或遗漏关键限制/副作用时，返回准确、自然、"
         "具体的 description；否则返回 null。不要暴露 internal.code、内部绝对路径或实现细节。\n"
         "2. 为 requested_schema_pointers 中的每个 JSON Pointer 返回非空字段说明。说明必须"
         "准确表达业务含义、单位、可选性或约束中真正重要的部分，不能只翻译字段名，也不能使用"
         "“业务字段”“数组元素”“字符串值”一类空泛模板。对象内字段和数组元素必须结合父对象"
-        "语义。语言应与该工具现有描述及环境一致。\n\n"
+        "语义。已有和预填说明也必须根据实现复核；同名字段不保证同义，环境字段只用于对应资源。"
+        "区分文件路径、对象键路径、数据集路径与物理路径；区分错误码、软件名称、源码和计数。"
+        "不要承诺实现未执行的语法校验、求解或优化。语言应与该工具现有描述及环境一致。\n\n"
+        + CONTRACT_REVIEW_GUIDANCE + "\n"
+        "如发现必须修改Schema或实现才能解决的契约问题，在contract_findings数组中列出工具名、"
+        "具体字段、说明承诺和实际行为；不要通过改写说明隐藏实现缺陷。无此问题时返回空数组。\n\n"
         "严格返回一个 JSON 对象，格式如下：\n"
-        '{"tools":[{"name":"工具名","tool_description":null或字符串,'
+        '{"contract_findings":[],"tools":[{"name":"工具名","tool_description":null或字符串,'
         '"schema_descriptions":{"/inputSchema/properties/x":"说明"}}]}\n'
         "每个 requested pointer 必须且只能出现一次；不得返回未请求的 pointer。工具顺序与"
         "输入一致。不要输出 Markdown。\n\n"
@@ -587,6 +642,11 @@ def request_validated_repairs(
 def validate_response(
     response: dict[str, Any], work_items: list[dict[str, Any]]
 ) -> dict[str, tuple[str | None, dict[str, str]]]:
+    findings = response.get("contract_findings", [])
+    if not isinstance(findings, list):
+        raise ValueError("contract_findings 必须为数组。")
+    if findings:
+        raise ValueError("工具契约需要同步修复Schema或实现：" + json_dump(findings))
     expected = {item["name"]: item for item in work_items}
     returned = response.get("tools")
     if not isinstance(returned, list):
@@ -605,10 +665,11 @@ def validate_response(
         if not isinstance(descriptions, dict):
             raise ValueError(f"{name} 缺少 schema_descriptions。")
         expected_pointers = set(expected[name]["requested_schema_pointers"])
-        if not expected_pointers.issubset(descriptions):
+        if expected_pointers != set(descriptions):
             missing = sorted(expected_pointers - set(descriptions))[:5]
+            extra = sorted(set(descriptions) - expected_pointers)[:5]
             raise ValueError(
-                f"{name} 缺少请求的 pointer；missing={missing}"
+                f"{name} 的 pointer 与请求不一致；missing={missing}; extra={extra}"
             )
         clean: dict[str, str] = {}
         for pointer in expected_pointers:
@@ -617,7 +678,12 @@ def validate_response(
                 raise ValueError(f"{name} 的 {pointer} 说明为空。")
             if description_is_generic(description):
                 raise ValueError(f"{name} 的 {pointer} 说明仍然模板化：{description}")
-            clean[pointer] = description.strip()
+            text = description.strip()
+            templates = tuple(value.rstrip("。.") for value in RESULT_FIELD_DESCRIPTIONS.values())
+            approved = expected[name].get("result_envelope_descriptions", {})
+            if text.startswith(templates) and text != approved.get(pointer):
+                raise ValueError(f"{name} 的 {pointer} 错用了结果信封说明。")
+            clean[pointer] = text
         parsed[name] = (top.strip() if isinstance(top, str) else None, clean)
     if set(parsed) != set(expected):
         raise ValueError(f"模型响应缺少工具：{sorted(set(expected) - set(parsed))}")
@@ -629,32 +695,60 @@ def chunk_tools(
     original_tools: list[dict[str, Any]],
     repaired_tools: list[dict[str, Any]],
     max_chars: int,
+    max_output_tokens: int = 12_000,
 ) -> Iterator[tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
     environment_chars = len(json_dump(environment))
     originals: list[dict[str, Any]] = []
     work_items: list[dict[str, Any]] = []
     size = environment_chars
+    output_size = 0
+    # Reserve room for prose, JSON escaping and top-level descriptions. Split a
+    # single large tool as well, so complete semantic review fits the response.
+    output_budget = max(512, max_output_tokens)
     for original, repaired in zip(original_tools, repaired_tools, strict=True):
-        pointers = unresolved_pointers(repaired)
-        requested = set(pointers)
-        item = {
-            "name": original["name"],
-            "review_tool_description": True,
-            "requested_schema_pointers": pointers,
-            "current_seeded_descriptions": {
-                target.pointer: target.node.get("description")
-                for target in schema_targets(repaired)
-                if not description_is_missing(target.node)
-                and target.pointer not in requested
-            },
-        }
-        item_size = len(json_dump(original)) + len(json_dump(item))
-        if originals and size + item_size > max_chars:
-            yield originals, work_items
-            originals, work_items, size = [], [], environment_chars
-        originals.append(original)
-        work_items.append(item)
-        size += item_size
+        targets = schema_targets(repaired)
+        groups: list[list[SchemaTarget]] = [[]]
+        group_size = 400
+        for target in targets:
+            cost = len(target.pointer) + max(120, len(str(target.node.get("description", "")))) + 16
+            if groups[-1] and group_size + cost > output_budget:
+                groups.append([])
+                group_size = 400
+            groups[-1].append(target)
+            group_size += cost
+        for group in groups:
+            pointers = [target.pointer for target in group]
+            item = {
+                "name": original["name"],
+                "review_tool_description": True,
+                "requested_schema_pointers": pointers,
+                "result_envelope_descriptions": {
+                    target.pointer: description
+                    for target in group
+                    if (description := envelope_description(repaired, target)) is not None
+                },
+                "current_seeded_descriptions": {
+                    target.pointer: target.node["description"]
+                    for target in group
+                    if not description_is_missing(target.node)
+                },
+            }
+            item_size = len(json_dump(original)) + len(json_dump(item))
+            item_output_size = 400 + sum(
+                len(target.pointer) + max(120, len(str(target.node.get("description", "")))) + 16
+                for target in group
+            )
+            if originals and (
+                size + item_size > max_chars
+                or output_size + item_output_size > output_budget
+                or original["name"] in {tool["name"] for tool in originals}
+            ):
+                yield originals, work_items
+                originals, work_items, size, output_size = [], [], environment_chars, 0
+            originals.append(original)
+            work_items.append(item)
+            size += item_size
+            output_size += item_output_size
     if originals:
         yield originals, work_items
 
@@ -689,8 +783,19 @@ def validate_repaired(
         tool.get("name") for tool in repaired_tools
     ]:
         raise ValueError("工具名称或顺序发生变化。")
+    # Support running this script directly from a source checkout.
+    from env_gen.tool_gen.runtime import _schema_portability_errors
+
     field_count = 0
+    from env_gen.tool_gen.semantic_contract import contract_issues
     for tool in repaired_tools:
+        issues = contract_issues(tool)
+        if issues:
+            raise ValueError(f"工具 {tool.get('name')} 的公开契约不一致：{json_dump(issues)}")
+        for schema_name in ("inputSchema", "outputSchema"):
+            errors = _schema_portability_errors(tool.get(schema_name), schema_name)
+            if errors:
+                raise ValueError(f"工具 {tool.get('name')} 的 Schema 不兼容：{errors}")
         if not isinstance(tool.get("description"), str) or not tool["description"].strip():
             raise ValueError(f"工具 {tool.get('name')} 的顶层 description 为空。")
         for target in schema_targets(tool):
@@ -698,6 +803,10 @@ def validate_repaired(
             if description_is_missing(target.node):
                 raise ValueError(
                     f"工具 {tool.get('name')} 的字段 {target.pointer} 缺少 description。"
+                )
+            if misplaced_envelope_description(tool, target):
+                raise ValueError(
+                    f"工具 {tool.get('name')} 的字段 {target.pointer} 错用了结果信封说明。"
                 )
             if description_is_generic(str(target.node["description"])):
                 raise ValueError(
@@ -816,11 +925,11 @@ def process_environment(
     source_path = environment_dir / "tools" / "tools.json"
     output_path = environment_dir / "tools" / "tools_repaired.json"
     environment_path = environment_dir / "environment" / "environment.json"
-    if output_path.exists() and not overwrite:
+    if output_path.exists() and not overwrite and review_receipt_matches(source_path, output_path, environment_path):
         original_document = json.loads(source_path.read_text(encoding="utf-8"))
         repaired_document = json.loads(output_path.read_text(encoding="utf-8"))
         counts = validate_repaired(original_document, repaired_document)
-        return {"status": "skipped_valid", **counts}
+        return {"status": "skipped_reviewed", **counts}
 
     environment = json.loads(environment_path.read_text(encoding="utf-8"))
     original_document = json.loads(source_path.read_text(encoding="utf-8"))
@@ -839,7 +948,7 @@ def process_environment(
     model_description_count = 0
     top_changed = 0
     for batch_originals, work_items in chunk_tools(
-        environment, original_tools, repaired_tools, max_chars
+        environment, original_tools, repaired_tools, max_chars, max_output_tokens
     ):
         parsed = request_validated_repairs(
             api_key=api_key,
@@ -864,6 +973,7 @@ def process_environment(
     atomic_write_json(output_path, repaired_document, sudo_write=sudo_write)
     persisted_document = json.loads(output_path.read_text(encoding="utf-8"))
     validate_repaired(original_document, persisted_document)
+    atomic_write_json(output_path.with_name(output_path.stem + '.review.json'), review_receipt(source_path, output_path, environment_path), sudo_write=sudo_write)
     source_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
     return {
         "status": "written",

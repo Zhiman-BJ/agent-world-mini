@@ -23,6 +23,8 @@ from .relay import _stream_error
 from .runner import (
     KIMI_K3_CONTEXT_SIZE,
     KIMI_K3_OUTPUT_SIZE,
+    KIMI_READ_DEFAULT_MAX_CHARS,
+    KIMI_READ_MAX_CHARS,
     KIMI_K3_DEFAULT_EFFORT,
     KIMI_K3_EFFORTS,
     KIMI_DEFAULT_MAX_TOOL_CALLS,
@@ -61,10 +63,13 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "max_context_size": arguments.max_context_size,
         "max_output_size": arguments.max_output_size,
         "compaction_trigger_ratio": arguments.compaction_trigger_ratio,
+        "read_default_max_chars": arguments.read_default_max_chars,
+        "read_max_chars": arguments.read_max_chars,
         "model_id": arguments.model_id,
         "model_alias": arguments.model_alias,
         "provider_type": arguments.provider_type,
         "reasoning_effort": arguments.reasoning_effort,
+        "mcp_server_name": getattr(arguments, "mcp_server_name", "agent_world_distill"),
         "max_upstream_retries": arguments.max_upstream_retries,
         "max_environment_errors": arguments.max_environment_errors_per_task,
     }
@@ -847,6 +852,8 @@ def _visualize(arguments: argparse.Namespace) -> None:
 
 
 def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--mcp-server-name", default="agent_world_distill",
+                        help="MCP namespace used by the official CLI; use workspace for new evaluations")
     default_bin = os.environ.get("KIMI_CODE_BIN") or shutil.which("kimi") or "kimi"
     parser.add_argument("--kimi-bin", type=Path, default=Path(default_bin))
     parser.add_argument(
@@ -872,6 +879,14 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         help="maximum output tokens for each model request",
     )
     parser.add_argument("--model-alias", default="evaluation")
+    parser.add_argument(
+        "--read-default-max-chars", type=int, default=KIMI_READ_DEFAULT_MAX_CHARS,
+        help="原生 Read 默认输出字符数，按 UTF-16 码元计数，不是 token 数",
+    )
+    parser.add_argument(
+        "--read-max-chars", type=int, default=KIMI_READ_MAX_CHARS,
+        help="原生 Read 输出字符硬上限；超大请求分段读取",
+    )
     parser.add_argument(
         "--compaction-trigger-ratio", type=float,
         help="official Kimi early-compaction threshold, between 0.5 and 0.99",

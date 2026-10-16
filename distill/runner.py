@@ -18,6 +18,8 @@ import threading
 import time
 from typing import Any
 
+import tomlkit
+
 from harness.kimi_file_policy import build_kimi_file_hook_command
 from harness.delivery import load_delivery
 from harness.layout import TaskRunLayout, create_task_run_layout
@@ -37,6 +39,8 @@ KIMI_K3_CONTEXT_SIZE = 1_048_576
 # Sending the full context size as max_completion_tokens makes requests with a
 # non-empty prompt exceed the upstream context window and receive HTTP 400.
 KIMI_K3_OUTPUT_SIZE = 131_072
+KIMI_READ_DEFAULT_MAX_CHARS = 80_000
+KIMI_READ_MAX_CHARS = 128_000
 # A smaller cap is useful for controlled reruns without changing the default
 # official K3 window. The CLI still receives the selected cap as its model
 # metadata and the relay preserves it in the recorded trajectory.
@@ -159,6 +163,22 @@ def _task_workspace_name(
     return f"{environment_id}_{task_id}" if isinstance(task_id, str) and task_id else environment_id
 
 
+def _write_author_materials(paths: DistillPaths, materials: dict[str, Any] | None) -> Path | None:
+    if materials is None:
+        return None
+    materials_root = paths.output / ".task-authoring"
+    materials_root.mkdir(exist_ok=False)
+    for name, document in materials.items():
+        if not isinstance(name, str) or Path(name).name != name or name in {".", ".."}:
+            raise ValueError("author material names must be simple filenames")
+        if name == "workspace_files.json":
+            document = {**document, "public_workspace": str(paths.model_workspace),
+                "public_files": [path.relative_to(paths.model_workspace).as_posix()
+                    for path in sorted(paths.model_workspace.rglob("*")) if path.is_file()]}
+        (materials_root / name).write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return materials_root
+
+
 def _server_config(value: Path | dict[str, Any]) -> dict[str, Any]:
     if isinstance(value, Path):
         loaded = json.loads(value.expanduser().read_text(encoding="utf-8"))
@@ -205,11 +225,21 @@ def _write_kimi_config(
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
     max_output_size: int = KIMI_K3_OUTPUT_SIZE,
     compaction_trigger_ratio: float | None = None,
+    read_default_max_chars: int = KIMI_READ_DEFAULT_MAX_CHARS,
+    read_max_chars: int = KIMI_READ_MAX_CHARS,
+    provider_headers: dict[str, str] | None = None,
 ) -> None:
     if not isinstance(file_hook_command, str) or not file_hook_command.strip():
         raise ValueError("file_hook_command must be non-empty")
     if type(max_output_size) is not int or max_output_size < 1:
         raise ValueError("max_output_size must be a positive integer")
+    _validate_read_limits(read_default_max_chars, read_max_chars)
+    _validate_provider_headers(provider_headers)
+    headers = ""
+    if provider_headers:
+        table = tomlkit.inline_table()
+        table.update(provider_headers)
+        headers = tomlkit.dumps({"custom_headers": table})
     quote = lambda value: json.dumps(value, ensure_ascii=False)
     hook = (
         "\n[[hooks]]\n"
@@ -231,7 +261,8 @@ def _write_kimi_config(
         "[providers.agent_world_distill]\n"
         f"type = {quote(provider_type)}\n"
         f"base_url = {quote(relay_url)}\n"
-        'api_key = "relay-only-not-an-upstream-credential"\n\n'
+        'api_key = "relay-only-not-an-upstream-credential"\n'
+        f"{headers}\n"
         f"[models.{quote(model_alias)}]\n"
         'provider = "agent_world_distill"\n'
         f"model = {quote(model_id)}\n"
@@ -241,13 +272,32 @@ def _write_kimi_config(
         'capabilities = ["thinking", "always_thinking", "tool_use"]\n'
         f"support_efforts = {json.dumps(list(KIMI_K3_EFFORTS))}\n"
         f"default_effort = {quote(reasoning_effort)}\n"
-        f"{hook}{compaction}",
+        f"{hook}{compaction}"
+        "\n[read]\n"
+        f"default_max_chars = {read_default_max_chars}\n"
+        f"max_chars = {read_max_chars}\n",
         encoding="utf-8",
     )
     path.chmod(0o600)
 
 
-def _write_agent(path: Path) -> None:
+def _validate_provider_headers(headers: dict[str, str] | None) -> None:
+    if headers is not None and (not isinstance(headers, dict) or any(
+        not isinstance(name, str) or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name)
+        or not isinstance(value, str) or "\r" in value or "\n" in value
+        for name, value in headers.items()
+    )):
+        raise ValueError("provider_headers must contain valid HTTP header names and single-line string values")
+
+
+def _validate_read_limits(default_max_chars: int, max_chars: int) -> None:
+    if any(type(value) is not int or value < 1 for value in (default_max_chars, max_chars)):
+        raise ValueError("Read character limits must be positive integers")
+    if default_max_chars > max_chars:
+        raise ValueError("Read default_max_chars must not exceed max_chars")
+
+
+def _write_agent(path: Path, server_name: str = "agent_world_distill") -> None:
     path.write_text("""\
 ---
 name: agent-world-distill
@@ -271,7 +321,7 @@ subagents: []
 ---
 
 ${base_prompt}
-""", encoding="utf-8")
+""".replace("mcp__agent_world_distill__*", f"mcp__{server_name}__*"), encoding="utf-8")
 
 
 def _write_kimi_launcher(path: Path) -> None:
@@ -288,10 +338,11 @@ await import(pathToFileURL(cliPath).href);
     path.chmod(0o700)
 
 
-def _write_mcp_config(path: Path, launch: StdioLaunch, workspace: Path, timeout: int) -> None:
+def _write_mcp_config(path: Path, launch: StdioLaunch, workspace: Path, timeout: int,
+                      server_name: str = "agent_world_distill") -> None:
     payload = {
         "mcpServers": {
-            "agent_world_distill": {
+            server_name: {
                 "command": str(launch.command),
                 "args": list(launch.arguments),
                 "env": launch.environment,
@@ -360,6 +411,11 @@ def _task_mcp_launch(
         seed_path.chmod(0o600)
         arguments.extend(["--review-choice-seed", str(seed_path)])
         writable_paths.append(seed_path)
+    if config.get("solution_validation"):
+        validation_path = paths.private_state / "solution_validation.json"
+        validation_path.write_text(json.dumps(config["solution_validation"], ensure_ascii=False), encoding="utf-8")
+        arguments.extend(["--solution-validation", str(validation_path)])
+        writable_paths.append(validation_path)
     return stdio_launch(
         delivery,
         server_path=server_path,
@@ -927,15 +983,22 @@ def run_k3_distillation(
     reasoning_effort: str = KIMI_K3_DEFAULT_EFFORT,
     max_output_size: int = KIMI_K3_OUTPUT_SIZE,
     compaction_trigger_ratio: float | None = None,
+    read_default_max_chars: int = KIMI_READ_DEFAULT_MAX_CHARS,
+    read_max_chars: int = KIMI_READ_MAX_CHARS,
+    mcp_server_name: str = "agent_world_distill",
     max_upstream_retries: int = KIMI_UPSTREAM_MAX_RETRIES,
     max_environment_errors: int | None = None,
     environment_error_circuit_breaker: EnvironmentErrorCircuitBreaker | None = None,
     task: dict[str, Any] | None = None,
     evaluation: dict[str, Any] | None = None,
+    provider_headers: dict[str, str] | None = None,
+    upstream_reasoning_effort_map: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run one task through the official streaming Kimi CLI and export its trajectory."""
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be non-empty")
+    if not isinstance(mcp_server_name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,31}", mcp_server_name):
+        raise ValueError("mcp_server_name must be a 1-32 character identifier starting with a letter")
     if not isinstance(model_id, str) or not model_id.strip():
         raise ValueError("model_id must be non-empty")
     if not isinstance(model_alias, str) or not model_alias.strip():
@@ -952,6 +1015,8 @@ def run_k3_distillation(
         raise ValueError("max_context_size must be a positive integer supported by the upstream model")
     if type(max_output_size) is not int or max_output_size < 1:
         raise ValueError("max_output_size must be a positive integer")
+    _validate_read_limits(read_default_max_chars, read_max_chars)
+    _validate_provider_headers(provider_headers)
     if compaction_trigger_ratio is not None and (
         type(compaction_trigger_ratio) not in (int, float)
         or not 0.5 <= compaction_trigger_ratio <= 0.99
@@ -990,6 +1055,7 @@ def run_k3_distillation(
     config["budget_stop_marker"] = str(paths.raw / "tool_budget_stop.json")
     config["tool_budget_counter"] = str(paths.raw / "tool_budget_counter.json")
     environment_trace.touch()
+    materials_root = _write_author_materials(paths, config.pop("author_materials", None))
     config.update({
         "workspace_root": str(paths.model_workspace),
         "record_database": str(paths.record_database),
@@ -1001,17 +1067,24 @@ def run_k3_distillation(
     expected_names = expected_mcp_tool_names(
         config["tools"],
         config.get("environment"),
-        server_name="agent_world_distill",
+        server_name=mcp_server_name,
     ) | {"Read", "Grep", "Glob"}
     if "review_choice_seed" in config:
         from task_gen.tool_graph.review_choices import TOOL
         preflight_tool_names.add(TOOL["name"])
-        expected_names.add(f"mcp__agent_world_distill__{TOOL['name']}")
+        expected_names.add(f"mcp__{mcp_server_name}__{TOOL['name']}")
+    if config.get("solution_validation"):
+        from task_gen.program.solution_validation import TOOL_NAME
+
+        preflight_tool_names.add(TOOL_NAME)
+        expected_names.add(f"mcp__{mcp_server_name}__{TOOL_NAME}")
     (paths.raw / "harness_policy.json").write_text(json.dumps({
         "harness": "official_kimi_code_cli",
         "streaming_required": True,
         "system_prompt": "kimi_code_default",
-        "tools_enabled": ["mcp__agent_world_distill__*", "Read", "Grep", "Glob"],
+        "mcp_server_name": mcp_server_name,
+        **({"solution_validation": config["solution_validation"]} if config.get("solution_validation") else {}),
+        "tools_enabled": [f"mcp__{mcp_server_name}__*", "Read", "Grep", "Glob"],
         "file_tools": ["Read", "Grep", "Glob"],
         "file_access_policy": "pre_tool_use_realpath_allowlist",
         "file_access_allowed": [
@@ -1019,6 +1092,7 @@ def run_k3_distillation(
             "current-session/agents/main/tool-results/**",
             "current-session/agents/main/wire.jsonl",
             "current-session kimi-file:// attachments",
+            *([f"{materials_root}/*"] if materials_root is not None else []),
         ],
         "tools_disabled": ["Write", "Edit", "Bash", "Agent", "AgentSwarm", "WebSearch", "FetchURL", "AskUserQuestion", "select_tools"],
         "result_reader": "native_kimi_tool_results",
@@ -1039,8 +1113,15 @@ def run_k3_distillation(
         "declared_model_context_size": max_context_size,
         "declared_model_output_size": max_output_size,
         "reasoning_effort": reasoning_effort,
+        "upstream_reasoning_effort_map": upstream_reasoning_effort_map or {},
         "compaction_trigger_ratio": compaction_trigger_ratio,
         "compaction_reserved_context_size": _compaction_reserved_context(max_context_size, compaction_trigger_ratio),
+        "native_read": {
+            "default_max_chars": read_default_max_chars,
+            "max_chars": read_max_chars,
+            "unit": "UTF-16 code units, not tokens",
+            "dynamic_remaining_token_budget_enforced": False,
+        },
         "relay_normalizations": (
             [
                 "thinking.effort -> reasoning_effort",
@@ -1070,7 +1151,7 @@ def run_k3_distillation(
         private_server.chmod(0o600)
         mcp_launch = _task_mcp_launch(config, private_server, paths)
         agent_file = kimi_home / "agent.md"
-        _write_agent(agent_file)
+        _write_agent(agent_file, mcp_server_name)
         prompt_file = kimi_home / "prompt.txt"
         prompt_file.write_text(prompt, encoding="utf-8")
         prompt_file.chmod(0o600)
@@ -1087,6 +1168,7 @@ def run_k3_distillation(
             budget_counter=paths.raw / "tool_budget_counter.json",
             budget_stop_marker=paths.raw / "tool_budget_stop.json",
             max_tool_calls=config["max_tool_calls"],
+            read_roots=(materials_root,) if materials_root is not None else (),
         )
 
         runtime_backend = config.get("delivery_runtime", {}).get(
@@ -1110,18 +1192,22 @@ def run_k3_distillation(
             ),
             expected_tool_names=expected_names,
             fatal_stream_error_codes={"504001", "upstream_stream_truncated"},
+            reasoning_effort_map=upstream_reasoning_effort_map,
         ) as relay:
             _write_kimi_config(
                 kimi_home / "config.toml", relay.base_url, model_alias, model_id,
                 max_context_size, provider_type, file_hook_command, reasoning_effort,
                 max_output_size, compaction_trigger_ratio,
+                read_default_max_chars, read_max_chars,
+                **({"provider_headers": provider_headers} if provider_headers is not None else {}),
             )
             mcp_config_path = kimi_home / "mcp.json"
             _write_mcp_config(
                 mcp_config_path,
                 mcp_launch,
                 paths.model_workspace,
-                int(config["timeout"]),
+                int(config["timeout"]) * (config["max_tool_calls"] if config.get("solution_validation") else 1),
+                mcp_server_name,
             )
             shutil.copy2(mcp_config_path, paths.raw / "mcp.json")
             (paths.raw / "mcp_launch.json").write_text(

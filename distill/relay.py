@@ -22,6 +22,22 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _event_stream_error(value: Any, event_name: str | None, payload: str) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    error = value.get("error")
+    if value.get("type") == "response.failed":
+        failed = value.get("response")
+        error = failed.get("error") if isinstance(failed, dict) else None
+    if value.get("type") == "error" and not isinstance(error, dict):
+        error = value
+    if not isinstance(error, dict):
+        if event_name == "error" or value.get("type") == "response.failed":
+            return {"type": "upstream_stream_error", "message": payload[:1000]}
+        return None
+    return {key: error[key] for key in ("type", "code", "message", "source", "request_id") if key in error}
+
+
 def _stream_error(path: Path) -> dict[str, Any] | None:
     """Return a top-level error emitted after a successful SSE handshake."""
     event_name: str | None = None
@@ -45,17 +61,55 @@ def _stream_error(path: Path) -> dict[str, Any] | None:
                 value = json.loads(payload)
             except json.JSONDecodeError:
                 continue
-            error = value.get("error") if isinstance(value, dict) else None
-            if not isinstance(error, dict):
-                if event_name == "error":
-                    return {"type": "upstream_stream_error", "message": payload[:1000]}
-                continue
-            return {
-                key: error[key]
-                for key in ("type", "code", "message", "source", "request_id")
-                if key in error
-            }
+            error = _event_stream_error(value, event_name, payload)
+            if error is not None:
+                return error
     return None
+
+
+def _prefetch_responses_prelude(response, limit: int = 262144) -> tuple[bytes, bool, dict[str, Any] | None]:
+    prelude_types = {"codex.rate_limits", "codex.response.metadata", "response.created",
+                     "response.in_progress", "response.metadata", "responsesapi.websocket_timing"}
+    buffered = bytearray()
+    event_name = None
+    pending_error = None
+    while len(buffered) < limit:
+        try:
+            line = response.readline(limit - len(buffered))
+        except (OSError, http.client.HTTPException) as error:
+            return bytes(buffered), True, {"type": "upstream_connection_error", "message": str(error)}
+        if not line:
+            return bytes(buffered), True, pending_error or {
+                "type": "upstream_stream_incomplete", "message": "Responses stream ended before any model output"}
+        buffered.extend(line)
+        if not line.endswith(b"\n"):
+            return bytes(buffered), False, None
+        text = line.decode("utf-8", errors="replace").strip()
+        if not text:
+            if pending_error is not None:
+                return bytes(buffered), False, pending_error
+            event_name = None
+            continue
+        if text.startswith(":"):
+            continue
+        if text.startswith("event:"):
+            event_name = text[6:].strip()
+            continue
+        if not text.startswith("data:"):
+            return bytes(buffered), False, None
+        payload = text[5:].strip()
+        try:
+            value = json.loads(payload)
+        except json.JSONDecodeError:
+            return bytes(buffered), False, None
+        error = _event_stream_error(value, event_name, payload)
+        if error is not None:
+            pending_error = error
+            continue
+        kind = value.get("type", event_name) if isinstance(value, dict) else None
+        if not isinstance(kind, str) or kind not in prelude_types:
+            return bytes(buffered), False, None
+    return bytes(buffered), False, None
 
 
 def _normalize_kimi_k3_chat_request(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -104,6 +158,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         first_request_tool_validator: Callable[[set[str]], bool] | None = None,
         expected_tool_names: set[str] | None = None,
         fatal_stream_error_codes: set[str] | None = None,
+        reasoning_effort_map: dict[str, str] | None = None,
     ):
         upstream = urlsplit(upstream_base_url.rstrip("/"))
         if upstream.scheme not in {"http", "https"} or not upstream.hostname:
@@ -118,6 +173,12 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
             raise ValueError("retry delays must be non-negative")
         if retry_max_seconds < retry_base_seconds:
             raise ValueError("retry_max_seconds must be at least retry_base_seconds")
+        if reasoning_effort_map is not None and (
+            not isinstance(reasoning_effort_map, dict)
+            or any(not isinstance(key, str) or not key or not isinstance(value, str) or not value
+                   for key, value in reasoning_effort_map.items())
+        ):
+            raise ValueError("reasoning_effort_map must map nonempty strings to nonempty strings")
 
         self.upstream = upstream
         self.api_key = api_key
@@ -128,6 +189,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         self.first_request_tool_validator = first_request_tool_validator
         self.expected_tool_names = set(expected_tool_names or ())
         self.fatal_stream_error_codes = set(fatal_stream_error_codes or ())
+        self.reasoning_effort_map = dict(reasoning_effort_map or {})
         self.raw_dir = raw_dir.resolve()
         self.io_dir = self.raw_dir / "model_io"
         self.io_dir.mkdir(parents=True, exist_ok=True)
@@ -269,6 +331,17 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         normalized = message.casefold()
         return "internal maas component" in normalized and "reject" in normalized
 
+    @staticmethod
+    def _retryable_stream_error(error: dict[str, Any]) -> bool:
+        if error.get("code") in ("context_length_exceeded", "invalid_request_error", "invalid_api_key",
+                                 "authentication_error", "permission_denied"):
+            return False
+        transient = {"server_error", "internal_error", "timeout_error", "rate_limit_error",
+                     "rate_limit_exceeded", "overloaded_error", "upstream_stream_read_error",
+                     "upstream_stream_truncated", "stream_read_error", "upstream_connection_error",
+                     "upstream_stream_incomplete"}
+        return any(isinstance(error.get(key), str) and error[key] in transient for key in ("type", "code"))
+
     def _retry_delay(self, retry_number: int, retry_after: str | None = None) -> float:
         exponential = min(
             self.retry_max_seconds,
@@ -316,6 +389,13 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                 if model_request and isinstance(parsed_body, dict) and endpoint.endswith("/chat/completions"):
                     try:
                         forwarded_request, normalizations = _normalize_kimi_k3_chat_request(parsed_body)
+                        effort = forwarded_request.get("reasoning_effort")
+                        if effort in relay.reasoning_effort_map:
+                            forwarded_request = dict(forwarded_request)
+                            forwarded_request["reasoning_effort"] = relay.reasoning_effort_map[effort]
+                            normalizations.append(
+                                f"reasoning_effort:{effort}->{forwarded_request['reasoning_effort']}"
+                            )
                     except ValueError as error:
                         self._json_error(400, str(error))
                         relay._append(relay.response_log, {
@@ -411,6 +491,8 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                 attempts: list[dict[str, Any]] = []
                 connection = None
                 prefetched_body: bytes | None = None
+                prefetched_complete = False
+                prefetched_stream_error = None
                 worker = threading.current_thread()
                 transfer_done = threading.Event()
                 client_disconnected = threading.Event()
@@ -436,6 +518,9 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                 try:
                     response = None
                     for attempt in range(relay.max_retries + 1):
+                        prefetched_body = None
+                        prefetched_complete = False
+                        prefetched_stream_error = None
                         if client_disconnected.is_set() or relay._closing.is_set():
                             raise ConnectionAbortedError("Model relay client disconnected")
                         connection = relay._connection()
@@ -452,12 +537,24 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             headers=headers,
                         )
                         response = connection.getresponse()
-                        if response.status not in {400, 408, 425, 429, 500, 502, 503, 504}:
-                            break
-                        retry_body = response.read()
-                        retryable = relay._retryable_response(response.status, retry_body)
-                        if not retryable or attempt >= relay.max_retries:
+                        if response.status in {400, 408, 425, 429, 500, 502, 503, 504}:
+                            retry_body = response.read()
                             prefetched_body = retry_body
+                            prefetched_complete = True
+                            retryable = relay._retryable_response(response.status, retry_body)
+                        elif (response.status == 200 and model_request
+                              and urlsplit(self.path).path.rstrip("/").endswith("/responses")
+                              and isinstance(forwarded_request.get("tools", []), list)
+                              and all(isinstance(tool, dict) and tool.get("type") == "function"
+                                      for tool in forwarded_request.get("tools", []))
+                              and "text/event-stream" in (response.getheader("Content-Type") or "").lower()):
+                            prefetched_body, prefetched_complete, prefetched_stream_error = _prefetch_responses_prelude(response)
+                            retry_body = prefetched_body
+                            retryable = (prefetched_stream_error is not None
+                                         and relay._retryable_stream_error(prefetched_stream_error))
+                        else:
+                            break
+                        if not retryable or attempt >= relay.max_retries:
                             break
                         retry_after = response.getheader("Retry-After")
                         attempt_path = relay.io_dir / (
@@ -475,6 +572,9 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "retryable": True,
                             "delay_seconds": delay,
                             "retry_after": retry_after,
+                            "sha256": hashlib.sha256(retry_body).hexdigest(),
+                            **({"stream_error": prefetched_stream_error, "model_output_forwarded": False}
+                               if prefetched_stream_error is not None else {}),
                         })
                         response.close()
                         connection.close()
@@ -491,10 +591,12 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                     self.end_headers()
                     sink = response_path.open("wb") if response_path is not None else None
                     try:
-                        chunks = [prefetched_body] if prefetched_body is not None else None
+                        pending = prefetched_body
                         while True:
-                            if chunks is not None:
-                                chunk = chunks.pop(0) if chunks else b""
+                            if pending is not None:
+                                chunk, pending = pending, None
+                            elif prefetched_complete:
+                                break
                             else:
                                 chunk = response.read1(65536)
                             if not chunk:
@@ -529,7 +631,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                         if client_disconnected.is_set() or relay._closing.is_set():
                             record["error"] = "client_disconnected"
                             record["client_disconnected"] = True
-                        stream_error = _stream_error(response_path)
+                        stream_error = prefetched_stream_error or _stream_error(response_path)
                         if stream_error is not None:
                             record["error"] = "upstream_stream_error"
                             record["stream_error"] = stream_error
