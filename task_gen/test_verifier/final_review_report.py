@@ -3,6 +3,7 @@ from collections import defaultdict
 import html
 import json
 from pathlib import Path
+from statistics import mean, median
 
 from .program_verifier.repeat_sample import api_totals, read
 from .program_verifier.generation.pipeline import write_json
@@ -16,8 +17,12 @@ def write_report(batch):
                            ('input_per_million','cached_input_per_million','output_per_million')) else None
     rows = []
     statistics = {}
+    def timing(values):
+        return {'count':len(values),'sum':sum(values) if values else None,
+                'mean':mean(values) if values else None,'median':median(values) if values else None}
     for method in manifest['methods']:
         current = []
+        method_records = []
         for item in manifest['selected']:
             root = batch/method/item['sample_id']
             row = read(root/'row.json', {'status':'running' if (root/'started.json').exists() else 'pending',
@@ -28,6 +33,7 @@ def write_report(batch):
                 record = read(p)
                 if record:
                     grouped[record['phase']].append(record)
+                    method_records.append(record)
             row['api'] = {name:api_totals(values, prices) for name,values in grouped.items()}
             row['generation_api'] = api_totals(grouped['generation']+grouped['final_review'], prices)
             row['final_review'] = read(root/'generation/final_result.json', {})
@@ -43,7 +49,14 @@ def write_report(batch):
             'full_score':sum(a.get('mode') == native and a.get('score') == 1 for a in apps),
             'fallback':sum(a.get('mode') == 'fallback_codex' for a in apps),
             'both_native_pairs':len(pairs), 'same_total_pairs':sum(r['same_total_score'] for r in pairs),
-            'same_rubric_pairs':sum(r['same_rubric_scores'] for r in pairs)}
+            'same_rubric_pairs':sum(r['same_rubric_scores'] for r in pairs),
+            'generation_seconds':timing([r['generation']['seconds'] for r in current
+                                        if isinstance((r.get('generation') or {}).get('seconds'),(int,float))]),
+            'final_review_seconds':timing([r['final_review']['seconds'] for r in current
+                                          if isinstance(r['final_review'].get('seconds'),(int,float))]),
+            'application_seconds':timing([a['seconds'] for a in apps if isinstance(a.get('seconds'),(int,float))]),
+            'generation_api':api_totals([r for r in method_records if r['phase'] in ('generation','final_review')], prices),
+            'application_api':api_totals([r for r in method_records if r['phase'].startswith('application_')], prices)}
         rows.extend(current)
     write_json(batch/'summary.json', {'statistics':statistics,'pricing':pricing,'records':rows})
     esc = lambda v: html.escape(str(v))
@@ -55,8 +68,10 @@ def write_report(batch):
         tokens = f"{v['known_input_tokens']:,}/{v['known_cached_input_tokens']:,}/{v['known_output_tokens']:,}"
         money = v.get('estimated_cost')
         actual = v.get('known_provider_cost',{})
-        cost = '/'.join(f'{k} {n:.4f}' for k,n in actual.items()) or (f'USD {money:.4f}' if money is not None else '费用 unknown')
-        return esc(f"{tokens}; {v['requests_with_usage']}/{v['requests']}请求有usage; {cost}")
+        cost = '/'.join(f'已知金额 {k} {n:.4f}' for k,n in actual.items()) or (
+            f"估算 {v['currency']} {money:.4f}" if money is not None else '费用 unknown')
+        errors = f"API错误 {v['api_errors']} / 传输错误 {v['transport_errors']} / 取消 {v['client_cancellations']}"
+        return esc(f"{tokens}; {v['requests_with_usage']}/{v['requests']}请求有usage; {cost}; {errors}")
     lines = ['<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
              '<title>最终 Codex 修复实验</title><style>body{font:14px/1.6 system-ui;margin:24px;color:#222;background:#fff}h1{font-size:24px}h2{font-size:18px;margin-top:28px}table{border-collapse:collapse;width:100%}th,td{padding:8px;border:1px solid #ddd;text-align:left;vertical-align:top}th{background:#f3f4f5;white-space:nowrap}.scroll{overflow:auto}details{max-width:800px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#087b67}</style>',
              '<h1>生成一次，冻结后应用两次</h1>',
@@ -67,6 +82,15 @@ def write_report(batch):
         vals = [method,f"{s['finished_tasks']}/{s['tasks']}",s['generated'],f"{s['native_completed']}/{s['applications']}",s['full_score'],s['fallback'],
                 f"{s['same_total_pairs']}/{s['both_native_pairs']}",f"{s['same_rubric_pairs']}/{s['both_native_pairs']}"]
         lines.append('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in vals)+'</tr>')
+    lines += ['</table></div><h2>耗时与 API 汇总</h2>',
+              '<p>时间为各任务耗时之和，不是并行批次的墙钟时间。最终修复已包含在生成时间和生成 API 中，不重复相加；两次正式应用分别计入应用总量。未完成部分不估算。</p>',
+              '<div class="scroll"><table><tr><th>方法</th><th>生成累计/中位数秒</th><th>其中最终修复累计秒</th><th>应用累计/中位数秒</th><th>全部生成API</th><th>全部应用API（含回退）</th></tr>']
+    for method,s in statistics.items():
+        vals = [method,seconds(s['generation_seconds']['sum'])+' / '+seconds(s['generation_seconds']['median']),
+                seconds(s['final_review_seconds']['sum']),
+                seconds(s['application_seconds']['sum'])+' / '+seconds(s['application_seconds']['median'])]
+        lines.append('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in vals)+'<td>'+api_text(s['generation_api'])+
+                     '</td><td>'+api_text(s['application_api'])+'</td></tr>')
     lines += ['</table></div><h2>生成与最终修复</h2><div class="scroll"><table><tr><th>任务</th><th>方法</th><th>状态</th><th>生成秒</th><th>其中最终修复秒</th><th>修改文件数</th><th>全部生成API</th><th>问题/修改</th></tr>']
     for r in rows:
         g,f = r.get('generation') or {},r['final_review']
