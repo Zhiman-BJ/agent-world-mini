@@ -29,3 +29,7 @@ python -m task_gen.test_verifier.manual_npz_verifier --help
 新增目录保留全部 API 请求计量、生成与最终修复、两次应用结果及 `RESULTS.html`。
 同目录重启会复用已完成结果并核对冻结包；未完成的应用留档报错，不静默覆盖。
 费用无供应方确认价格时显示 unknown，原始 API usage 和返回的费用字段保留。
+
+本轮报告：[全部指标](runs/final_review_20x2_20261016/RESULTS.html)、[问题核实](runs/final_review_20x2_20261016/ISSUES.html)。问题页可展开任务原文和被验证回答；完整依据与基础设施恢复记录见同目录 `ANALYSIS.md`。
+
+已完成两种方法各 20 任务：Program 生成成功 19/20，工具版 18/20，37 份冻结包各应用两次，共 74 次。原生逐项重复一致分别为 16/17、12/14；回退单列。155 项宿主测试通过；最终哈希与计量核对见报告目录 `audit.json`。

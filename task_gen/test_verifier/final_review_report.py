@@ -45,7 +45,9 @@ def write_report(batch):
         statistics[method] = {
             'tasks':len(current), 'finished_tasks':sum(r['status'] not in ('pending','running') for r in current),
             'generated':sum((r.get('generation') or {}).get('status') == 'generated' for r in current),
+            'generation_failed':sum(r['status'] == 'generation_failed' for r in current),
             'applications':len(apps), 'native_completed':sum(a.get('mode') == native and a.get('status') == 'completed' for a in apps),
+            'application_errors':sum(a.get('status') != 'completed' for a in apps),
             'full_score':sum(a.get('mode') == native and a.get('score') == 1 for a in apps),
             'fallback':sum(a.get('mode') == 'fallback_codex' for a in apps),
             'both_native_pairs':len(pairs), 'same_total_pairs':sum(r['same_total_score'] for r in pairs),
@@ -62,6 +64,8 @@ def write_report(batch):
     esc = lambda v: html.escape(str(v))
     def seconds(v):
         return f'{v:.1f}' if isinstance(v,(int,float)) else '-'
+    def score(v):
+        return f'{v:.6g}' if isinstance(v,(int,float)) else v
     def api_text(v):
         if not v or not v['requests']:
             return '-'
@@ -76,10 +80,12 @@ def write_report(batch):
              '<title>最终 Codex 修复实验</title><style>body{font:14px/1.6 system-ui;margin:24px;color:#222;background:#fff}h1{font-size:24px}h2{font-size:18px;margin-top:28px}table{border-collapse:collapse;width:100%}th,td{padding:8px;border:1px solid #ddd;text-align:left;vertical-align:top}th{background:#f3f4f5;white-space:nowrap}.scroll{overflow:auto}details{max-width:800px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#087b67}</style>',
              '<h1>生成一次，冻结后应用两次</h1>',
              '<p>6.1sol / high。最终修复与验收试跑全部计入生成费用；两次正式应用单独计费。满分是参考通过信号，不等于错误识别准确率。token依次为输入/缓存/输出，缓存是输入子集。</p>',
+             '<p>本批使用任务已有的一次运行结果，没有错误答案集，无法计算完整准确率。未满分须对照任务原文判断；生成失败不伪造两次应用，回退通过不计作本方法原生通过。</p>',
              '<p>费用优先展示 API 返回值；未确认供应方价格、缺少usage或价格时保留 unknown，不填零。重复一致性仅在两次本方法均完成的任务对上计算，回退另计。</p>',
-             '<h2>关键指标</h2><div class="scroll"><table><tr><th>方法</th><th>完成任务</th><th>生成成功</th><th>本方法完成/应用</th><th>参考满分</th><th>回退</th><th>总分一致/可比对</th><th>逐项一致/可比对</th></tr>']
+             '<h2>关键指标</h2><div class="scroll"><table><tr><th>方法</th><th>完成任务</th><th>生成成功/失败</th><th>本方法完成/应用</th><th>满分/原生完成</th><th>回退/最终应用错误</th><th>总分一致/可比对</th><th>逐项一致/可比对</th></tr>']
     for method,s in statistics.items():
-        vals = [method,f"{s['finished_tasks']}/{s['tasks']}",s['generated'],f"{s['native_completed']}/{s['applications']}",s['full_score'],s['fallback'],
+        vals = [method,f"{s['finished_tasks']}/{s['tasks']}",f"{s['generated']}/{s['generation_failed']}",f"{s['native_completed']}/{s['applications']}",
+                f"{s['full_score']}/{s['native_completed']}",f"{s['fallback']}/{s['application_errors']}",
                 f"{s['same_total_pairs']}/{s['both_native_pairs']}",f"{s['same_rubric_pairs']}/{s['both_native_pairs']}"]
         lines.append('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in vals)+'</tr>')
     lines += ['</table></div><h2>耗时与 API 汇总</h2>',
@@ -107,8 +113,11 @@ def write_report(batch):
             maxima = {x['id']:1 if x['scale'] == 'binary' else 5 for x in design}
             issues = {k:a[k] for k in ('error','fallback_reason','fallback_error') if a.get(k)}
             issues['deductions'] = [x for x in a.get('rubrics',[]) if x['score'] < maxima.get(x['rubric_id'],5)]
-            vals = [r['case'],r['method'],i,a.get('mode'),a.get('score') if a.get('score') is not None else a.get('outcome',a.get('status')),seconds(a.get('seconds'))]
+            vals = [r['case'],r['method'],i,a.get('mode'),score(a.get('score')) if a.get('score') is not None else a.get('outcome',a.get('status')),seconds(a.get('seconds'))]
             lines.append('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in vals)+'<td>'+api_text(totals)+'</td><td><details><summary>详情</summary><pre>'+esc(json.dumps(issues,ensure_ascii=False,indent=2))+'</pre></details></td></tr>')
-    lines += ['</table></div><p>原始材料：summary.json、各任务 generation/、api/、applications/。生成与应用代码快照保存在 source_versions/。</p></html>']
+    lines += ['</table></div><p>原始材料：summary.json、各任务 generation/、api/、applications/。生成与应用代码快照保存在 source_versions/。</p>']
+    if (batch/'ISSUES.html').exists():
+        lines.append('<p><a href="ISSUES.html">已核实的问题、原任务和候选回答</a></p>')
+    lines.append('</html>')
     (batch/'RESULTS.html').write_text('\n'.join(lines))
     return statistics

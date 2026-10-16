@@ -1,6 +1,6 @@
 # Verifier 生成后的 Codex 最终修复 PRD
 
-状态：待实现。适用于 Program 和 Codex+静态工具两种 verifier 生成方法。
+状态：已实现。适用于 Program 和 Codex+静态工具两种 verifier 生成方法。批测记录见 `runs/final_review_20x2_20261016/RESULTS.html`。
 
 ## 1. 目标
 

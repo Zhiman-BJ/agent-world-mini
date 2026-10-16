@@ -69,4 +69,24 @@ def test_report_separates_generation_and_reused_application_costs(tmp_path):
     assert stats['generation_api']['known_input_tokens'] == 300
     assert stats['application_api']['known_input_tokens'] == 700
     assert stats['generation_api']['estimated_cost'] is None
+    assert stats['generation_failed'] == 0
+    assert stats['application_errors'] == 0
     assert '费用 unknown' in (tmp_path/'RESULTS.html').read_text()
+
+
+def test_report_does_not_count_failed_or_fallback_results_as_native_accuracy(tmp_path):
+    from task_gen.test_verifier.final_review_report import write_report
+    from task_gen.test_verifier.program_verifier.generation.pipeline import write_json
+    write_json(tmp_path/'selection.json', {'methods':['program'], 'selected':[
+        {'sample_id':case,'task_id':case} for case in ('P01','P02')]})
+    write_json(tmp_path/'program/P01/row.json', {'status':'generation_failed',
+               'generation':{'status':'generation_failed','seconds':2},'applications':[]})
+    write_json(tmp_path/'program/P02/row.json', {'status':'finished',
+               'generation':{'status':'generated','seconds':3}, 'applications':[
+                   {'mode':'fallback_codex','status':'completed','outcome':'pass','seconds':1},
+                   {'mode':'fallback_codex','status':'verification_error','seconds':2}],
+               'both_native':False})
+    stats = write_report(tmp_path)['program']
+    assert stats['generation_failed'] == 1
+    assert stats['application_errors'] == 1
+    assert stats['native_completed'] == stats['full_score'] == stats['both_native_pairs'] == 0
