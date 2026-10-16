@@ -43,7 +43,7 @@ def test_generation_failure_is_recorded_without_retry(tmp_path):
         calls.append(stage)
         return 'not json'
     e=tmp_path/'e';e.mkdir();(e/'request.json').write_text(json.dumps({'task_id':'x','task_text':'x'}))
-    result=generate(e,tmp_path,{},model_call=bad)
+    result=generate(e,tmp_path,{'final_review_enabled':False},model_call=bad)
     assert result['status']=='generation_failed'
     assert calls==['design']
     assert (tmp_path/'generation/result.json').exists()

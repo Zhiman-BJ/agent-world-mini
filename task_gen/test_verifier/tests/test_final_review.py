@@ -160,3 +160,20 @@ def test_pipeline_final_session_can_complete_failed_implementation(tmp_path):
     assert value['status'] == 'generated'
     assert calls == ['design','rubrics/R1.py','final']
     assert json.loads((tmp_path/'run/generation/staged_result.json').read_text())['status'] == 'generation_failed'
+
+
+def test_final_session_runs_even_when_design_never_delivers(tmp_path):
+    from task_gen.test_verifier.program_verifier.generation.pipeline import generate
+    root, evidence, _ = program_bundle(tmp_path)
+    calls = []
+    def model(prompt, *, stage, output_dir):
+        calls.append(stage)
+        if stage == 'design':
+            raise TimeoutError('design did not deliver')
+        assert stage == 'final'
+        assert not list((output_dir/'verifier').iterdir())
+        assert (output_dir/'generation/staged_result.json').is_file()
+        return root
+    value = generate(evidence, tmp_path/'new_run', model_call=model)
+    assert value['status'] == 'generated'
+    assert calls == ['design','final']

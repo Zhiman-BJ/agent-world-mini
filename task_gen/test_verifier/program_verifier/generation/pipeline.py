@@ -164,7 +164,7 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
         result={'task_id':request['task_id'],'status':'generated','verifier_dir':str(root),'seconds':time.monotonic()-started,'rubric_count':len(design['rubrics'])}
     except Exception as e:
         result={'task_id':request['task_id'],'status':'generation_failed','stage':stage,'error':f'{type(e).__name__}: {e}','seconds':time.monotonic()-started}
-    if (config or {}).get('final_review_enabled', True) and owns_root and any(root.iterdir()):
+    if (config or {}).get('final_review_enabled', True) and owns_root:
         write_json(logs/'staged_result.json', result)
         try:
             from ...final_review import run_final_review

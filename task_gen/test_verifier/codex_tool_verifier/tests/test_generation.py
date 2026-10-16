@@ -115,10 +115,25 @@ def test_failed_design_is_recorded_without_retry(bundle, tmp_path):
     def bad(prompt, *, stage, output_dir):
         calls.append(stage)
         raise RuntimeError('provider failed')
-    result = generate(bundle[1], tmp_path/'run', model_call=bad)
+    result = generate(bundle[1], tmp_path/'run', {'final_review_enabled':False}, model_call=bad)
     assert result['status'] == 'generation_failed' and result['stage'] == 'design'
     assert calls == ['design']
     assert json.loads((tmp_path/'run/generation/result.json').read_text()) == result
+
+
+def test_final_session_runs_even_when_design_never_delivers(bundle, tmp_path):
+    calls = []
+    def model(prompt, *, stage, output_dir):
+        calls.append(stage)
+        if stage == 'design':
+            raise TimeoutError('design did not deliver')
+        assert stage == 'final'
+        assert not list((output_dir/'verifier').iterdir())
+        assert (output_dir/'generation/staged_result.json').is_file()
+        return bundle[0]
+    value = generate(bundle[1], tmp_path/'run', model_call=model)
+    assert value['status'] == 'generated'
+    assert calls == ['design','final']
 
 
 def test_final_codex_can_complete_failed_tool_and_correct_design(bundle, tmp_path):
