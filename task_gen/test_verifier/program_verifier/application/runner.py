@@ -15,6 +15,7 @@ import tomllib
 
 from task_gen.task_eval_verifier import sandbox_command, verify_execution
 from ..contracts import RubricVerificationError, aggregate_results, validate_design, validate_evidence
+from ..environment_runtime import load_fallback, runtime_mounts, prepare_runtime_view
 from .sdk import SDK, make_context
 
 
@@ -111,7 +112,9 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
     process = None
     try:
         design = validate_design(json.loads((verifier_dir/'rubrics.json').read_text()))
-        request = _absolute_request(json.loads((evidence_dir/'program_request.json').read_text()), evidence_dir)
+        request = json.loads((evidence_dir/'program_request.json').read_text())
+        _absolute_request(request, evidence_dir)  # Validate once; keep the public request portable.
+        prepare_runtime_view(scratch, evidence_dir, config)
         _write(output_dir/'program_request.json', request)
         # sandbox_command expects the existing evidence/request/prompt layout.
         (output_dir/'evidence').mkdir()
@@ -124,6 +127,7 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
             _write(output_dir/'config.json', config)
             repository = Path(__file__).resolve().parents[4]
             runtimes = [Path(sys.prefix), Path(sys.base_prefix), repository, verifier_dir, evidence_dir]
+            runtimes.extend(runtime_mounts(evidence_dir, config))
             executable = shutil.which(config.get('codex', {}).get('executable') or 'codex')
             if executable:
                 binary = Path(executable).resolve()
@@ -180,10 +184,7 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
             _write(output_dir/'result.json', result)
             return result
         try:
-            evidence = json.loads((evidence_dir/'fallback_input.json').read_text())
-            for key in ('initial_state', 'actual_state', 'reference_state', 'reference_initial_state'):
-                if evidence.get(key) is not None:
-                    evidence[key] = Path(evidence[key])
+            evidence = load_fallback(evidence_dir)
             fallback_config = dict(config.get('codex', {}))
             if 'codex_home' in config:
                 fallback_config.setdefault('codex_home', config['codex_home'])

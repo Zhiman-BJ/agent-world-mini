@@ -13,7 +13,7 @@ from typing import Callable
 from ..contracts import validate_design
 
 SDK_CONTRACT = '''
-context.root: Path to evidence bundle; context.request: resolved program_request.json dict (not the legacy request.json used by fallback); context.task_id,task_text.
+context.root: Path to evidence bundle; context.request: portable program_request.json dict with relative paths (not legacy fallback request.json); context.task_id,task_text.
 context.initial_state: Path; context.actual/reference: dictionaries with Path keys final_state, answer, calls, execution (reference execution optional).
 context.scratch_dir: writable Path. raise context.error(code,message,rubric_id=None) to report a VerificationError; error(...) constructs the exception.
 Evidence indices environment/tools resolve relative to context.root. Read answer via context.actual['answer'].read_text(); calls are JSONL.
@@ -22,11 +22,14 @@ Declared model_calls/*.py build_prompt(context,inputs) may also run through exec
 context.sdk.parallel([lambda: ..., lambda: ...]): bounded parallel, returns ordered results, error stops queued calls.
 context.sdk.call_llm(prompt,*,call_file,function_name=None,rubric_id=None)->str: ordinary model textual response.
 context.sdk.call_codex(prompt,*,call_file,function_name=None,rubric_id=None)->str: model can investigate evidence with tools; prompt include relevant paths; scratch writable, evidence readonly.
+context.sdk.call_environment_tool(name,arguments,*,state='actual')->dict: use an ORIGINAL task tool, on a disposable copy of initial/actual/reference evidence and its original software profile. Returns original result; success=false may be a legitimate negative finding. Execution errors raise. Inspect evidence/tools.json before choosing; do not equate tool success with rubric success.
+context.sdk.run_environment_code(code,arguments,*,state='actual')->dict: run code defining run(arguments,context) in the original tool runtime/profile. context here is the original tool state/file API, not the verifier context. Use this for original-profile packages unavailable in the verifier's own interpreter; do not mix site-packages or add task-specific packages to the host.
 call_file is the exact declared model-call implementation path, e.g. "model_calls/assess.py"; it is NOT the candidate's tool_calls.jsonl or another evidence path. Evidence is supplied through the built prompt. function_name is a log label.
 context.sdk.aggregate(results)->{'score':0..1,'rubrics':[results]}: fixed weighted aggregation, must receive every rubric exactly once; return this from run(context).
 Rubric result: {'rubric_id':'R1','score':0 or 1 / integer0..5,'reason':'nonempty','evidence':[{'path':'evidence/...','locator':'...','finding':'...'}], optional 'data':...}.
-Evidence path is absolute under context.root/context.scratch_dir, or relative to context.root; scratch/... resolves under context.scratch_dir. It must exist, and may be a FILE OR DIRECTORY. A source-document nickname is not a resolvable evidence path.
+Evidence path MUST be relative to context.root; scratch/... resolves under context.scratch_dir. It must exist, and may be a FILE OR DIRECTORY. A source-document nickname is not a resolvable evidence path. Absolute output paths are invalid.
 context.resolve_evidence_path(path)->Path: resolve, check containment and existence for file OR directory evidence. Use this for evidence references; do not add is_file() restrictions. Only task artifacts explicitly designed as files require is_file(). A directory can substantiate a tree comparison or missing artifact search.
+context.evidence_path(path)->str: serialize a checked Path to a portable relative evidence reference; use this for path tables/model prompts and final results, never str(context.actual[...]) or machine-specific installation paths. File operations may use resolved Paths internally.
 Helpers return their designed data, never aggregated. Inputs explicitly passed by main, no depends_on graph. imports are ordinary absolute package imports: from rubrics.R1 import check_R1 / from helpers.locate import locate / from model_calls.assess import build_prompt,parse_output.
 No generated file imports task_gen.test_verifier.program_verifier or task_gen.program.
 '''
@@ -87,9 +90,11 @@ def check_package(root: Path, task_text: str | None = None, *, design_only: bool
     # Actual rubric execution coverage is checked by the application host, not inferred from Python syntax.
     if design_only:
         return design
-    allowed={'main.py','rubrics.json','model_calls_design.json'}|{i['file'] for i in items}|{f'{d}/__init__.py' for d in ['rubrics','helpers','model_calls']}
+    allowed={'main.py','rubrics.json','model_calls_design.json','README.md'}|{i['file'] for i in items}|{f'{d}/__init__.py' for d in ['rubrics','helpers','model_calls']}
     for p in root.rglob('*'):
         if p.is_symlink(): raise ValueError(f'Symlink in generated package: {p}')
+        if '__pycache__' in p.relative_to(root).parts and p.suffix == '.pyc':
+            continue
         if p.is_file() and str(p.relative_to(root)) not in allowed:
             raise ValueError(f'Unexpected generated file: {p}')
         if p.is_file() and p.suffix == '.py':
@@ -150,8 +155,11 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
             prompt+='\nRequest:\n'+json.dumps(request,ensure_ascii=False)+'\nTARGET:\n'+json.dumps(item,ensure_ascii=False)
             prompt+='\n完整冻结设计在工作目录 rubrics.json、model_calls_design.json。只按需要读取目标契约和相关依赖；不要重复输出整份设计。\nFrozen main.py:\n'+(root/'main.py').read_text()
             workspace=Path(model_call(prompt,stage=target,output_dir=output_dir))
-            check_file(workspace,item)
+            # Preserve the last implementation for whole-package repair, even if its check fails.
+            if (workspace/target).is_symlink():
+                raise ValueError(f'Symlink in generated implementation: {target}')
             shutil.copyfile(workspace/target,root/target)
+            check_file(root,item)
             if hashlib.sha256((root/'main.py').read_bytes()).hexdigest()!=frozen:
                 raise ValueError('Implementation modified frozen main.py')
         stage='implementation'

@@ -52,3 +52,21 @@ def test_ordinal_full_score_is_exactly_one():
     from task_gen.test_verifier.program_verifier.contracts import aggregate_results
     rubric = {'id':'R1', 'weight':0.11, 'scale':'ordinal_5'}
     assert aggregate_results([rubric], [result(score=5)])['score'] == 1
+
+
+def test_delivery_allows_readme_and_compiler_cache(bundle):
+    root, _ = bundle
+    (root/'README.md').write_text('Delivery instructions.')
+    cache = root/'tools/__pycache__'
+    cache.mkdir()
+    (cache/'T1.cpython-311.pyc').write_bytes(b'compiled')
+    validate_package(root)
+
+
+def test_host_canonicalizes_absolute_evidence_to_relative_paths(bundle, tmp_path):
+    root, evidence = bundle
+    value = result(['C1'])
+    value['evidence'][0]['path'] = str((evidence/value['evidence'][0]['path']).resolve())
+    calls = [{'call_id':'C1', 'tool_id':'T1', 'status':'completed', 'result':{'status':'ok'}}]
+    scored = validate_results(validate_package(root), [value], calls, evidence, tmp_path)
+    assert scored['rubrics'][0]['evidence'][0]['path'] == 'final/data.json'

@@ -269,9 +269,9 @@ def test_generation_model_delivers_files_and_host_replays_self_test(bundle, tmp_
     monkeypatch.setattr(model, '_VerifierClient', Client)
     logs = output/'generation'
     logs.mkdir()
-    generator = GenerationModel(evidence, {}, logs)
+    generator = GenerationModel(evidence, {'generation_call_timeout_seconds':5}, logs)
     if broken:
-        with pytest.raises(RuntimeError, match='self.test|acceptance'):
+        with pytest.raises((RuntimeError, TimeoutError), match='self.test|acceptance'):
             generator('write and test', stage=stage, output_dir=output)
         assert (evidence/'answer.txt').read_text() == 'completed'
     else:

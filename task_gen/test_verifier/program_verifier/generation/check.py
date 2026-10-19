@@ -61,7 +61,7 @@ def check_workspace(root: Path, task_text: str, stage: str, self_test: Path) -> 
         raise ValueError(f'Self-test violates SDK model-call contract: {sorted(model_errors)}; call_file must be the declared model_calls/*.py path with matching method, not an evidence file')
     if not required <= observed:
         raise ValueError(f'Self-test must exercise delivered functions: {sorted(required-observed)}')
-    allowed = {'main.py', 'rubrics.json'}
+    allowed = {'main.py', 'rubrics.json', 'README.md'}
     if stage != 'design':
         allowed |= {'model_calls_design.json'} | {item['file'] for item in file_contracts(design)}
         allowed |= {f'{folder}/__init__.py' for folder in ('rubrics', 'helpers', 'model_calls')}

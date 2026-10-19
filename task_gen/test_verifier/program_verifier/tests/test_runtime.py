@@ -259,12 +259,16 @@ def test_evidence_paths_allow_scratch_but_reject_missing_and_escape(tmp_path):
     root, scratch = tmp_path/'readonly', tmp_path/'scratch'
     root.mkdir(); scratch.mkdir(); (scratch/'computed.txt').write_text('computed')
     row = result()
-    for path in ('scratch/computed.txt', str(scratch/'computed.txt'), str(root)):
+    for path in ('scratch/computed.txt', '.'):
         row['evidence'][0]['path'] = path
         validate_evidence([row], root, scratch)
-    for path in ('missing.txt', str(tmp_path)):
+    for path in ('missing.txt',):
         row['evidence'][0]['path'] = path
         with pytest.raises(RubricVerificationError, match='missing or outside'):
+            validate_evidence([row], root, scratch)
+    for path in (str(scratch/'computed.txt'), str(root), '../readonly'):
+        row['evidence'][0]['path'] = path
+        with pytest.raises(RubricVerificationError, match='must be relative'):
             validate_evidence([row], root, scratch)
     row['evidence'] = []
     with pytest.raises(RubricVerificationError, match='nonempty'):

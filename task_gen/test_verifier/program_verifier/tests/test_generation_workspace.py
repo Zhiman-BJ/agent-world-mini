@@ -30,31 +30,37 @@ def test_codex_delivers_files_and_host_replays_its_self_test(tmp_path, monkeypat
     executable=Path(shutil.which('python')).resolve()
     monkeypatch.setattr(model.shutil,'which',lambda name: str(executable) if name=='codex' else '/usr/bin/bwrap')
     monkeypatch.setattr(model,'_isolated_auth',lambda *args: {})
+    calls = []
     class Client:
         def __init__(self, **kwargs): pass
         def run_until_files(self, prompt, *, working_directory, required_paths):
+            calls.append(working_directory)
+            if len(calls) > 1:
+                assert "宿主独立复验失败" in prompt
+                assert "self test failed" in prompt
+                assert calls[-1] == calls[0]
             assert required_paths == (working_directory/'scratch/acceptance_ready.json',)
             root=working_directory/'scratch/verifier'
             (root/'rubrics.json').write_text(json.dumps(design()))
+            (root/'README.md').write_text('Delivery notes.')
             (root/'main.py').write_text('def run(context):\n    return {"ready": True}\n')
             import py_compile
             py_compile.compile(str(root/'main.py'), doraise=True)
             (working_directory/'scratch/self_test.py').write_text(
                 'from main import run\nassert run(None)=={"ready":True}\n'
-                + ('raise AssertionError("self test failed")\n' if broken_test else ''))
+                + ('raise AssertionError("self test failed")\n' if broken_test and len(calls) == 1 else ''))
             return '代码已写入，完成测试。'
     monkeypatch.setattr(model,'_VerifierClient',Client)
     logs=tmp_path/'generation';logs.mkdir()
     generator=GenerationModel(evidence,{},logs)
-    if broken_test:
-        with pytest.raises(RuntimeError,match='self.test|acceptance'):
-            generator('write and test',stage='design',output_dir=tmp_path)
-    else:
-        root=generator('write and test',stage='design',output_dir=tmp_path)
-        assert (root/'main.py').is_file()
-        acceptance=json.loads(next(logs.glob('*/acceptance.json')).read_text())
-        assert acceptance['exit_code']==0
-    assert json.loads(next(logs.glob('*/call.json')).read_text())['status']==('error' if broken_test else 'completed')
+    root=generator('write and test',stage='design',output_dir=tmp_path)
+    assert (root/'main.py').is_file()
+    acceptance=json.loads(next(logs.glob('*/acceptance.json')).read_text())
+    assert acceptance['exit_code']==0
+    assert len(calls) == (2 if broken_test else 1)
+    record=json.loads(next(logs.glob('*/call.json')).read_text())
+    assert record['status']=='completed'
+    assert [row['status'] for row in record['attempts']] == (['error','completed'] if broken_test else ['completed'])
 
 
 def test_check_requires_exercising_the_delivered_function(tmp_path):

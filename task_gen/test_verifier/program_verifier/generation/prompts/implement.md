@@ -22,3 +22,5 @@ build_prompt 的实际返回文本必须装入 parse_output 要求的完整字�
 确定性枚举或计数评分的自测必须证明最高档可达：按原任务允许的维度构造完整集合，而不是照抄设计中的总数。若发现冻结设计与原任务数学上矛盾（例如四角度×两状态×两偏振被写成32项），应明确报告设计错误，不能明知矛盾仍忠实实现一个永远无法满分的检查器。
 
 自测中的 context.scratch_dir 必须位于交付 verifier/ 目录之外（例如同级 scratch/test_outputs/）。测试生成的JSON、数组、图像等不能留在verifier/；最终验收会检查这些额外文件，发现后修正测试路径并移走测试产物再运行。
+
+先检查原工具与原软件 profile 的可用能力，适合则复用。使用 SDK 的 call_environment_tool/run_environment_code 或给定 environment_tool CLI；这些入口在原运行环境中操作当前被检查证据的独立副本。不要为某一道题向公共 verifier 环境添加依赖。仅工具调用成功不足以证明任务完成，按固定 rubric 检查其返回内容。生成代码、模型路径表和评分 evidence.path 必须使用相对路径；内部文件读取用运行时解析的 Path。

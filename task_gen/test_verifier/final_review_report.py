@@ -7,6 +7,7 @@ from statistics import mean, median
 
 from .program_verifier.repeat_sample import api_totals, read
 from .program_verifier.generation.pipeline import write_json
+from .final_review_experiment import NATIVE_MODES
 
 
 def write_report(batch):
@@ -39,7 +40,7 @@ def write_report(batch):
             row['final_review'] = read(root/'generation/final_result.json', {})
             row['directory'] = str(root)
             current.append(row)
-        native = 'program' if method == 'program' else 'codex_with_tools'
+        native = NATIVE_MODES[method]
         apps = [a for r in current for a in r.get('applications',[])]
         pairs = [r for r in current if r.get('both_native')]
         statistics[method] = {
@@ -77,10 +78,11 @@ def write_report(batch):
         errors = f"API错误 {v['api_errors']} / 传输错误 {v['transport_errors']} / 取消 {v['client_cancellations']}"
         return esc(f"{tokens}; {v['requests_with_usage']}/{v['requests']}请求有usage; {cost}; {errors}")
     lines = ['<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-             '<title>最终 Codex 修复实验</title><style>body{font:14px/1.6 system-ui;margin:24px;color:#222;background:#fff}h1{font-size:24px}h2{font-size:18px;margin-top:28px}table{border-collapse:collapse;width:100%}th,td{padding:8px;border:1px solid #ddd;text-align:left;vertical-align:top}th{background:#f3f4f5;white-space:nowrap}.scroll{overflow:auto}details{max-width:800px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#087b67}</style>',
+             '<title>Verifier 实验</title><style>body{font:14px/1.6 system-ui;margin:24px;color:#222;background:#fff}h1{font-size:24px}h2{font-size:18px;margin-top:28px}table{border-collapse:collapse;width:100%}th,td{padding:8px;border:1px solid #ddd;text-align:left;vertical-align:top}th{background:#f3f4f5;white-space:nowrap}.scroll{overflow:auto}details{max-width:800px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#087b67}</style>',
              '<h1>生成一次，冻结后应用两次</h1>',
-             '<p>6.1sol / high。最终修复与验收试跑全部计入生成费用；两次正式应用单独计费。满分是参考通过信号，不等于错误识别准确率。token依次为输入/缓存/输出，缓存是输入子集。</p>',
+             '<p>6.1sol / high。生成、会话内自测修正、可选最终复查均计入生成费用；两次正式应用单独计费。两个 rubric 版分别从原任务独立生成，不复用工具版 rubric。满分是参考通过信号，不等于错误识别准确率。token依次为输入/缓存/输出，缓存是输入子集。</p>',
              '<p>本批使用任务已有的一次运行结果，没有错误答案集，无法计算完整准确率。未满分须对照任务原文判断；生成失败不伪造两次应用，回退通过不计作本方法原生通过。</p>',
+             '<p>PASS/FAIL 与分数分别展示：历史结果没有判定时标为未记录，不按未经约定的分数门槛推断；回退没有 rubric 分数时标为未评分，执行错误不等同任务 FAIL。</p>',
              '<p>费用优先展示 API 返回值；未确认供应方价格、缺少usage或价格时保留 unknown，不填零。重复一致性仅在两次本方法均完成的任务对上计算，回退另计。</p>',
              '<h2>关键指标</h2><div class="scroll"><table><tr><th>方法</th><th>完成任务</th><th>生成成功/失败</th><th>本方法完成/应用</th><th>满分/原生完成</th><th>回退/最终应用错误</th><th>总分一致/可比对</th><th>逐项一致/可比对</th></tr>']
     for method,s in statistics.items():
@@ -103,7 +105,7 @@ def write_report(batch):
         issue = g.get('error') or r.get('error') or f.get('changed_files',[])
         vals = [r['case'],r['method'],g.get('status',r['status']),seconds(g.get('seconds')),seconds(f.get('seconds')),len(f.get('changed_files',[]))]
         lines.append('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in vals)+'<td>'+api_text(r['generation_api'])+'</td><td><details><summary>详情</summary><pre>'+esc(json.dumps(issue,ensure_ascii=False,indent=2))+'</pre></details></td></tr>')
-    lines += ['</table></div><h2>两次正式应用</h2><div class="scroll"><table><tr><th>任务</th><th>方法</th><th>次数</th><th>执行路径</th><th>得分/判定</th><th>应用总秒</th><th>API（含回退）</th><th>问题与扣分</th></tr>']
+    lines += ['</table></div><h2>两次正式应用</h2><div class="scroll"><table><tr><th>任务</th><th>方法</th><th>次数</th><th>执行路径</th><th>PASS/FAIL</th><th>分数（0–1）</th><th>应用总秒</th><th>API（含回退）</th><th>问题与扣分</th></tr>']
     for r in rows:
         for i,a in enumerate(r.get('applications',[]),1):
             root = Path(r['directory'])
@@ -113,11 +115,16 @@ def write_report(batch):
             maxima = {x['id']:1 if x['scale'] == 'binary' else 5 for x in design}
             issues = {k:a[k] for k in ('error','fallback_reason','fallback_error') if a.get(k)}
             issues['deductions'] = [x for x in a.get('rubrics',[]) if x['score'] < maxima.get(x['rubric_id'],5)]
-            vals = [r['case'],r['method'],i,a.get('mode'),score(a.get('score')) if a.get('score') is not None else a.get('outcome',a.get('status')),seconds(a.get('seconds'))]
+            verdict = (str(a['outcome']).upper() if a.get('status') == 'completed' and a.get('outcome') in ('pass','fail')
+                       else '执行错误' if a.get('status') != 'completed' else '未记录')
+            vals = [r['case'],r['method'],i,a.get('mode'),verdict,
+                    score(a['score']) if a.get('score') is not None else '未评分',seconds(a.get('seconds'))]
             lines.append('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in vals)+'<td>'+api_text(totals)+'</td><td><details><summary>详情</summary><pre>'+esc(json.dumps(issues,ensure_ascii=False,indent=2))+'</pre></details></td></tr>')
     lines += ['</table></div><p>原始材料：summary.json、各任务 generation/、api/、applications/。生成与应用代码快照保存在 source_versions/。</p>']
     if (batch/'ISSUES.html').exists():
         lines.append('<p><a href="ISSUES.html">已核实的问题、原任务和候选回答</a></p>')
+    if (batch/'DEDUCTIONS_REVIEW.html').exists():
+        lines.append('<p><a href="DEDUCTIONS_REVIEW.html">逐项扣分合理性复核</a></p>')
     lines.append('</html>')
     (batch/'RESULTS.html').write_text('\n'.join(lines))
     return statistics

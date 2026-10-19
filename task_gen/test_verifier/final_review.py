@@ -20,6 +20,9 @@ def package_check(method, root, task_text):
     if method == 'codex_tools':
         from .codex_tool_verifier.contracts import validate_package
         return validate_package(root, task_text)
+    if method in ('codex_rubric_verifier', 'direct_codex_rubric'):
+        from .codex_rubric_verifier.generation import validate_package
+        return validate_package(root, task_text)
     raise ValueError(f'Unknown verifier method: {method}')
 
 
@@ -50,10 +53,18 @@ def check_workspace(method, root, evidence, self_test, config, native_output):
     if method == 'program':
         from .program_verifier.application.runner import apply
         expected = 'program'
-    else:
+    elif method == 'codex_tools':
         from .codex_tool_verifier.application import apply
         expected = 'codex_with_tools'
         native_config['static_tools_enabled'] = True
+    elif method == 'codex_rubric_verifier':
+        from .codex_rubric_verifier.application import apply
+        expected = 'codex_rubric_only'
+        native_config['static_tools_enabled'] = False
+    else:
+        from .direct_codex_rubric.application import apply
+        expected = 'direct_codex_rubric'
+        native_config['static_tools_enabled'] = False
     native_output = Path(native_output)
     native_output.parent.mkdir(parents=True, exist_ok=True)
     result = apply(root, evidence, native_output, native_config)
@@ -72,6 +83,7 @@ class FinalReviewModel(GenerationModel):
     def __init__(self, evidence_dir, config, logs, method):
         super().__init__(evidence_dir, config, logs)
         self.final_method = method
+        self.isolate_experiments = method in ('codex_rubric_verifier', 'direct_codex_rubric')
 
 
 def run_final_review(method, evidence_dir, output_dir, config, *, model_call=None):
@@ -88,9 +100,20 @@ def run_final_review(method, evidence_dir, output_dir, config, *, model_call=Non
             request_file = evidence_dir/'request.json'
         request = json.loads(request_file.read_text())
         prompt = Path(__file__).with_name('final_review_prompt.md').read_text()
+        if method in ('codex_rubric_verifier', 'direct_codex_rubric'):
+            prompt += ('\n本次为独立 Codex+rubric 方法。以下专属约束优先于通用代码/工具说明：'
+                       '只交付 rubrics.json、instructions.md、coverage.json、空 tools.json，README.md 可选；'
+                       '禁止新增 main.py、静态工具、其他生成代码，所有 rubric 均由单一主 Codex 判断。'
+                       '逐条检查扣分条件是否来自原任务，不能额外要求复述输入或操作过程；'
+                       '可以在冻结前修正错误标准，但不能为参考答案得满分而放宽。'
+                       '自测应读取并校验当前交付的设计文件；本方法没有生成代码可导入。'
+                       '完整验收须调用本方法自己的应用端，返回整体判定及逐项分数。'
+                       '\n本方法应用契约：\n')
+            prompt += (Path(__file__).parent/method/'prompts/application_contract.md').read_text()
         prompt += '\nMethod: '+method+'\nEvidence bundle: '+str(evidence_dir)
         prompt += '\nTask request:\n'+json.dumps(request, ensure_ascii=False)
-        prompt += '\n生成阶段问题和日志（按需读取）：'+str(logs)
+        prompt += ('\n生成阶段问题、日志和失败阶段的 scratch/verifier 实现（显式只读挂载，按需读取）：'
+                   +str(logs)+'。失败调用的 call.json 中 workspace 指向最后一次实现；将需要的代码复制到当前可写 verifier 后修复。')
         if model_call is None:
             model_call = FinalReviewModel(evidence_dir, config, logs, method)
         workspace = Path(model_call(prompt, stage='final', output_dir=output_dir))
@@ -115,7 +138,7 @@ def main():
     parser.add_argument('--workspace', type=Path, required=True)
     parser.add_argument('--evidence', type=Path, required=True)
     parser.add_argument('--self-test', type=Path, required=True)
-    parser.add_argument('--method', choices=['program','codex_tools'], required=True)
+    parser.add_argument('--method', choices=['program','codex_tools','codex_rubric_verifier','direct_codex_rubric'], required=True)
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--stage', choices=['final'], required=True)
     parser.add_argument('--completion-file', type=Path)

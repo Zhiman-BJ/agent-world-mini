@@ -281,7 +281,7 @@ class _VerifierClient(CodexAgentClient):
                                                     "--config", 'web_search="disabled"']
 
 
-def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
+def run_verification_agent(run_dir: Path, config: dict | None = None, *, result_validator=None) -> dict:
     config = dict(config or {})
     home = Path(config.get("codex_home") or Path.home() / ".codex").expanduser().resolve()
     original = tomllib.loads((home / "config.toml").read_text())
@@ -337,7 +337,7 @@ def run_verification_agent(run_dir: Path, config: dict | None = None) -> dict:
             error = None
             try:
                 text = client.run(request, working_directory=run_dir)
-                value = validate_verdict(json.loads(text), run_dir)
+                value = (result_validator or validate_verdict)(json.loads(text), run_dir)
             except Exception as failure:
                 error = f"{type(failure).__name__}: {failure}"
             if _workspace_signature(run_dir / "evidence") != before:

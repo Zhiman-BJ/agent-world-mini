@@ -20,6 +20,9 @@ from .program_verifier.generation.pipeline import write_json
 from .program_verifier.metering import MeteringRelay, now
 from .program_verifier.repeat_sample import metered_config
 
+NATIVE_MODES = {'program':'program', 'codex_tools':'codex_with_tools',
+                'codex_rubric_verifier':'codex_rubric_only', 'direct_codex_rubric':'direct_codex_rubric'}
+
 
 def read(path, default=None):
     try:
@@ -34,9 +37,17 @@ def execute(method, evidence, output, config, *, phase=None):
     if method == 'program':
         from .program_verifier.generation.pipeline import generate
         from .program_verifier.application.runner import apply
-    else:
+    elif method == 'codex_tools':
         from .codex_tool_verifier.generation import generate
         from .codex_tool_verifier.application import apply
+    elif method == 'codex_rubric_verifier':
+        from .codex_rubric_verifier.generation import generate
+        from .codex_rubric_verifier.application import apply
+    elif method == 'direct_codex_rubric':
+        from .direct_codex_rubric.generation import generate
+        from .direct_codex_rubric.application import apply
+    else:
+        raise ValueError(f'Unknown method: {method}')
     row = {'method':method,'status':'running','generation':None,'applications':[]}
     started = time.monotonic()
     try:
@@ -71,7 +82,7 @@ def execute(method, evidence, output, config, *, phase=None):
             if snapshot(root) != frozen:
                 raise ValueError('Frozen verifier changed during application')
         a, b = row['applications']
-        native = 'program' if method == 'program' else 'codex_with_tools'
+        native = NATIVE_MODES[method]
         both_native = all(x.get('mode') == native and x.get('status') == 'completed' for x in (a,b))
         row['both_native'] = both_native
         row['same_total_score'] = a['score'] == b['score'] if both_native else None
@@ -105,11 +116,14 @@ def source_snapshot(batch):
     return revision
 
 
-def run_job(method, item, evidence, batch, config, revision):
+def run_job(method, item, evidence, batch, config, revision, *, claim_token=None):
     output = batch/method/item['sample_id']
     output.mkdir(parents=True, exist_ok=True)
     cached = read(output/'row.json')
-    if cached is not None:
+    if claim_token is not None:
+        if not (cached and cached.get('status') == 'running' and cached.get('claim_token') == claim_token):
+            raise ValueError('Invalid parallel worker claim; cannot overwrite existing work')
+    elif cached is not None:
         return cached
     home = Path(config['codex'].get('codex_home', Path.home()/'.codex'))
     settings = tomllib.loads((home/'config.toml').read_text())
@@ -139,19 +153,22 @@ def run_job(method, item, evidence, batch, config, revision):
     return row
 
 
-def main():
+def main(*, method=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--selection', type=Path, default=Path('task_gen/test_verifier/runs/random20_20261015/task_ids.tsv'))
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--data-root', type=Path, default=DEFAULT_DATA_ROOT)
-    parser.add_argument('--methods', nargs='+', choices=['program','codex_tools'], default=['program','codex_tools'])
+    if method is None:
+        parser.add_argument('--methods', nargs='+', choices=list(NATIVE_MODES), default=['program','codex_tools'])
+    else:
+        parser.set_defaults(methods=[method])
     parser.add_argument('--cases', nargs='+')
     parser.add_argument('--concurrency', type=int, default=4)
     args = parser.parse_args()
     config = read(args.config)
     assert config['codex']['model'] == 'gpt-6.1-sol' and config['codex']['reasoning_effort'] == 'high'
-    assert config.get('final_review_enabled',True) is True and args.concurrency > 0
+    assert args.concurrency > 0
     with args.selection.open(newline='') as stream:
         selected = list(csv.DictReader(stream, delimiter='\t'))
     if args.cases:

@@ -9,11 +9,12 @@ from typing import Callable
 
 from ..program_verifier.generation.model import GenerationModel as BaseGenerationModel, snapshot
 from ..program_verifier.generation.pipeline import write_json
-from .contracts import DESIGN_FILES, validate_package, validate_tool_file
+from .contracts import DESIGN_FILES, OPTIONAL_FILES, validate_package, validate_tool_file
 
 
 class GenerationModel(BaseGenerationModel):
     design_files = DESIGN_FILES
+    optional_design_files = OPTIONAL_FILES
     check_module = 'task_gen.test_verifier.codex_tool_verifier.check'
 
 
@@ -27,7 +28,12 @@ for final_state, answer, calls, execution where present. Answers are UTF-8 text,
 context.scratch_dir: writable Path for this call only. Outputs referencing files must state their path base.
 The host CLI envelope returns call_id, tool_id, scratch_dir (this call's absolute directory), and result.
 For paths relative to context.scratch_dir, the main Codex joins them to the envelope's scratch_dir,
-not the main session scratch. Tool results may also return absolute artifact paths.
+not the main session scratch. Tool artifact paths must be relative to their declared root;
+never persist machine installation paths or absolute evidence paths in generated code or results.
+context.evidence_path(path): validate an existing evidence/scratch Path and serialize it relative to its root.
+Its scratch/ prefix refers to this tool call's scratch, identified by the host envelope's scratch_dir.
+context.call_environment_tool(name, arguments, state='actual'): call an existing original-environment
+tool using the task's original software profile on a scratch copy of initial/actual/reference state.
 context.error(code, message): creates an exception; raise it for an unexpected verification error.
 No model or SDK is available inside tools. All model judgments belong to the single main Codex.
 Inputs and returned objects must satisfy the exact JSON schemas in tools.json; non-finite JSON numbers are invalid.
@@ -54,12 +60,12 @@ def generate(evidence_dir: Path, output_dir: Path, config: dict | None = None, *
             model_call = GenerationModel(evidence_dir, config or {}, logs)
         prompt_dir = Path(__file__).parent/'prompts'
         context = '\nTool context:\n'+TOOL_CONTEXT+'\nEvidence bundle: '+str(evidence_dir)
-        context += '\nRequest (evidence paths are relative to the evidence bundle unless absolute):\n'+json.dumps(request, ensure_ascii=False)
+        context += '\nRequest (evidence paths are relative to the evidence bundle):\n'+json.dumps(request, ensure_ascii=False)
         workspace = Path(model_call((prompt_dir/'design.md').read_text()+context, stage=stage, output_dir=output_dir))
-        if set(snapshot(workspace)) != DESIGN_FILES:
-            raise ValueError('Design must deliver exactly the four design files')
+        if not DESIGN_FILES <= set(snapshot(workspace)) <= DESIGN_FILES | OPTIONAL_FILES:
+            raise ValueError('Design must deliver the four design files and optional README.md')
         plan = validate_package(workspace, request['task_text'], design_only=True)
-        for name in DESIGN_FILES:
+        for name in DESIGN_FILES | (OPTIONAL_FILES & set(snapshot(workspace))):
             shutil.copyfile(workspace/name, root/name)
         frozen = snapshot(root)
         (root/'tools').mkdir()

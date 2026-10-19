@@ -11,7 +11,8 @@ import time
 import tomllib
 import uuid
 
-from ..contracts import RubricVerificationError, aggregate_results, validate_evidence, resolve_evidence_path
+from ..contracts import RubricVerificationError, aggregate_results, validate_evidence, resolve_evidence_path, evidence_path
+from ..environment_runtime import call_environment_tool, run_environment_code, runtime_instructions
 
 _ACTIVE = ContextVar('verifier_function', default=(None, None))
 
@@ -23,12 +24,18 @@ class Context(SimpleNamespace):
     def resolve_evidence_path(self, path):
         return resolve_evidence_path(path, self.root, self.scratch_dir)
 
+    def evidence_path(self, path):
+        return evidence_path(path, self.root, self.scratch_dir)
+
 
 def make_context(request, root, scratch_dir, sdk):
+    root = Path(root).resolve()
+    if sdk is not None:
+        sdk.evidence_root = root
     return Context(request=request, root=Path(root), task_id=request['task_id'],
-        task_text=request['task_text'], initial_state=Path(request['initial_state']),
-        actual={k: Path(v) for k, v in request['actual'].items()},
-        reference={k: Path(v) for k, v in request.get('reference', {}).items()},
+        task_text=request['task_text'], initial_state=root/request['initial_state'],
+        actual={k: root/v for k, v in request['actual'].items()},
+        reference={k: root/v for k, v in request.get('reference', {}).items()},
         scratch_dir=Path(scratch_dir), sdk=sdk)
 
 
@@ -164,6 +171,25 @@ class SDK:
     def call_codex(self, prompt, *, call_file, function_name=None, rubric_id=None):
         return self._model('codex', prompt, call_file, function_name, rubric_id)
 
+    def call_environment_tool(self, name, arguments, *, state='actual'):
+        self._check()
+        result = call_environment_tool(self.evidence_root, self.scratch_dir, name, arguments,
+                                       state=state, config=self._environment_config())
+        self._check()
+        return result
+
+    def run_environment_code(self, code, arguments, *, state='actual'):
+        self._check()
+        result = run_environment_code(self.evidence_root, self.scratch_dir, code, arguments,
+                                      state=state, config=self._environment_config())
+        self._check()
+        return result
+
+    def _environment_config(self):
+        return dict(self.config, environment_tool_timeout_seconds=min(
+            float(self.config.get('environment_tool_timeout_seconds',120)),
+            max(1, self.deadline-time.monotonic())))
+
     def _model(self, method, prompt, call_file, function_name, rubric_id):
         self._check()
         declared = {m['file']: m for m in self.design.get('model_calls', [])}
@@ -215,6 +241,10 @@ class SDK:
                     bypass_approvals_and_sandbox=True, log_directory=self.log_dir / ident)
                 working = self.scratch_dir / ident
                 working.mkdir()
+                if hasattr(self, 'evidence_root'):
+                    prompt += runtime_instructions(self.evidence_root, working, self.config)
+                record['prompt'] = prompt
+                self._write(ident, record)
                 raw = client.run(prompt, working_directory=working)
             record['response'] = raw
             self._check()

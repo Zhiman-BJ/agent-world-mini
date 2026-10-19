@@ -13,7 +13,7 @@ from jsonschema import Draft202012Validator
 
 from ..program_verifier.generation.model import snapshot
 from ..program_verifier.application.runner import _absolute_request
-from .contracts import DESIGN_FILES, validate_package, validate_tool_file
+from .contracts import DESIGN_FILES, OPTIONAL_FILES, validate_package, validate_tool_file
 from .tool_runner import make_context
 
 
@@ -23,8 +23,8 @@ def check_workspace(root: Path, task_text: str, stage: str, self_test: Path, *, 
     plan = validate_package(root, task_text, design_only=True)
     tool = None
     if stage == 'design':
-        if set(snapshot(root)) != DESIGN_FILES:
-            raise ValueError('Design must contain exactly the four design files')
+        if not DESIGN_FILES <= set(snapshot(root)) <= DESIGN_FILES | OPTIONAL_FILES:
+            raise ValueError('Design must contain the four design files and optional README.md')
     else:
         tool = next((item for item in plan['tools'] if item['file'] == stage), None)
         if tool is None:

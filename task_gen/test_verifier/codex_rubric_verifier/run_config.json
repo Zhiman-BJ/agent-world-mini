@@ -1,0 +1,13 @@
+{
+  "codex": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "timeout_seconds": 1800,
+    "record_usage": true,
+    "attempts": 1
+  },
+  "llm": {},
+  "generation_call_timeout_seconds": 1800,
+  "application_timeout_seconds": 1800,
+  "static_tools_enabled": false
+}

@@ -1,4 +1,4 @@
-# Additional readers for Parquet, HDF5, and VCD verification inputs.
+# General readers for Parquet and HDF5 verification inputs.
+# Task-specific packages (e.g. VCD readers) come from the original task profile.
 pyarrow==26.0.0
 h5py==3.16.0
-pyvcd==0.5.0

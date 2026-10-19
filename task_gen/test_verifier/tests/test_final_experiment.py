@@ -1,4 +1,19 @@
 import json
+import pytest
+
+
+def test_parallel_worker_cannot_take_a_completed_or_unclaimed_job(tmp_path):
+    from task_gen.test_verifier.final_review_experiment import run_job
+    from task_gen.test_verifier.program_verifier.generation.pipeline import write_json
+    item = {'sample_id':'P01'}
+    root = tmp_path/'program/P01'
+    write_json(root/'row.json', {'status':'finished'})
+    with pytest.raises(ValueError, match='claim'):
+        run_job('program', item, tmp_path/'evidence', tmp_path, {}, 'revision', claim_token='token')
+    write_json(root/'row.json', {'status':'running','claim_token':'someone_else'})
+    with pytest.raises(ValueError, match='claim'):
+        run_job('program', item, tmp_path/'evidence', tmp_path, {}, 'revision', claim_token='token')
+    assert run_job('program', item, tmp_path/'evidence', tmp_path, {}, 'revision')['claim_token'] == 'someone_else'
 
 
 def test_one_generation_two_applications_share_frozen_package(tmp_path, monkeypatch):
@@ -90,3 +105,24 @@ def test_report_does_not_count_failed_or_fallback_results_as_native_accuracy(tmp
     assert stats['generation_failed'] == 1
     assert stats['application_errors'] == 1
     assert stats['native_completed'] == stats['full_score'] == stats['both_native_pairs'] == 0
+
+
+def test_report_shows_verdict_and_score_without_inventing_missing_values(tmp_path):
+    from task_gen.test_verifier.final_review_report import write_report
+    from task_gen.test_verifier.program_verifier.generation.pipeline import write_json
+    write_json(tmp_path/'selection.json', {'methods':['direct_codex_rubric'],
+               'selected':[{'sample_id':'P01','task_id':'task'}]})
+    write_json(tmp_path/'direct_codex_rubric/P01/row.json', {
+        'status':'finished','generation':{'status':'generated'},'both_native':False,
+        'applications':[
+            {'mode':'direct_codex_rubric','status':'completed','outcome':'pass','score':0.86},
+            {'mode':'direct_codex_rubric','status':'completed','score':0.98},
+            {'mode':'fallback_codex','status':'completed','outcome':'fail','score':None},
+            {'mode':'fallback_codex','status':'verification_error','score':None}]})
+    write_report(tmp_path)
+    report = (tmp_path/'RESULTS.html').read_text()
+    assert '<th>PASS/FAIL</th><th>分数（0–1）</th>' in report
+    assert '<td>PASS</td><td>0.86</td>' in report
+    assert '<td>未记录</td><td>0.98</td>' in report
+    assert '<td>FAIL</td><td>未评分</td>' in report
+    assert '<td>执行错误</td><td>未评分</td>' in report

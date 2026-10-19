@@ -7,6 +7,7 @@ from pathlib import Path
 from task_gen.eval_cases import load_cases
 from task_gen.task_eval_verifier import prepare_verification_workspace
 from .generation.pipeline import write_json
+from .environment_runtime import prepare_runtime
 
 DEFAULT_DATA_ROOT=Path('/data1/agent_world/task_program/complete_10_task_environments_20261005')
 CASES={
@@ -56,10 +57,14 @@ def prepare_evidence(case, out: Path, *, actual_state: Path | None = None,
     paths={k:Path(v) for k,v in fallback.items() if k.endswith('_state')}
     evidence={**fallback,**paths}
     prepare_verification_workspace(out,**evidence)
+    # Fallback reads the copied bundle too, so moving it never revives source paths.
+    fallback.update(initial_state='evidence/initial', actual_state='evidence/actual/final',
+                    reference_state='evidence/reference/final', reference_initial_state='evidence/reference/initial')
     request={'task_id':case.task['task_id'],'task_text':case.task['task_text'],
         'environment':'evidence/environment.json','tools':'evidence/tools.json','initial_state':'evidence/initial',
         'actual':{'final_state':'evidence/actual/final','answer':'evidence/actual/answer.txt','calls':'evidence/actual/tool_calls.jsonl','execution':'evidence/actual/execution.json'},
         'reference':{'initial_state':'evidence/reference/initial','final_state':'evidence/reference/final','answer':'evidence/reference/answer.txt','calls':'evidence/reference/tool_calls.jsonl'}}
     write_json(out/'program_request.json',request)
     write_json(out/'fallback_input.json',fallback)
+    prepare_runtime(case, out)
     return out

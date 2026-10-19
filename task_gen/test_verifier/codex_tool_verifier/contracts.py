@@ -8,10 +8,11 @@ from pathlib import Path, PurePosixPath
 
 from jsonschema import Draft202012Validator
 
-from ..program_verifier.contracts import aggregate_results, validate_evidence
+from ..program_verifier.contracts import aggregate_results, resolve_evidence_path, validate_evidence
 from ..program_verifier.generation.pipeline import source_check
 
 DESIGN_FILES = {'rubrics.json', 'tools.json', 'instructions.md', 'coverage.json'}
+OPTIONAL_FILES = {'README.md'}
 
 
 def require(condition, message):
@@ -100,9 +101,11 @@ def validate_package(root, task_text=None, *, design_only=False):
         require(isinstance(refs, list) and bool(refs) and set(refs) <= ids, 'coverage has invalid rubric IDs')
         covered.update(refs)
     require(covered == ids, 'coverage must include all rubrics')
-    allowed = DESIGN_FILES | files | {'tools/__init__.py'}
+    allowed = DESIGN_FILES | files | OPTIONAL_FILES | {'tools/__init__.py'}
     for p in root.rglob('*'):
         require(not p.is_symlink(), f'symlink in package: {p}')
+        if '__pycache__' in p.relative_to(root).parts and p.suffix == '.pyc':
+            continue
         require(not p.is_file() or str(p.relative_to(root)) in allowed, f'unexpected package file: {p}')
     for p in root.rglob('*.py'):
         source_check(p.read_text(), str(p))
@@ -115,6 +118,12 @@ def validate_package(root, task_text=None, *, design_only=False):
 def validate_results(plan, results, calls, evidence, scratch):
     try:
         aggregated = aggregate_results(plan['rubrics'], results)
+        for result in results:
+            for ref in result['evidence']:
+                path = resolve_evidence_path(ref['path'], evidence, scratch)
+                ref['path'] = (path.relative_to(Path(evidence).resolve()).as_posix()
+                               if path.is_relative_to(Path(evidence).resolve())
+                               else 'scratch/'+path.relative_to(Path(scratch).resolve()).as_posix())
         validate_evidence(results, evidence, scratch)
     except RuntimeError as e:
         raise ValueError(str(e)) from e

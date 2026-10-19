@@ -16,3 +16,6 @@ def test_prepared_candidate_is_separate_from_reference_and_uses_full_trace(tmp_p
     assert req['actual']['final_state'] != req['reference']['final_state']
     assert json.loads((out/req['actual']['calls']).read_text())['result']['value']==2
     assert (out/'fallback_input.json').exists()
+    fallback=json.loads((out/'fallback_input.json').read_text())
+    assert fallback['actual_state']=='evidence/actual/final'
+    assert fallback['initial_state']=='evidence/initial'

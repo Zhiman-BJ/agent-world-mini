@@ -81,7 +81,19 @@ def resolve_evidence_path(value, root, scratch_dir):
 def validate_evidence(results, root, scratch_dir):
     for result in results:
         for evidence in result['evidence']:
+            path = PurePosixPath(evidence['path'])
+            _require(not path.is_absolute() and '..' not in path.parts,
+                     'evidence.path must be relative to evidence or scratch')
             resolve_evidence_path(evidence['path'], root, scratch_dir)
+
+
+def evidence_path(value, root, scratch_dir):
+    """Serialize a checked host Path for generated prompts/results."""
+    path = resolve_evidence_path(value, root, scratch_dir)
+    scratch = Path(scratch_dir).resolve()
+    if path.is_relative_to(scratch):
+        return str(Path('scratch')/path.relative_to(scratch))
+    return str(path.relative_to(Path(root).resolve()))
 
 
 def aggregate_results(rubrics, results):

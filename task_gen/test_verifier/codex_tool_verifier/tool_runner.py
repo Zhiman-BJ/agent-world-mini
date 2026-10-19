@@ -22,6 +22,8 @@ from jsonschema import Draft202012Validator
 
 from task_gen.task_eval_verifier import sandbox_command
 from ..program_verifier.application.runner import _absolute_request
+from ..program_verifier.contracts import evidence_path
+from ..program_verifier.environment_runtime import call_environment_tool, prepare_runtime_view, runtime_mounts
 from ..program_verifier.generation.pipeline import write_json
 from .contracts import require, validate_package
 
@@ -50,7 +52,8 @@ class ToolServer:
         self.config = config
         self.plan = validate_package(self.verifier)
         self.tools = {t['id']: t for t in self.plan['tools']}
-        self.request = _absolute_request(json.loads((self.evidence/'program_request.json').read_text()), self.evidence)
+        self.request = json.loads((self.evidence/'program_request.json').read_text())
+        _absolute_request(self.request, self.evidence)  # Validate before exposing the portable request.
         self.output.mkdir(parents=True, exist_ok=True)
         self.logs, self.scratch = self.output/'tools', self.output/'scratch'
         self.logs.mkdir(exist_ok=True)
@@ -147,11 +150,14 @@ class ToolServer:
                     raise ValueError(f'input schema: {e}') from e
                 scratch = self.scratch/call_id
                 scratch.mkdir()
+                prepare_runtime_view(scratch, self.evidence, self.config)
                 record['scratch_dir'] = str(scratch)
                 write_json(directory/'input.json', inputs)
-                write_json(directory/'context.json', {'root': str(self.evidence), 'request': self.request, 'scratch_dir': str(scratch)})
+                write_json(directory/'context.json', {'root': str(self.evidence), 'request': self.request,
+                           'scratch_dir': str(scratch), 'runtime_config': json.loads((scratch/'runtime_config.json').read_text())})
                 with tempfile.TemporaryDirectory(prefix='cvt-tool-') as auth:
                     runtimes = [REPOSITORY, self.verifier, self.evidence, Path(sys.prefix), Path(sys.base_prefix)]
+                    runtimes += runtime_mounts(self.evidence, self.config)
                     runtimes += [Path(p) for p in self.config.get('runtime_paths', [])]
                     command = list(sandbox_command(self.output, Path(auth), runtime_paths=runtimes))
                     command += ['--unshare-net', '--ro-bind', str(self.output), str(self.output),
@@ -193,17 +199,23 @@ class ToolServer:
                 'scratch_dir': str(scratch) if scratch is not None else None, 'result': record['result']}
 
 
-def make_context(request, root, scratch):
+def make_context(request, root, scratch, config=None):
+    request = _absolute_request(request, Path(root))
     context = SimpleNamespace(root=Path(root), request=request, scratch_dir=Path(scratch),
                               task_id=request['task_id'], task_text=request['task_text'], initial_state=Path(request['initial_state']),
                               actual={k: Path(v) for k, v in request['actual'].items()}, reference={k: Path(v) for k, v in request['reference'].items()})
     context.error = lambda code, message, *args: RuntimeError(f'{code}: {message}')
+    context.evidence_path = lambda path: evidence_path(path, root, scratch)
+    if config is None and Path('runtime_config.json').is_file():
+        config = json.loads(Path('runtime_config.json').read_text())
+    context.call_environment_tool = lambda name, arguments, *, state='actual': call_environment_tool(
+        Path(root), Path(scratch), name, arguments, state=state, config=config)
     return context
 
 
 def worker(path, name, directory):
     saved = json.loads((directory/'context.json').read_text())
-    context = make_context(saved['request'], saved['root'], saved['scratch_dir'])
+    context = make_context(saved['request'], saved['root'], saved['scratch_dir'], saved.get('runtime_config'))
     spec = importlib.util.spec_from_file_location('_static_tool', path)
     module = importlib.util.module_from_spec(spec)
     with contextlib.redirect_stdout(sys.stderr):

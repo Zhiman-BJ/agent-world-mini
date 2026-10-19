@@ -10,7 +10,22 @@ from task_gen.test_verifier.codex_tool_verifier import application
 from .conftest import result
 
 
-def fake_worker(monkeypatch, *, error=False, score=1):
+def test_public_request_stays_relative_and_tool_context_serializes_paths(bundle, tmp_path):
+    from task_gen.test_verifier.codex_tool_verifier.tool_runner import ToolServer, make_context
+    root, evidence = bundle
+    output = tmp_path/'output'
+    with ToolServer(root, evidence, output, {}) as server:
+        request = json.loads((output/'request.json').read_text())
+        assert request == json.loads((evidence/'program_request.json').read_text())
+        context = make_context(request, evidence, server.scratch)
+        assert context.actual['final_state'] == evidence/'final'
+        assert context.evidence_path(context.actual['final_state']/'data.json') == 'final/data.json'
+        artifact = context.scratch_dir/'inspection.json'
+        artifact.write_text('{}')
+        assert context.evidence_path(artifact) == 'scratch/inspection.json'
+
+
+def fake_worker(monkeypatch, *, error=False, score=1, outcome="pass", summary="Checked fixed criteria."):
     processes = []
     def launch(server, config, spec_path, stdout, stderr):
         script = '''
@@ -23,10 +38,10 @@ call=subprocess.run([sys.executable,'-m','task_gen.test_verifier.codex_tool_veri
 value=json.loads(call.stdout)
 if sys.argv[3]=='error': time.sleep(20)
 r=json.loads(sys.argv[4]); r['tool_call_ids']=[value['call_id']]
-(output/'logs/worker_result.json').write_text(json.dumps({'status':'completed','rubrics':[r]}))
+(output/'logs/worker_result.json').write_text(json.dumps({'status':'completed','outcome':sys.argv[5],'summary':json.loads(sys.argv[6]),'rubrics':[r]}))
 '''
         process = subprocess.Popen([sys.executable, '-c', script, str(server.output), str(server.evidence),
-                                    'error' if error else 'ok', json.dumps(result(score=score))],
+                                    'error' if error else 'ok', json.dumps(result(score=score)), outcome, json.dumps(summary)],
                                    stdout=stdout, stderr=stderr, start_new_session=True)
         processes.append(process)
         return process
@@ -41,6 +56,7 @@ def test_success_and_zero_do_not_fallback(bundle, tmp_path, monkeypatch, score):
     monkeypatch.setattr(application, 'verify_execution', lambda **kw: pytest.fail('unexpected fallback'))
     value = application.apply(root, evidence, tmp_path/'run', {})
     assert value['mode'] == 'codex_with_tools' and value['score'] == score
+    assert value['outcome']=='pass' and value['summary']=='Checked fixed criteria.'
     assert len(value['tool_calls']) == 1
     assert value['tool_calls'][0]['status'] == 'completed'
 
@@ -109,7 +125,7 @@ print(value.stdout)
                                      capture_output=True, text=True, timeout=15)
             assert checked.returncode == 0, checked.stderr
             call = json.loads(checked.stdout)
-            return json.dumps({'rubrics':[result([call['call_id']])]})
+            return json.dumps({'outcome':'fail','summary':'Checked fixed criteria.','rubrics':[result([call['call_id']])]})
     monkeypatch.setattr(application, '_MainClient', Client)
     output = tmp_path/'run'
     (output/'logs').mkdir(parents=True)
@@ -121,6 +137,7 @@ print(value.stdout)
         application.worker(spec)
     value = json.loads((output/'logs/worker_result.json').read_text())
     assert value['status'] == 'completed', value
+    assert value['outcome']=='fail' and value['summary']=='Checked fixed criteria.'
     assert server.records()[0]['status'] == 'completed'
 
 
@@ -137,19 +154,19 @@ try: (output/'logs/injected.json').write_text('fake')
 except OSError: pass
 else: raise AssertionError('host logs writable')
 request=json.loads((output/'request.json').read_text())
-p=scratch/'input.json'; p.write_text(json.dumps({{'path':str(Path(request['actual']['final_state'])/'data.json')}}))
+p=scratch/'input.json'; p.write_text(json.dumps({{'path':str((scratch/'evidence_bundle'/request['actual']['final_state']/'data.json').resolve())}}))
 call=subprocess.run([sys.executable,'-m','task_gen.test_verifier.codex_tool_verifier.tool_runner','--session',str(output/'session.json'),'--tool','T1','--input',str(p)], capture_output=True, text=True)
 assert call.returncode==0,call.stderr+call.stdout
 value=json.loads(call.stdout)
 r={result()!r};r['tool_call_ids']=[value['call_id']]
-Path(args[args.index('--output-last-message')+1]).write_text(json.dumps({{'rubrics':[r]}}))
+Path(args[args.index('--output-last-message')+1]).write_text(json.dumps({{'outcome':'fail','summary':'Checked fixed criteria.','rubrics':[r]}}))
 print(json.dumps({{'type':'turn.completed','usage':{{'input_tokens':17,'output_tokens':3}}}}))
 ''')
     executable.chmod(0o755)
     value = application.apply(root, evidence, tmp_path/'real_client_run',
                               {'codex':{'executable':str(executable)}, 'application_timeout_seconds':15})
     assert value['mode'] == 'codex_with_tools', value.get('fallback_reason')
-    assert value['score'] == 1
+    assert value['score'] == 1 and value['outcome']=='fail'
     assert value['cost']['calls'][0]['usage'] == [{'input_tokens':17,'output_tokens':3}]
 
 
@@ -206,14 +223,14 @@ assert not Path({str(root/'tools/T1.py')!r}).exists()
 assert not Path({str(application.REPOSITORY/'task_gen/test_verifier/codex_tool_verifier/application.py')!r}).exists()
 assert not (view/'tools.json').exists() and not (view/'tools').exists()
 request=json.loads((output/'request.json').read_text())
-candidate=Path(request['actual']['final_state'])/'data.json'
+candidate=scratch/'evidence_bundle'/request['actual']['final_state']/'data.json'
 assert json.loads(candidate.read_text())=={{'value':3}}
 for p in [candidate,view/'rubrics.json',output/'logs/injected.json']:
     try:p.write_text('corrupt')
     except OSError:pass
     else:raise AssertionError(str(p)+' writable')
 (scratch/'check.txt').write_text('independent check: value=3')
-Path(args[args.index('--output-last-message')+1]).write_text(json.dumps({{'rubrics':[{result(score=score)!r}]}}))
+Path(args[args.index('--output-last-message')+1]).write_text(json.dumps({{'outcome':'pass','summary':'Checked fixed criteria.','rubrics':[{result(score=score)!r}]}}))
 print(json.dumps({{'type':'turn.completed','usage':{{'input_tokens':17,'output_tokens':3}}}}))
 ''')
     executable.chmod(0o755)
@@ -223,6 +240,7 @@ print(json.dumps({{'type':'turn.completed','usage':{{'input_tokens':17,'output_t
                                'application_timeout_seconds':15})
     assert value['mode'] == 'codex_rubric_only', value.get('fallback_reason')
     assert value['status'] == 'completed' and value['score'] == score
+    assert value['outcome']=='pass' and value['summary']=='Checked fixed criteria.'
     assert value['tool_calls'] == [] and value['cost']['tools_seconds'] == 0
     assert value['static_tools_enabled'] is False
     from task_gen.test_verifier.codex_tool_verifier.validate_reference import summarize
@@ -263,3 +281,31 @@ def test_rubric_only_preserves_acceptance_details(bundle, tmp_path):
                                  ('method','static_tools','required_tools')} for r in doc['rubrics']]}
     assert view == expected
     assert (root/'rubrics.json').read_bytes() == original
+
+
+@pytest.mark.parametrize('outcome', ['unknown', ''])
+def test_invalid_overall_outcome_falls_back(bundle, tmp_path, monkeypatch, outcome):
+    fake_worker(monkeypatch, outcome=outcome)
+    monkeypatch.setattr(application, 'verify_execution', lambda **kw: {'outcome':'pass'})
+    value = application.apply(*bundle, tmp_path/'invalid_outcome', {})
+    assert value['mode']=='fallback_codex' and value['score'] is None
+    assert 'outcome' in value['fallback_reason']['message']
+
+
+@pytest.mark.parametrize('summary', [None, ''])
+def test_missing_overall_summary_falls_back(bundle, tmp_path, monkeypatch, summary):
+    fake_worker(monkeypatch, summary=summary)
+    monkeypatch.setattr(application, 'verify_execution', lambda **kw: {'outcome':'pass'})
+    value = application.apply(*bundle, tmp_path/'invalid_summary', {})
+    assert value['mode']=='fallback_codex' and value['score'] is None
+    assert 'summary' in value['fallback_reason']['message']
+
+
+@pytest.mark.parametrize('static_tools_enabled', [False, True])
+def test_host_prompt_requires_overall_outcome_and_rubric_scores(bundle, tmp_path, static_tools_enabled):
+    from task_gen.test_verifier.codex_tool_verifier.tool_runner import ToolServer
+    with ToolServer(*bundle, tmp_path/'contract', {'static_tools_enabled':static_tools_enabled}) as server:
+        prompt = application.build_prompt(server)
+    assert '"outcome":"pass 或 fail"' in prompt and '"summary":"决定性依据"' in prompt
+    assert 'outcome、summary 和 rubrics 都是必需字段' in prompt
+    assert '不自行计算总分或设置总分门槛' in prompt
