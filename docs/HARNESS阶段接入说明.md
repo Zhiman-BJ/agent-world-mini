@@ -2,7 +2,11 @@
 
 本文是当前 Agent-World Harness 的接入手册。它描述已经生效的接口和边界，不要求各阶段了解旧版 TaskGen 内部实现。
 
-## 1. 先记住四件事
+先读[系统架构](SYSTEM_ARCHITECTURE_ZH.md)；本页先说明 Harness 架构，再按接入顺序给出代码。
+
+## 1. 架构与职责
+
+### 1.1 任务状态布局
 
 1. `model-workspace` 是 Kimi 的 `cwd`，也承载复制后的 Filesystem Scope；MCP 文件工具和原生 `Read/Grep/Glob` 看到同一棵目录树。
 2. `private-state` 保存 `records.sqlite` 和 `path-map.json`，模型不可见。
@@ -26,7 +30,7 @@ task-run/
 蒸馏 runner 和通用 ToolGen MCP 都从同一个 `binding.json` 读取 `runtime.json`：
 `host_python`/`python_profile` 使用本地解释器，`docker` 使用交付包声明的镜像、挂载和命令。任务级 MCP 仍保留独立的 workspace、私有数据库、调用轨迹和资源限制；这只统一进程启动后端，不改变 Kimi Code 的 agent loop。
 
-## 2. 稳定入口
+### 1.2 开发入口
 
 | 用途 | 入口 |
 | --- | --- |
@@ -42,7 +46,21 @@ task-run/
 
 新的调用方只使用这些 Harness 入口，不要直接导入 `step_3_chain_execute` 的私有函数，也不要自己拼接交付包内部路径。
 
-## 3. ToolGen 交付包
+### 1.3 一次业务工具调用
+
+```text
+调用方 → Harness 参数与资源检查 → 选定执行后端
+       → 返回校验 → 状态提交或失败恢复
+```
+
+Harness 是调用契约，不等于操作系统沙箱。正常任务工作区的非 Docker 工具走直接受限子进程；
+通用非工作区默认路径和 Program v2 host Python 路径仍使用 bubblewrap。
+Verifier 在求解完成后另起审核进程，其证据隔离不是上述工具调用的一部分。
+后端分支和代码位置见[运行时与隔离](TOOL_RUNTIME_ZH.md)。
+
+## 2. 接入与使用
+
+### 2.1 加载 ToolGen 交付包
 
 下游只接收 `binding.json`：
 
@@ -78,7 +96,7 @@ runtime = delivery.runtime
 
 软件 Profile 是共享只读依赖；任务状态必须从 `initial_state` 为每条任务建立独立副本。
 
-## 4. 创建任务运行目录
+### 2.2 创建任务运行目录
 
 ```python
 from harness.layout import create_task_run_layout
@@ -108,7 +126,7 @@ paths.trajectory
 - 拒绝初始状态中的符号链接；
 - 拒绝已经存在的输出目录。
 
-## 5. 执行环境业务工具
+### 2.3 执行环境业务工具
 
 所有 TaskGen、MCP 和直接调用方都使用同一个入口：
 
@@ -133,6 +151,7 @@ record = call_environment_tool(
         if delivery.software_root else None
     ),
     software_root=delivery.software_root,
+    runtime=delivery.runtime,
 )
 ```
 
@@ -141,8 +160,8 @@ record = call_environment_tool(
 ```text
 参数 Schema 校验
   -> Scope/资源参数校验
-  -> 状态临时副本
-  -> bubblewrap 沙盒执行
+  -> 按状态布局准备调用副本或备份（只读调用可省略备份）
+  -> 按绑定 runtime 与调用路径执行（受限直接进程 / bubblewrap / Docker）
   -> 返回 Schema 校验
   -> 检查状态差异和只读资源
   -> 成功提交；失败恢复调用前状态
@@ -158,7 +177,7 @@ record = call_environment_tool(
 
 不要把这些全部改成“环境错误”。
 
-## 6. 文件参数和资源 URI
+### 2.4 文件参数和资源 URI
 
 模型侧业务工具的文件参数使用工作目录路径。Harness 会根据 Schema 的 Scope 标注转成工具代码原有的 Scope 内相对路径：
 
@@ -192,7 +211,7 @@ resources/read  -> 使用 URI 读取资源
 
 `resources/list` 和 `resources/read` 是 MCP JSON-RPC 方法，不会出现在 `tools/list`，也不能通过 `tools/call` 调用。
 
-## 7. Kimi / MCP 接入
+### 2.5 Kimi / MCP 接入
 
 每条任务的运行关系是：
 
@@ -215,7 +234,7 @@ mcp__<server_name>__<business_tool>
 
 `mcp__<server_name>__...` 是 Kimi 客户端给 MCP 工具加的命名空间，不是业务工具自身的名字。原始 wire 和请求日志保留这个名字；导出训练轨迹可以再做结构化规范化。
 
-### 7.1 原生 Read/Grep/Glob
+#### 2.5.1 原生 Read/Grep/Glob
 
 - `Read`：读取已知文本文件，或分页读取 Kimi 保存的长工具结果；
 - `Grep`：搜索工作区、当前 session 的 `tool-results` 或 `wire.jsonl`；
@@ -248,7 +267,7 @@ raw/**、evidence/**、verifier/**
 
 每次允许或拒绝都记录到 `native_file_access.jsonl`。
 
-### 7.2 长工具结果和上下文压缩
+#### 2.5.2 长工具结果和上下文压缩
 
 MCP 业务工具返回完整结果。Kimi 对超过约 50,000 字符的文本自动保存到当前 session 的 `tool-results`，模型使用 `Read` 或 `Grep` 找回内容。
 
@@ -256,7 +275,7 @@ MCP 业务工具返回完整结果。Kimi 对超过约 50,000 字符的文本自
 
 因此当前 Harness 不再注册自定义 `read_tool_result`，也不在 MCP 层提前分页。
 
-## 8. Verifier 和证据
+### 2.6 Verifier 和证据
 
 Verifier 使用任务最终状态的独立副本运行：
 
@@ -280,9 +299,11 @@ raw/kimi_session.zip
 raw/harness_policy.json
 ```
 
-## 9. 当前变更边界
+## 3. 维护与验证
 
-本次 Harness 适配只改变了以下与用户明确要求直接相关的内容：
+### 3.1 模块维护边界
+
+Harness 集中维护以下能力：
 
 - 把统一工具执行、目录布局、资源解析和文件访问策略收口到 `harness/`；
 - 让 MCP 业务工具使用 Scope 相对路径；
@@ -291,16 +312,16 @@ raw/harness_policy.json
 - 将 MCP `resources/list/read` 保留为协议方法，不伪装成普通 function tool；
 - 让 TaskGen、MCP 和蒸馏调用方使用上述统一入口。
 
-以下能力没有被重新设计：
+以下能力由相应模块维护，不在接入端复制或重写：
 
 - ToolGen 业务工具生成方式；
-- bubblewrap 工具执行后端；
+- 工具进程后端（见运行时说明）；
 - 软件 Profile/依赖准备方式；
 - 工具输入输出 Schema 契约；
 - Kimi 的模型循环、流式请求和 session 持久化机制；
 - Verifier 的业务判定逻辑。
 
-## 10. 验收命令
+### 3.2 回归检查
 
 使用仓库实际 Python 环境运行：
 

@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +13,6 @@ from typing import Any
 
 from .utils.environment import CompleteEnvironmentPackage, STATE_REFERENCE_FILENAME
 from .utils.io import read_json, write_json
-from .utils.schema import Draft202012Validator
 from .utils.tool_runtime import compact_state_snapshot, snapshot_state
 
 

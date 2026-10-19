@@ -16,41 +16,136 @@ from task_gen.program.utils.io import read_json, write_json
 ORIGINAL_HARNESS = draft.run_harness
 
 
-def test_author_prompt_separates_hardening_method_from_constraints():
-    assert draft.PROFILE == "single_agent_tool_list_draft_v10_closed_loop"
-    method = draft.AUTHOR_PROMPT.split("# 怎样增难\n", 1)[1].split("\n# 必要规则", 1)[0].strip()
-    rules = draft.AUTHOR_PROMPT.split("# 必要规则\n", 1)[1].split("\n# 工作顺序", 1)[0].strip()
-    assert len(method.splitlines()) == 4
-    assert len(method) < 350
-    for requirement in ("现实用途", "必要决定", "自行选择和编排工具", "不同工具返回",
-                        "最短合理解法", "原解法不能直接完成新目标",
-                        "真实结果依赖", "题文只呈现用户需求"):
-        assert requirement in method
-    assert len(rules.splitlines()) <= 10
-    assert len(rules) < 650
-    for requirement in ("需求真实且可解", "允许改写原目标、范围和交付",
-                        "必要判据和验收标准", "回退路线写在参考解", "等效合法路径",
-                        "使用已有工具和数据", "参数与结论有公开依据", "区分事实、假设和待实施事项",
-                        "专业计算使用现有领域工具", "简单四则运算",
-                        "原参考少于18次时增加必要调用", "达到18次时保留实质难度"):
-        assert requirement in rules
-    assert "18次" not in method
-    assert "专业计算" not in method
-    assert "本会话公开 MCP 与 Read/Grep/Glob 是实际交互入口" not in draft.AUTHOR_PROMPT
-    assert "工具接口、公开数据和任务初态沿用原环境" not in draft.AUTHOR_PROMPT
-    assert "选用真实需要的多对象处理、取舍、状态分支" not in draft.AUTHOR_PROMPT
+def test_author_prompt_explains_problem_goal_and_author_freedom():
+    assert draft.PROFILE == "single_agent_tool_list_draft_decision_design"
+    prompt = draft.AUTHOR_PROMPT
+    goal = prompt.split("# 任务与目标\n", 1)[1].split("\n# 环境与参考材料", 1)[0]
+    principles = prompt.split("# 设计原则\n", 1)[1].split("\n# 参考解与提交", 1)[0]
+    assert "评测任务执行能力的真实业务任务" in goal
+    for requirement in ("领域知识", "选择合适工具", "编排后续工作", "不是必须继承的题目"):
+        assert requirement in goal
+    for requirement in ("先实际查看代表性工具返回和数据", "可做必要的领域调研",
+                        "最省事的合法路径", "调研和求解过程留在作者材料中"):
+        assert requirement in prompt
+    for requirement in ("利用领域知识选择工具", "组织参数、解释返回并编排后续工作",
+                        "有证据支撑的结论、决策、修改或产物"):
+        assert requirement in principles
+    for requirement in ("不能由一次明显调用直接完成", "至少两处关键业务判断",
+                        "允许多条满足共同业务验收标准的完成路径", "整合多个阶段的证据"):
+        assert requirement in principles
+    for obsolete in ("本会话公开 MCP 与 Read/Grep/Glob 是实际交互入口",
+                     "工具接口、公开数据和任务初态沿用原环境", "没有 Python"):
+        assert obsolete not in prompt
 
 
 def test_author_prompt_keeps_file_exploration_out_of_the_business_reference():
     prompt = draft.AUTHOR_PROMPT
-    rules = prompt.split("# 必要规则\n", 1)[1].split("\n# 工作顺序", 1)[0]
-    for requirement in ("参考解调用列表只包含公开业务MCP工具", "作者查得参数后直接填入对应接口",
-                        "文件查看不计入参考调用数"):
-        assert requirement in rules
-    assert "Read/Grep/Glob可用于作者读材料、查找公开参数" in prompt
-    assert "tool 只填写公开业务MCP短名" in prompt
-    assert "验证直接复用正式MCP业务接口，不重新启动完整Kimi会话" in prompt
-    assert "tool 使用公开MCP短名或Read/Grep/Glob" not in prompt
+    reference = prompt.split("# 参考解与提交\n", 1)[1].split("\n# 完成与提交", 1)[0]
+    for requirement in ("参考解用 `solution_calls`", "业务 MCP 调用", "只用于读取必读材料",
+                        "参数和答案证据必须可追溯"):
+        assert requirement in reference
+    assert "Read/Grep/Glob\n只用于读取必读材料或必要的公开参数" in reference
+    assert "有效业务调用次数不少于 15 次" in reference
+    assert "solution_format.json" in prompt
+    assert "validate_solution_calls" in prompt
+    assert '最终只返回 `{"validation_id":"成功ID"}`' in prompt
+    assert "hardening_audit" not in prompt
+
+
+def test_author_prompt_reframes_the_main_outcome_without_fixing_a_decision_template():
+    prompt = draft.AUTHOR_PROMPT
+    design = prompt.split("# 设计原则\n", 1)[1].split("\n# 参考解与提交", 1)[0]
+    for requirement in ("题文只说明用户要达成什么", "可以重新选择业务目标、对象范围和交付形式",
+                        "关键事实和专业判断必须有当前公开数据、工具能力或可靠调研支撑", "参数和答案证据必须可追溯"):
+        assert requirement in prompt
+    for requirement in ("围绕一个真实、明确的业务成果展开", "真实可解"):
+        assert requirement in design
+    assert "至少两个决定" not in prompt
+    assert "固定两个分支" not in prompt
+    for requirement in ("对象名称和 ID、文件名、坐标、单位、阈值、标准",
+                        "关键事实和专业判断必须有当前公开数据、工具能力或可靠调研支撑",
+                        "而不是来自题文很长、答案很长、重复查询、无关复核、格式负担或繁琐手算"):
+        assert requirement in prompt
+
+
+def test_author_prompt_checks_leakage_without_fixing_a_solution_route():
+    leakage = draft.AUTHOR_PROMPT.split("# 设计原则\n", 1)[1].split("\n# 参考解与提交", 1)[0]
+    for requirement in ("方法泄露是指", "调查起点、分析方法、工具顺序、中间对象或分支动作", "参数试验序列",
+                        "没有工具名的分阶段筛选、排名或试验清单", "先 A、再 B、最后 C", "什么条件算完成",
+                        "把如何调查环境、选择工具和组织调用留给执行者",
+                        "题文不得出现具体工具名、MCP 接口名"):
+        assert requirement in leakage
+    assert "对象名称和 ID、文件名、坐标" in draft.AUTHOR_PROMPT
+    assert "不能为参考路线编造这些规则再包装成业务要求" in leakage
+    assert "已指定的中间决策不计为自主编排难点" in leakage
+    assert len(draft.AUTHOR_PROMPT) <= 2355
+
+
+def test_prompt_distinguishes_decision_depth_strategy_and_call_count():
+    prompt = draft.AUTHOR_PROMPT
+    for requirement in ("实质改变后续的信息需求", "不单独构成编排难度",
+                        "而不只是把同一组检查换序", "15 次是验收下限，不是设计起点",
+                        "已被指定的方法不能再计为自主选择的难点",
+                        "不自动证明难度或无方法泄露"):
+        assert requirement in prompt
+    assert "处置或结论" not in prompt
+    assert "real_need_preserved" not in draft.SELF_CHECKS
+    assert "meaningful_hardening" not in draft.SELF_CHECKS
+
+
+def test_prompt_starts_from_capabilities_and_does_not_count_tool_automated_decisions():
+    prompt = draft.AUTHOR_PROMPT
+    materials = prompt.split('# 环境与参考材料\n', 1)[1].split('\n# 设计原则', 1)[0]
+    assert materials.index('public_tools.json') < materials.index('original_task.json')
+    assert '工具已经完成的筛选、评分和结论不计为执行者的判断' in prompt
+    assert '固定清单逐项调用后汇总也不算多阶段编排' in prompt
+    assert '用实际返回说明两处后续工作如何改变' in prompt
+    assert len(prompt) <= 2355
+
+
+def test_prompt_keeps_intermediate_answers_out_of_names_and_checks_actual_content():
+    assert "含在输出命名中绑定首选" in draft.AUTHOR_PROMPT
+    assert "逐项对照题文核对答案" in draft.AUTHOR_PROMPT
+    assert "实际产物内容；缺项或空产物" in draft.AUTHOR_PROMPT
+
+
+def test_author_format_guide_matches_the_existing_submission_contract():
+    from task_gen.program.author_submission import PROPOSAL_FIELDS, check_proposal_fields
+
+    guide = read_json(Path(draft.__file__).with_name("AUTHOR_SOLUTION_FORMAT.json"))
+    example = guide["proposal_example"]
+    check_proposal_fields(example)
+    assert set(example) == PROPOSAL_FIELDS
+    assert example["self_check"] == dict.fromkeys(draft.SELF_CHECKS, True)
+    assert set(example["solution_calls"][0]) == {"tool", "arguments", "argument_sources", "purpose"}
+    assert {item["source"]["kind"] for item in guide["source_examples"]} == {
+        "task", "schema", "file", "protocol", "call", "derived", "new_identifier",
+        "schema_choice", "agent_choice", "authored_text"}
+
+
+def test_author_format_source_examples_are_accepted_by_the_real_source_checker(protocol, tmp_path):
+    guide = read_json(Path(draft.__file__).with_name("AUTHOR_SOLUTION_FORMAT.json"))
+    public = tmp_path / "public.txt"
+    public.write_text("实际原文", encoding="utf-8")
+    expected = ["W01", 100_000_000, "fast", "wavelength_span", "实际原文", 80000,
+                "W01", 8, "新输出名", True, "待查主题", "根据实际材料新编写的内容"]
+    examples = guide["source_examples"]
+    assert len(examples) == len(expected)
+    for item, value in zip(examples, expected):
+        source = item["source"]
+        schema = {"properties": {"mode": {"default": "fast"},
+                                 "metrics": {"description": "支持 wavelength_span"}}}
+        if source["kind"] == "schema_choice":
+            schema = {"type": "boolean"}
+        elif source["kind"] in {"agent_choice", "authored_text"}:
+            schema = {"type": "string"}
+        actual = sources.source_value(source,
+            task={"task_text": "处理W01，预算10，已有2，频率100 MHz。"}, protocol=protocol, schema=schema,
+            preceding=[{"visible_output": {"data": {"id": "W01"}}, "completed_event_sequence": 1}],
+            current_start=2, public_files={"公开工作区相对路径": public},
+            argument_path="/content" if source["kind"] == "authored_text" else "/query")
+        assert type(actual) is type(value)
+        assert actual == value
 
 
 @pytest.fixture
@@ -97,6 +192,48 @@ def check(solution, protocol):
     return draft.check_solution(proposal, original, observed, protocol, schemas)
 
 
+def test_complete_proposal_feedback_identifies_missing_and_obsolete_fields(solution, protocol):
+    proposal, original, observed, schemas = solution
+    proposal["observed_calls"] = proposal.pop("solution_calls")
+    with pytest.raises(ValueError) as caught:
+        draft.check_solution(proposal, original, observed, protocol, schemas)
+    message = str(caught.value)
+    assert "missing=['solution_calls']" in message
+    assert "unexpected=['observed_calls']" in message
+    assert "reference_answer" in message
+    assert "self_check_notes" in message
+
+
+@pytest.mark.parametrize("uses_validation", [False, True])
+@pytest.mark.parametrize("mutation", ["missing_purpose", "unexpected_result"])
+def test_reference_call_feedback_identifies_step_and_invalid_fields(solution, protocol, uses_validation, mutation):
+    proposal, original, observed, schemas = solution
+    validation = None
+    if uses_validation:
+        for call in proposal["solution_calls"]:
+            call.pop("observed_call")
+        validation = {
+            "request": {"calls": [{"tool": call["tool"], "arguments": call["arguments"]}
+                                   for call in proposal["solution_calls"]]},
+            "result": {"calls": [
+                {"index": position, "tool": call["tool"], "result": actual["visible_output"], "error": None}
+                for position, (call, actual) in enumerate(zip(proposal["solution_calls"], observed), 1)]}}
+    call = proposal["solution_calls"][1]
+    if mutation == "missing_purpose":
+        call.pop("purpose")
+    else:
+        call["result"] = {}
+    with pytest.raises(ValueError) as caught:
+        draft.check_solution(proposal, original, observed, protocol, schemas, validation=validation)
+    message = str(caught.value)
+    assert "reference call 2 has invalid fields" in message
+    if mutation == "missing_purpose":
+        assert "missing=['purpose']; unexpected=[]" in message
+    else:
+        assert "missing=[]; unexpected=['result']" in message
+    assert ("observed_call" in message) is not uses_validation
+
+
 def test_code_checks_actual_calls_public_sources_and_basic_arithmetic(solution, protocol):
     indices, report = check(solution, protocol)
     assert indices == [1, 2]
@@ -106,6 +243,114 @@ def test_code_checks_actual_calls_public_sources_and_basic_arithmetic(solution, 
     assert report["author_self_check_only"] is True
     assert report["new_identifier_declarations"] == [
         {"call": 2, "argument": "/name", "reason": "新建分析输出"}]
+
+
+@pytest.fixture
+def authored_text_source():
+    return {"kind": "authored_text", "value": "New content based on observed evidence.",
+            "reason": "Produce the required revision rather than quote an unchanged input.",
+            "basis": [{"kind": "call", "call": 1, "pointer": "/output/value"}]}
+
+
+@pytest.mark.parametrize("path", ["/body", "/comment", "/content", "/description", "/message",
+                                  "/new_text", "/notes", "/rationale", "/title", "/changes/0/new_text"])
+def test_authored_text_accepts_open_content_with_actual_evidence(protocol, authored_text_source, path):
+    result = sources.source_value(authored_text_source, task={"task_text": "Task"}, protocol=protocol,
+        schema={"type": "string"}, preceding=[{"visible_output": {"output": {"value": 4}},
+                                              "completed_event_sequence": 1}],
+        current_start=2, argument_path=path)
+    assert result == authored_text_source["value"]
+
+
+@pytest.mark.parametrize("path,schema", [
+    ("/asset_id", {"type": "string"}), ("/input_file", {"type": "string"}),
+    ("/threshold", {"type": "string"}), ("/measurement/value", {"type": "string"}),
+    ("/notes", {"type": "number"}), ("/notes", {"type": "object"}),
+    ("/notes", {"type": "string", "enum": ["New content based on observed evidence."]}),
+    ("", {"type": "string"}), ("/changes/0", {"type": "string"}),
+])
+def test_authored_text_does_not_replace_business_parameter_sources(protocol, authored_text_source, path, schema):
+    with pytest.raises(ValueError, match="limited to open text-content"):
+        sources.source_value(authored_text_source, task={"task_text": "Task"}, protocol=protocol,
+            schema=schema, preceding=[], current_start=2, argument_path=path)
+
+
+@pytest.mark.parametrize("mutation", ["no_basis", "task_basis", "future", "late", "missing_pointer",
+                                      "non_string", "no_reason", "extra_field", "unquoted_file", "wrong_quote",
+                                      "private_file"])
+def test_authored_text_preserves_actual_evidence_checks(protocol, authored_text_source, tmp_path, mutation):
+    public = tmp_path / "public.txt"
+    public.write_text("Observed public material.")
+    preceding = [{"visible_output": {"output": {"value": 4}}, "completed_event_sequence": 1}]
+    if mutation == "no_basis":
+        authored_text_source["basis"] = []
+    elif mutation == "task_basis":
+        authored_text_source["basis"] = [{"kind": "task", "quote": "Task"}]
+    elif mutation == "future":
+        authored_text_source["basis"][0]["call"] = 2
+    elif mutation == "late":
+        preceding[0]["completed_event_sequence"] = 2
+    elif mutation == "missing_pointer":
+        authored_text_source["basis"][0]["pointer"] = "/missing"
+    elif mutation == "non_string":
+        authored_text_source["value"] = 4
+    elif mutation == "no_reason":
+        authored_text_source["reason"] = " "
+    elif mutation == "extra_field":
+        authored_text_source["verified"] = True
+    else:
+        authored_text_source["basis"] = [{"kind": "file", "path": "public.txt"}]
+        if mutation == "wrong_quote":
+            authored_text_source["basis"][0]["quote"] = "Not present."
+        elif mutation == "private_file":
+            authored_text_source["basis"][0].update(path="private.txt", quote="Observed")
+    with pytest.raises((ValueError, KeyError)):
+        sources.source_value(authored_text_source, task={"task_text": "Task"}, protocol=protocol,
+            schema={"type": "string"}, preceding=preceding, current_start=2,
+            public_files={"public.txt": public}, argument_path="/content")
+
+
+def test_authored_text_accepts_actual_public_file_quote(protocol, authored_text_source, tmp_path):
+    public = tmp_path / "public.txt"
+    public.write_text("Observed public material.")
+    authored_text_source["basis"] = [{"kind": "file", "path": "public.txt", "quote": "Observed"}]
+    assert sources.source_value(authored_text_source, task={"task_text": "Task"}, protocol=protocol,
+        schema={"type": "string"}, preceding=[], current_start=None,
+        public_files={"public.txt": public}, argument_path="/content") == authored_text_source["value"]
+
+
+@pytest.mark.parametrize("wrong_value", [False, True])
+def test_complete_solution_records_authored_content_without_claiming_correctness(
+        solution, protocol, authored_text_source, wrong_value):
+    proposal, _, observed, schemas = solution
+    text = authored_text_source["value"]
+    proposal["solution_calls"][1]["arguments"]["changes"] = [{"new_text": text}]
+    observed[1]["arguments"]["changes"] = [{"new_text": text}]
+    schemas["measure"]["properties"]["changes"] = {
+        "type": "array", "items": {"type": "object", "properties": {"new_text": {"type": "string"}}}}
+    proposal["solution_calls"][1]["argument_sources"]["/changes/0/new_text"] = authored_text_source
+    if wrong_value:
+        authored_text_source["value"] = "Different content."
+        with pytest.raises(ValueError, match="differs from its declared"):
+            check(solution, protocol)
+    else:
+        _, report = check(solution, protocol)
+        assert report["semantic_correctness_proved"] is False
+        assert report["authored_text_declarations"] == [{"call": 2, "argument": "/changes/0/new_text",
+            "reason": authored_text_source["reason"], "basis": authored_text_source["basis"]}]
+
+
+def test_complete_solution_resolves_public_object_option_schema_only_once(solution, protocol):
+    proposal, _, observed, schemas = solution
+    proposal["solution_calls"][1]["arguments"]["catalog_filters"] = {}
+    observed[1]["arguments"]["catalog_filters"] = {}
+    proposal["solution_calls"][1]["argument_sources"]["/catalog_filters"] = {
+        "kind": "schema_choice", "value": {}, "reason": "Use the public unfiltered query."}
+    schemas["measure"]["properties"]["catalog_filters"] = {
+        "type": "object", "properties": {"id": {"type": "string"}}, "required": [],
+        "additionalProperties": False}
+    _, report = check(solution, protocol)
+    assert report["parameter_sources_match"] is True
 
 
 @pytest.mark.parametrize("name", ["Read", "Grep", "Glob"])
@@ -136,9 +381,9 @@ def test_public_file_parameters_do_not_require_a_file_call_in_the_reference(solu
 def test_old_file_calls_cannot_inflate_the_business_call_count(solution, protocol):
     proposal, original, _, _ = solution
     original["reference"]["tool_calls"].extend([{"tool": "Read", "arguments": {}}] * 20)
-    proposal["solution_calls"] = proposal["solution_calls"][:1]
-    with pytest.raises(ValueError, match="eighteen-call threshold"):
-        check(solution, protocol)
+    report = check(solution, protocol)[1]
+    assert report["original_call_count"] == 1
+    assert report["call_count"] == 2
 
 
 @pytest.mark.parametrize("path,quote", [("../records.sqlite", "W01"),
@@ -158,6 +403,112 @@ def test_existing_public_file_path_can_be_passed_directly_as_a_parameter(protoco
     assert sources.source_value({"kind": "file", "path": "public.txt"},
         task={"task_text": "task"}, protocol=protocol, schema={}, preceding=[], current_start=None,
         public_files={"public.txt": public}) == "public.txt"
+
+
+@pytest.mark.parametrize('quote', [None, 'fabricated content'])
+def test_existing_public_directory_can_supply_a_path_but_not_content(protocol, tmp_path, quote):
+    public = tmp_path / 'fixture'
+    public.mkdir()
+    declaration = {'kind': 'file', 'path': 'fixture'}
+    options = dict(task={'task_text': 'task'}, protocol=protocol, schema={},
+                   preceding=[], current_start=None, public_files={'fixture': public})
+    if quote is None:
+        assert sources.source_value(declaration, **options) == 'fixture'
+    else:
+        declaration['quote'] = quote
+        with pytest.raises(ValueError, match='directory sources provide a path'):
+            sources.source_value(declaration, **options)
+
+
+@pytest.mark.parametrize('directory_parameter', [False, True])
+def test_public_path_sources_support_scope_relative_file_and_directory_arguments(protocol, tmp_path, directory_parameter):
+    scope = tmp_path / 'workflow_materials'
+    fixture = scope / 'fixture'
+    fixture.mkdir(parents=True)
+    public = fixture / 'INCAR'
+    public.write_text('ENCUT = 500')
+    paths = {'workflow_materials': scope, 'workflow_materials/fixture': fixture,
+             'workflow_materials/fixture/INCAR': public}
+    expected = 'fixture' if directory_parameter else 'fixture/INCAR'
+    declaration = {'kind': 'file', 'path': 'workflow_materials/' + expected,
+                   'relative_to': 'workflow_materials'}
+    assert sources.source_value(declaration, task={'task_text': 'task'}, protocol=protocol,
+        schema={}, preceding=[], current_start=None, public_files=paths) == expected
+
+
+@pytest.mark.parametrize('base,quote', [('../private', None), ('missing', None),
+    ('other', None), ('workflow_materials/INCAR', None), ('workflow_materials', 'ENCUT')])
+def test_relative_public_path_sources_reject_unknown_outside_and_content_bases(protocol, tmp_path, base, quote):
+    scope = tmp_path / 'workflow_materials'
+    scope.mkdir()
+    public = scope / 'INCAR'
+    public.write_text('ENCUT = 500')
+    other = tmp_path / 'other'
+    other.mkdir()
+    declaration = {'kind': 'file', 'path': 'workflow_materials/INCAR', 'relative_to': base}
+    if quote is not None:
+        declaration['quote'] = quote
+    with pytest.raises(ValueError):
+        sources.source_value(declaration, task={'task_text': 'task'}, protocol=protocol,
+            schema={}, preceding=[], current_start=None,
+            public_files={'workflow_materials': scope, 'workflow_materials/INCAR': public, 'other': other})
+
+
+@pytest.mark.parametrize("path", ["/limit", "/page/limit", "/frame_selection/start"])
+def test_derived_sources_preserve_context_for_nested_parameter_choices(protocol, path):
+    schema = {"type": "integer", "enum": [1, 2, 3]}
+    for part in reversed(path.split("/")[1:]):
+        schema = {"type": "object", "properties": {part: schema}}
+    declaration = {"kind": "derived", "operation": "add", "inputs": [
+        {"kind": "schema_choice", "value": 1, "reason": "Choose a documented control."},
+        {"kind": "agent_choice", "value": 2, "reason": "Advance the selected control."}]}
+    assert sources.source_value(declaration, task={"task_text": "task"}, protocol=protocol,
+        schema=schema, preceding=[], current_start=None, argument_path=path) == 3
+
+
+def test_derived_sources_keep_root_schema_for_explicit_pointers(protocol):
+    schema = {"properties": {"page": {"properties": {"limit": {"type": "integer", "default": 1}}}}}
+    declaration = {"kind": "derived", "operation": "add", "inputs": [
+        {"kind": "schema", "pointer": "/properties/page/properties/limit/default"},
+        {"kind": "agent_choice", "value": 2, "reason": "Advance the page limit."}]}
+    assert sources.source_value(declaration, task={"task_text": "task"}, protocol=protocol,
+        schema=schema, preceding=[], current_start=None, argument_path="/page/limit") == 3
+
+
+def test_derived_choices_do_not_waive_business_parameter_sources(protocol):
+    declaration = {"kind": "derived", "operation": "add", "inputs": [
+        {"kind": "agent_choice", "value": 1, "reason": "Guess an existing asset."},
+        {"kind": "schema_choice", "value": 2, "reason": "Choose an option."}]}
+    schema = {"properties": {"asset_id": {"type": "integer", "enum": [1, 2, 3]}}}
+    with pytest.raises(ValueError, match="agent choices are limited"):
+        sources.source_value(declaration, task={"task_text": "task"}, protocol=protocol,
+            schema=schema, preceding=[], current_start=None, argument_path="/asset_id")
+
+
+def test_documented_schema_options_do_not_need_to_be_added_to_the_task(solution, protocol):
+    proposal, original, observed, schemas = solution
+    metric = "wavelength_span"
+    assert metric not in proposal["task_text"]
+    schemas["measure"]["properties"]["mode"] = {
+        "type": "string", "description": "支持 wavelength_span 或 sampling_density。"}
+    proposal["solution_calls"][1]["arguments"]["mode"] = metric
+    observed[1]["arguments"]["mode"] = metric
+    proposal["solution_calls"][1]["argument_sources"]["/mode"] = {
+        "kind": "schema", "pointer": "/properties/mode/description", "quote": metric}
+    assert sources.check_solution(proposal, original, observed, protocol, schemas)[1]["parameter_sources_match"]
+
+
+@pytest.mark.parametrize("source", [
+    {"kind": "schema", "pointer": "/properties/mode/description", "quote": "invented"},
+    {"kind": "schema", "pointer": "/private/description", "quote": "wavelength_span"},
+    {"kind": "schema", "pointer": "/properties/mode/description", "quote": "wavelength_span", "value": "other"},
+    {"kind": "protocol", "pointer": "/api_key", "quote": "secret"},
+])
+def test_schema_quotes_still_require_exact_public_evidence(protocol, source):
+    with pytest.raises((ValueError, KeyError)):
+        sources.source_value(source, task={"task_text": "task"}, protocol=protocol,
+            schema={"properties": {"mode": {"description": "支持 wavelength_span。"}}},
+            preceding=[], current_start=None)
 
 
 @pytest.mark.parametrize("module", [draft.__name__, sources.__name__])
@@ -366,13 +717,32 @@ def test_unsupported_or_fabricated_reference_is_rejected(solution, protocol, mut
         implementation.check_solution(proposal, original, observed, protocol, schemas)
 
 
-def test_sub_eighteen_reference_requires_real_growth_but_eighteen_is_exempt(solution, protocol):
+@pytest.mark.parametrize("old_count", [1, 2, 17, 18, 40])
+def test_new_task_reference_has_no_implicit_growth_requirement(solution, protocol, old_count):
+    original = solution[1]
+    original["reference"]["tool_calls"] *= old_count
+    assert check(solution, protocol)[1]["original_call_count"] == old_count
+
+
+@pytest.mark.parametrize("count,accepted", [(0, False), (14, False), (15, True), (65, True), (66, False)])
+def test_design_reference_minimum_and_actual_budget_are_both_checked(solution, protocol, count, accepted):
     proposal, original, observed, schemas = solution
-    original["reference"]["tool_calls"] *= 2
-    with pytest.raises(ValueError, match="eighteen"):
-        check(solution, protocol)
-    original["reference"]["tool_calls"] *= 9
-    assert check(solution, protocol)[1]["original_call_count"] == 18
+    first_call, first_observation = proposal["solution_calls"][0], observed[0]
+    proposal["solution_calls"] = [{**deepcopy(first_call), "observed_call": position}
+                                  for position in range(1, count + 1)]
+    observed = [{**deepcopy(first_observation), "call_id": f"query-{position}",
+                 "started_event_sequence": 2 * position - 1, "completed_event_sequence": 2 * position}
+                for position in range(1, count + 1)]
+    proposal["answer_sources"] = [{"kind": "call", "call": 1, "pointer": "/output/id"}]
+    if not accepted:
+        with pytest.raises(ValueError, match="at least 15 business MCP calls"):
+            sources.check_solution(proposal, original, observed, protocol, schemas, minimum_reference_calls=15)
+    else:
+        report = sources.check_solution(proposal, original, observed, protocol, schemas,
+                                        minimum_reference_calls=15)[1]
+        assert report["call_count"] == count
+        assert report["minimum_reference_calls"] == 15
+        assert report["semantic_correctness_proved"] is False
 
 
 def test_source_quote_preserves_numeric_string_unless_json_is_explicit(protocol):
@@ -418,7 +788,7 @@ def pipeline(tmp_path, protocol, solution, monkeypatch):
                    {"tools_path": str(source / "tools.json"), "binding_path": str(source / "binding.json")})
     protocol_path = tmp_path / "protocol.json"
     write_json(protocol_path, protocol)
-    captured = {"sessions": [], "replays": []}
+    captured = {"sessions": []}
 
     def harness(case, task, actual_protocol, root, api_key, *, author_materials=None):
         captured["sessions"].append(deepcopy(task))
@@ -452,14 +822,7 @@ def pipeline(tmp_path, protocol, solution, monkeypatch):
         root.mkdir(parents=True)
         return {"outcome": {"final_answer": "INDEPENDENT_ANSWER"}}, []
 
-    def replay(case, root):
-        captured["replays"].append(case)
-        return {"call_count": len(case.reference_calls), "recorded_results_identical": True}
-
     monkeypatch.setattr(draft, "run_harness", harness)
-    monkeypatch.setattr("task_gen.program.reference_replay.replay_reference", replay)
-    monkeypatch.setattr("task_gen.program.scripted_reference.replay_with_official_cli",
-                        lambda *args, **kwargs: pytest.fail("MCP-only references must not start a Kimi CLI replay"))
     monkeypatch.setattr("distill.taskgen_verifier._verifier_environment", lambda case: {
         "tools": [{"name": name, "description": "Public tool", "inputSchema": schema,
                    "outputSchema": {"type": "object"}} for name, schema in schemas.items()]})
@@ -473,7 +836,11 @@ def test_default_only_prepares_the_flow_and_never_starts_an_agent(pipeline):
     assert result["author_session_limit"] == result["independent_solver_session_limit"] == 1
     assert result["checklist_agents"] == result["business_review_agents"] == result["verifier_agents"] == 0
     assert result["author_started"] is False
-    assert captured["sessions"] == captured["replays"] == []
+    assert captured["sessions"] == []
+    materials = read_json(output / "author_materials.json")
+    assert materials["solution_format.json"] == read_json(
+        Path(draft.__file__).with_name("AUTHOR_SOLUTION_FORMAT.json"))
+    assert result["author_materials_sha256"] == sha256(output / "author_materials.json")
 
 
 def test_execution_is_one_author_then_receipt_binding_then_one_blind_solver(pipeline):
@@ -483,9 +850,8 @@ def test_execution_is_one_author_then_receipt_binding_then_one_blind_solver(pipe
     assert len(captured["sessions"]) == 2
 
 
-    assert captured["replays"] == []
     assert set(captured["author_materials"]) == {"original_task.json", "original_calls.json",
-        "public_tools.json", "protocol.json", "workspace_files.json"}
+        "public_tools.json", "protocol.json", "workspace_files.json", "solution_format.json"}
     assert captured["author_materials"]["original_task.json"]["reference_answer"] == "PRIVATE_OLD_ANSWER"
     assert "PRIVATE_OLD_ANSWER" not in captured["sessions"][0]["task_text"]
     assert captured["sessions"][1] == {
@@ -501,13 +867,129 @@ def test_execution_is_one_author_then_receipt_binding_then_one_blind_solver(pipe
     assert len(captured["sessions"]) == 2
 
 
+def test_prior_evaluation_is_frozen_author_only_input(pipeline):
+    case, protocol, output, captured = pipeline
+    feedback = {"source_case": f"{case.source_run.name}__{case.task['task_id']}",
+                "official_results": [{"model": "qwen", "outcome": "pass", "summary": "PRIVATE_FEEDBACK"}]}
+    prepared = draft.run_case(case, protocol, output, prior_evaluation=feedback)
+    assert prepared["prior_evaluation_supplied"] is True
+    assert prepared["author_materials_sha256"] == sha256(output / "author_materials.json")
+    materials = read_json(output / "author_materials.json")
+    assert materials["previous_evaluation.json"] == feedback
+    assert (output / "author_prompt.txt").read_text().startswith(draft.AUTHOR_PROMPT)
+    assert "previous_evaluation.json" in (output / "author_prompt.txt").read_text()
+    assert "PRIVATE_FEEDBACK" not in (output / "author_prompt.txt").read_text()
+    result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET", prior_evaluation=feedback)
+    assert result["status"] == "gpt_completed_pending_answer_review"
+    assert captured["author_materials"]["previous_evaluation.json"] == feedback
+    assert len(captured["sessions"]) == 2
+    assert "PRIVATE_FEEDBACK" not in json.dumps(captured["sessions"])
+    assert "previous_evaluation" not in json.dumps(captured["sessions"][1])
+    assert "PRIVATE_FEEDBACK" not in json.dumps(read_json(output / "candidate.json"))
+    feedback["official_results"][0]["summary"] = "CHANGED"
+    assert materials["previous_evaluation.json"]["official_results"][0]["summary"] == "PRIVATE_FEEDBACK"
+
+
+def test_default_author_materials_and_prompt_remain_unchanged(pipeline):
+    case, protocol, output, _ = pipeline
+    prepared = draft.run_case(case, protocol, output)
+    assert prepared["prior_evaluation_supplied"] is False
+    assert "previous_evaluation.json" not in read_json(output / "author_materials.json")
+    assert (output / "author_prompt.txt").read_text() == draft.AUTHOR_PROMPT
+
+
+def test_one_revision_preserves_the_proposal_instead_of_redesigning_it(pipeline):
+    case, protocol, output, captured = pipeline
+    feedback = {"source_case": f"{case.source_run.name}__{case.task['task_id']}",
+                "revision_opportunities": 1, "previous_proposal": {"task_text": "PRIVATE_PRIOR_TASK"}}
+    draft.run_case(case, protocol, output, prior_evaluation=feedback)
+    prompt = (output / "author_prompt.txt").read_text()
+    revision = prompt.split("# 本轮是原方案修订\n", 1)[1]
+    assert "保留业务目标、对象范围和实质难度" in revision
+    assert "不另换委托、不扩张交付" in revision
+    assert "不能只修被指出的一项" in revision
+    assert "再自主设计本轮委托" not in prompt
+    assert "PRIVATE_PRIOR_TASK" not in prompt
+    assert read_json(output / "author_materials.json")["previous_evaluation.json"] == feedback
+    assert captured["sessions"] == []
+
+
+@pytest.mark.parametrize("feedback", [{}, {"source_case": "another_source__task"}, [], "not an object"])
+def test_prior_evaluation_rejects_wrong_source_before_preparing(pipeline, feedback):
+    case, protocol, output, captured = pipeline
+    with pytest.raises(ValueError, match="same original source case"):
+        draft.run_case(case, protocol, output, prior_evaluation=feedback)
+    assert not output.exists()
+    assert captured["sessions"] == []
+
+
+def test_prepared_prior_evaluation_cannot_be_replaced(pipeline):
+    case, protocol, output, captured = pipeline
+    feedback = {"source_case": f"{case.source_run.name}__{case.task['task_id']}", "summary": "original"}
+    draft.run_case(case, protocol, output, prior_evaluation=feedback)
+    with pytest.raises(ValueError, match="frozen prepared author materials"):
+        draft.run_case(case, protocol, output, execute=True, api_key="SECRET",
+                       prior_evaluation={**feedback, "summary": "replacement"})
+    assert captured["sessions"] == []
+
+
+def test_prior_evaluation_can_be_omitted_when_executing_frozen_preparation(pipeline):
+    case, protocol, output, captured = pipeline
+    feedback = {"source_case": f"{case.source_run.name}__{case.task['task_id']}", "summary": "PRIVATE_FEEDBACK"}
+    draft.run_case(case, protocol, output, prior_evaluation=feedback)
+    result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET", solve_independently=False)
+    assert result["status"] == "reference_validated_pending_semantic_verification"
+    assert captured["author_materials"]["previous_evaluation.json"] == feedback
+
+
 def test_reference_only_mode_waits_for_semantic_verification_before_blind_solving(pipeline):
     case, protocol, output, captured = pipeline
     result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET_KEY", solve_independently=False)
     assert result["status"] == "reference_validated_pending_semantic_verification"
     assert result["independent_solver_started"] is result["correctness_verified"] is False
     assert len(captured["sessions"]) == 1
-    assert captured["replays"] == []
+
+
+def test_receipt_submission_binds_the_same_complete_proposal_without_another_session(pipeline, monkeypatch):
+    case, protocol, output, captured = pipeline
+    author = draft.run_harness
+
+    def receipt_harness(*args, **kwargs):
+        trajectory, observed = author(*args, **kwargs)
+        trajectory["outcome"]["final_answer"] = '{"validation_id":"validated-final"}'
+        return trajectory, observed
+
+    monkeypatch.setattr(draft, "run_harness", receipt_harness)
+
+    result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET", solve_independently=False)
+
+    assert result["status"] == "reference_validated_pending_semantic_verification"
+    assert result["author_submission"]["kind"] == "validation_receipt"
+    assert len(captured["sessions"]) == 1
+    validation = json.loads((output / "author/execution/raw/solution_validations.jsonl").read_text())
+    assert read_json(output / "proposal.json") == {
+        **validation["request"]["proposal"], "validation_id": "validated-final"}
+    assert read_json(output / "source_check.json")["parameter_sources_match"] is True
+    assert result["correctness_verified"] is False
+
+
+def test_fragmented_final_output_is_not_mistaken_for_an_inner_tool_object(pipeline, monkeypatch):
+    case, protocol, output, captured = pipeline
+    author = draft.run_harness
+
+    def fragmented_harness(*args, **kwargs):
+        trajectory, observed = author(*args, **kwargs)
+        trajectory["outcome"]["final_answer"] = '}, {"tool":"measure","arguments":{}}'
+        return trajectory, observed
+
+    monkeypatch.setattr(draft, "run_harness", fragmented_harness)
+
+    result = draft.run_case(case, protocol, output, execute=True, api_key="SECRET", solve_independently=False)
+
+    assert result["status"] == "stage_error"
+    assert "JSONDecodeError" in result["error"]
+    assert not (output / "proposal.json").exists()
+    assert len(captured["sessions"]) == 1
 
 
 def test_support_call_between_business_calls_does_not_shift_the_selected_reference(pipeline, solution):
@@ -523,12 +1005,16 @@ def test_support_call_between_business_calls_does_not_shift_the_selected_referen
     assert [call["tool"] for call in read_json(output / "reference_tool_calls.json")] == ["query", "measure"]
 
 
-@pytest.mark.parametrize("changed", ["prompt", "source", "task_id", "protocol"])
+@pytest.mark.parametrize("changed", ["prompt", "solution_format", "source", "task_id", "protocol"])
 def test_changed_prepared_inputs_cannot_be_executed(pipeline, changed):
     case, protocol, output, captured = pipeline
     draft.run_case(case, protocol, output)
     if changed == "prompt":
         (output / "author_prompt.txt").write_text("Changed policy")
+    elif changed == "solution_format":
+        materials = read_json(output / "author_materials.json")
+        materials["solution_format.json"]["proposal_example"]["task_text"] = "Changed format"
+        write_json(output / "author_materials.json", materials)
     elif changed == "source":
         (case.initial_state / "public.txt").write_text("Changed state")
     elif changed == "task_id":
@@ -546,7 +1032,6 @@ def test_invalid_author_reference_stops_without_retry_or_other_agents(pipeline, 
     result = draft.run_case(case, protocol, output, execute=True, api_key="key")
     assert result["status"] == "stage_error"
     assert len(captured["sessions"]) == 1
-    assert captured["replays"] == []
 
 
 def test_draft_output_cannot_change_the_original_environment(pipeline):
@@ -630,8 +1115,10 @@ def test_author_harness_alone_exposes_materials_and_validation(pipeline, actual_
     draft.run_harness(pipeline[0], task, protocol, tmp_path / "author-harness", "SECRET", author_materials=materials)
     assert captured["server_config"]["author_materials"] == materials
     assert captured["server_config"]["solution_validation"] == {
+        "submission_gate": True,
         "read_default_chars": 80000, "read_max_chars": 128000,
-        "source_check": {"protocol": protocol, "original_task_text": "Original", "original_call_count": 1}}
+        "source_check": {"protocol": protocol, "minimum_reference_calls": 15,
+                         "original_task_text": "Original", "original_call_count": 1}}
     assert captured["run"]["max_environment_errors"] is None
 
 
@@ -656,19 +1143,28 @@ def test_final_solution_requires_its_exact_successful_validation(solution, mutat
 
 def test_prompt_explains_materials_goal_rules_and_validation_in_order():
     prompt = draft.AUTHOR_PROMPT
-    assert prompt.index("最终目标") < prompt.index("先读哪些材料") < prompt.index("怎样增难")
-    assert prompt.index("怎样增难") < prompt.index("必要规则") < prompt.index("工作顺序")
-    assert prompt.index("工作顺序") < prompt.index("参考解格式")
+    sections = ["任务与目标", "环境与参考材料", "设计原则", "参考解与提交", "完成与提交"]
+    positions = [prompt.index("# " + section + "\n") for section in sections]
+    assert positions == sorted(positions)
+    assert len(prompt) < 2800
+    for material in ("original_task.json", "original_calls.json", "public_tools.json", "protocol.json",
+                     "workspace_files.json", "solution_format.json"):
+        assert material in prompt.split("# 环境与参考材料\n", 1)[1].split("\n# 设计原则", 1)[0]
     assert "validate_solution_calls" in prompt
     assert "没有 Python" not in prompt
     assert "不是Python程序" not in prompt
+    for requirement in ("完整方案", "同一会话修改", "source_check_passed", "字段和交付均闭合",
+                        "submit_validated_solution", "accepted=true", "正式 verifier"):
+        assert requirement in prompt
 
 
 def test_task_rules_separate_business_conditions_from_solution_routes():
-    rules = draft.AUTHOR_PROMPT.split("# 必要规则\n", 1)[1].split("\n# 工作顺序", 1)[0]
-    for phrase in ("工具选择、查询顺序、中间参数与回退路线写在参考解", "已知输入路径与业务规则可以公开",
-                   "验收条件描述成果应满足什么", "任务形态由具体业务决定", "实际落盘能力"):
-        assert phrase in rules
+    design = draft.AUTHOR_PROMPT.split("# 设计原则\n", 1)[1].split("\n# 参考解与提交", 1)[0]
+    for phrase in ("目标、范围、交付内容和验收标准必须明确",
+                   "关键事实和专业判断必须有当前公开数据、工具能力或可靠调研支撑",
+                   "题文只说明用户要达成什么", "什么条件算完成",
+                   "把如何调查环境、选择工具和组织调用留给执行者"):
+        assert phrase in design
 
 
 def test_validation_reference_rejects_changed_task_or_missing_source_check(solution):
@@ -679,7 +1175,8 @@ def test_validation_reference_rejects_changed_task_or_missing_source_check(solut
               for call in proposal["solution_calls"]],
               "proposal": {key: value for key, value in proposal.items() if key != "validation_id"}},
               "result": {"validation_id": proposal["validation_id"], "execution_passed": True,
-                         "source_check_passed": False, "calls": [{"error": None}, {"error": None}]}}
+                         "source_check_passed": False, "calls": [{"index": position, "tool": call["tool"], "arguments": call["arguments"], "error": None}
+                                   for position, call in enumerate(proposal["solution_calls"], 1)]}}
     with pytest.raises(ValueError, match="source-checked"):
         draft.validated_reference(proposal, [report])
     report["result"]["source_check_passed"] = True
@@ -697,9 +1194,58 @@ def test_validation_reference_never_bypasses_missing_author_source_check(solutio
               for call in proposal["solution_calls"]]},
               "result": {"validation_id": proposal["validation_id"], "execution_passed": True,
                          "source_check_passed": False,
-                         "calls": [{"error": None}, {"error": None}]}}
+                         "calls": [{"index": position, "tool": call["tool"], "arguments": call["arguments"], "error": None}
+                                   for position, call in enumerate(proposal["solution_calls"], 1)]}}
     with pytest.raises(ValueError, match="source-checked"):
         draft.validated_reference(proposal, [report])
+
+
+@pytest.mark.parametrize("mutation", [None, "wrong_file", "wrong_business_value", "missing_call",
+                                     "missing_request", "wrong_tool", "wrong_order", "missing_layout"])
+def test_validation_binds_runtime_normalized_paths_and_execution_identity(solution, tmp_path, mutation):
+    from harness.resources import ResourceCatalog
+
+    proposal, original, observed, schemas = solution
+    for call in proposal["solution_calls"]:
+        call.pop("observed_call")
+    proposal["solution_calls"][1]["arguments"]["path"] = "public/data.txt"
+    proposal["solution_calls"][1]["argument_sources"]["/path"] = {"kind": "task", "quote": "public/data.txt"}
+    request_calls = [{"tool": call["tool"], "arguments": call["arguments"]}
+                     for call in proposal["solution_calls"]]
+    runtime_calls = deepcopy(request_calls)
+    runtime_calls[1]["arguments"]["path"] = "data.txt"
+    report = {"request": {"calls": request_calls,
+                           "proposal": {key: value for key, value in proposal.items() if key != "validation_id"}},
+              "result": {"validation_id": proposal["validation_id"], "execution_passed": True,
+                         "source_check_passed": True,
+                         "calls": [{"index": index, "tool": call["tool"], "arguments": runtime_calls[index - 1]["arguments"],
+                                    "result": {}, "error": None}
+                                   for index, call in enumerate(request_calls, 1)]}}
+    schemas["measure"]["properties"]["path"] = {"type": "string", "x-resource-scope": "files"}
+    environment = {"filesystem_scopes": [{"scope_id": "files"}],
+        "tools": [{"name": name, "inputSchema": schema,
+                   "usageConditions": {"targetResources": ["files"]}} for name, schema in schemas.items()]}
+    resources = ResourceCatalog(environment, lambda scope_id: tmp_path / "public",
+        workspace_root=tmp_path, scope_mounts={"files": "public"})
+    if mutation == "wrong_file":
+        report["result"]["calls"][1]["arguments"]["path"] = "other.txt"
+    elif mutation == "wrong_business_value":
+        report["result"]["calls"][1]["arguments"]["id"] = "OTHER"
+    elif mutation == "missing_call":
+        report["result"]["calls"].pop()
+    elif mutation == "missing_request":
+        report["request"]["calls"] = report["request"]["calls"][:-1]
+    elif mutation == "wrong_tool":
+        report["result"]["calls"][1]["tool"] = "query"
+    elif mutation == "wrong_order":
+        report["result"]["calls"][1]["index"] = 1
+    elif mutation == "missing_layout":
+        resources = None
+    if mutation:
+        with pytest.raises(ValueError):
+            draft.validated_reference(proposal, [report], resources=resources)
+    else:
+        assert draft.validated_reference(proposal, [report], resources=resources)[0] == report
 
 
 def test_schema_choices_are_public_enums_defaults_or_booleans_only(protocol):
@@ -712,15 +1258,66 @@ def test_schema_choices_are_public_enums_defaults_or_booleans_only(protocol):
         draft.source_value(source, schema={"type": "boolean"}, **options)
 
 
+@pytest.mark.parametrize("value,schema,accepted", [
+    (None, {"type": ["string", "null"]}, True),
+    (None, {"type": "null"}, True),
+    (None, {"type": "string"}, False),
+    (True, {"type": ["boolean", "null"]}, True),
+    (1, {"type": ["string", "null"]}, False),
+])
+def test_nullable_schema_choices_follow_actual_public_types(protocol, value, schema, accepted):
+    declaration = {"kind": "schema_choice", "value": value, "reason": "Select an explicitly allowed public option."}
+    options = dict(task={"task_text": "Task"}, protocol=protocol, preceding=[], current_start=None, schema=schema)
+    if accepted:
+        assert sources.source_value(declaration, **options) is value
+    else:
+        with pytest.raises(ValueError):
+            sources.source_value(declaration, **options)
+
+
 @pytest.mark.parametrize("path,value,schema,accepted", [
     ("/search_query", "laser overheating", {"type": "string"}, True),
     ("/page", 2, {"type": "integer"}, True),
     ("/fields", ["title", "status"], {"type": "array", "items": {"type": "string"}}, True),
+    ("/selected_fields", ["date", "model"], {"type": "array", "items": {"type": "string"}}, True),
+    ("/comparison_fields", ["grid", "pixel_size"], {"type": "array", "items": {"type": "string"}}, True),
+    ("/page_number", 2, {"type": "integer"}, True),
+    ("/preview_rows", 5, {"type": "integer"}, True),
+    ("/max_matches", 3, {"type": "integer"}, True),
+    ("/max_matches_per_source", 3, {"type": "integer"}, True),
+    ("/max_matches_per_page", 3, {"type": "integer"}, True),
+    ("/display/max_matches", 3, {"type": "integer"}, True),
+    ("/max_depth", 3, {"type": "integer", "minimum": 0}, True),
+    ("/extension", "txt", {"type": "string"}, True),
+    ("/filters/limit", 20, {"type": "integer"}, True),
+    ("/filters/text_contains", "focus topic", {"type": "string"}, True),
+    ("/pagination/page_number", 2, {"type": "integer"}, True),
+    ("/page/limit", 100, {"type": "integer"}, True),
+    ("/page/offset", 0, {"type": "integer"}, True),
+    ("/group_by/0", "design_id", {"type": "string"}, True),
+    ("/comparison_fields/1", "grid", {"type": "string"}, True),
+    ("/frame_selection/start", 0, {"type": "integer"}, True),
+    ("/frame_selection/stop", 1, {"type": "integer"}, True),
+    ("/frame_selection/step", 1, {"type": "integer"}, True),
+    ("/sort/direction", "ascending", {"type": "string"}, True),
+    ("/page", 2, {"type": ["integer", "null"]}, True),
+    ("/fields", ["title", "status"], {"type": ["array", "null"], "items": {"type": "string"}}, True),
+    ("/fields", ["title", 2], {"type": "array", "items": {"type": ["string", "integer"]}}, True),
     ("/record_id", "invented-record", {"type": "string"}, False),
     ("/input_file", "missing.csv", {"type": "string"}, False),
     ("/value", 37, {"type": "number"}, False),
     ("/filters/record_id", "invented-record", {"type": "string"}, False),
+    ("/display/input_file", "missing.csv", {"type": "string"}, False),
+    ("/measurement/limit", 12, {"type": "integer"}, False),
+    ("/measurement/max_depth", 3, {"type": "integer"}, False),
+    ("/measurement/max_matches", 3, {"type": "integer"}, False),
+    ("/filters/nested/limit", 12, {"type": "integer"}, False),
+    ("/energy_tolerance", 0.2, {"type": "number"}, False),
+    ("/object_ids/0", "invented", {"type": "string"}, False),
+    ("/frame_selection/input_file", "missing.gif", {"type": "string"}, False),
+    ("/frame_selection/start", True, {"type": "integer"}, False),
     ("/page", True, {"type": "integer"}, False),
+    ("/max_matches", True, {"type": "integer"}, False),
 ])
 def test_agent_choices_allow_controls_but_require_evidence_for_business_values(protocol, path, value, schema, accepted):
     declaration = {"kind": "agent_choice", "value": value, "reason": "Select a search or display control."}
@@ -754,7 +1351,6 @@ def test_submissions_changed_after_successful_validation_stop_without_host_reexe
     result = single_agent_hardening.run_case(case, protocol, output, execute=True, api_key="key")
     assert result["status"] == "stage_error"
     assert len(captured["sessions"]) == 1
-    assert captured["replays"] == []
     assert not (output / "author/final-validation").exists()
 
 

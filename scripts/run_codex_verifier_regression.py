@@ -8,7 +8,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from task_gen.eval_cases import load_cases
-from task_gen.task_eval_verifier import verify_execution
+from eval.verifier import verify_execution
 
 
 CASES = [

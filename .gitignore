@@ -14,8 +14,21 @@ artifacts/
 cross_audit*.json
 *_progress*.json
 
-# Local working documents
+# Local working documents; retain the maintained documentation set.
 docs/*
+!docs/README.md
+!docs/QUICKSTART_ZH.md
+!docs/SYSTEM_ARCHITECTURE_ZH.md
+!docs/TASK_GENERATION_ZH.md
+!docs/TASK_DESIGN_ZH.md
+!docs/PROGRAM_PIPELINE_ZH.md
+!docs/TOOL_RUNTIME_ZH.md
+!docs/EVALUATION_ZH.md
+!docs/EVAL_CODE_ZH.md
+!docs/DISTILLATION_ZH.md
+!docs/CONFIGURATION_ZH.md
+!docs/OPERATIONS_ZH.md
+!docs/MAINTENANCE_ZH.md
 !docs/HARNESS阶段接入说明.md
 !docs/HARNESS使用案例.md
 !docs/MCP与工具调用代码地图.md

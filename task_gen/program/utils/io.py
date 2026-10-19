@@ -16,6 +16,12 @@ def read_json(path: Path) -> Any:
         raise ValueError(f"{path} 不是合法 JSON：{error}") from error
 
 
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

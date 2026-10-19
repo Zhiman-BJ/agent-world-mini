@@ -12,7 +12,7 @@ from typing import Any
 
 from task_gen.task_eval_mcp import bind_delivery
 from task_gen.task_eval_mcp import TaskEvalMcpServer
-from task_gen.task_eval_verifier import _copy_state, serialized_state_preparation, verify_execution
+from eval.verifier import _copy_state, serialized_state_preparation, verify_execution
 from harness.layout import create_task_run_layout
 
 from .runner import make_server_config

@@ -24,12 +24,10 @@ class Config:
     environment_package: Path | None = None
     output_root: Path = PROJECT_ROOT / "runs/program"
     model: str = "gpt-6.1-sol"
-    # A normal production run targets long, useful workflows. Unit fixtures can
-    # still construct ProgramGenerationPolicy() explicitly when testing replay.
+    # Call volume is diagnostic; genuine result-driven work determines release.
     policy: ProgramGenerationPolicy = field(
         default_factory=lambda: ProgramGenerationPolicy(
             task_generation_attempts=8,
-            minimum_effective_tool_calls=18,
             execution_timeout_seconds=1000.0,
         )
     )
@@ -40,6 +38,7 @@ class Config:
     scenario_research_path: Path | None = None
     research_fixture_path: Path | None = None
     candidates_path: Path | None = None
+    baseline_task_path: Path | None = None
     agent_timeout_seconds: int = 3600
 
 

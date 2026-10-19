@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import sqlite3
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +22,10 @@ from task_gen.program import (
 )
 from task_gen.program.step_1_task_research import (
     validate_task_research,
+)
+from task_gen.program.step_2_solution_generate import (
+    _CandidateQualityService,
+    _canonical_payload_hash,
 )
 from task_gen.program.utils.io import read_json, read_records, write_json
 from task_gen.program.utils.tool_runtime import (
@@ -179,6 +186,7 @@ class ReviewAgent:
                 for index, call in enumerate(request["solution_trace"])
             ],
             "issues": [],
+            "method_leakage": [],
         })
         return "done"
 
@@ -196,6 +204,205 @@ class RepairAgent:
 
 
 class ProgramFormV2Tests(unittest.TestCase):
+    def test_author_can_select_supported_alternative_with_full_tool_visibility(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package_path = self.make_package(root)
+            tools_path = package_path / "tools.json"
+            tools = read_json(tools_path)
+            extra = deepcopy(tools["tools"][0])
+            extra["name"] = "batch_candidate_summary"
+            tools["tools"].append(extra)
+            write_json(tools_path, tools)
+            research = self.research_payload()
+            preferred = research["task_archetypes"][0]
+            preferred["archetype_id"] = "z_suggested_candidate_review"
+            alternative = deepcopy(preferred)
+            alternative["archetype_id"] = "a_supported_alternative"
+            research["task_archetypes"].append(alternative)
+            unsupported = deepcopy(preferred)
+            unsupported["archetype_id"] = "unsupported_future_work"
+            unsupported["environment_support"]["generatable"] = False
+            research["task_archetypes"].append(unsupported)
+            research_path = root / "research.json"
+            write_json(research_path, research)
+            output = root / "out"
+            step0 = run_step0(environment_package=package_path, output_dir=output)
+            step1 = run_step1(step0_path=step0, output_dir=output, agent=None,
+                              research_fixture_path=research_path)
+            payload = self.candidate_payload()
+            payload["candidates"][0]["archetype_id"] = alternative["archetype_id"]
+            test_case = self
+
+            class Author:
+                def run(self, _prompt, *, working_directory):
+                    request = read_json(working_directory / "generation_request.json")
+                    test_case.assertEqual(request["suggested_archetype_id"], preferred["archetype_id"])
+                    test_case.assertNotIn("selected_archetype_id", request)
+                    visible_research = read_json(working_directory / "task_research.json")
+                    test_case.assertEqual(visible_research, research)
+                    for filename in ("environment.public.json", "tools.internal.json"):
+                        visible = read_json(working_directory / filename)
+                        test_case.assertIn(extra["name"], {tool["name"] for tool in visible["tools"]})
+                    write_json(working_directory / "candidate.draft.json", payload)
+                    completed = subprocess.run(
+                        [sys.executable, str(working_directory / "candidate_check.py"),
+                         "--quality-timeout-seconds", "30", "--execution-timeout-seconds", "20"],
+                        capture_output=True, text=True, timeout=40,
+                    )
+                    test_case.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                    shutil.copy2(working_directory / "candidate.draft.json", working_directory / "candidates.json")
+                    return "done"
+
+            with patch("task_gen.program.step_2_solution_generate.execute_solution_code",
+                       wraps=execute_solution_code) as executions:
+                result = run_step2(
+                    step0_path=step0, step1_path=step1.output_path, output_dir=output,
+                    policy=ProgramGenerationPolicy(task_count=1, task_generation_attempts=1,
+                                                   clean_replays=2, execution_timeout_seconds=20),
+                    generation_agent=Author(), review_agent=ReviewAgent(),
+                )
+            self.assertEqual(executions.call_count, 2,
+                             "publication must reuse the author-validated execution and final state")
+            self.assertEqual(result.accepted, 1)
+            accepted = read_records(result.output_path)
+            self.assertEqual(accepted[0]["archetype_id"], alternative["archetype_id"])
+            task = read_json(result.tasks_path)[0]
+            expected_calls = [
+                {"tool": call["tool"], "arguments": call["arguments"]}
+                for call in accepted[0]["solution_trace"]
+            ]
+            self.assertEqual(task["reference"]["tool_calls"], expected_calls)
+            for state_key, expected_status in (("initial_state", "open"),
+                                               ("reference", "selected")):
+                relative = (task[state_key] if state_key == "initial_state"
+                            else task["reference"]["final_state"])
+                with sqlite3.connect(output / relative / "records.sqlite") as connection:
+                    self.assertEqual(connection.execute(
+                        "SELECT status FROM candidates WHERE item_id = 'c'"
+                    ).fetchone()[0], expected_status)
+
+    def _run_checked_author(self, root, *, mutation=None, skip_check=False):
+        package_path = self.make_package(root)
+        research_path = root / "research.json"
+        write_json(research_path, self.research_payload())
+        output = root / "out"
+        step0 = run_step0(environment_package=package_path, output_dir=output)
+        step1 = run_step1(step0_path=step0, output_dir=output, agent=None,
+                          research_fixture_path=research_path)
+        payload = self.candidate_payload()
+        services = []
+        test_case = self
+
+        def make_service(**kwargs):
+            service = _CandidateQualityService(**kwargs)
+            services.append(service)
+            return service
+
+        class Author:
+            def run(self, _prompt, *, working_directory):
+                write_json(working_directory / "candidate.draft.json", payload)
+                if skip_check:
+                    write_json(working_directory / "candidate_preflight_receipt.json", {
+                        "passed": True,
+                        "candidate_sha256": _canonical_payload_hash(payload),
+                        "metrics": {},
+                        "review": {"accepted": True},
+                        "clean_replay_count": 2,
+                    })
+                else:
+                    completed = subprocess.run(
+                        [sys.executable, str(working_directory / "candidate_check.py"),
+                         "--quality-timeout-seconds", "30", "--execution-timeout-seconds", "20",
+                         "--clean-replays", "1"],
+                        capture_output=True, text=True, timeout=40,
+                    )
+                    test_case.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                if mutation is not None:
+                    mutation(working_directory, services[-1])
+                shutil.copy2(working_directory / "candidate.draft.json",
+                             working_directory / "candidates.json")
+                return "done"
+
+        with (
+            patch("task_gen.program.step_2_solution_generate._CandidateQualityService",
+                  side_effect=make_service),
+            patch("task_gen.program.step_2_solution_generate.execute_solution_code",
+                  wraps=execute_solution_code) as executions,
+        ):
+            arguments = {
+                "step0_path": step0, "step1_path": step1.output_path, "output_dir": output,
+                "policy": ProgramGenerationPolicy(task_count=1, task_generation_attempts=1,
+                                                  clean_replays=2, execution_timeout_seconds=20),
+                "generation_agent": Author(), "review_agent": ReviewAgent(),
+            }
+            if mutation is not None or skip_check:
+                with self.assertRaisesRegex(RuntimeError, "Step 2 只接受了 0/1"):
+                    run_step2(**arguments)
+            else:
+                run_step2(**arguments)
+        return read_json(output / "step2_validation.json"), executions.call_count
+
+    def test_author_cannot_reduce_parent_required_clean_replays(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result, calls = self._run_checked_author(Path(temporary))
+            self.assertEqual(result["accepted"], 1)
+            self.assertEqual(calls, 2)
+            accepted = read_records(Path(temporary) / "out" / "step2_task_solution.jsonl")[0]
+            self.assertEqual(accepted["solution_validation"]["clean_replay_count"], 2)
+
+    def test_unchecked_forged_receipt_is_not_publishable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result, calls = self._run_checked_author(Path(temporary), skip_check=True)
+            self.assertEqual(result["accepted"], 0)
+            self.assertEqual(calls, 0)
+
+    def test_publication_rejects_changed_submission_and_checked_assets(self):
+        def mutate_payload(authoring, _service):
+            path = authoring / "candidate.draft.json"
+            payload = read_json(path)
+            payload["candidates"][0]["task_public"] += " Return a detailed explanation."
+            write_json(path, payload)
+            receipt_path = authoring / "candidate_preflight_receipt.json"
+            receipt = read_json(receipt_path)
+            receipt["candidate_sha256"] = _canonical_payload_hash(payload)
+            write_json(receipt_path, receipt)
+
+        def mutate_receipt(authoring, _service):
+            path = authoring / "candidate_preflight_receipt.json"
+            receipt = read_json(path)
+            receipt["review"]["reason"] = "This review was not issued by the checker."
+            write_json(path, receipt)
+
+        def mutate_state(_authoring, service):
+            approved = next(iter(service.approved.values()))
+            with sqlite3.connect(approved.final_state_path / "records.sqlite") as connection:
+                connection.execute("UPDATE candidates SET status = 'open' WHERE item_id = 'c'")
+
+        def remove_state(_authoring, service):
+            shutil.rmtree(next(iter(service.approved.values())).final_state_path)
+
+        def corrupt_state(_authoring, service):
+            database = next(iter(service.approved.values())).final_state_path / "records.sqlite"
+            database.write_bytes(b"not a sqlite database")
+
+        def link_state(_authoring, service):
+            database = next(iter(service.approved.values())).final_state_path / "records.sqlite"
+            database.unlink()
+            database.symlink_to(service.package.state_root / "records.sqlite")
+
+        def mutate_initial(_authoring, service):
+            with sqlite3.connect(service.package.state_root / "records.sqlite") as connection:
+                connection.execute("UPDATE candidates SET score = 99 WHERE item_id = 'c'")
+
+        for mutation in (mutate_payload, mutate_receipt, mutate_state, remove_state, corrupt_state,
+                         link_state, mutate_initial):
+            with self.subTest(mutation=mutation.__name__), tempfile.TemporaryDirectory() as temporary:
+                result, calls = self._run_checked_author(Path(temporary), mutation=mutation)
+                self.assertEqual(result["accepted"], 0)
+                self.assertEqual(calls, 2)
+                self.assertFalse(list((Path(temporary) / "out" / "tasks").glob("*")))
+
     def test_sqlite_snapshot_cache_reuses_and_invalidates_logical_state(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -429,6 +636,22 @@ final_answer = {"selected_item_id": winner["item_id"], "selected_score": winner[
                     "workspace_brief": "Review eligible candidates and record the selected candidate.",
                     "task_summary": "Review the complete candidate pool, select the highest-scoring eligible candidate, and persist the resulting decision.",
                     "task_public": task_public or self.task_public(),
+                    "change_manifest": {
+                        "baseline_core_deliverables": [
+                            "选择符合资格且评分最高的候选人并记录结果"
+                        ],
+                        "preserved_or_replaced": [{
+                            "original": "选择符合资格且评分最高的候选人并记录结果",
+                            "new_or_preserved": "保留候选筛选、最高分选择和状态持久化",
+                            "acceptance": "最终候选状态为 selected 且回答包含标识、分数和状态",
+                        }],
+                        "new_business_outcome": "把当前周期的选择结果记录为可交接的业务决定",
+                        "result_driven_decisions": [{
+                            "decision": "在合格候选人中选择最高评分者",
+                            "evidence_source": "候选列表返回的资格和评分字段",
+                            "downstream_effect": "被选候选人的标识决定后续状态写入对象",
+                        }],
+                    },
                     "output_schema": self.answer_schema(),
                     "task_resources": {
                         "record_sets": ["candidates"],

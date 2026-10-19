@@ -37,7 +37,7 @@ def load_config(config_path: Path | None = None, overrides: Mapping[str, Any] | 
         values.update(raw.get("paths") or {})
         if raw.get("hardening_source_path") is not None or values.get("hardening_source_path") is not None:
             raise ValueError("Legacy hardening configuration is retired; use single_agent_hardening")
-        values.update({key: raw[key] for key in ("model", "agent_timeout_seconds", "environment_package", "output_root", "tools_path", "delivery_root", "binding_path", "package_id", "scenario_research_path", "research_fixture_path", "candidates_path") if key in raw})
+        values.update({key: raw[key] for key in ("model", "agent_timeout_seconds", "environment_package", "output_root", "tools_path", "delivery_root", "binding_path", "package_id", "scenario_research_path", "research_fixture_path", "candidates_path", "baseline_task_path") if key in raw})
         if isinstance(raw.get("llm"), dict) and raw["llm"].get("model"):
             values.setdefault("model", raw["llm"]["model"])
         if "policy" in raw:
@@ -56,7 +56,7 @@ def load_config(config_path: Path | None = None, overrides: Mapping[str, Any] | 
             values[key] = value
     if values.get("hardening_source_path") is not None:
         raise ValueError("Legacy hardening configuration is retired; use single_agent_hardening")
-    for key in ("environment_package", "output_root", "tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path"):
+    for key in ("environment_package", "output_root", "tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path", "baseline_task_path"):
         if values.get(key) is not None:
             values[key] = Path(values[key]).expanduser().resolve()
     return Config(**{field.name: values[field.name] for field in fields(Config) if field.name in values})

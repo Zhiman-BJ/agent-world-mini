@@ -32,6 +32,55 @@
             "type": "string",
             "minLength": 40
           },
+          "change_manifest": {
+            "type": "object",
+            "properties": {
+              "baseline_core_deliverables": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "minLength": 10}
+              },
+              "preserved_or_replaced": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "original": {"type": "string", "minLength": 10},
+                    "new_or_preserved": {"type": "string", "minLength": 10},
+                    "acceptance": {"type": "string", "minLength": 10}
+                  },
+                  "required": ["original", "new_or_preserved", "acceptance"],
+                  "additionalProperties": false
+                }
+              },
+              "new_business_outcome": {
+                "type": "string",
+                "minLength": 20
+              },
+              "result_driven_decisions": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "decision": {"type": "string", "minLength": 10},
+                    "evidence_source": {"type": "string", "minLength": 10},
+                    "downstream_effect": {"type": "string", "minLength": 10}
+                  },
+                  "required": ["decision", "evidence_source", "downstream_effect"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "baseline_core_deliverables",
+              "preserved_or_replaced",
+              "new_business_outcome",
+              "result_driven_decisions"
+            ],
+            "additionalProperties": false
+          },
           "output_schema": {
             "type": "object",
             "description": "旧中间候选兼容字段；不会进入正式任务或评测上下文。"
@@ -88,6 +137,7 @@
           "workspace_brief",
           "task_summary",
           "task_public",
+          "change_manifest",
           "task_resources",
           "solution_code"
         ],

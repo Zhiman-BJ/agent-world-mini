@@ -7,6 +7,26 @@ import pytest
 from distill.taskgen_verifier import verification_calls
 
 
+def test_verifier_state_copy_handles_cross_filesystem(tmp_path, monkeypatch):
+    import errno
+    import os
+    from distill.taskgen_verifier import _copy_tree_links
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "evidence.txt").write_text("immutable evidence")
+
+    def cross_device(*args, **kwargs):
+        raise OSError(errno.EXDEV, "Invalid cross-device link")
+
+    monkeypatch.setattr(os, "link", cross_device)
+    destination = tmp_path / "destination"
+    _copy_tree_links(source, destination)
+    assert (destination / "evidence.txt").read_text() == "immutable evidence"
+    (destination / "evidence.txt").write_text("different copy")
+    assert (source / "evidence.txt").read_text() == "immutable evidence"
+
+
 @pytest.fixture
 def evidence():
     business = {

@@ -8,8 +8,9 @@ import operator
 from pathlib import Path
 import re
 
+from .author_submission import check_proposal_fields
 
-SELF_CHECKS = ("real_need_preserved", "meaningful_hardening", "public_rules_complete",
+SELF_CHECKS = ("real_need_grounded", "result_driven_orchestration", "public_rules_complete",
                "computation_boundary_respected", "no_padding", "answer_supported",
                "solver_plans_route", "deliverables_supported")
 OPERATIONS = {"add": operator.add, "subtract": operator.sub,
@@ -20,11 +21,15 @@ PUBLIC_PROTOCOL_FIELDS = ("model", "provider_type", "reasoning_effort", "context
                           "read_default_chars", "read_max_chars", "max_total_tool_calls", "compaction_trigger_ratio")
 EXPLORATION_TOOLS = frozenset({"Read", "Grep", "Glob"})
 CONTROL_PARAMETERS = {
-    "query", "search_query", "search_text", "query_text", "keywords",
-    "page", "page_size", "per_page", "limit", "offset", "context_chars", "render_dpi", "page_numbers",
-    "sort", "sort_by", "order", "order_by", "fields", "columns", "projection", "group_by",
-    "format", "output_format",
+    "query", "search_query", "search_text", "query_text", "keywords", "text_contains",
+    "page", "page_number", "page_size", "per_page", "limit", "offset", "context_chars", "render_dpi", "page_numbers",
+    "sort", "sort_by", "order", "order_by", "direction", "field", "fields", "columns", "projection", "group_by",
+    "selected_fields", "comparison_fields", "format", "output_format", "preview_rows", "extension", "file_extension",
+    "max_depth", "max_matches", "max_matches_per_source", "max_matches_per_page",
 }
+CONTROL_CONTAINERS = frozenset({"filters", "page", "pagination", "sort", "sorting", "projection", "display"})
+AUTHORED_TEXT_PARAMETERS = frozenset({"body", "comment", "content", "description", "message", "new_text",
+                                     "notes", "rationale", "title"})
 
 
 class SourceCheckError(ValueError):
@@ -117,6 +122,10 @@ def _schema_choice_allowed(value, schema: dict) -> bool:
         allowed.append(schema["default"])
     if any(same_source_value(value, option) for option in allowed):
         return True
+    if isinstance(schema.get("type"), list):
+        return any(_schema_choice_allowed(value, {**schema, "type": kind}) for kind in schema["type"])
+    if schema.get("type") == "null" and value is None:
+        return True
     if schema.get("type") == "boolean" and type(value) is bool:
         return True
     if schema.get("type") == "object" and value == {} and not schema.get("required"):
@@ -140,21 +149,47 @@ def source_value(source: dict, *, task: dict, protocol: dict, schema: dict,
     if not isinstance(source, dict) or depth > 4:
         raise ValueError("invalid or overly complex parameter source")
     kind = source.get("kind")
+    if kind in {"agent_choice", "schema_choice", "authored_text"} and argument_path and "properties" in schema:
+        schema = argument_schema(schema, argument_path)
+    if kind == "authored_text":
+        if (set(source) != {"kind", "value", "reason", "basis"} or not isinstance(source["value"], str)
+                or not isinstance(source["reason"], str) or not source["reason"].strip()
+                or not isinstance(source["basis"], list) or not source["basis"]):
+            raise ValueError("authored text requires its exact string, a purpose and actual public evidence")
+        parameter = argument_path.rsplit("/", 1)[-1]
+        types = schema.get("type")
+        if (parameter not in AUTHORED_TEXT_PARAMETERS
+                or "string" not in (types if isinstance(types, list) else [types]) or "enum" in schema):
+            raise ValueError("authored text is limited to open text-content fields, not identifiers, input paths or measurements")
+        for evidence in source["basis"]:
+            if not isinstance(evidence, dict) or evidence.get("kind") not in {"call", "file"}:
+                raise ValueError("authored-text evidence must be an actual earlier result or frozen public file")
+            if evidence["kind"] == "file" and "quote" not in evidence:
+                raise ValueError("authored-text file evidence requires an actual content quote")
+            source_value(evidence, task=task, protocol=protocol, schema={}, preceding=preceding,
+                         current_start=current_start, depth=depth + 1, public_files=public_files)
+        return source["value"]
     if kind == "agent_choice":
         if (set(source) != {"kind", "value", "reason"} or not isinstance(source["reason"], str)
                 or not source["reason"].strip()):
             raise ValueError("agent choices require a value and operational reason")
-        if (not argument_path.startswith("/") or argument_path.count("/") != 1
-                or argument_path[1:] not in CONTROL_PARAMETERS):
+        parts = argument_path.split("/")[1:] if argument_path.startswith("/") else []
+        if parts and parts[-1].isascii() and parts[-1].isdigit():
+            parts = parts[:-1]
+        frame_control = len(parts) == 2 and parts[0] == "frame_selection" and parts[1] in {"start", "stop", "step"}
+        if not frame_control and (len(parts) not in {1, 2} or parts[-1] not in CONTROL_PARAMETERS
+                or (len(parts) == 2 and parts[0] not in CONTROL_CONTAINERS)):
             raise ValueError("agent choices are limited to query, pagination, sorting, projection and display controls")
         value = source["value"]
         scalar_types = {"string": (str,), "integer": (int,), "number": (int, float), "boolean": (bool,)}
         value_type = schema.get("type")
-        if value_type == "array" and isinstance(value, list):
-            item_types = scalar_types.get(schema.get("items", {}).get("type"), ())
-            allowed = bool(item_types) and all(type(item) in item_types for item in value)
+        value_types = value_type if isinstance(value_type, list) else [value_type]
+        if "array" in value_types and isinstance(value, list):
+            item_type = schema.get("items", {}).get("type")
+            item_types = item_type if isinstance(item_type, list) else [item_type]
+            allowed = all(any(type(item) in scalar_types.get(kind, ()) for kind in item_types) for item in value)
         else:
-            allowed = type(value) in scalar_types.get(value_type, ())
+            allowed = any(type(value) in scalar_types.get(kind, ()) for kind in value_types)
         if not allowed:
             raise ValueError("agent choice must match the public scalar or scalar-array parameter type")
         return value
@@ -163,7 +198,8 @@ def source_value(source: dict, *, task: dict, protocol: dict, schema: dict,
                 or not source["reason"].strip()):
             raise ValueError("schema choices require a value and operational reason")
         if not _schema_choice_allowed(source["value"], schema):
-            raise ValueError("schema choice must be an actual public enum, boolean or default")
+            raise ValueError("schema choice must be an actual public enum, boolean or default; "
+                             "for a documented string use kind=schema with a pointer and exact quote")
         return source["value"]
     if kind == "derived":
         if (set(source) != {"kind", "operation", "inputs"} or source["operation"] not in OPERATIONS
@@ -171,7 +207,7 @@ def source_value(source: dict, *, task: dict, protocol: dict, schema: dict,
             raise ValueError("only two-operand basic arithmetic is supported")
         values = [source_value(item, task=task, protocol=protocol, schema=schema,
                   preceding=preceding, current_start=current_start, depth=depth + 1,
-                  public_files=public_files) for item in source["inputs"]]
+                  public_files=public_files, argument_path=argument_path) for item in source["inputs"]]
         if any(type(value) not in (int, float) for value in values):
             raise ValueError("basic arithmetic sources must be numbers")
         result = OPERATIONS[source["operation"]](*values)
@@ -188,19 +224,33 @@ def source_value(source: dict, *, task: dict, protocol: dict, schema: dict,
             raise ValueError("task sources require an exact public quote")
         value = task["task_text"]
     elif kind == "file":
-        if (not {"kind", "path"} <= source.keys() or source.keys() - {"kind", "path", "quote", "as"}
+        if (not {"kind", "path"} <= source.keys() or source.keys() - {"kind", "path", "quote", "as", "relative_to"}
                 or not isinstance(source["path"], str) or not public_files or source["path"] not in public_files):
-            raise ValueError("file sources must reference an existing frozen public workspace file")
+            raise ValueError("file sources must reference an existing frozen public workspace file or directory")
         if "quote" not in source:
             if "as" in source:
                 raise ValueError("file content decoding requires an actual quote")
+            if "relative_to" in source:
+                base = source['relative_to']
+                if (not isinstance(base, str) or base not in public_files
+                        or not public_files[base].is_dir()):
+                    raise ValueError("relative_to must identify an existing frozen public directory")
+                return Path(source['path']).relative_to(base).as_posix()
             return source["path"]
+        if "relative_to" in source:
+            raise ValueError("relative_to applies to public paths, not quoted file content")
+        if not public_files[source["path"]].is_file():
+            raise ValueError("directory sources provide a path, not quoted file content")
         value = public_files[source["path"]].read_text(encoding="utf-8")
-    elif kind in {"schema", "protocol"}:
+    elif kind == "schema":
+        if not {"kind", "pointer"} <= source.keys() or source.keys() - {"kind", "pointer", "quote", "as"}:
+            raise ValueError("schema sources require a public pointer and optional exact quote")
+        value = pointer(schema, source["pointer"])
+    elif kind == "protocol":
         if set(source) != {"kind", "pointer"}:
-            raise ValueError("schema/protocol source fields differ")
+            raise ValueError("protocol source fields differ")
         public_protocol = {field: protocol[field] for field in PUBLIC_PROTOCOL_FIELDS}
-        return pointer(schema if kind == "schema" else public_protocol, source["pointer"])
+        return pointer(public_protocol, source["pointer"])
     elif kind == "call":
         if not {"kind", "call", "pointer"} <= source.keys() or source.keys() - {"kind", "call", "pointer", "quote", "as"}:
             raise ValueError("tool sources require an exact earlier visible result")
@@ -252,11 +302,9 @@ def _value_pointers(value, expected, path=""):
 
 def check_solution(proposal: dict, original: dict, observed: list[dict], protocol: dict,
                    schemas: dict, *, validation: dict | None = None,
-                   public_files: dict[str, Path] | None = None) -> tuple[list[int], dict]:
-    fields = {"task_text", "real_need", "reference_answer", "solution_calls", "answer_sources", "validation_id",
-              "self_check", "self_check_notes"}
-    if not isinstance(proposal, dict) or set(proposal) != fields:
-        raise ValueError("author must return the task, observed call list, answer, and self-check only")
+                   public_files: dict[str, Path] | None = None,
+                   minimum_reference_calls: int = 1) -> tuple[list[int], dict]:
+    check_proposal_fields(proposal)
     for field in ("task_text", "real_need", "reference_answer"):
         if not isinstance(proposal[field], str) or not proposal[field].strip():
             raise ValueError(f"author output requires {field}")
@@ -269,15 +317,16 @@ def check_solution(proposal: dict, original: dict, observed: list[dict], protoco
             or any(not isinstance(item, str) or not item.strip() for item in proposal["self_check_notes"])):
         raise ValueError("author self-check is incomplete; it is not an independent correctness proof")
     calls = proposal["solution_calls"]
-    if not isinstance(calls, list) or not 1 <= len(calls) <= protocol["max_total_tool_calls"]:
-        raise ValueError("reference call list is empty or exceeds the actual budget")
+    if type(minimum_reference_calls) is not int or minimum_reference_calls < 1:
+        raise ValueError("minimum_reference_calls must be a positive integer")
+    if not isinstance(calls, list) or not minimum_reference_calls <= len(calls) <= protocol["max_total_tool_calls"]:
+        raise ValueError(f"reference requires at least {minimum_reference_calls} business MCP calls "
+                         "and must stay within the actual budget")
     if any(not isinstance(call, dict) or call.get("tool") in EXPLORATION_TOOLS
            or call.get("tool") not in schemas for call in calls):
         raise ValueError("reference lists contain public business MCP tools only; file tools are exploration-only")
     old_count = sum(call is None or call.get("tool") not in EXPLORATION_TOOLS
                     for call in original["reference"]["tool_calls"])
-    if old_count < 18 and len(calls) <= old_count:
-        raise ValueError("reference calls below the eighteen-call threshold must increase")
     if validation is not None:
         records = validation["result"].get("calls")
         if not isinstance(records, list) or len(records) != len(calls):
@@ -290,14 +339,17 @@ def check_solution(proposal: dict, original: dict, observed: list[dict], protoco
                              "tool_kind": "validated_execution", "is_error": False,
                              "visible_output": record["result"]})
     task, selected, indices, declarations = {"task_text": proposal["task_text"]}, [], [], []
-    choices = []
+    choices, authored_text = [], []
     source_errors = []
     for position, call in enumerate(calls, 1):
         required = {"tool", "arguments", "argument_sources", "purpose"}
         if validation is None:
             required.add("observed_call")
         if not isinstance(call, dict) or set(call) != required:
-            raise ValueError("reference call must include its real observation and parameter sources")
+            actual_fields = set(call) if isinstance(call, dict) else set()
+            raise ValueError(f"reference call {position} has invalid fields: "
+                             f"missing={sorted(required - actual_fields)}; "
+                             f"unexpected={sorted(actual_fields - required)}; expected={sorted(required)}")
         number = call["observed_call"] if validation is None else position
         if type(number) is not int or not (indices[-1] if indices else 0) < number <= len(observed):
             raise ValueError("reference must select real observations once, in actual start order")
@@ -317,8 +369,6 @@ def check_solution(proposal: dict, original: dict, observed: list[dict], protoco
         for path, expected in expected_values.items():
             source = sources[path]
             schema = schemas.get(name, {})
-            if isinstance(source, dict) and source.get("kind") in {"schema_choice", "agent_choice"}:
-                schema = argument_schema(schema, path)
             try:
                 value = source_value(source, task=task, protocol=protocol, schema=schema,
                     preceding=selected, current_start=actual.get("started_event_sequence"), public_files=public_files,
@@ -330,6 +380,9 @@ def check_solution(proposal: dict, original: dict, observed: list[dict], protoco
                 if source["kind"] == "agent_choice":
                     choices.append({"call": len(selected) + 1, "argument": path,
                                     "value": value, "reason": source["reason"]})
+                if source["kind"] == "authored_text":
+                    authored_text.append({"call": len(selected) + 1, "argument": path,
+                                          "reason": source["reason"], "basis": source["basis"]})
             except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError) as error:
                 source_errors.append(f"call {position} parameter {path}: {type(error).__name__}: {error}")
         indices.append(number)
@@ -349,7 +402,8 @@ def check_solution(proposal: dict, original: dict, observed: list[dict], protoco
     if source_errors:
         raise SourceCheckError(source_errors)
     return indices, {"call_count": len(calls), "original_call_count": old_count,
+        "minimum_reference_calls": minimum_reference_calls,
         "parameter_sources_match": True, "author_self_check_only": True,
         "new_identifier_declarations": declarations, "semantic_correctness_proved": False,
-        "agent_choices": choices,
+        "agent_choices": choices, "authored_text_declarations": authored_text,
         "execution_evidence": "clean_state_validation" if validation is not None else "author_cli_observations"}

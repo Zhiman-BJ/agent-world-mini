@@ -8,8 +8,11 @@ import sys
 if __package__ in {None, ''}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from harness.mcp_protocol import serve_jsonrpc
+from harness.mcp_protocol import serve_jsonrpc, tool_call_result
 from task_gen.task_eval_mcp import TaskEvalMcpServer
+
+
+DEFAULT_MAX_VISIBLE_RESULT_CHARS = 64_000
 
 
 _SCHEMA_MAP_CHILDREN = (
@@ -99,17 +102,57 @@ def _normalize_kimi_tool_schema(schema):
 class KimiMcpAdapter:
     """Adapt schemas for Kimi without changing MCP tool semantics.
 
-    Long results are returned unchanged. Kimi Code owns externalization into
-    its session-local ``tool-results`` files and can recover them with native
-    Read/Grep.
+    Keep the complete result in the execution trace, but reject an oversized
+    read-only business result before it enters the model context. The model
+    can retry with a narrower query or explicit projection.
     """
 
     def __init__(self, server):
         self.server = server
+        configured = getattr(server, "config", {}).get("max_visible_result_chars")
+        self.max_visible_result_chars = (
+            DEFAULT_MAX_VISIBLE_RESULT_CHARS if configured is None else configured
+        )
+        if type(self.max_visible_result_chars) is not int or self.max_visible_result_chars < 1:
+            raise ValueError("max_visible_result_chars must be a positive integer")
+
+    def _visible_result(self, request, result):
+        if request.get("method") != "tools/call" or not isinstance(result, dict):
+            return result
+        if result.get("isError") is True:
+            return result
+        params = request.get("params")
+        name = params.get("name") if isinstance(params, dict) else None
+        tools = getattr(self.server, "tools", {})
+        tool = tools.get(name) if isinstance(name, str) and isinstance(tools, dict) else None
+        if not isinstance(tool, dict):
+            return result
+        if tool.get("usageConditions", {}).get("sideEffects") != []:
+            return result
+        payload = result.get("structuredContent")
+        if not isinstance(payload, dict):
+            return result
+        serialized_chars = len(json.dumps(payload, ensure_ascii=False, allow_nan=False))
+        if serialized_chars <= self.max_visible_result_chars:
+            return result
+        return tool_call_result({
+            "success": False,
+            "error": {
+                "code": "result_too_large_for_context",
+                "message": (
+                    "只读工具结果过大，未将完整结果送入模型上下文；"
+                    "请缩小查询范围、指定字段或分页后重试。"
+                ),
+                "retryable": True,
+                "serialized_chars": serialized_chars,
+                "max_visible_result_chars": self.max_visible_result_chars,
+            },
+        }, is_error=True, structured=False)
 
     def handle(self, request):
         method = request.get('method')
         result = self.server.handle(request)
+        result = self._visible_result(request, result)
         if method == 'tools/list':
             result = {'tools': [dict(tool) for tool in result['tools']]}
             for tool in result['tools']:
@@ -141,6 +184,7 @@ def _arguments(argv=None):
     parser.add_argument('--memory-limit', type=int)
     parser.add_argument('--write-limit', type=int)
     parser.add_argument('--process-limit', type=int, default=1024)
+    parser.add_argument('--max-visible-result-chars', type=int)
     parser.add_argument('--review-choice-seed', type=Path)
     parser.add_argument('--solution-validation', type=Path)
     options = parser.parse_args(argv)
@@ -161,6 +205,7 @@ def _arguments(argv=None):
                 options.timeout,
                 options.memory_limit,
                 options.write_limit,
+                options.max_visible_result_chars,
                 options.review_choice_seed,
                 options.solution_validation,
             )
@@ -197,6 +242,10 @@ def _server_config(options):
         'memory_limit': options.memory_limit,
         'write_limit': options.write_limit,
         'process_limit': options.process_limit,
+        'max_visible_result_chars': (
+            DEFAULT_MAX_VISIBLE_RESULT_CHARS
+            if options.max_visible_result_chars is None else options.max_visible_result_chars
+        ),
     }
     if options.budget_stop_marker is not None:
         config['budget_stop_marker'] = str(options.budget_stop_marker)

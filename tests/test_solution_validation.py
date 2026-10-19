@@ -102,6 +102,54 @@ def test_final_proposal_gets_live_source_feedback_and_references_actual_results(
     assert "answer source 2" in result["source_check_errors"][1]
 
 
+@pytest.mark.parametrize("count,accepted", [(14, False), (15, True)])
+def test_author_validation_applies_its_reference_minimum_without_old_growth(config, count, accepted):
+    from task_gen.program.proposal_sources import SELF_CHECKS
+
+    config["solution_validation"]["source_check"] = {
+        "protocol": {"max_total_tool_calls": 65}, "minimum_reference_calls": 15,
+        "original_task_text": "Original", "original_call_count": 17}
+    proposal = {"task_text": "Inspect the public counter.", "real_need": "Report its current value.",
+        "reference_answer": "The counter is 0.", "solution_calls": [
+            {"tool": "inspect", "arguments": {}, "argument_sources": {}, "purpose": "Inspect the test state."}
+            for position in range(count)],
+        "answer_sources": [{"kind": "call", "call": 1, "pointer": "/counter"}],
+        "self_check": dict.fromkeys(SELF_CHECKS, True), "self_check_notes": ["Unit test of count validation."]}
+    result = validation.SolutionValidator(config).validate({"proposal": proposal})
+    assert result["execution_passed"] is True
+    assert result["source_check_passed"] is accepted
+    if accepted:
+        assert result["source_check"]["minimum_reference_calls"] == 15
+    else:
+        assert "at least 15 business MCP calls" in "; ".join(result["source_check_errors"])
+
+
+@pytest.mark.parametrize("change", ["missing_field", "wrong_call", "wrong_count"])
+def test_source_feedback_locates_complete_proposal_and_call_list_errors(config, change):
+    from task_gen.program.author_submission import PROPOSAL_FIELDS
+
+    config["solution_validation"]["source_check"] = {
+        "protocol": {"max_total_tool_calls": 65}, "original_task_text": "Original", "original_call_count": 1}
+    proposal = dict.fromkeys(PROPOSAL_FIELDS)
+    proposal["solution_calls"] = [{"tool": "inspect", "arguments": {}}, {"tool": "increment", "arguments": {}}]
+    if change == "missing_field":
+        proposal["observed_calls"] = proposal.pop("solution_calls")
+    elif change == "wrong_call":
+        proposal["solution_calls"][1]["tool"] = "inspect"
+    else:
+        proposal["solution_calls"].pop()
+    result = validation.SolutionValidator(config).validate({**request("inspect", "increment"), "proposal": proposal})
+    assert result["execution_passed"] is True
+    assert result["source_check_passed"] is False
+    message = "\n".join(result["source_check_errors"])
+    if change == "missing_field":
+        assert "missing=['solution_calls']" in message
+        assert "unexpected=['observed_calls']" in message
+    else:
+        assert "mismatched 1-based call indices=[2]" in message
+        assert "same order" in message
+
+
 def test_validation_repairs_are_not_capped_at_three_but_call_budget_is_enforced(config):
     validator = validation.SolutionValidator(config)
     for _ in range(5):
@@ -161,6 +209,22 @@ def test_failed_execution_is_not_reused(config, monkeypatch):
         validator.validate(request("business_failure"))
 
 
+def test_replay_artifacts_remain_readable_and_private_records_stay_hidden(config):
+    config["solution_validation"]["artifact_root"] = str(Path(config["workspace_root"]).parent / "artifacts")
+    validator = validation.SolutionValidator(config)
+    first = validator.validate(request("increment"))
+    second = validator.validate(request("inspect"))
+    first_workspace = Path(first["state"]["public_workspace"])
+    second_workspace = Path(second["state"]["public_workspace"])
+    assert (first_workspace / "counter.txt").read_text() == "1"
+    assert (second_workspace / "counter.txt").read_text() == "0"
+    assert sorted(path.name for path in first_workspace.iterdir()) == ["counter.txt"]
+    assert not list(first_workspace.parent.rglob("records.sqlite"))
+    reused = validator.validate(request("increment"))
+    assert reused["state"]["public_workspace"] == str(first_workspace)
+    assert Path(config["workspace_root"], "counter.txt").read_text() == "0"
+
+
 @pytest.mark.parametrize("name", ["Read", "Grep", "Glob"])
 def test_file_tools_are_rejected_before_reference_execution_or_snapshot(config, monkeypatch, name):
     validator = validation.SolutionValidator(config)
@@ -178,6 +242,21 @@ def test_public_file_evidence_uses_frozen_workspace_not_private_or_live_files(co
     assert sorted(files) == ["counter.txt"]
     assert files["counter.txt"].read_text() == "0"
     assert "../records.sqlite" not in files
+
+
+def test_public_path_evidence_includes_only_frozen_business_directories(config):
+    workspace = Path(config['workspace_root'])
+    fixture = workspace / 'fixture'
+    fixture.mkdir()
+    (fixture / 'INCAR').write_text('ENCUT = 500')
+    validator = validation.SolutionValidator(config)
+    (workspace / 'author_created').mkdir()
+    paths = validator.public_files()
+    assert sorted(paths) == ['counter.txt', 'fixture', 'fixture/INCAR']
+    assert paths['fixture'].is_dir()
+    assert paths['fixture/INCAR'].read_text() == 'ENCUT = 500'
+    assert 'author_created' not in paths
+    assert '../records.sqlite' not in paths
 
 
 def test_file_derived_parameters_validate_through_mcp_without_file_calls_or_kimi(config, monkeypatch):
@@ -215,15 +294,34 @@ def test_validation_tool_is_opt_in_and_its_results_are_separate_from_domain_trac
     server = TaskEvalMcpServer(config)
     tools = server.handle({"method": "tools/list"})["tools"]
     assert validation.TOOL_NAME in {tool["name"] for tool in tools}
+    assert validation.SUBMISSION_TOOL_NAME in {tool["name"] for tool in tools}
     result = server.handle({"method": "tools/call", "params": {
         "name": validation.TOOL_NAME, "arguments": request("inspect")}})
     assert result["isError"] is False
     assert result["structuredContent"]["execution_passed"] is True
     assert not Path(config["trace"]).exists()
     assert _tool_kind("mcp__agent_world_distill__validate_solution_calls") == "harness_support"
+    assert _tool_kind("mcp__agent_world_distill__submit_validated_solution") == "harness_support"
+    rejected = server.handle({"method": "tools/call", "params": {
+        "name": validation.SUBMISSION_TOOL_NAME, "arguments": {"validation_id": "missing"}}})
+    assert rejected["isError"] is True
+    assert rejected["structuredContent"]["accepted"] is False
     config.pop("solution_validation")
     normal = TaskEvalMcpServer(config)
     assert validation.TOOL_NAME not in {tool["name"] for tool in normal.handle({"method": "tools/list"})["tools"]}
+    assert validation.SUBMISSION_TOOL_NAME not in {tool["name"] for tool in normal.handle({"method": "tools/list"})["tools"]}
+
+
+def test_submission_gate_requires_a_successful_source_checked_validation(config):
+    validator = validation.SolutionValidator(config)
+    result = validator.validate(request("inspect"))
+    assert result["execution_passed"] is True
+    assert result["source_check_passed"] is False
+    with pytest.raises(ValueError, match="source_check_passed=true"):
+        validator.submit({"validation_id": result["validation_id"]})
+    validator.validations[result["validation_id"]]["result"]["source_check_passed"] = True
+    accepted = validator.submit({"validation_id": result["validation_id"]})
+    assert accepted == {"accepted": True, "validation_id": result["validation_id"]}
 
 
 def test_mcp_preflight_does_not_snapshot_the_workspace(config, monkeypatch):
@@ -307,15 +405,20 @@ def test_author_materials_are_isolated_from_business_data_and_opt_in_for_file_re
     workspace = Path(config["workspace_root"])
     paths = SimpleNamespace(output=tmp_path, model_workspace=workspace)
     root = _write_author_materials(paths, {"original_task.json": {"answer": "author only"},
-                                         "workspace_files.json": {}})
+                                         "workspace_files.json": {},
+                                         "solution_format.json": {"purpose": "author format only"}})
     assert root == tmp_path / ".task-authoring"
     assert not root.is_relative_to(workspace)
     assert sorted(path.name for path in workspace.iterdir()) == ["counter.txt"]
     assert json.loads((root / "workspace_files.json").read_text())["public_files"] == ["counter.txt"]
+    assert json.loads((root / "solution_format.json").read_text()) == {"purpose": "author format only"}
     assert sorted(validation.SolutionValidator(config).public_files()) == ["counter.txt"]
     payload = {"tool_name": "Read", "tool_input": {"path": "../.task-authoring/original_task.json"}}
     normal = KimiFileAccessPolicy(workspace, tmp_path / "home", tmp_path / "audit.jsonl")
     author = KimiFileAccessPolicy(workspace, tmp_path / "home", tmp_path / "audit.jsonl", read_roots=(root,))
+    assert normal.check(payload)["allowed"] is False
+    assert author.check(payload)["allowed"] is True
+    payload["tool_input"]["path"] = "../.task-authoring/solution_format.json"
     assert normal.check(payload)["allowed"] is False
     assert author.check(payload)["allowed"] is True
     payload["tool_input"]["path"] = "../records.sqlite"

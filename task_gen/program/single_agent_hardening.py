@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
-import json
 import os
 from pathlib import Path
 
-from .utils.io import read_json, write_json
+from harness.resources import ResourceCatalog
+
+from .author_submission import resolve_submission
+from .utils.io import read_json, read_jsonl, write_json
 from .proposal_sources import (
     EXPLORATION_TOOLS, PUBLIC_PROTOCOL_FIELDS, SELF_CHECKS, UNIT_FACTORS, _value_pointers,
     argument_leaves, argument_schema, check_solution, parameter_source_values,
@@ -16,94 +18,60 @@ from .proposal_sources import (
 )
 
 
-PROFILE = "single_agent_tool_list_draft_v10_closed_loop"
+PROFILE = "single_agent_tool_list_draft_decision_design"
 PROVIDER_HEADERS = {"User-Agent": "codex_cli_rs/0.115.0", "originator": "codex_cli_rs",
                     "OpenAI-Beta": "responses=experimental"}
-AUTHOR_PROMPT = """# 你的工作与最终目标
-你负责把一道已有任务改写成更有挑战、真实且可解的任务，并在同一个会话中完成参考解。
-交付物是中文新题、完整参考答案、顺序工具调用列表，以及通过快速验证的记录。
-新题服务原任务相关的真实用户需求；参考解能从同一干净初态执行，独立模型能依据公开材料求解。
+AUTHOR_PROMPT = """# 任务与目标
+本轮目标是生成一条用于评测任务执行能力的真实业务任务，以及一条从干净初态可执行的参考工具调用列表。
+任务重点考查执行者能否利用自身领域知识理解用户需求，判断需要什么信息，选择合适工具，解释真实返回，并据此编排后续工作。
+原任务、原调用记录和历史评测只用于了解环境能力、发现泄题和识别失败模式，不是必须继承的题目、路线或答案。
+可以重新选择业务目标、对象范围和交付形式，但新任务必须立足当前公开数据和工具并真实可解。
 
-# 先读哪些材料
-专用只读目录 ../.task-authoring/ 中的以下文件是本任务的必读材料：
-1. original_task.json：原任务、原参考答案、原参考调用数，理解用户实际需要的成果。
-2. original_calls.json：原参考工具名和参数，理解已有工作及调用链。
-3. public_tools.json：工具说明、输入和输出格式；结合本会话工具定义理解可完成的操作。
-4. protocol.json：上下文、读取长度、工具次数和推理配置。
-5. workspace_files.json：公开工作区文件目录；根据任务范围读取相关数据、说明和业务规则文件。
-业务探索优先使用MCP工具；Read/Grep/Glob可用于作者读材料、查找公开参数，仅在必要时使用，保留在探索轨迹中，不进入参考解调用列表。
+# 环境与参考材料
+先读 `../.task-authoring/` 下的 `public_tools.json`、`workspace_files.json`、`protocol.json`、`solution_format.json`，
+再参考 `original_task.json` 和 `original_calls.json`。若存在 `previous_evaluation.json`，阅读失败、泄题
+和不通过案例。
 
-# 怎样增难
-从原题的现实用途出发，增加一项会改变最终成果的必要决定，例如选择处理对象、确定方案或配置；具体决定由场景确定。
-使这个决定依赖不同工具返回的信息，并影响后续工作，由求解者自行选择和编排工具。
-用最短合理解法检查：原解法不能直接完成新目标，新增工作对最终成果必需，保留原工作的实质难度。
-题文只呈现用户需求和验收标准；发现过程、关键决定的真实结果依赖写在参考解与real_need。
+先实际查看代表性工具返回和数据，再选择环境能够支持的业务成果；可做必要的领域调研。
+从成果倒推求解者必须自行作出的决定，并试查最省事的合法路径：工具若已直接给出结论，
+或逐项查询汇总即可完成，应调整目标，而不是增加审查栏目、附件或引用规格。调研和求解过程留在作者材料中。
 
-# 必要规则
-需求真实且可解，允许改写原目标、范围和交付。
-题文交代业务目标、对象范围、必要判据和验收标准；工具选择、查询顺序、中间参数与回退路线写在参考解。
-已知输入路径与业务规则可以公开；探索得到的候选、证据位置、中间标识和配置组合留在参考解，参数来源引用探索结果。
-验收条件描述成果应满足什么，不逐项告诉求解者怎样得到；同一成果接受等效合法路径。
-任务形态由具体业务决定，主成果应可直接使用，保留原工作的实质难度。
-使用已有工具和数据，参数与结论有公开依据，区分事实、假设和待实施事项。
-参考解调用列表只包含公开业务MCP工具；作者查得参数后直接填入对应接口，文件查看不计入参考调用数。
-文件或状态交付须在验证结果中实际存在；只返回内容的工具对应内容交付，实际落盘能力才对应文件交付。
-专业计算使用现有领域工具，模型负责判断、结果传递、筛选和简单四则运算。
-原参考少于18次时增加必要调用；达到18次时保留实质难度，调用数按需求安排。
+# 设计原则
+所有设计须围绕一个真实、明确的业务成果展开。
 
-# 工作顺序：改题、求解、验证、修正
-1. 读完必读材料并探索相关公开工具和数据，确定值得扩展的现实需求。
-2. 同时设计新题和解题路径，探索实际能力，整理完成新成果所需的工具列表。
-3. 将完整新题、答案、参数来源与调用列表一起传给 validate_solution_calls：
-   {"calls":[{"tool":"公开工具短名","arguments":{}}],"proposal":下述完整JSON（省略validation_id）}。
-   calls与proposal.solution_calls的工具和参数保持一致；返回validation_id、execution_passed、每步结果、状态变化、source_check_passed及错误。
-   验证直接复用正式MCP业务接口，不重新启动完整Kimi会话；每次从独立的干净初态副本执行。
-4. 根据实际结果、状态与全部错误修改完整方案后再次校验。修改题文、答案或来源而调用列表相同时，
-   自动复用该列表的成功执行结果；修改列表则从干净初态重新执行。校验修正受会话总预算约束，不另设3次上限。
-5. execution_passed与source_check_passed均为true且成果确实可交付后，
-   返回同一proposal，只补上成功validation_id；如需改题或改答案，先再校验。
-执行与来源通过之后，仍要核对新题的成果和业务结论确实成立。
-最终列表保留为解题服务的调用；探索和验证工具本身单独留在会话记录中。
+1. **成果与能力**：围绕有实际用途的完整成果设计需求，让执行者利用领域知识选择工具、组织参数、解释返回并编排后续工作，
+交付有证据支撑的结论、决策、修改或产物；不能退化为独立查询后汇总。
+2. **困难任务的构成**：任务不能由一次明显调用直接完成。至少两处关键业务判断必须结合领域知识和真实工具返回，实质改变后续的信息需求、
+工具选择、处理对象、参数范围或行动方案；最终成果还须整合多个阶段的证据和状态。仅改变最后结论、机械传递标识、调换独立查询顺序或执行固定格式转换，
+不单独构成编排难度。困难应来自领域理解、条件判断和结果驱动的后续工作，而不是来自题文很长、答案很长、重复查询、无关复核、格式负担或繁琐手算。
+工具已经完成的筛选、评分和结论不计为执行者的判断，固定清单逐项调用后汇总也不算多阶段编排。
+3. **真实可解与路径多样**：目标、范围、交付内容和验收标准必须明确，关键事实和专业判断必须有当前公开数据、工具能力或可靠调研支撑。
+在目标和验收标准固定的情况下，应允许多条满足共同业务验收标准的完成路径：执行者能权衡不同的信息获取、取证策略或工具组合，而不只是把同一组检查换序。
+参考解只展示一条路线；业务允许不同可行方案时，不要求候选、参数或中间值相同。若目标无法自然形成上述依赖，应重新选择业务目标、范围或交付形式。
+专业计算使用现有领域工具，模型负责理解、筛选、条件判断、简单比较、四则运算和结果传递。
+4. **方法不泄露**：题文只说明用户要达成什么、处理哪些对象、已有何种背景和输入、什么条件算完成，把如何调查环境、选择工具和组织调用留给执行者。
+方法泄露是指题文替执行者决定调查起点、分析方法、工具顺序、中间对象或分支动作；没有工具名的分阶段筛选、排名或试验清单同样会泄露路线。
+不能为参考路线编造这些规则再包装成业务要求；已指定的中间决策不计为自主编排难点。
+题文不得出现具体工具名、MCP 接口名、工具调用示例或工具返回字段；不得预告中间答案（含在输出命名中绑定首选），或把参数试验序列及“先 A、再 B、最后 C”路线写成业务要求。
+可以写入对象名称和 ID、文件名、坐标、单位、阈值、标准、已知背景、已有输入和验收条件。真实业务确需指定的标准或方法可以保留，
+但已被指定的方法不能再计为自主选择的难点；最终产物规格也不等于中间操作路线。
 
-# 参考解格式和参数来源
-solution_calls 按顺序记录最后一次成功验证实际执行的工具名、参数、来源和用途。
-调用身份由 validation_id 和列表序号确定，宿主从真实验证记录提取，不手填会话调用索引。
-tool 只填写公开业务MCP短名；arguments填入作者实际查得的参数，不把查文件的动作加入列表。
-argument_sources 用参数对象的JSON Pointer记录来源，如/id；同源数组或对象可整体引用，如/ids，每个叶子恰好覆盖一次。
-- {"kind":"task","quote":"新题中出现的参数值"}：引用完整连续原文。
-- {"kind":"task","quote":"100 MHz","as":"frequency_hz"}：将题文明确给出的频率单位换算为工具所需的Hz数值。
-- {"kind":"schema","pointer":"/properties/mode/enum/0"}：引用该工具公开inputSchema。
-- {"kind":"file","path":"公开工作区相对路径","quote":"文件中的实际参数"}：引用冻结公开文件；数值可加"as":"json"，仅引用文件路径时省略quote。
-- {"kind":"protocol","pointer":"/read_default_chars"}：引用protocol.json中的常量。
-- {"kind":"call","call":1,"pointer":"/data/id"}：
-  call 是最终列表中的前序序号，pointer 指向成功验证返回calls中该步的result，不含CLI文本包装。
-  省略quote即可引用字段原有的JSON值；截取字符串时填写返回内容的连续原文。
-  仅在quote本身为JSON文本时加"as":"json"，将其解析为数值或容器。
-- {"kind":"derived","operation":"subtract","inputs":[来源1,来源2]}：
-  两个数字来源的add/subtract/multiply/divide运算。
-- {"kind":"new_identifier","value":"新输出名","reason":"新建标识的业务用途"}：声明新输出标识。
-- {"kind":"schema_choice","value":1,"reason":"分页从第一页开始"}：选择公开Schema允许的枚举、布尔或默认值。
-  数组可整体选择items.enum中的元素，满足长度与去重约束；可选参数可省略以使用工具默认值。
-  Schema中没有枚举或默认值的业务对象标识仍引用题文或前序结果。
-- {"kind":"agent_choice","value":"待查主题","reason":"根据任务目标选择检索词"}：声明检索词、分页、排序、投影或展示参数的自主选择。
-  自主选择仍须符合公开Schema；业务对象标识、输入文件与实测值引用题文、公开文件或前序结果。
-参数来源直接填写；完整校验的错误在本会话内修正，宿主只绑定最终提交与成功记录。
-answer_sources 用最终列表的call、pointer和可选quote指向实际读到的答案证据。
-validation_id 填最后一次通过验证且调用列表与提交列表一致的真实ID。
-最终回复为以下JSON对象：
-{"task_text":"完整中文新题","real_need":"原成果、新成果、现实用途、原解法为何不足及新增必要判断和操作",
- "reference_answer":"基于本次实测的完整答案",
- "solution_calls":[{"tool":"公开工具短名","arguments":{},
- "argument_sources":{},"purpose":"该调用如何服务主要成果"}],
- "answer_sources":[{"kind":"call","call":1,"pointer":"/data"}],
- "validation_id":"最后一次成功验证的ID",
- "self_check":{"real_need_preserved":true,"meaningful_hardening":true,
- "public_rules_complete":true,"computation_boundary_respected":true,
- "no_padding":true,"answer_supported":true,"solver_plans_route":true,
- "deliverables_supported":true},"self_check_notes":["新增关键决定的真实依据、题文保留的业务条件、成果实际状态和仍有的限制"]}。
-宿主只核对最终提交与成功的完整校验记录一致，复用该记录的实测结果与状态，不再执行参考列表。
-最后使用Kimi Code和相同协议
-让独立GPT会话只看新题求解，保存答案和轨迹供对照检查。
+在 `self_check_notes` 用实际返回说明两处后续工作如何改变、哪些判断由执行者完成，以及合理路径、可解依据与限制。
+
+# 参考解与提交
+先设计有真实决策依赖的完整成果，再检查参考解是否自然满足有效业务调用次数不少于 15 次。参考解用 `solution_calls` 表示按干净初态可执行的顺序业务 MCP 调用。
+15 次是验收下限，不是设计起点；不能靠追加无关检查、扩大为全套资料盘点、重复查询或拆分结果凑数，调用数达标不抵消其他原则的失败。
+参考解只含公开业务 MCP 调用；Read/Grep/Glob
+只用于读取必读材料或必要的公开参数，查得参数直接填入接口，文件查看不计入新旧业务调用数。参数和答案证据必须可追溯，
+最终答案必须覆盖题文要求。
+
+# 完成与提交
+完成顺序：
+1. 读材料、设计任务并实际求解，在 `self_check_notes` 记录方法泄露、可解性和必要结果依赖。
+2. 按 `solution_format.json` 构造完整方案，调用 `validate_solution_calls`，以 `solution_calls` 为唯一执行列表。
+3. 逐项对照题文核对答案，并回读 `state.public_workspace` 中实际产物内容；缺项或空产物就在同一会话修改并重新验证。
+4. 确认 `execution_passed`、`source_check_passed`、字段和交付均闭合后，调用 `submit_validated_solution`。
+`accepted=true` 后最终只返回 `{"validation_id":"成功ID"}`；后续独立盲解及正式 verifier 检查任务完成情况，不自动证明难度或无方法泄露。
 """
 
 
@@ -112,14 +80,15 @@ def run_harness(case, task: dict, protocol: dict, root: Path, api_key: str,
     from distill.runner import make_server_config, run_k3_distillation
 
     from .reference_evidence import check_upstream_requests, ordered_interactions
-    from .reference_replay import _jsonl
 
     config = make_server_config(case.environment, max_tool_calls=protocol["max_total_tool_calls"], runtime=case.runtime)
     if author_materials is not None:
         config["author_materials"] = author_materials
         config["solution_validation"] = {
+            "submission_gate": True,
             "read_default_chars": protocol["read_default_chars"], "read_max_chars": protocol["read_max_chars"],
             "source_check": {"protocol": protocol,
+                "minimum_reference_calls": 15,
                 "original_task_text": author_materials["original_task.json"]["task_text"],
                 "original_call_count": author_materials["original_task.json"]["original_call_count"]}}
     trajectory = run_k3_distillation(task["task_text"], case.initial_state, config, root,
@@ -138,7 +107,7 @@ def run_harness(case, task: dict, protocol: dict, root: Path, api_key: str,
         raise ValueError("harness stopped or MCP preflight failed; this is not a scored content failure")
     check_upstream_requests(root, protocol)
     observed = [] if author_materials is not None else ordered_interactions(
-        trajectory, _jsonl(root / "raw/environment_tool_calls.jsonl"), task, protocol,
+        trajectory, read_jsonl(root / "raw/environment_tool_calls.jsonl"), task, protocol,
         read_json(root / "raw/harness_policy.json"))
     return trajectory, observed
 
@@ -158,7 +127,23 @@ def check_validation(proposal: dict, reports: list[dict]) -> dict:
     return {"validation_id": identifier, "execution_passed": True, "semantic_correctness_proved": False}
 
 
-def validated_reference(proposal: dict, reports: list[dict]) -> tuple[dict, dict]:
+def validation_resources(case, execution_root: Path) -> ResourceCatalog | None:
+    from distill.taskgen_verifier import _verifier_environment
+
+    path_map_path = execution_root / "private-state/path-map.json"
+    if not path_map_path.is_file():
+        return None
+    path_map = read_json(path_map_path)
+    workspace = Path(path_map["workspace_root"])
+    mounts = path_map["scope_mounts"]
+    return ResourceCatalog(_verifier_environment(case),
+        lambda scope_id: workspace / mounts[scope_id] if scope_id in mounts
+        else workspace / "filesystem_scopes" / scope_id,
+        workspace_root=workspace, scope_mounts=mounts)
+
+
+def validated_reference(proposal: dict, reports: list[dict], *,
+                        resources: ResourceCatalog | None = None) -> tuple[dict, dict]:
     checked = check_validation(proposal, reports)
     validation = next(report for report in reports if report["result"].get("validation_id") == proposal["validation_id"])
     submitted = validation["request"].get("proposal")
@@ -169,19 +154,38 @@ def validated_reference(proposal: dict, reports: list[dict]) -> tuple[dict, dict
     if not source_checked or not submitted_matches:
         raise ValueError("final proposal differs from its source-checked validation; validate the complete final proposal")
     records = validation["result"].get("calls", [])
-    if len(records) != len(proposal["solution_calls"]) or any(record.get("error") for record in records):
+    if len(records) != len(proposal["solution_calls"]) or any(
+            record.get("error") or record.get("index") != position
+            or record.get("tool") != requested["tool"]
+            for position, (record, requested) in enumerate(zip(records, validation["request"]["calls"]), 1)):
         raise ValueError("successful validation is missing its complete actual execution evidence")
+    tools = {tool["name"]: tool for tool in resources.environment.get("tools", [])} if resources else {}
+    scopes = {str(scope["scope_id"]) for scope in resources.environment.get("filesystem_scopes", [])} if resources else set()
+    for position, (record, requested) in enumerate(zip(records, validation["request"]["calls"]), 1):
+        arguments = requested["arguments"]
+        if resources is not None:
+            tool = tools[requested["tool"]]
+            declared = {str(scope) for scope in tool.get("usageConditions", {}).get("targetResources", [])}
+            arguments = resources.normalize_arguments(arguments, schema=tool["inputSchema"],
+                                                      allowed_scopes=scopes & declared)
+        if not same_json(record.get("arguments"), arguments):
+            raise ValueError(f"validation execution arguments differ at call {position} ({requested['tool']})")
     checked["state"] = validation["result"].get("state")
     return validation, checked
 
 
-def prepare_case(case, protocol: dict, output: Path) -> dict:
+def prepare_case(case, protocol: dict, output: Path, *, prior_evaluation: dict | None = None) -> dict:
     from distill.taskgen_verifier import _verifier_environment
     from harness.mcp_protocol import public_tools
 
     from .reference_evidence import _atomic_json, check_protocol, public_task, sha256, source_fingerprint
 
     check_protocol(protocol)
+    source_case = f"{case.source_run.name}__{case.task['task_id']}"
+    if prior_evaluation is not None and (
+        not isinstance(prior_evaluation, dict) or prior_evaluation.get("source_case") != source_case
+    ):
+        raise ValueError("prior evaluation must identify the same original source case")
     if not case.reference_calls:
         raise ValueError("the original observed call baseline must not be empty")
     if output.resolve().is_relative_to(case.source_run.resolve()) or case.source_run.resolve().is_relative_to(output.resolve()):
@@ -197,10 +201,30 @@ def prepare_case(case, protocol: dict, output: Path) -> dict:
                                  for call in case.reference_calls],
         "public_tools.json": public_tools(_verifier_environment(case)["tools"]),
         "protocol.json": author_input["protocol"],
+        "solution_format.json": read_json(Path(__file__).with_name("AUTHOR_SOLUTION_FORMAT.json")),
         "workspace_files.json": {"initial_state_files": workspace_files,
             "filesystem_scopes": case.environment.get("filesystem_scopes", []),
             "path_note": "文件在当前公开工作区按scope挂载；单scope挂载根目录，多scope分别挂载子目录。"}}
     prompt = AUTHOR_PROMPT
+    if prior_evaluation is not None:
+        materials["previous_evaluation.json"] = deepcopy(prior_evaluation)
+        if (prior_evaluation.get("revision_opportunities") == 1
+                and isinstance(prior_evaluation.get("previous_proposal"), dict)):
+            prompt += (
+                "\n# 本轮是原方案修订\n"
+                "先读 previous_evaluation.json，以 previous_proposal 为待修订方案，保留业务目标、对象范围和实质难度。"
+                "仅修复实际错误、歧义、能力不匹配或方法提示；已通过且无上述问题时保留方案，不另换委托、不扩张交付。"
+                "逐项核对修订后题文、参考答案和实际产物，不能只修被指出的一项；不为GPT自身失误降低标准或补解题步骤。"
+                "判定原因须用实际返回核实，参数、事实与结论仍以公开环境及本次实测为依据。\n"
+            )
+        else:
+            prompt += (
+                "\n# 上一轮实际反馈\n"
+                "先读 previous_evaluation.json，结合上一轮正式判定与实际调用，理解旧设计哪些地方"
+                "仍容易完成、哪些失败来自交互故障或答案错误，再自主设计本轮委托。"
+                "判定中的原因分析应结合实际工具返回核实。"
+                "这份材料只供作者改进设计；本轮参数、事实和结论仍以公开环境及本次实际返回为依据。\n"
+            )
     output.mkdir(parents=True, exist_ok=False)
     write_json(output / "author_input.json", author_input)
     write_json(output / "author_materials.json", materials)
@@ -208,7 +232,7 @@ def prepare_case(case, protocol: dict, output: Path) -> dict:
     write_json(output / "source_fingerprint.json", source_fingerprint(case))
     (output / "author_prompt.txt").write_text(prompt, encoding="utf-8")
     report = {"profile": PROFILE, "status": "awaiting_user_confirmation", "model": protocol["model"],
-        "source_case": f"{case.source_run.name}__{case.task['task_id']}",
+        "source_case": source_case, "prior_evaluation_supplied": prior_evaluation is not None,
         "implementation_sha256": sha256(Path(__file__)), "author_prompt_sha256": sha256(output / "author_prompt.txt"),
         "author_input_sha256": sha256(output / "author_input.json"), "protocol_sha256": sha256(output / "protocol.json"),
         "author_materials_sha256": sha256(output / "author_materials.json"),
@@ -223,15 +247,16 @@ def prepare_case(case, protocol: dict, output: Path) -> dict:
 
 
 def run_case(case, protocol_path: Path, output: Path, *, api_key: str | None = None,
-             execute: bool = False, solve_independently: bool = True) -> dict:
-    from utils.io import extract_json_object
-
+             execute: bool = False, solve_independently: bool = True,
+             prior_evaluation: dict | None = None) -> dict:
     from .reference_evidence import _atomic_json, check_protocol, public_task, sha256, source_fingerprint
-    from .reference_replay import _jsonl
 
     protocol = read_json(protocol_path)
     check_protocol(protocol)
-    report = read_json(output / "result.json") if output.exists() else prepare_case(case, protocol, output)
+    report = read_json(output / "result.json") if output.exists() else prepare_case(
+        case, protocol, output, prior_evaluation=prior_evaluation)
+    if prior_evaluation is not None and read_json(output / "author_materials.json").get("previous_evaluation.json") != prior_evaluation:
+        raise ValueError("prior evaluation differs from the frozen prepared author materials")
     if not execute:
         return report
     if report.get("status") != "awaiting_user_confirmation" or not api_key:
@@ -257,10 +282,12 @@ def run_case(case, protocol_path: Path, output: Path, *, api_key: str | None = N
                                            author_materials=read_json(output / "author_materials.json"))
         if read_json(output / "source_fingerprint.json") != source_fingerprint(case):
             raise ValueError("the author run changed the frozen original source")
-        proposal = extract_json_object(trajectory["outcome"]["final_answer"])
+        reports = read_jsonl(output / "author/execution/raw/solution_validations.jsonl")
+        proposal, submission = resolve_submission(trajectory["outcome"]["final_answer"], reports)
         write_json(output / "proposal.json", proposal)
-        reports = _jsonl(output / "author/execution/raw/solution_validations.jsonl")
-        validation, clean = validated_reference(proposal, reports)
+        report["author_submission"] = submission
+        validation, clean = validated_reference(proposal, reports,
+            resources=validation_resources(case, output / "author/execution"))
         checked = deepcopy(validation["result"]["source_check"])
         if checked.get("parameter_sources_match") is not True:
             raise ValueError("final source validation did not confirm public parameter sources")
@@ -309,12 +336,14 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--execute", action="store_true", help="Run only after the draft flow has been approved")
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    parser.add_argument("--prior-evaluation", type=Path, help="Private previous-round diagnostic feedback for this source")
     options = parser.parse_args()
     case = select_case(options.input_root, options.case)
     if options.execute:
         os.environ.update(evaluation_environment())
     report = run_case(case, options.protocol, options.output_root.resolve(), execute=options.execute,
-                      api_key=os.environ.get(options.api_key_env) if options.execute else None)
+                      api_key=os.environ.get(options.api_key_env) if options.execute else None,
+                      prior_evaluation=read_json(options.prior_evaluation) if options.prior_evaluation else None)
     print({key: report[key] for key in ("profile", "status", "author_started", "release_ready")})
 
 

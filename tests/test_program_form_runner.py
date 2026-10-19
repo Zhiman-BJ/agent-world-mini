@@ -38,6 +38,21 @@ class ProgramFormRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "clean.replays"):
                 validate_arguments(arguments)
 
+    def test_production_call_floor_is_optional(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            base = ["--environment-package", str(root), "--output-dir", str(root / "out")]
+            arguments = build_parser().parse_args(base)
+            self.assertIsNone(arguments.minimum_effective_tool_calls)
+            validate_arguments(arguments)
+            for value in ("1", "14"):
+                with self.subTest(value=value):
+                    arguments = build_parser().parse_args(base + ["--minimum-effective-tool-calls", value])
+                    validate_arguments(arguments)
+            arguments = build_parser().parse_args(base + ["--minimum-effective-tool-calls", "0"])
+            with self.assertRaisesRegex(ValueError, "必须为正整数或省略"):
+                validate_arguments(arguments)
+
     def test_runner_reuses_complete_step0_without_loading_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

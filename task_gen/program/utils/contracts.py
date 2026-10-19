@@ -16,6 +16,7 @@ class TaskFields:
     WORKSPACE_BRIEF = "workspace_brief"
     TASK_SUMMARY = "task_summary"
     TASK_PUBLIC = "task_public"
+    DESIGN_MANIFEST = "change_manifest"
     OUTPUT_SCHEMA = "output_schema"
     SOLUTION_CODE = "solution_code"
     SOLUTION_CODE_ORIGINAL = "solution_code_original"
@@ -35,8 +36,8 @@ class ProgramGenerationPolicy:
     max_repair_rounds: int = 6
     execution_timeout_seconds: float = 15.0
     quality_timeout_seconds: float = 2400.0
-    # None keeps fixture/candidate replay permissive. Production orchestration
-    # supplies 15 so generated tasks must contain a genuinely long workflow.
+    # Optional diagnostic lower bound. It is deliberately unset by default;
+    # genuine result dependencies, not call volume, determine task quality.
     minimum_effective_tool_calls: int | None = None
 
     def validate(self) -> None:

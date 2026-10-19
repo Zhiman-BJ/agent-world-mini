@@ -11,13 +11,15 @@ from pathlib import Path
 
 from task_gen.eval_cases import EvalCase, load_cases
 
-from .reference_replay import _jsonl
-from .utils.io import read_json, write_json
+from .utils.io import read_json, read_jsonl, write_json
 
 
 NATIVE_TOOLS = {"Read", "Grep", "Glob"}
 DISABLED_TOOLS = {"Write", "Edit", "Bash", "Agent", "AgentSwarm", "WebSearch",
                   "FetchURL", "AskUserQuestion", "select_tools"}
+FROZEN_TOOL_CALL_LIMIT = 65
+EXTENDED_AUTHOR_TOOL_CALL_LIMIT = 75
+EXTENDED_EVALUATION_TOOL_CALL_LIMIT = 85
 
 
 def sha256(path: Path) -> str:
@@ -29,11 +31,17 @@ def check_protocol(protocol: dict) -> None:
     expected = {"reasoning_effort": "high", "provider_type": "openai_responses",
                 "context_cap": 262144, "max_output_tokens": 131072,
                 "read_default_chars": 80000, "read_max_chars": 128000,
-                "max_total_tool_calls": 65, "compaction_trigger_ratio": 0.8,
+                "compaction_trigger_ratio": 0.8,
                 "reference_answer_supplied_to_solver": False}
     for field, value in expected.items():
         if type(protocol.get(field)) is not type(value) or protocol[field] != value:
             raise ValueError(f"interactive reference must retain the frozen protocol: {field}")
+    role = protocol.get("protocol_role", "frozen")
+    allowed_limit = {"author_extended": EXTENDED_AUTHOR_TOOL_CALL_LIMIT,
+                     "evaluation_extended": EXTENDED_EVALUATION_TOOL_CALL_LIMIT}.get(
+                         role, FROZEN_TOOL_CALL_LIMIT)
+    if protocol.get("max_total_tool_calls") != allowed_limit:
+        raise ValueError("interactive reference must retain the frozen protocol: max_total_tool_calls")
     if any(not isinstance(protocol.get(field), str) or not protocol[field].strip()
            for field in ("model", "provider_base_url")):
         raise ValueError("interactive reference requires an explicit model and provider URL")
@@ -55,7 +63,7 @@ def source_fingerprint(case) -> dict:
 
 
 def check_upstream_requests(execution: Path, protocol: dict) -> dict:
-    requests = _jsonl(execution / "raw/model_requests.jsonl")
+    requests = read_jsonl(execution / "raw/model_requests.jsonl")
     if not requests:
         raise ValueError("interactive reference has no recorded upstream requests")
     for record in requests:
@@ -87,7 +95,10 @@ def ordered_interactions(trajectory: dict, raw_calls: list[dict], task: dict,
     enabled = {"mcp__agent_world_distill__*", *NATIVE_TOOLS}
     if (set(policy["tools_enabled"]) != enabled
             or not DISABLED_TOOLS.issubset(policy["tools_disabled"])
-            or policy["tool_call_budget"] != {"limit": 65, "scope": "environment_mcp_plus_native_file_tools"}
+            or policy["tool_call_budget"] != {
+                "limit": protocol["max_total_tool_calls"],
+                "scope": "environment_mcp_plus_native_file_tools",
+            }
             or policy.get("result_reader") != "native_kimi_tool_results"
             or policy.get("native_read", {}).get("default_max_chars") != protocol["read_default_chars"]
             or policy.get("native_read", {}).get("max_chars") != protocol["read_max_chars"]
@@ -118,7 +129,8 @@ def ordered_interactions(trajectory: dict, raw_calls: list[dict], task: dict,
                 raise ValueError("interactive domain call is missing its exact raw MCP record")
             observed.append(record)
         elif call["tool_kind"] == "harness_support":
-            if (call["name"] != "mcp__agent_world_distill__validate_solution_calls"
+            if (call["name"] not in {"mcp__agent_world_distill__validate_solution_calls",
+                                     "mcp__agent_world_distill__submit_validated_solution"}
                     or not policy.get("solution_validation")):
                 raise ValueError("interactive reference used an unexpected author support tool")
         else:

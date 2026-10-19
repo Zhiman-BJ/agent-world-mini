@@ -207,6 +207,5 @@ tools.json                                下游使用的正式工具集合
 `tools.json`。
 
 完整的上下游数据流和逐阶段说明见
-[`docs/SYSTEM_ARCHITECTURE_ZH.md`](../../docs/SYSTEM_ARCHITECTURE_ZH.md)。真实 World Bank 运行的
-中间产物示例见
-[`docs/examples/toolgen-world-bank/`](../../docs/examples/toolgen-world-bank/README.md)。
+[`docs/SYSTEM_ARCHITECTURE_ZH.md`](../../docs/SYSTEM_ARCHITECTURE_ZH.md)。当前交付加载与工具调用示例见
+[`docs/HARNESS使用案例.md`](../../docs/HARNESS使用案例.md)。

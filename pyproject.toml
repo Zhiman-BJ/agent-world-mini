@@ -19,9 +19,10 @@ agent-world-toolgen-migrate = "env_gen.tool_gen.migrate_delivery:main"
 agent-world-program-form = "task_gen.program.__main__:main"
 agent-world-program = "task_gen.program.__main__:main"
 agent-world-distill = "distill.__main__:main"
+agent-world-eval = "eval.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["distill*", "env_gen*", "harness*", "seed_gen*", "task_gen*", "utils*"]
+include = ["distill*", "env_gen*", "eval*", "harness*", "seed_gen*", "task_gen*", "utils*"]
 
 [tool.setuptools.package-data]
 seed_gen = ["*.md", "data/*.json"]

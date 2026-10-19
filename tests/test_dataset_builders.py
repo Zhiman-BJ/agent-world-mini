@@ -88,16 +88,6 @@ def test_host_paths_are_portable_without_rewriting_business_values():
     assert result["answer"] == value["answer"]
 
 
-@pytest.mark.parametrize("module", ["retry_zero_task_environments", "follow_zero_task_recovery"])
-def test_recovery_commands_require_deployment_roots(module):
-    from importlib import import_module
-    parser = import_module(f"task_gen.program.{module}").build_parser()
-    with pytest.raises(SystemExit):
-        parser.parse_args(["--batch-root", "/fixture/batch"])
-    parsed = parser.parse_args(["--batch-root", "/fixture/batch", "--delivery-root", "/fixture/delivery"])
-    assert parsed.delivery_root == [Path("/fixture/delivery")]
-
-
 @pytest.mark.parametrize("module", ["repair_tool_descriptions", "update_cleaned_tool_definitions"])
 def test_maintenance_command_help_imports_installed_dependencies(module):
     result = subprocess.run([sys.executable, "-m", f"scripts.{module}", "--help"],

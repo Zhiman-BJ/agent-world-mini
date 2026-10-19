@@ -102,7 +102,7 @@ class CodexAgentClient:
     默认直接使用本机 ``~/.codex/config.toml``。也可以在初始化时单独传入
     model、base_url 和 api_key，只覆盖本次 Codex 子进程。需要 Agent 用
     命令下载真实文件时，同时启用 ``network_access``；网页搜索和命令行
-    网络访问是两个独立权限。
+    网络访问是两个独立权限。独立子进程不继承 BASH_ENV/ENV 启动钩子。
     """
 
     def __init__(
@@ -263,6 +263,8 @@ class CodexAgentClient:
             directory_context = nullcontext(str(run_log_dir))
 
         with directory_context as run_log_directory:
+            sqlite_home = Path(run_log_directory) / "sqlite_home"
+            sqlite_home.mkdir(parents=True, exist_ok=True)
             final_message = Path(run_log_directory) / "last_message.txt"
             stdout_log = Path(run_log_directory) / "stdout.log"
             stderr_log = Path(run_log_directory) / "stderr.log"
@@ -273,6 +275,7 @@ class CodexAgentClient:
             # provider 配置，但显式移除父会话身份。
             for name in _PARENT_SESSION_ENV:
                 environment.pop(name, None)
+            environment.update({"BASH_ENV": "", "ENV": ""})
             environment.setdefault("NO_COLOR", "1")
 
             command = [executable]
@@ -280,6 +283,9 @@ class CodexAgentClient:
                 # --search 是 Codex 顶层参数，必须写在 exec 子命令之前。
                 command.append("--search")
             command.append("exec")
+            command.extend(
+                ["--config", f"sqlite_home={_toml_string(str(sqlite_home))}"]
+            )
             command.extend(self._mcp_arguments(environment))
             if self.reasoning_effort:
                 if self.reasoning_effort not in {"minimal", "low", "medium", "high", "xhigh"}:

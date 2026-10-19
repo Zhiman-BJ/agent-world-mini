@@ -1074,9 +1074,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    arguments = parser.parse_args()
+    arguments = parser.parse_args(argv)
     for name in (
         "limit", "sample_size", "max_concurrency", "min_concurrency", "max_environment_errors", "max_environment_errors_per_task",
         "max_tool_calls", "tool_timeout", "tool_memory_limit",

@@ -40,7 +40,7 @@ def _config_from_meta(values: dict[str, Any]) -> Config:
     if values.get("environment_package"):
         values["environment_package"] = Path(values["environment_package"])
     values["output_root"] = Path(values["output_root"])
-    for name in ("tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path"):
+    for name in ("tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path", "baseline_task_path"):
         if values.get(name):
             values[name] = Path(values[name])
     values["policy"] = policy

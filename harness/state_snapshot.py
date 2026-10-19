@@ -27,6 +27,44 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _notebook_content_sha256(content: bytes) -> str | None:
+    try:
+        notebook = json.loads(content.decode("utf-8"), object_pairs_hook=_unique_json_object)
+        if not isinstance(notebook, dict) or notebook.get("nbformat") != 4:
+            return None
+        if type(notebook.get("nbformat_minor")) is not int:
+            return None
+        if not isinstance(notebook.get("metadata"), dict):
+            return None
+        cells = notebook.get("cells")
+        if not isinstance(cells, list):
+            return None
+        for cell in cells:
+            if not isinstance(cell, dict) or cell.get("cell_type") not in {"code", "markdown", "raw"}:
+                return None
+            source = cell.get("source")
+            if not (isinstance(source, str) or isinstance(source, list)
+                    and all(isinstance(line, str) for line in source)):
+                return None
+            if not isinstance(cell.get("metadata"), dict):
+                return None
+            if "id" in cell and not isinstance(cell["id"], str):
+                return None
+            cell.pop("id", None)
+        return _sha256_bytes(_canonical_json(notebook).encode("utf-8"))
+    except (UnicodeDecodeError, ValueError, TypeError, RecursionError):
+        return None
+
+
 
 def _snapshot_files(root: Path) -> dict[str, dict[str, Any]]:
     files: dict[str, dict[str, Any]] = {}
@@ -39,6 +77,10 @@ def _snapshot_files(root: Path) -> dict[str, dict[str, Any]]:
             "sha256": _sha256_bytes(content),
             "size": len(content),
         }
+        if path.suffix.casefold() == ".ipynb":
+            notebook_hash = _notebook_content_sha256(content)
+            if notebook_hash is not None:
+                item["notebook_v4_sha256_without_cell_ids"] = notebook_hash
         if len(content) <= MAX_INLINE_STATE_BYTES:
             try:
                 item["json"] = json.loads(content.decode("utf-8"))

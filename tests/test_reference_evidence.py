@@ -110,6 +110,32 @@ def test_frozen_protocol_is_checked(protocol):
         reference.check_protocol(protocol)
 
 
+def test_extended_author_protocol_uses_its_declared_budget(evidence):
+    trajectory, raw, task, protocol, policy = evidence
+    protocol.update(protocol_role="author_extended", max_total_tool_calls=75)
+    policy["tool_call_budget"]["limit"] = 75
+    reference.check_protocol(protocol)
+    assert len(reference.ordered_interactions(trajectory, raw, task, protocol, policy)) == 2
+
+
+def test_extended_evaluation_protocol_requires_the_matching_shared_budget(evidence):
+    trajectory, raw, task, protocol, policy = evidence
+    protocol.update(protocol_role="evaluation_extended", max_total_tool_calls=85)
+    reference.check_protocol(protocol)
+    with pytest.raises(ValueError, match="budget policy"):
+        reference.ordered_interactions(trajectory, raw, task, protocol, policy)
+    policy["tool_call_budget"]["limit"] = 85
+    assert len(reference.ordered_interactions(trajectory, raw, task, protocol, policy)) == 2
+
+
+@pytest.mark.parametrize("role,limit", [("frozen", 85), ("author_extended", 85),
+                                       ("evaluation_extended", 65), ("evaluation_extended", 84)])
+def test_protocol_budgets_cannot_be_silently_reassigned(protocol, role, limit):
+    protocol.update(protocol_role=role, max_total_tool_calls=limit)
+    with pytest.raises(ValueError, match="max_total_tool_calls"):
+        reference.check_protocol(protocol)
+
+
 @pytest.fixture
 def request_evidence(tmp_path, protocol):
     execution = tmp_path / "execution"

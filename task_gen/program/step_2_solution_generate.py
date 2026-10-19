@@ -227,7 +227,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, __PROJECT_ROOT__)
-from task_gen.program.step_2_solution_generate import _canonical_payload_hash
+from task_gen.program.step_2_solution_generate import (
+    _candidate_solution_source_errors, _canonical_payload_hash,
+)
 
 ROOT = Path(__file__).resolve().parent
 
@@ -262,32 +264,45 @@ def main():
     try:
         payload = json.loads(candidate_path.read_text(encoding=\"utf-8\"))
         candidate_sha256 = _canonical_payload_hash(payload)
-        request_id = f\"{candidate_sha256}:{time.time_ns()}\"
-        if result_path.exists():
-            result_path.unlink()
-        write_atomic(request_path, {
-            \"request_id\": request_id,
-            \"candidate\": args.candidate,
-            \"candidate_sha256\": candidate_sha256,
-            \"minimum_effective_tool_calls\": args.minimum_effective_tool_calls,
-            \"require_state_change\": args.require_state_change,
-            \"clean_replays\": args.clean_replays,
-            \"execution_timeout_seconds\": args.execution_timeout_seconds,
-        })
-        deadline = time.monotonic() + args.quality_timeout_seconds
-        report = None
-        while time.monotonic() < deadline:
-            if result_path.is_file():
-                possible = json.loads(result_path.read_text(encoding=\"utf-8\"))
-                if (
-                    possible.get(\"request_id\") == request_id
-                    and possible.get(\"candidate_sha256\") == candidate_sha256
-                ):
-                    report = possible
-                    break
-            time.sleep(0.2)
-        if report is None:
-            raise TimeoutError(\"父进程质检服务未在时限内返回结果\")
+        source_errors = _candidate_solution_source_errors(payload)
+        if source_errors:
+            report = {
+                \"candidate_sha256\": candidate_sha256,
+                \"passed\": False,
+                \"terminal\": False,
+                \"stage\": \"source_validation\",
+                \"submitted_to_quality_service\": False,
+                \"errors\": source_errors,
+                \"metrics\": {},
+            }
+            write_atomic(result_path, report)
+        else:
+            request_id = f\"{candidate_sha256}:{time.time_ns()}\"
+            if result_path.exists():
+                result_path.unlink()
+            write_atomic(request_path, {
+                \"request_id\": request_id,
+                \"candidate\": args.candidate,
+                \"candidate_sha256\": candidate_sha256,
+                \"minimum_effective_tool_calls\": args.minimum_effective_tool_calls,
+                \"require_state_change\": args.require_state_change,
+                \"clean_replays\": args.clean_replays,
+                \"execution_timeout_seconds\": args.execution_timeout_seconds,
+            })
+            deadline = time.monotonic() + args.quality_timeout_seconds
+            report = None
+            while time.monotonic() < deadline:
+                if result_path.is_file():
+                    possible = json.loads(result_path.read_text(encoding=\"utf-8\"))
+                    if (
+                        possible.get(\"request_id\") == request_id
+                        and possible.get(\"candidate_sha256\") == candidate_sha256
+                    ):
+                        report = possible
+                        break
+                time.sleep(0.2)
+            if report is None:
+                raise TimeoutError(\"父进程质检服务未在时限内返回结果\")
     except Exception as error:
         report = {
             \"passed\": False,
@@ -334,6 +349,7 @@ class ProgramTaskCandidate:
     task_public: str
     task_resources: dict[str, Any]
     solution_code: str
+    change_manifest: dict[str, Any] = field(default_factory=dict, repr=False)
     # Accepted only for compatibility with old intermediate candidates. It is
     # deliberately ignored and is never published in the v1.0 task.
     output_schema: dict[str, Any] = field(default_factory=dict, repr=False)
@@ -346,6 +362,7 @@ class ProgramTaskCandidate:
             workspace_brief=str(value["workspace_brief"]).strip(),
             task_summary=str(value["task_summary"]).strip(),
             task_public=str(value["task_public"]).strip(),
+            change_manifest=deepcopy(value.get("change_manifest") or {}),
             task_resources=deepcopy(value["task_resources"]),
             solution_code=str(value["solution_code"]).strip(),
             output_schema=deepcopy(value.get("output_schema") or {}),
@@ -932,6 +949,18 @@ def validate_solution_code(source: str) -> list[str]:
     return list(dict.fromkeys(errors))
 
 
+def _candidate_solution_source_errors(payload: Any) -> list[dict[str, str]]:
+    candidates = payload.get("candidates") if isinstance(payload, dict) else None
+    if not isinstance(candidates, list):
+        return []
+    return [
+        _preflight_error("solution_source", f"$.candidates[{index}].solution_code", message)
+        for index, candidate in enumerate(candidates)
+        if isinstance(candidate, dict)
+        for message in validate_solution_code(candidate.get("solution_code"))
+    ]
+
+
 @dataclass
 class ProgramExecutionResult:
     success: bool
@@ -965,10 +994,12 @@ class _ExecutionBudget:
         self.lines = 0
 
     def trace(self, _frame: Any, event: str, _arg: Any) -> Any:
+        if _frame.f_code.co_filename != "<solution-code>":
+            return None
         # Tool handlers and state snapshots have their own timeout controls.
         # Counting their implementation lines makes the Solution budget depend
         # on environment size instead of the submitted reference program.
-        if event == "line" and _frame.f_code.co_filename == "<solution-code>":
+        if event == "line":
             self.lines += 1
             if self.lines > self.max_lines:
                 raise TimeoutError("参考程序超过最大执行行数")
@@ -1173,23 +1204,8 @@ def _authoring_call_target(
     environment_id: str,
     task_index: int,
 ) -> int | None:
-    """Give the author a varied buffer above the acceptance floor."""
-    minimum = policy.minimum_effective_tool_calls
-    if minimum is None:
-        return None
-    digest = hashlib.sha256(
-        f"{environment_id}:{task_index}".encode("utf-8")
-    ).digest()
-    return minimum + 2 + digest[0] % 5
-
-
-def _authoring_research(
-    research: dict[str, Any],
-    archetype: dict[str, Any],
-) -> dict[str, Any]:
-    result = deepcopy(research)
-    result["task_archetypes"] = [deepcopy(archetype)]
-    return result
+    """Use the configured acceptance floor as the only authoring target."""
+    return policy.minimum_effective_tool_calls
 
 
 def _authoring_public_environment(
@@ -1206,7 +1222,12 @@ def _authoring_public_environment(
     return result
 
 
-def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy) -> str:
+def build_task_solution_prompt(
+    round_index: int,
+    policy: ProgramGenerationPolicy,
+    *,
+    baseline_task_available: bool = False,
+) -> str:
     mutation_rule = (
         "每个任务都必须产生由业务目标要求的状态变化。"
         if policy.require_state_change
@@ -1226,13 +1247,38 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
     if policy.require_state_change:
         preflight_parts.append("--require-state-change")
     preflight_command = " ".join(preflight_parts)
+    baseline_note = (
+        "- `baseline_task.json`：冻结的原任务正文，以其同领域用户价值和实质难度作为改写基线。"
+        "可以改写原目标、操作和交付形式，以同等或更有价值的业务成果替代，"
+        "并在 `change_manifest` 中说明替代依据；不必逐项保留旧操作和报告栏目。"
+        "只读，不能复制隐藏答案进公开题文。"
+        if baseline_task_available
+        else
+        "本轮没有提供原任务正文；此时以 `task_research.json` 中选定原型的 requirements 作为基线，不要声称保留了未提供的原任务成果。"
+    )
     # Keep the authoring request focused on the artifact the Agent must create.
     # The one checker command returns all execution, replay and semantic feedback.
-    return f"""# 目标：生成真实、可执行且具有自然难度的一条任务及其参考程序
+    return f"""# 目标：设计真实可评测的业务任务及参考程序
 
 你没有本项目此前的对话上下文；工作目录中的文件是本轮唯一事实来源。
 
-你正在为一个已经冻结的离线环境制作一条训练任务。先在 `candidate.draft.json` 中生成并修正
+你正在为一个已经冻结的离线环境设计一条真实用户会提出的业务任务，不是在编写流程说明。
+任务目标要明确，解决路径要开放：执行者需要利用领域知识理解需求和工具语义，选择合适工具，
+根据真实返回组织后续工作，并交付可直接使用的结果、决策或产物。这里主要考查执行者自主选择和编排工具，
+而不是记忆固定路线或中间答案。调研材料只提供线索；`task_research.json`、原任务和原参考调用只是环境能力与业务背景的参考，
+不是必须照用的事实或路线；只使用公开且可验证的信息。
+本轮任务必须同时满足四个发布门槛：
+
+1. **明确成果**：主交付是用户可直接使用的领域结果、业务决策或实际产物，不是检查清单。
+2. **真实编排**：至少一个后续工具、对象、参数或处置由真实返回决定；若业务自然需要多个阶段，
+   保留这些阶段依赖。交换关键返回后，后续工作或最终结论应能改变。
+3. **规划空间**：正文给出目标、范围、输入、业务规则和验收条件，但不告诉执行者查询顺序、
+   工具路线、中间参数、固定扫描或结果到动作的映射；允许多种合法解法。
+4. **交付闭合**：正文要求的每个字段、数值、单位、精确路径、扩展名、文件属性和产物内容，
+   都必须在真实终态或最终答案中交付；工具返回过但没有交付的内容不算完成。
+
+调用次数、题文长度、报告栏目和重复复核不能替代上述门槛。基础设施或工具故障单独记录，不作为难度。
+先在 `candidate.draft.json` 中生成并修正
 草稿，只有预检查通过后才创建最终 `candidates.json`。文件中必须只有
 `generation_request.json` 中 `candidate_count=1` 指定的一条候选任务；不能生成备用候选或把
 多个任务放在同一个文件中。每条候选必须是一个现实工作场景的具体实例，
@@ -1240,7 +1286,9 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
 
 1. 给未来执行者看的任务正文 `task_public`；
 2. 只供系统执行的隐藏参考程序 `solution_code`；
-3. 说明该任务实际涉及哪些数据和工具的 `task_resources`。
+3. 只供质检使用的 `change_manifest`，记录原任务成果如何保留或替代，以及新增成果的
+   结果驱动决策；
+4. 说明该任务实际涉及哪些数据和工具的 `task_resources`。
 
 不要写解释报告，也不要在预检查通过前创建 `candidates.json`。
 
@@ -1248,19 +1296,22 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
 
 先阅读下面这些文件，再开始设计任务：
 
-- `task_research.json`：本轮已经根据环境支持范围选定的现实工作原型，文件中只保留这一项；
-- `generation_request.json`：其中的 `selected_archetype_id` 是本轮必须使用的原型，
-  `effective_tool_call_target` 是隐藏参考程序的内部复杂度目标；若其中存在
+- `task_research.json`：现实工作原型及其支持边界，不是要照搬的题目或操作路线，而是设计参考；
+  可从 `environment_support.generatable=true` 的原型中选择一项，也可在同一环境能力内重新组合业务目标；
+- `generation_request.json`：其中的 `suggested_archetype_id` 是设计起点而非强制选择，
+  `effective_tool_call_target` 仅在显式设置诊断下限时出现；若其中存在
   `quarantined_tools`，这些工具已在本环境的真实执行中确认超时或不可用，本轮不得再使用。
   这些内部信息都不能写进任务正文；
-- `environment.public.json`：公开的记录集合、关系、文件区域和工具契约；
+- `environment.public.json`：公开的记录集合、关系、文件区域和全部可用工具契约，
+  与执行者及审查器的工具视野一致；
 - `state/`：当前环境真实初始数据，只读。用它确认真实存在的记录、文件和可用条件；
-- `tools.internal.json`：公开工具的实现代码、输入 Schema、输出 Schema 和使用条件；
+- `tools.internal.json`：工具实现及契约，设计相关调用时按需查阅；
 - `candidate.schema.json`：`candidates.json` 的字段格式；
 - `candidate_check.py`：请求父进程对草稿执行结构、资源、真实运行、调用次数、最终回答、
   干净重放和业务语义的统一质检；
 - `generation_request.json` 和 `validation_feedback.json`：本轮数量、已接受任务和之前失败原因；
 - `references/`：环境、工具和任务契约，需要理解边界时再查阅。
+{baseline_note}
 
 `state/` 和工具内部代码只用于你生成任务时调查。不要把内部数据库路径、主机路径、内部
 实现代码或隐藏答案写进 `task_public`。
@@ -1269,19 +1320,26 @@ def build_task_solution_prompt(round_index: int, policy: ProgramGenerationPolicy
 
 对这一条候选按以下顺序工作：
 
-### 1. 选择一个真实业务目标
+### 1. 先确定成果，再设计开放路径
 
-使用 `generation_request.json.selected_archetype_id` 指定的现实工作原型，并结合当前初始数据把它写成一个具体实例，不得换成更容易完成的其他原型。先问清楚：专业人员为什么现在要做这件事，完成后会得到什么新的领域结果、决策或可继续使用的产物。任务应围绕这个结果展开，而不是围绕“需要检查哪些东西”展开。
+先从现实用途确定用户真正要得到的领域结果、业务决策或可使用产物，以及验收条件；让执行者判断还缺什么信息，
+这些未知量由公开交互逐步解决；
+再决定完成它所需的对象、
+事实、工具和后续动作。`task_research.json`、原任务和原参考调用只是环境能力与业务背景的参考，不是必须照用的
+题目、事实或路线；`suggested_archetype_id` 也只是起点。若原型被一个聚合工具直接完成，应改业务成果，而不是增加重复查询。
 
-输入核对、来源确认、格式验证和写入后确认可以作为必要的辅助动作，但不能自动成为任务主体。如果环境能够进行实际计算、仿真、候选选择、参数确定、对象修改或产物生成，应让这些工作成为主要目标；只有现实工作本身就是合规审查时，才选择纯核查任务。
+难度重点是执行者利用领域知识理解对象、单位、工具语义和返回限制，自主选择和编排工具。任务正文只给目标、范围、
+必要输入、业务规则和验收条件，不给完整查询顺序、算法、固定扫描、预选结论或结果到动作映射；允许多种合法路径，
+不要求所有题采用同一种流程。保留公开历史信息和正常业务输入，不通过隐藏它们制造难度。至少一个后续工具、对象、参数或处置必须消费前一真实返回；若业务自然需要多个阶段，
+应保留阶段依赖。做反事实检查：替换关键返回时，后续工作或结论应能改变；一次二选一后继续导出文件，只能证明程序有分支；并列查询、报告栏目和重复复核不算增难。
 
-这些任务用于训练工具调用能力。任务的深度优先来自结果之间的因果关系。编写 solution 前，先在内部列出完成该现实工作所需的具体调用及每次调用的业务作用，并让去重后的有效调用达到 `generation_request.json.effective_tool_call_target`；这个数字只用于内部设计，不能出现在 `task_public`。可以对不同真实对象、条件或候选分别调用同一工具，也可以根据前序结果继续处理，但每一次调用都必须产生不可替代的信息、产物或决策。不得通过重复相同查询、无关检查或机械拆分增加长度。
+从成果倒推必要工作，先做“最短可行求解”检查：若读取一个基线、抄写题文固定值或拼接互不影响的查询就能完成，
+应重新设计目标。调用数是发布底线，不是难度证明：参考解至少保留 15 次有效业务调用；超过 20 次不为数量拉长，低于 15 次只能补真实必要工作，
+不要求最终调用数严格增加。每次调用都必须服务核心判断、产物或前序结果驱动的动作，不能重复查询或拆分批量结果凑数。
 
-所有调用必须直接服务于同一个核心业务结果。不得为了增加调用次数而附加环境依赖核查、运行条件盘点、资源清单、通用文件检查或其他与核心业务结果没有直接因果关系的工作；只有现实交付本身明确需要这些结果时才可以使用。较长的调用链应来自真实工作中的必要对象、必要计算、结果驱动的后续动作或迭代。
-
-在把一个工具的输出交给后续工具前，先根据工具说明核对字段、数据形状、唯一性、排序和取值约束。若上下游不兼容，应调整处理方法或任务设计，不得强行拼接调用。
-
-任务仍然只能有一个主要业务目标和一个 `archetype_id`。可以形成从输入到结果再到后续处理的自然闭环，但不要把几个独立任务硬拼在一起。如果 `validation_feedback.json` 表明上一轮方向真实且工具执行成功，只存在参数来源、答案字段或要求对齐问题，应修正局部问题，不要退化成更简单的核查任务。
+工具选择与编排是本轮重点；领域事实和专业计算由公开材料及领域工具支撑；最终答案按真实成果验收；基础设施故障不算难度。
+任务只能有一个主要业务目标和一个 `archetype_id`，不得无说明删除或弱化核心交付。交给后续工具的返回先按公开契约核对
+字段、形状、唯一性、排序和取值约束；上下游不兼容时调整方案，不得强行拼接调用。
 
 ### 2. 先确认数据和工具真的可用
 
@@ -1310,8 +1368,9 @@ tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：
 其他已经真实探测成功的工具或更换任务方案，不得把它扩大解释为整个环境不可用。
 
 探测时不仅要看调用是否成功，还要看每个返回字段的确切含义。不得用名称相似但语义不同的字段
-回答任务，例如不能把“扫描首末点变化”当成“末点相对于指定基线的变化”。如果工具没有直接返回
-任务要求的量，就必须在 solution 中用返回的原始值明确计算；无法计算时不要把该要求写入任务。
+回答任务，例如不能把“扫描首末点变化”当成“末点相对于指定基线的变化”。决定答案的数值应来自
+公开领域工具，少量派生值可用读数、比较和四则运算得到。批量统计应有求解者可调用的公开入口；
+参考程序能在本地循环算出结果，不代表求解者拥有同样的批处理能力。按实际公开能力设计业务判据。
 
 ### 3. 编写任务正文 `task_public`
 
@@ -1321,9 +1380,11 @@ tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：
 重复整段环境介绍。正文只补充当前任务特有、且无法通过公开工具发现的对象、范围、规则、
 输入路径和交付要求。
 
-不要出现工具名、Python、`call_tool`、内部字段或调用顺序，也不要要求用户阅读每一个中间检查结果。中间结果只有在它影响最终判断，或本身就是正式交付的一部分时，才写进正文。如果核心工作会产生设计、计算结果、选择决策、修改后的对象或文件，应让这项实际工作成为任务叙述的中心，不要用“审计”“复核”“签核”或“检查”重新包装。
+正文交代目标、必要背景、业务约束和验收条件。工具选择、查询顺序、计算步骤、如何组合结果及据此采取什么动作，留给执行者规划；不仅要去掉工具名，也要去掉用自然语言写出的操作路线。尤其不要把“先读取哪一项、再创建哪一项、最后如何复查”的阶段顺序写成任务步骤，也不要写“从某起点逐轮扩展固定邻接对象、按最大偏差选下一项、若某结果则继续处理某对象”这类结果到动作的映射。可以说明最终必须形成哪些真实业务产物及其验收条件。对象 ID、文件路径、单位、业务阈值和适用规则是正常输入，不因它们具体就视为泄露。
 
-任务必须给足执行所需的业务上下文：具体对象、阈值、范围、规则和确定的输入路径要能从正文直接取得；运行后才知道的动态 ID、路径或业务值应由前序工具结果提供。涉及文件时，正文仍须自然地写明 `scope_id` 和区域内相对路径，使 `task_resources.files` 可被精确验证。确定的交付文件使用完整相对路径和 `path_is_exact=true`；一次列出多个精确文件时，每一个文件都必须在正文中独立写出完整相对路径，不能在首个文件之后只写文件名、使用“同目录下”等省略表达。只有工具确实会动态生成多个文件时，才使用以 `/` 结尾的目录边界和 `path_is_exact=false`。只把 solution 实际会读取、处理或生成的资源列入 `task_resources`。
+生成时探测到的中间结果、已选中的答案和参考程序中的分支路线，保留在隐藏参考解中，不要为了方便执行或通过参数溯源而倒填进题文。业务验收规则可以明确；为求解而选择的算法、计算顺序和中间数值由执行者从工具结果得出。自问：只读正文、不理解工具和返回，是否已经能照着完成核心工作？如果可以，应重写需求表达，保留业务信息而移除解法提示。
+
+任务必须给足执行所需的业务上下文：对象范围、阈值、规则和业务指定的输入路径要清楚；运行后才知道的动态 ID、路径或业务值应由前序工具结果提供。涉及文件时，正文写明 `scope_id` 和区域内的输入范围。能通过公开工具定位的输入，可以声明有真实文件匹配的 glob 范围，使用 `role=input`、`path_is_exact=false`，具体文件由执行者根据公开返回确定；业务明确指定的文件仍给完整路径。确定的交付文件使用完整相对路径和 `path_is_exact=true`；一次列出多个精确文件时，每一个文件都必须在正文中独立写出完整相对路径，不能在首个文件之后只写文件名、使用“同目录下”等省略表达。输出只有在工具确实会动态生成多个文件时，才使用以 `/` 结尾的目录边界和 `path_is_exact=false`。只把 solution 实际会读取、处理或生成的资源列入 `task_resources`。
 
 ### 4. 编写隐藏 `solution_code`
 
@@ -1335,18 +1396,19 @@ tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：
 结构或运行时能力，例如 `import`、函数/类定义、`try/except`、`while`、`lambda`、模式匹配、
 文件接口、动态执行或主机路径。{mutation_rule}
 
+专业计算和大量数据的统计交给现有领域工具；Python 负责组织业务对象与工具调用、条件分支和结果传递，少量读数、比较和四则运算应能由求解者直接复核。参考解与求解者应共享相同的公开计算能力。设备能力、精度和物理可行性以公开材料和工具实际能力为依据。交付时区分已观察事实、计算结果、推断和未来实施事项。
+
 每一次工具调用的每一个输入参数都必须单独满足以下来源规则：
 
-- 业务对象 ID、文件路径、数值、阈值、范围、开关和排序规则，必须由 `task_public`
-  明确给出；工具内部的方向或模式枚举可以由正文的业务说法唯一映射，但不得仅依赖工具默认值或猜测；
+- 业务输入、对象范围、阈值、单位、选择标准和写入意图，来自 `task_public` 或公开工具返回；
 - 动态 ID、路径和业务值，必须来自更早一次成功工具调用的返回结果，或按照 `task_public`
-  明确写出的规则由这些结果计算得到；
+  的业务规则及返回字段的公开含义做必要的简单计算；计算过程留在 solution 中；
 - 不能把生成时从 `state/` 查到的值、工具 Schema 示例、工具默认值、常识或内部代码中的
   示例值直接写入调用参数；
-- 如果一个可选参数没有任务依据，就省略它；不能为了调用合法或增加难度自行补参数；
-- 特别不要显式填写空查询、默认排序、分页上限、分页偏移等工具默认控制项。例如任务没有
-  要求分页时，不要自行传入 query=""、sort_order="asc"、limit=20、offset=0；直接省略
-  这些可选参数。工具 Schema 中存在默认值不等于任务允许你把该值写入调用；
+- 查询词、分页、遍历排序、返回字段和工具模式等执行控制，可以按公开工具契约及业务目标
+  自主选择，审查时以 `tool_contract` 记录具体依据和用途；不能借此改变业务范围、遗漏分页、
+  引入新的业务阈值或执行未授权写入。若排序决定最终选谁，它就是业务选择规则，而不只是遍历控制。
+  不需要的可选参数直接省略，不必为了给执行控制找出处而把操作步骤补进题文；
 - 先在头脑中逐个核对参数来源，再写出 solution。后续调用需要使用前序结果中的对象时，
   必须通过变量传递，不能重新手写同一个 ID。
 
@@ -1361,9 +1423,33 @@ tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：
 在提交前，用刚才的真实探测结果按 solution 逻辑构造一次完整 `final_answer`，再逐句回看
 `task_public`：每一个“检查、核对、比较、计算、返回、保留、生成”要求，都必须能指向
 某次实际调用的直接证据、明确计算或 `final_answer` 中的明确表述。只有在句子表面上相似，或只出现在
-工具输出但没有进入最终交付，都不算完成。
+工具输出但没有进入最终交付，都不算完成。对文件或状态产物，再核对精确路径、扩展名、存在性、
+文件类型/尺寸/格式等任务要求；对导出内容，必须按用户要求真正返回内容或留下可取得的精确产物，
+不能只返回名称、数量或哈希摘要。
 
-### 5. 填写资源和内部说明
+### 5. 填写变更清单、资源和内部说明
+
+`change_manifest` 只用于防止改写时丢失原任务核心成果，不进入正式题文。必须如实填写：
+
+```json
+{{
+  "baseline_core_deliverables": ["原任务正文或调研原型已有的核心成果"],
+  "preserved_or_replaced": [{{
+    "original": "原成果或业务决定",
+    "new_or_preserved": "新任务中保留或替代后的成果",
+    "acceptance": "如何从实际交付判断它仍被完成"
+  }}],
+  "new_business_outcome": "本次新增且值得用户委托的成果",
+  "result_driven_decisions": [{{
+    "decision": "需要作出的业务选择",
+    "evidence_source": "决定它的工具返回或实际数据",
+    "downstream_effect": "该选择如何改变后续对象、参数、处置或最终结论"
+  }}]
+}}
+```
+
+`result_driven_decisions` 必须对应实际 `solution_code` 和 `solution_trace`，不能只写设计意图。
+如果原任务没有可保留的实质成果，说明原因并放弃该改写，不要用报告栏目替代原成果。
 
 - `task_resources` 只列这条任务实际用到的最小 `record_sets`、`relationships`、`files` 和
   `allowed_tools`；
@@ -1373,17 +1459,20 @@ tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：
 
 ## 提交前自检与修复循环
 
+`candidate_check.py` 先在本地检查 Solution 语言；此类错误立即返回且不消耗完整质检修复次数。修好后仍须通过父进程的真实执行、语义审查和干净重放，本地检查不会签发通过回执。
+
 逐条检查：
 
 1. 任务目标是否像现实工作，而不是工具操作清单？
 2. 任务正文中的每个最终要求是否都在 solution 的最终回答或实际交付状态中得到覆盖？
-3. 每个工具参数是否来自任务正文或更早的成功工具结果？
+3. 业务参数是否有公开来源，执行控制是否符合工具契约且保持业务含义？
 4. 所有对象、文件和工具是否在当前环境中真实存在且已探测可用？
 5. 现实工作要求的每个必要环节是否都被保留，且没有加入无关环节？
 6. 这条任务是否与 `validation_feedback.json` 中已接受任务的业务目标不同，而不是只替换
    ID、文件名或数字？
-7. 如果环境中有同样真实可行、但能自然覆盖更多必要工具交互的实例，当前是否误选了被单一聚合工具
-   直接完成的简单实例？同时确认每一次保留的调用都不是为了增加数量而加入。
+7. 是否存在真实结果驱动的后续动作，并且整体工作不只是一个二选一、并列查询或固定参数写入？
+8. 执行者是否仍需自己选择工具、理解返回并组织后续工作，而不是按正文给出的路线照做？
+   内部数据、中间答案和参考解法是否都没有倒填进题文？调用数达标不能替代这项判断。
 
 完成自检后，把当前版本写入 `candidate.draft.json`，然后运行：
 
@@ -1393,7 +1482,7 @@ tool_unavailable 且 terminal=false，表示只是某个具体工具不可用：
 
 读取 `candidate_check_result.json`。如果 `passed=false`，必须根据每个
 `errors[].code`、`errors[].location` 和 `errors[].message` 定向修改同一份草稿，再次运行检查。
-修复时保持当前 `archetype_id` 和主要业务目标，不得通过换成更简单的任务规避错误。整个过程中
+修复先针对当前草稿的具体问题。若反馈确认核心业务设计不成立，可重新选择调研中可支持的原型，并在内部说明调整依据；仍只提交一条任务，不能靠删去必要工作或写死选择来规避问题。整个过程中
 只有你这个生成 Agent 可以修改任务和 Solution，不要启动或假设存在另一个修复 Agent。最多允许
 初检加 `generation_request.json.max_repair_rounds` 轮修复；如果结果包含 `terminal=true`，说明是
 基础设施错误、重复不收敛或达到修复上限，应停止本候选，不要继续猜测式修改。
@@ -1415,6 +1504,8 @@ def build_solution_repair_prompt(round_index: int) -> str:
 
 - `repair_request.json`：固定不允许改变的任务正文、资源范围、当前完整程序、
   真实执行错误和已经成功的工具调用记录；
+- `baseline_task`：若存在，原任务正文和核心交付基线；只能用于保持目标，不得把隐藏参考答案
+  复制进公开任务；
 - `environment.public.json`：可用工具及其参数 Schema、返回 Schema、调用前提和副作用；
 - `references/环境契约-v2.0.md`、`references/工具契约-v1.0.md`：解释状态和工具契约的
   语义边界。
@@ -1455,16 +1546,16 @@ def build_solution_repair_prompt(round_index: int) -> str:
 
 
 def build_task_solution_review_prompt() -> str:
-    """给独立审查 Agent 的简短说明。
-
-    复杂度、Schema 和资源范围由 Python 自动检查；审查 Agent 只核对用户要求是否真的被
-    执行，以及工具参数是否有明确出处，避免把内部流水线术语传给模型。
-    """
+    """Review task completion, grounded parameters and genuine planning demands."""
     return """# 最后验收：程序有没有把用户的事情做完
 
-打开 `review_request.json`。把 `task_public` 当作用户发来的完整原始要求，不要把它当作内部字段；只根据下面这些真实证据判断：
+打开 `review_request.json`。把 `task_public` 当作用户发来的完整原始要求，不要把它当作内部字段；若
+`baseline_task` 非空，将其中原任务正文作为改写前基线，逐项核对 `change_manifest` 的保留或替代；
+只根据下面这些真实证据判断：
 
 - `used_tool_contracts`：本次实际使用工具的公开用途、输入和输出定义；
+- `available_tool_contracts`：执行者可使用的全部公开工具，包括参考解未使用的工具；用来核对批量查询、聚合返回和组合操作是否已经覆盖参考解中的多次调用；
+- `change_manifest`：作者对原任务核心成果保留/替代关系和新增结果驱动决策的内部清单；它是待核对的设计声明，不是验收标准；
 - `solution_code`：已经真实执行过的参考程序，用于理解工具结果如何形成最终答案；
 - `solution_trace`：程序实际调用了什么、每次得到什么结果；超大数组或文本会表示为
   `_review_summary`，其中保留类型、长度、首尾样本和完整内容哈希，不要把摘要标记误判为工具输出；
@@ -1477,11 +1568,23 @@ def build_task_solution_review_prompt() -> str:
 结果不符，都必须拒绝。不要根据代码“看起来应该能工作”来猜测，也不要用 `task_internal`
 补充用户没有说过的条件。
 
-任务复杂度、答案格式、资源标识和文件路径已经由程序自动检查，不要评价这些内部概念。
+	对每个数值交付还要核对统计口径，而不是只核对字段名称：比较任务要求的样本集合、掩膜
+	语义、有效元素数和分母，与工具输出字段的定义及实现保持一致。不能仅凭字段名 `mean`
+	或参数名 `mask` 推断分母；工具若把被掩膜元素置零后按全数组统计，必须按任务和公开契约
+	判断这是否正是要求的统计，并在答案中说明实际口径。只有任务明确要求排除元素、按有效集合
+	归一化，且工具没有直接返回该口径时，才使用公开返回值做必要的派生。参考答案若采用与任务
+	及工具契约不一致的统计口径，即使工具调用成功、Schema 合法、最终文件存在，也必须拒绝并
+	要求修正；若题文和契约存在歧义，应先修正任务定义而不是凭经验强行改判。
+
+调用数、答案格式、资源标识和文件路径由程序检查；调用数达标不代表自主规划难度已经通过。
 
 还要逐一说明每个工具输入值的出处，防止凭空编造 ID、路径或阈值：`task` 表示值直接写在
 任务中，`previous_tool_result` 表示值来自更早调用，`task_and_previous_tool_result` 表示
-任务给出规则而更早结果提供具体值；无法确定就写 `unresolved` 并拒绝。`parameter_audit`
+任务给出规则而更早结果提供具体值；`tool_contract` 表示执行者依据公开契约及业务目标选择的
+查询词、分页、遍历排序、返回字段或工具模式，证据要说明契约依据、用途及为何不改变业务含义。
+它不能用于替没有来源的业务对象、阈值、选择标准或写入意图开脱；决定最终选谁的排序属于业务规则。
+由返回字段公开含义做的必要简单计算可以作为前序结果的派生值，不要求用户写出解题公式。
+无法确定就写 `unresolved` 并拒绝。`parameter_audit`
 必须覆盖每次调用的全部实际参数。字符串、数字、布尔值等标量参数必须逐项列出；如果某个
 字典或数组是任务直接给出的完整对象，或完整来自某次更早工具调用，可以只用该对象的父
 路径审查整棵结构，例如 `path="/derived_network"` 或 `path="/data"`，不要把矩阵、表格
@@ -1490,9 +1593,41 @@ def build_task_solution_review_prompt() -> str:
 是 `0`，第二条是 `1`；`source_call_indices` 也使用同一套从 `0` 开始的序号，并且只能引用
 更早调用。`evidence` 用普通话指出任务原句或更早调用的返回字段。
 
-还要判断任务本身是否像现实工作：主要产出应是可使用的领域结果、决策或新产物，而不是一份检查清单；必要的检查应服务于核心目标。若环境和调研原型明显支持设计、计算、仿真、选择、修改或产物生成，但候选退化成通用核查、证据整理或文件质检，应拒绝。`task_public` 应像自然请求，而不是按工具顺序编写的执行说明；solution 应推进到可交付深度，同时不得用重复调用或无关检查制造复杂度。
+核对决定答案的每项统计如何由求解者取得：参考程序若对大量点逐项运算、计数或汇总，须指出能返回同一统计的公开工具能力。只有少量返回值的短计算时才可直接派生。工具返回整份原始数据不等于提供批量计算入口；缺少相应公开能力时，应调整业务判据或任务设计，而不是让执行者手工重做参考程序的批处理。
 
-不要根据某个公开的调用次数数字评价候选，调用深度由后台单独验证。
+还要判断任务本身是否像现实工作：主要产出应是可使用的领域结果、决策或新产物，而不是一份检查清单；必要的检查应服务于核心目标。若环境和调研原型明显支持设计、计算、仿真、选择、修改或产物生成，但候选退化成通用核查、证据整理或文件质检，应拒绝。
+
+先核对 `change_manifest`：`preserved_or_replaced` 是否覆盖基线的每项核心成果，替代关系是否仍
+交付同等或更有价值的业务结果；如果原成果被删除、弱化或仅变成报告栏目，应拒绝。再核对
+`result_driven_decisions` 是否至少有一项真实结果驱动的核心决策，并在真实调用中发生：前序工具返回必须改变后续
+对象、参数、处置或最终结论，后续动作还要实际消费该选择；如果整体只是一个二选一、并列读取、固定
+参数写入或事后整理，也应拒绝。业务自然形成多个阶段时，应核对阶段之间是否确实依赖返回结果；清单本身不能替代真实轨迹证据。
+
+最后建立交付闭合表：逐项列出 task_public 要求的结论、数值、单位、文件路径和扩展名、文件属性、
+导出内容及最终答复字段。每项都必须在 `candidate_answer` 或 `final_state` 中找到实际证据；只有工具
+返回日志、文件名称、数量或哈希而没有用户可取得内容的，按未交付拒绝。工具调用成功不能替代最终产物。
+
+核对正文是否保留自主选择和编排工具的空间。给出真实起始对象、路径、单位、业务规则和验收条件是正常的；给出完整查询/计算路线、阶段顺序、探测所得的中间答案或预选结论，使执行者只需照做，则属于方法或答案泄露，应指出具体句子并要求改写。还要从真实 `solution_trace` 检查：是否存在至少一个会改变业务处置的结果驱动选择，以及后续调用是否实际使用该选择；把候选关键结果交换后，最终写入或交付是否会变化。如果所有核心写入参数都能直接从题文抄出，或调用主要是重复读取、独立导出和报告拼接，应拒绝并要求重做任务。不能仅凭没有工具名就认定没有泄露，也不能要求把执行控制或推导公式补进题文来通过参数审查。调用更多、知识更偏或答案更长都不能单独证明编排更难。
+
+再对照全部 `available_tool_contracts` 检查更短的合法路径：整对象返回是否已包含逐项查询的值，写入或导出是否已完成单独要求的验证，批量入口是否能合并参考调用。指出具体工具和返回字段；不能只因存在聚合工具就拒绝，也不能假定未声明的聚合能力。若去掉这些可替代调用后只剩固定参数抄写或并列信息整理，应拒绝当前业务设计。调用数量只是执行记录，不是执行者必须照抄的流程，也不能据此声称任务形成了更深的规划。
+
+重点检查方法泄露。`task_public` 可以说明用户目标、对象范围、业务约束、输入边界和验收标准，
+但不得规定完整的查询顺序、先后阶段、固定比较对象、固定搜索区间、指定交叉证据路线，或把某个
+中间结果对应的后续工具动作写出来。这里的标准不是“是否写了工具名”，而是公开内容是否已经把
+求解者的规划空间压缩成一条可照抄的路线。以下内容一律视为方法泄露并拒绝：
+
+- 指定起始探测对象，要求沿预定邻接对象、网格或参数序列继续试验；
+- 指定按“最大偏差、最小值、最早记录”等中间结果选择下一对象、下一参数或下一处置；
+- 指定某个条件结果后必须查询、修改、导出或复查哪一类对象；
+- 将固定的多阶段证据路线写成“先 A、再 B、最后 C”，即使 A/B/C 用的是业务名而不是工具名。
+
+最终验收条件可以要求结果满足阈值，但不能同时告诉执行者用哪组固定对象、哪种扫描方式或哪个
+中间指标来找到结果。若正文已经让执行者只需照着路线调用工具，必须在 `method_leakage` 中逐条
+摘录泄露句子并拒绝；只有确认没有上述结果到动作映射时，`method_leakage` 才能为空。
+
+`reason` 中分别说明完成性证据、计算能力对齐，以及真实的关键选择、后续依赖和可替代调用检查；这里只能根据公开契约做定性判断，不能声称已验证模型准确率。
+
+计算能力对齐、可替代调用和反事实分析由审阅者写入 `reason`；业务答案按 `task_public` 的交付要求验收，不额外承担内部审查说明。实际轨迹验证本次发生的分支，`solution_code` 用于核对其他返回值下的选择与后续依赖；当前数据未触发的平局或失败分支，不要求另造数据执行证明。
 
 最终只创建 `review.json`，结构必须恰好为：
 
@@ -1503,6 +1638,7 @@ def build_task_solution_review_prompt() -> str:
 {
   "accepted": true,
   "reason": "逐项说明用户要求，以及每项要求在真实执行结果中的证据",
+  "method_leakage": [],
   "parameter_audit": [
     {"call_index": 0, "tool": "实际工具名", "parameters": [
       {"path": "/参数路径", "source": "task", "source_call_indices": [], "evidence": "任务中的具体原句"}
@@ -1512,7 +1648,8 @@ def build_task_solution_review_prompt() -> str:
 }
 ```
 
-`accepted=true` 只允许在用户的全部要求都完成、所有参数都有明确来源且 `issues` 为空时使用。
+`accepted=true` 只允许在用户的全部要求都完成、所有参数都有明确来源、`issues` 为空且
+`method_leakage` 为空时使用。不要把“题文没有写工具名”当作没有方法泄露。
 不要修改其他文件，也不要在最终回复中粘贴 JSON。
 """
 
@@ -1752,6 +1889,7 @@ def _parameter_audit_errors(
         "task",
         "previous_tool_result",
         "task_and_previous_tool_result",
+        "tool_contract",
         "unresolved",
     }
     for call_index in sorted(expected_indices & set(entries)):
@@ -1788,9 +1926,9 @@ def _parameter_audit_errors(
                     f"parameter_audit[{call_index}]{path} 的 source_call_indices 非法"
                 )
                 source_indices = []
-            if source == "task" and source_indices:
+            if source in {"task", "tool_contract"} and source_indices:
                 errors.append(
-                    f"parameter_audit[{call_index}]{path} 来源仅为 task，"
+                    f"parameter_audit[{call_index}]{path} 来源仅为 {source}，"
                     "不应声明 source_call_indices"
                 )
             if source in {"previous_tool_result", "task_and_previous_tool_result"}:
@@ -1889,6 +2027,7 @@ def _compact_failed_review(review: dict[str, Any]) -> dict[str, Any]:
         "accepted": review.get("accepted") is True,
         "reason": reason[:3000],
         "issues": deepcopy(review.get("issues") or []),
+        "method_leakage": deepcopy(review.get("method_leakage") or []),
         "parameter_audit": compact_audit,
         "parameter_audit_summary": {
             "reviewed_call_count": len(audit) if isinstance(audit, list) else 0,
@@ -1935,6 +2074,7 @@ def _repair_solution(
     execution: ProgramExecutionResult,
     round_index: int,
     repair_root: Path,
+    baseline_task: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     audit_dir = repair_root / candidate.archetype_id / f"round_{round_index:02d}"
     if audit_dir.exists():
@@ -1949,6 +2089,8 @@ def _repair_solution(
             "workspace_brief": candidate.workspace_brief,
             "task_summary": candidate.task_summary,
             "task_public": _published_task_text(candidate),
+            "baseline_task": baseline_task or {},
+            "change_manifest": candidate.change_manifest,
             "task_resources": candidate.task_resources,
             "solution_code": code,
             "error_type": execution.error_type,
@@ -2039,6 +2181,7 @@ def _execute_with_repairs(
     policy: ProgramGenerationPolicy,
     agent: TaskSolutionAgent | None,
     repair_root: Path,
+    baseline_task: dict[str, Any] | None = None,
 ) -> tuple[str, ProgramExecutionResult, list[dict[str, Any]]]:
     code = candidate.solution_code
     execution = execute_solution_code(
@@ -2066,6 +2209,7 @@ def _execute_with_repairs(
                 execution=execution,
                 round_index=round_index,
                 repair_root=repair_root,
+                baseline_task=baseline_task,
             )
             history.append({
                 "round": round_index,
@@ -2086,7 +2230,9 @@ def _execute_with_repairs(
     return code, execution, history
 
 
-def _replay_comparable_state(value: Any, *, container_file: bool = False) -> Any:
+def _replay_comparable_state(
+    value: Any, *, container_file: bool = False, notebook_file: bool = False,
+) -> Any:
     """Ignore non-semantic hashes from timestamp-bearing binary containers.
 
     Semantic equivalence is still established by the reference program's
@@ -2094,8 +2240,16 @@ def _replay_comparable_state(value: Any, *, container_file: bool = False) -> Any
     answer. All paths, sizes, ordinary files, database records and other state
     remain exact. GDSII/OASIS and HDF5-backed HSPY files can encode creation or
     object metadata differently while preserving the same business content.
+    Valid notebooks use a separate content hash excluding only random cell
+    IDs; their code, outputs, execution counts and metadata remain exact.
     """
     if isinstance(value, dict):
+        notebook_hash = value.get("notebook_v4_sha256_without_cell_ids")
+        has_notebook_hash = (
+            notebook_file and isinstance(notebook_hash, str)
+            and len(notebook_hash) == 64
+            and all(character in "0123456789abcdef" for character in notebook_hash)
+        )
         result: dict[str, Any] = {}
         for key, child in value.items():
             child_is_container = container_file or (
@@ -2106,14 +2260,21 @@ def _replay_comparable_state(value: Any, *, container_file: bool = False) -> Any
             )
             if container_file and key == "sha256":
                 continue
+            if has_notebook_hash and key in {"sha256", "size", "json"}:
+                continue
             result[key] = _replay_comparable_state(
                 child,
                 container_file=child_is_container,
+                notebook_file=notebook_file or (
+                    isinstance(key, str) and Path(key).suffix.casefold() == ".ipynb"
+                ),
             )
         return result
     if isinstance(value, list):
         return [
-            _replay_comparable_state(item, container_file=container_file)
+            _replay_comparable_state(
+                item, container_file=container_file, notebook_file=notebook_file,
+            )
             for item in value
         ]
     return value
@@ -2719,6 +2880,7 @@ def _review_task_solution(
     execution: ProgramExecutionResult,
     public_tools: list[dict[str, Any]],
     review_dir: Path,
+    baseline_task: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     if agent is None:
         return {}, ["没有提供独立 TaskSolutionReviewAgent"]
@@ -2729,11 +2891,14 @@ def _review_task_solution(
     used_tool_names = {str(item.get("tool")) for item in execution.trace}
     request = _bound_review_request({
         "task_public": candidate.task_public,
+        "baseline_task": baseline_task or {},
+        "change_manifest": candidate.change_manifest,
         "used_tool_contracts": [
             deepcopy(tool)
             for tool in public_tools
             if str(tool.get("name")) in used_tool_names
         ],
+        "available_tool_contracts": deepcopy(public_tools),
         "solution_code": candidate.solution_code,
         "solution_trace": _review_trace(execution.trace),
         "final_state": _compact_review_value(execution.final_state),
@@ -2741,7 +2906,9 @@ def _review_task_solution(
         "candidate_answer": execution.answer,
     }, execution)
     previous_errors: list[str] = []
-    review_names = {"accepted", "reason", "parameter_audit", "issues"}
+    review_names = {
+        "accepted", "reason", "parameter_audit", "issues", "method_leakage",
+    }
 
     for attempt_index in range(1, SEMANTIC_REVIEW_MAX_ATTEMPTS + 1):
         with tempfile.TemporaryDirectory(
@@ -2784,6 +2951,11 @@ def _review_task_solution(
                 or not isinstance(review.get("reason"), str)
                 or len(review["reason"].strip()) < 20
                 or not isinstance(review.get("issues"), list)
+                or not isinstance(review.get("method_leakage"), list)
+                or any(
+                    not isinstance(item, str) or not item.strip()
+                    for item in review.get("method_leakage", [])
+                )
             ):
                 attempt_errors = ["review.json 不符合固定审查结构"]
 
@@ -2830,6 +3002,11 @@ def _review_task_solution(
                 *parameter_errors,
             ]
             continue
+        if review["accepted"] is True and review["method_leakage"]:
+            return review, [
+                "task_public 存在方法泄露，不能在语义审查中接受："
+                + "；".join(review["method_leakage"])
+            ]
         if (
             review["accepted"] is not True
             or review["issues"]
@@ -2865,6 +3042,48 @@ class _PreflightEvidence:
 
     candidate: ProgramTaskCandidate | None = None
     execution: ProgramExecutionResult | None = None
+    final_state_output: Path | None = None
+
+
+@dataclass(frozen=True)
+class _ApprovedCandidate:
+    report: dict[str, Any]
+    execution: ProgramExecutionResult
+    final_state_path: Path
+
+    def matches_receipt(self, receipt: dict[str, Any]) -> bool:
+        expected = {
+            "passed": True,
+            "candidate_sha256": self.report["candidate_sha256"],
+            "metrics": self.report.get("metrics", {}),
+            "review": self.report.get("review", {}),
+            "clean_replay_count": self.report.get("clean_replay_count", 0),
+        }
+        return receipt == expected
+
+
+def _publish_approved_state(
+    *,
+    approved: _ApprovedCandidate,
+    package: CompleteEnvironmentPackage,
+    destination: Path,
+) -> list[str]:
+    source = approved.final_state_path
+    try:
+        if not source.is_dir() or source.is_symlink():
+            return ["通过质检的参考终态目录缺失或被替换"]
+        if any(path.is_symlink() for path in source.rglob("*")):
+            return ["通过质检的参考终态目录中出现符号链接"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, destination)
+        published = compact_state_snapshot(snapshot_state(
+            destination, package.environment, package_format=package.package_format,
+        ))
+        if published != approved.execution.final_state:
+            return ["发布终态与质检保留的真实执行终态不一致"]
+    except Exception as error:
+        return [f"无法发布已核验的参考终态：{type(error).__name__}: {error}"]
+    return []
 
 
 def _preflight_candidate_payload(
@@ -2930,6 +3149,7 @@ def _preflight_candidate_payload(
         candidate.solution_code,
         candidate.output_schema or None,
         timeout_seconds=execution_timeout_seconds,
+        final_state_output=evidence.final_state_output if evidence is not None else None,
     )
     if evidence is not None:
         evidence.execution = execution
@@ -3112,6 +3332,8 @@ def _run_candidate_quality_request(
     review_agent: TaskSolutionReviewAgent | None,
     request: dict[str, Any],
     review_dir: Path,
+    baseline_task: dict[str, Any] | None = None,
+    evidence: _PreflightEvidence | None = None,
 ) -> dict[str, Any]:
     """Run all publish checks and return feedback to the still-running author Agent."""
     request_id = str(request.get("request_id") or "")
@@ -3127,7 +3349,8 @@ def _run_candidate_quality_request(
 
     clean_replays = int(request.get("clean_replays") or 2)
     execution_timeout = float(request.get("execution_timeout_seconds") or 300.0)
-    evidence = _PreflightEvidence()
+    if evidence is None:
+        evidence = _PreflightEvidence()
     report = _preflight_candidate_payload(
         package=package,
         payload=payload,
@@ -3162,6 +3385,7 @@ def _run_candidate_quality_request(
         execution=execution,
         public_tools=package.public_environment()["tools"],
         review_dir=review_dir,
+        baseline_task=baseline_task,
     )
     if review_errors:
         return {
@@ -3229,6 +3453,9 @@ class _CandidateQualityService:
         review_agent: TaskSolutionReviewAgent | None,
         max_repair_rounds: int,
         stop_timeout_seconds: float = QUALITY_SERVICE_STOP_TIMEOUT_SECONDS,
+        validated_state_root: Path | None = None,
+        policy: ProgramGenerationPolicy | None = None,
+        baseline_task: dict[str, Any] | None = None,
     ) -> None:
         self.authoring = authoring
         self.package = package
@@ -3236,6 +3463,10 @@ class _CandidateQualityService:
         self.schema = schema
         self.review_agent = review_agent
         self.max_checks = max_repair_rounds + 1
+        self.validated_state_root = validated_state_root
+        self.policy = policy
+        self.baseline_task = baseline_task
+        self.approved: dict[str, _ApprovedCandidate] = {}
         self.stop_timeout_seconds = max(
             QUALITY_SERVICE_STOP_TIMEOUT_SECONDS,
             float(stop_timeout_seconds),
@@ -3302,7 +3533,20 @@ class _CandidateQualityService:
                         "metrics": {},
                     }
                 else:
+                    final_state_path = (
+                        self.validated_state_root / f"check_{self.check_count:02d}"
+                        if self.validated_state_root is not None else None
+                    )
+                    evidence = _PreflightEvidence(final_state_output=final_state_path)
                     try:
+                        if self.policy is not None:
+                            request = {
+                                **request,
+                                "clean_replays": self.policy.clean_replays,
+                                "minimum_effective_tool_calls": self.policy.minimum_effective_tool_calls,
+                                "require_state_change": self.policy.require_state_change,
+                                "execution_timeout_seconds": self.policy.execution_timeout_seconds,
+                            }
                         report = _run_candidate_quality_request(
                             authoring=self.authoring,
                             package=self.package,
@@ -3313,7 +3557,17 @@ class _CandidateQualityService:
                             review_dir=(
                                 self.review_root / f"check_{self.check_count:02d}"
                             ),
+                            baseline_task=self.baseline_task,
+                            evidence=evidence,
                         )
+                        if report.get("passed") is True and final_state_path is not None:
+                            if evidence.execution is None or not final_state_path.is_dir():
+                                raise RuntimeError("质检通过但缺少真实执行或参考终态")
+                            self.approved[str(report["candidate_sha256"])] = _ApprovedCandidate(
+                                report=deepcopy(report),
+                                execution=evidence.execution,
+                                final_state_path=final_state_path,
+                            )
                     except Exception as error:
                         report = {
                             "request_id": request_id,
@@ -3327,6 +3581,8 @@ class _CandidateQualityService:
                             )],
                             "metrics": {},
                         }
+                    if report.get("passed") is not True and final_state_path is not None:
+                        shutil.rmtree(final_state_path, ignore_errors=True)
                 signature = _quality_error_signature(report)
                 candidate_hash = str(report.get("candidate_sha256") or "")
                 if report.get("passed") is True:
@@ -3378,7 +3634,44 @@ def _archive_authoring_quality_artifacts(
     round_index: int,
     review_root: Path,
 ) -> None:
-    """Keep checker feedback even when the Agent never publishes candidates.json."""
+    """Keep draft and checker evidence even if the Agent never publishes."""
+    source_root = authoring.resolve()
+    request_path = authoring / "candidate_check_request.json"
+    candidate_names = {"candidate.draft.json", "candidates.json", request_path.name}
+    if (request_path.is_file() and not request_path.is_symlink()
+            and request_path.resolve().parent == source_root):
+        try:
+            request = read_json(request_path)
+        except (OSError, ValueError):
+            request = None
+        if isinstance(request, dict) and isinstance(request.get("candidate"), str):
+            try:
+                requested = (authoring / request["candidate"]).resolve()
+                if requested.parent == source_root:
+                    candidate_names.add(requested.name)
+            except (OSError, ValueError):
+                pass
+    archive = output_dir / "step2_authoring" / f"round_{round_index:02d}"
+    files_root = archive / "files"
+    files_root.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for name in sorted(candidate_names):
+        source = authoring / name
+        if (source.is_symlink() or not source.is_file()
+                or source.resolve().parent != source_root):
+            continue
+        target = files_root / name
+        shutil.copyfile(source, target)
+        copied.append({
+            "path": "files/" + name,
+            "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+            "size": target.stat().st_size,
+        })
+    write_json(archive / "archive_manifest.json", {
+        "diagnostic_only": True,
+        "approval_evidence": False,
+        "files": copied,
+    })
     receipt_path = authoring / "candidate_preflight_receipt.json"
     result_path = authoring / "candidate_check_result.json"
     history_path = authoring / "candidate_check_history.jsonl"
@@ -3489,11 +3782,49 @@ def run_step2(
     generation_agent: TaskSolutionAgent | None,
     review_agent: TaskSolutionReviewAgent | None,
     candidates_path: Path | None = None,
+    baseline_task_path: Path | None = None,
 ) -> Step2Result:
     """让一个生成 Agent 自检修复任务，并固化稳定 Ground Truth。"""
+    with tempfile.TemporaryDirectory(prefix="agent-world-validated-") as temporary:
+        return _run_step2(
+            step0_path=step0_path, step1_path=step1_path, output_dir=output_dir,
+            policy=policy, generation_agent=generation_agent, review_agent=review_agent,
+            candidates_path=candidates_path, baseline_task_path=baseline_task_path,
+            validated_state_root=Path(temporary),
+        )
+
+
+def _run_step2(
+    *,
+    step0_path: Path,
+    step1_path: Path,
+    output_dir: Path,
+    policy: ProgramGenerationPolicy,
+    generation_agent: TaskSolutionAgent | None,
+    review_agent: TaskSolutionReviewAgent | None,
+    candidates_path: Path | None,
+    baseline_task_path: Path | None,
+    validated_state_root: Path,
+) -> Step2Result:
     policy.validate()
     package = load_frozen_package(step0_path)
     research = read_json(step1_path.resolve())
+    baseline_payload = (
+        read_json(baseline_task_path.resolve())
+        if baseline_task_path is not None
+        else None
+    )
+    if baseline_payload is not None and not isinstance(baseline_payload, dict):
+        raise ValueError("baseline_task 必须是 JSON object")
+    baseline_task = (
+        {
+            key: baseline_payload[key]
+            for key in ("task_id", "environment_id", "task_text", "difficulty")
+            if key in baseline_payload
+        }
+        if baseline_payload is not None
+        else None
+    )
     archetypes = {
         str(item["archetype_id"]): item
         for item in research.get("task_archetypes", [])
@@ -3555,9 +3886,9 @@ def run_step2(
             retry_context=retry_context,
             rejections=rejections,
         )
+        visible_tool_names = set(tool_side_effects) - quarantined_tools
         selected_archetype_id: str | None = None
         selected_archetype: dict[str, Any] | None = None
-        selected_tool_names: set[str] = set()
         for offset_delta in range(len(ranked_archetype_ids)):
             archetype_offset = (
                 initial_archetype_offset + offset_delta
@@ -3573,7 +3904,6 @@ def run_step2(
             if possible_tools:
                 selected_archetype_id = possible_id
                 selected_archetype = possible
-                selected_tool_names = possible_tools
                 break
         if selected_archetype_id is None or selected_archetype is None:
             rejections.append({
@@ -3593,6 +3923,7 @@ def run_step2(
             len(accepted),
         )
         receipt: dict[str, Any] = {}
+        approved: _ApprovedCandidate | None = None
         if candidates_path is not None:
             payload = read_json(candidates_path.resolve())
         else:
@@ -3604,7 +3935,7 @@ def run_step2(
             ) as temporary:
                 authoring = Path(temporary)
                 _write_generation_tool_access(
-                    authoring, package, selected_tool_names
+                    authoring, package, visible_tool_names
                 )
                 before = snapshot_state(
                     package.state_root, package.environment,
@@ -3612,18 +3943,20 @@ def run_step2(
                 )
                 write_json(
                     authoring / "environment.public.json",
-                    _authoring_public_environment(package, selected_tool_names),
+                    _authoring_public_environment(package, visible_tool_names),
                 )
+                if baseline_task is not None:
+                    write_json(authoring / "baseline_task.json", baseline_task)
                 write_json(
                     authoring / "task_research.json",
-                    _authoring_research(research, selected_archetype),
+                    research,
                 )
                 write_json(authoring / "candidate.schema.json", schema)
                 copy_schema_docs(authoring, STEP2_SCHEMA_DOCS)
                 write_json(authoring / "generation_request.json", {
                     **{key: value for key, value in policy.to_dict().items() if key != "minimum_effective_tool_calls"},
                     "workspace_brief": _environment_workspace_brief(package.environment),
-                    "selected_archetype_id": selected_archetype_id,
+                    "suggested_archetype_id": selected_archetype_id,
                     "quarantined_tools": sorted(quarantined_tools),
                     "effective_tool_call_target": authoring_call_target,
                     "remaining_tasks": 1,
@@ -3640,16 +3973,23 @@ def run_step2(
                         *rejections,
                     ][-12:],
                 })
-                prompt = build_task_solution_prompt(round_index, policy)
+                prompt = build_task_solution_prompt(
+                    round_index,
+                    policy,
+                    baseline_task_available=baseline_task is not None,
+                )
                 (authoring / "prompt.txt").write_text(prompt, encoding="utf-8")
                 quality_service = _CandidateQualityService(
                     authoring=authoring,
                     package=package,
-                    research=_authoring_research(research, selected_archetype),
+                    research=research,
                     schema=schema,
                     review_agent=review_agent,
                     max_repair_rounds=policy.max_repair_rounds,
                     stop_timeout_seconds=policy.quality_timeout_seconds,
+                    validated_state_root=validated_state_root / f"round_{round_index:02d}",
+                    policy=policy,
+                    baseline_task=baseline_task,
                 )
                 try:
                     quality_service.start()
@@ -3697,10 +4037,8 @@ def run_step2(
                         )
                     receipt = read_json(receipt_path)
                     expected_hash = _canonical_payload_hash(payload)
-                    if (
-                        receipt.get("passed") is not True
-                        or receipt.get("candidate_sha256") != expected_hash
-                    ):
+                    approved = quality_service.approved.get(expected_hash)
+                    if approved is None or not approved.matches_receipt(receipt):
                         raise ValueError(
                             "candidates.json 与通过预检查的草稿不一致，请重新检查后原样提交"
                         )
@@ -3789,12 +4127,9 @@ def run_step2(
                 continue
             if candidates_path is None:
                 code = candidate.solution_code
-                execution = execute_solution_code(
-                    package,
-                    code,
-                    candidate.output_schema or None,
-                    timeout_seconds=policy.execution_timeout_seconds,
-                )
+                if approved is None:
+                    raise RuntimeError("提交候选缺少父进程保存的质检证据")
+                execution = approved.execution
                 debug_history: list[dict[str, Any]] = []
             else:
                 code, execution, debug_history = _execute_with_repairs(
@@ -3803,6 +4138,7 @@ def run_step2(
                     policy=policy,
                     agent=generation_agent,
                     repair_root=output_dir / "step2_repairs",
+                    baseline_task=baseline_task,
                 )
             if not execution.success:
                 errors.append(f"Solution 执行失败：{execution.error_type}: {execution.error}")
@@ -3868,6 +4204,7 @@ def run_step2(
                         output_dir / "step2_reviews" /
                         f"round_{round_index:02d}_candidate_{candidate_index:02d}"
                     ),
+                    baseline_task=baseline_task,
                 )
                 errors.extend(review_errors)
             if errors:
@@ -3884,18 +4221,24 @@ def run_step2(
             task_root = output_dir / "tasks" / task_id
             if task_root.exists():
                 shutil.rmtree(task_root)
-            published_execution = execute_solution_code(
-                package,
-                code,
-                candidate.output_schema or None,
-                timeout_seconds=policy.execution_timeout_seconds,
-                final_state_output=task_root / "final",
-            )
-            publication_errors = _publication_mismatch_errors(
-                reference=execution,
-                published=published_execution,
-                candidate=candidate,
-            )
+            if approved is not None:
+                published_execution = approved.execution
+                publication_errors = _publish_approved_state(
+                    approved=approved, package=package, destination=task_root / "final",
+                )
+            else:
+                published_execution = execute_solution_code(
+                    package,
+                    code,
+                    candidate.output_schema or None,
+                    timeout_seconds=policy.execution_timeout_seconds,
+                    final_state_output=task_root / "final",
+                )
+                publication_errors = _publication_mismatch_errors(
+                    reference=execution,
+                    published=published_execution,
+                    candidate=candidate,
+                )
             if publication_errors:
                 if task_root.exists():
                     shutil.rmtree(task_root)
@@ -3942,6 +4285,7 @@ def run_step2(
                 TaskFields.WORKSPACE_BRIEF: candidate.workspace_brief,
                 TaskFields.TASK_SUMMARY: candidate.task_summary,
                 TaskFields.TASK_PUBLIC: _published_task_text(candidate),
+                TaskFields.DESIGN_MANIFEST: deepcopy(candidate.change_manifest),
                 TaskFields.SOLUTION_CODE_ORIGINAL: candidate.solution_code,
                 TaskFields.SOLUTION_CODE: code,
                 TaskFields.SOLUTION_CODE_FIXED: code,
@@ -4061,6 +4405,7 @@ def generate_solutions(
         generation_agent=generation_agent,
         review_agent=review_agent or generation_agent,
         candidates_path=config.candidates_path,
+        baseline_task_path=config.baseline_task_path,
     )
     return {
         "tasks": read_json(output.tasks_path),
@@ -4078,13 +4423,23 @@ def main() -> None:
     parser.add_argument("--step1-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--candidates", type=Path)
+    parser.add_argument(
+        "--baseline-task",
+        type=Path,
+        help="可选的原任务 JSON；用于核对改写是否保留核心成果",
+    )
     parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--task-count", type=int, default=1)
     parser.add_argument("--generation-attempts", type=int, default=8)
     parser.add_argument("--max-repair-rounds", type=int, default=6)
-    parser.add_argument("--minimum-effective-tool-calls", type=int, default=18)
+    parser.add_argument("--minimum-effective-tool-calls", type=int)
     parser.add_argument("--execution-timeout-seconds", type=float, default=1000.0)
     arguments = parser.parse_args()
+    if (
+        arguments.minimum_effective_tool_calls is not None
+        and arguments.minimum_effective_tool_calls < 1
+    ):
+        parser.error("--minimum-effective-tool-calls 必须为正整数或省略")
     from utils.search_agent.codex import CodexAgentClient
 
     agent = CodexAgentClient(
@@ -4106,15 +4461,12 @@ def main() -> None:
             task_generation_attempts=arguments.generation_attempts,
             max_repair_rounds=arguments.max_repair_rounds,
             execution_timeout_seconds=arguments.execution_timeout_seconds,
-            minimum_effective_tool_calls=(
-                arguments.minimum_effective_tool_calls
-                if arguments.minimum_effective_tool_calls > 0
-                else None
-            ),
+            minimum_effective_tool_calls=arguments.minimum_effective_tool_calls,
         ),
         generation_agent=agent,
         review_agent=agent,
         candidates_path=arguments.candidates,
+        baseline_task_path=arguments.baseline_task,
     )
     print(result.output_path)
 

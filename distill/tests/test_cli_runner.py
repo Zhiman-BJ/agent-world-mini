@@ -15,6 +15,105 @@ from urllib.request import Request, urlopen
 import pytest
 
 
+@pytest.mark.parametrize("interrupted_count", [1, 2])
+def test_wire_summary_recovers_recorded_responses_continuation(tmp_path, interrupted_count):
+    from distill.runner import _wire_summary
+
+    requests, responses = [], []
+    prefix = ""
+    for index in range(interrupted_count + 1):
+        request_id = index + 1
+        inputs = [{"role": "user", "content": "Return JSON"}]
+        if prefix:
+            inputs.append({"role": "assistant", "content": [{"type": "output_text", "text": prefix}]})
+        requests.append({"request_id": request_id, "kind": "agent_step", "turn_id": 0,
+                         "request": {"input": inputs}})
+        partial = '{"task_text": "' if index == 0 else "continued"
+        if index == interrupted_count:
+            partial = 'done"}'
+        body_path = tmp_path / f"response-{request_id}.sse"
+        event = {"type": "response.output_text.delta", "delta": partial}
+        body_path.write_text("data: " + json.dumps(event) + "\n\n", encoding="utf-8")
+        response = {"request_id": request_id, "status": 200, "body_path": str(body_path)}
+        if index < interrupted_count:
+            response["error"] = "upstream_stream_error"
+        responses.append(response)
+        prefix += partial
+    records = [{"type": "agent.message.appended", "message": {"message": {
+        "role": "assistant", "content": [{"type": "text", "text": partial}]}}},
+        {"type": "turn.ended", "reason": "completed"}]
+    for filename, values in (("wire.jsonl", records), ("model_requests.jsonl", requests),
+                             ("model_responses.jsonl", responses)):
+        (tmp_path / filename).write_text("".join(json.dumps(value) + "\n" for value in values), encoding="utf-8")
+
+    summary = _wire_summary(tmp_path, "candidate", "gpt", 262144, "openai_responses", "high")
+
+    assert summary["answer"] == prefix
+    assert summary["answer_recovery"]["interrupted_request_ids"] == list(range(1, interrupted_count + 1))
+    assert summary["answer_recovery"]["completed_request_id"] == interrupted_count + 1
+
+
+@pytest.mark.parametrize("mismatch", ["prefix", "suffix", "turn", "compaction", "successful_prior", "failed_final"])
+def test_response_continuation_requires_exact_interrupted_stream_evidence(tmp_path, mismatch):
+    from distill.runner import _recover_response_continuation
+
+    prefix, suffix = "prefix", "suffix"
+    requests = [
+        {"request_id": 1, "kind": "agent_step", "turn_id": 0, "request": {"input": []}},
+        {"request_id": 2, "kind": "agent_step", "turn_id": 0, "request": {"input": [
+            {"role": "assistant", "content": [{"type": "output_text", "text": prefix}]}]}},
+    ]
+    responses = []
+    for request_id, text in ((1, prefix), (2, suffix)):
+        body_path = tmp_path / f"response-{request_id}.sse"
+        body_path.write_text("data: " + json.dumps({"type": "response.output_text.delta", "delta": text}) + "\n\n")
+        responses.append({"request_id": request_id, "status": 200, "body_path": str(body_path)})
+    responses[0]["error"] = "upstream_stream_error"
+    if mismatch == "prefix":
+        requests[1]["request"]["input"][0]["content"][0]["text"] = "different"
+    elif mismatch == "suffix":
+        suffix = "different"
+    elif mismatch == "turn":
+        requests[1]["turn_id"] = 1
+    elif mismatch == "compaction":
+        requests[0]["kind"] = "compaction"
+    elif mismatch == "successful_prior":
+        responses[0].pop("error")
+    else:
+        responses[1]["error"] = "upstream_stream_error"
+    for filename, values in (("model_requests.jsonl", requests), ("model_responses.jsonl", responses)):
+        (tmp_path / filename).write_text("".join(json.dumps(value) + "\n" for value in values), encoding="utf-8")
+
+    assert _recover_response_continuation(tmp_path, suffix) == (suffix, None)
+
+
+def test_response_replay_is_not_concatenated_as_a_continuation(tmp_path):
+    from distill.runner import _recover_response_continuation
+
+    answer = '{"validation_id":"accepted"}'
+    requests = [
+        {"request_id": 1, "kind": "agent_step", "turn_id": 0, "request": {"input": []}},
+        {"request_id": 2, "kind": "agent_step", "turn_id": 0, "request": {"input": [
+            {"role": "assistant", "content": [{"type": "output_text", "text": answer}]}]}},
+    ]
+    responses = []
+    for request_id in (1, 2):
+        body_path = tmp_path / f"response-{request_id}.sse"
+        body_path.write_text("data: " + json.dumps({
+            "type": "response.output_text.delta", "delta": answer}) + "\n\n")
+        response = {"request_id": request_id, "status": 200, "body_path": str(body_path)}
+        if request_id == 1:
+            response["error"] = "upstream_stream_error"
+        responses.append(response)
+    for filename, values in (("model_requests.jsonl", requests), ("model_responses.jsonl", responses)):
+        (tmp_path / filename).write_text("".join(json.dumps(value) + "\n" for value in values), encoding="utf-8")
+
+    recovered, metadata = _recover_response_continuation(tmp_path, answer)
+
+    assert recovered == answer
+    assert metadata["kind"] == "recorded_response_replay"
+
+
 def test_state_copy_waits_until_io_pressure_recovers(monkeypatch):
     from distill import runner
 
@@ -335,6 +434,18 @@ def test_invalid_read_limits_are_rejected():
             _validate_read_limits(default, maximum)
 
 
+def test_author_stop_hook_is_opt_in(tmp_path):
+    from distill.runner import _write_kimi_config
+
+    path = tmp_path / "config.toml"
+    arguments = (path, "http://127.0.0.1:1234/v1", "evaluation", "test-model", 262144,
+                 "openai_responses", "python file_hook.py")
+    _write_kimi_config(*arguments)
+    assert [hook["event"] for hook in tomllib.loads(path.read_text())["hooks"]] == ["PreToolUse"]
+    _write_kimi_config(*arguments, author_stop_hook_command="python author_submission.py --stop-check /raw")
+    assert [hook["event"] for hook in tomllib.loads(path.read_text())["hooks"]] == ["PreToolUse", "Stop"]
+
+
 def test_mcp_config_uses_extended_startup_timeout(tmp_path):
     from distill.runner import (
         KIMI_MCP_CLIENT_STARTUP_TIMEOUT_SECONDS,
@@ -367,6 +478,8 @@ def test_workspace_namespace_matches_mcp_registration_and_agent_allowlist(tmp_pa
     assert set(json.loads(mcp.read_text())["mcpServers"]) == {"workspace"}
     assert "mcp__workspace__*" in agent.read_text()
     assert "mcp__agent_world_distill__*" not in agent.read_text()
+    assert "Only tools listed in this session are callable" in agent.read_text()
+    assert "Bash, Write, Edit, Agent" in agent.read_text()
     assert expected_mcp_tool_names([{"name": "inspect"}], {}, server_name="workspace") == {
         "mcp__workspace__inspect"}
 
@@ -772,6 +885,24 @@ def test_server_config_uses_scientific_runtime_defaults():
     assert config["process_limit"] == 1024
 
 
+@pytest.mark.parametrize("limit", [65, 75, 85])
+def test_server_config_accepts_explicit_shared_tool_budgets(limit):
+    from distill.runner import make_server_config
+
+    tool = {"name": "inspect", "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "internal": {"code": "def run(arguments, context): return {'success': True}"}}
+    assert make_server_config({"tools": [tool]}, max_tool_calls=limit)["max_tool_calls"] == limit
+
+
+@pytest.mark.parametrize("limit", [0, 86, True, 85.0])
+def test_server_config_rejects_invalid_shared_tool_budgets(limit):
+    from distill.runner import make_server_config
+
+    with pytest.raises(ValueError, match="between 1 and 85"):
+        make_server_config({"tools": []}, max_tool_calls=limit)
+
+
 def test_host_mcp_launch_preserves_virtual_environment_interpreter(tmp_path, monkeypatch):
     from distill.runner import _task_mcp_launch
 
@@ -850,6 +981,7 @@ def test_task_mcp_launch_uses_delivery_runtime(tmp_path, monkeypatch, author_val
     assert launch.command == Path("docker")
     assert "--binding" in launch.arguments
     assert str(state) in launch.arguments
+    assert "--max-visible-result-chars" in launch.arguments
     assert ("--solution-validation" in launch.arguments) is author_validation
     if author_validation:
         assert json.loads((private_state / "solution_validation.json").read_text()) == {"max_attempts": 3}
@@ -957,7 +1089,73 @@ def streaming_model():
                 self.wfile.write(body)
                 return
             forbidden_probe = re.search(r"FORBIDDEN_READ_PROBE:(/[^\s\"\\]+)", serialized)
-            if forbidden_probe is not None and len(requests) == 1:
+            if "MCP_ERROR_RECOVERY_PROBE" in serialized:
+                tool_messages = [message for message in request.get("messages", []) if message.get("role") == "tool"]
+                feedback = "\n".join(str(message.get("content", "")) for message in tool_messages)
+                structured_results = [json.loads(match) for match in re.findall(
+                    r"<mcp-result-extras>\s*(.*?)\s*</mcp-result-extras>", feedback, re.DOTALL,
+                )]
+                recovered = any(result.get("structuredContent") == {"success": True, "value": 17}
+                                for result in structured_results)
+                if len(requests) == 1 or (
+                    len(requests) == 2 and "reports/" in feedback and "挂载目录" in feedback
+                ):
+                    name = next(tool["function"]["name"] for tool in request["tools"]
+                                if tool["function"]["name"].endswith("__inspect"))
+                    delta = {"role": "assistant", "tool_calls": [{
+                        "index": 0, "id": f"error-recovery-{len(requests)}", "type": "function",
+                        "function": {"name": name, "arguments": json.dumps({
+                            "path": "daily.json" if len(requests) == 1 else "reports/daily.json",
+                        })},
+                    }]}
+                    finish_reason = "tool_calls"
+                else:
+                    delta = {"role": "assistant", "content": (
+                        "Recovered: value is 17." if len(requests) == 3 and recovered
+                        else "Original error was not visible; recovery failed."
+                    )}
+                    finish_reason = "stop"
+            elif "AUTHOR_SUBMISSION_STOP_PROBE" in serialized:
+                from task_gen.program.proposal_sources import SELF_CHECKS
+
+                latest_id = None
+                for message in reversed(request.get("messages", [])):
+                    if message.get("role") == "tool":
+                        match = re.search(r'"validation_id"\s*:\s*"([a-f0-9]{32})"',
+                                          str(message.get("content", "")))
+                        if match:
+                            latest_id = match.group(1)
+                            break
+                if len(requests) in {2, 5}:
+                    delta = {"role": "assistant", "content": json.dumps({"validation_id": latest_id})}
+                    finish_reason = "stop"
+                else:
+                    if len(requests) == 4:
+                        short_name = "submit_validated_solution"
+                        arguments = {"validation_id": latest_id}
+                    else:
+                        short_name = "validate_solution_calls"
+                        proposal = {
+                            "task_text": "报告公开环境中的数值。", "real_need": "提供实际观测值。",
+                            "reference_answer": "公开数值为17。",
+                            "solution_calls": [{"tool": "inspect", "arguments": {},
+                                                "argument_sources": {}, "purpose": "取得公开数值。"}],
+                            "answer_sources": [{"kind": "call", "call": 1,
+                                                "pointer": "/missing" if len(requests) == 1 else "/value"}],
+                            "self_check": dict.fromkeys(SELF_CHECKS, True),
+                            "self_check_notes": ["测试实际来源反馈，不用于证明业务增难。"],
+                        }
+                        arguments = {"calls": [{"tool": "inspect", "arguments": {}}], "proposal": proposal}
+                        if "PROPOSAL_ONLY" in serialized:
+                            arguments = {"proposal": proposal}
+                    name = next(tool["function"]["name"] for tool in request["tools"]
+                                if tool["function"]["name"].endswith("__" + short_name))
+                    delta = {"role": "assistant", "tool_calls": [{
+                        "index": 0, "id": f"author-probe-{len(requests)}", "type": "function",
+                        "function": {"name": name, "arguments": json.dumps(arguments)},
+                    }]}
+                    finish_reason = "tool_calls"
+            elif forbidden_probe is not None and len(requests) == 1:
                 delta = {
                     "role": "assistant",
                     "reasoning_content": "I will try the requested native read.",
@@ -1064,6 +1262,70 @@ def streaming_model():
     thread.join()
 
 
+def test_official_cli_receives_path_error_and_retries(tmp_path, streaming_model):
+    from distill.runner import run_k3_distillation
+
+    kimi_bin = os.environ.get("KIMI_CODE_BIN")
+    if not kimi_bin:
+        pytest.skip("Set KIMI_CODE_BIN to the official Kimi CLI")
+    base_url, requests = streaming_model
+    initial = tmp_path / "initial"
+    reports = initial / "filesystem_scopes/reports"
+    reports.mkdir(parents=True)
+    (reports / "daily.json").write_text('{"value": 17}')
+    (initial / "filesystem_scopes/designs").mkdir()
+    tool = {
+        "name": "inspect", "description": "Inspect a deterministic report.",
+        "usageConditions": {"targetResources": ["reports"], "sideEffects": []},
+        "inputSchema": {
+            "type": "object", "required": ["path"], "additionalProperties": False,
+            "properties": {"path": {
+                "type": "string", "x-resource-scope": "reports", "x-resource-kind": "file",
+            }},
+        },
+        "outputSchema": {
+            "type": "object", "required": ["success", "value"], "additionalProperties": False,
+            "properties": {"success": {"const": True}, "value": {"type": "integer"}},
+        },
+        "internal": {"code": "def run(arguments, context):\n return {'success': True, 'value': 17}"},
+    }
+    output = tmp_path / "run"
+    trajectory = run_k3_distillation(
+        "MCP_ERROR_RECOVERY_PROBE: inspect the report and correct the path after an error.",
+        initial,
+        {
+            "workspace_root": ".", "trace": "calls.jsonl", "max_tool_calls": 10,
+            "timeout": 30, "memory_limit": 2147483648, "write_limit": 268435456,
+            "tools": [tool], "environment": {
+                "environment_id": "cli-error-fixture", "schema_version": "2.0", "record_sets": [],
+                "filesystem_scopes": [
+                    {"scope_id": "reports", "access": "read_only"},
+                    {"scope_id": "designs", "access": "read_only"},
+                ],
+            },
+        },
+        output, kimi_bin=Path(kimi_bin), base_url=base_url,
+        api_key="test-key-never-written", max_context_size=262144,
+    )
+    assert trajectory["outcome"]["final_answer"] == "Recovered: value is 17."
+    assert len(requests) == 3
+    feedback = "\n".join(str(message.get("content", "")) for message in requests[1]["messages"]
+                         if message.get("role") == "tool")
+    assert "挂载目录" in feedback and "reports/" in feedback
+    assert "Structured content does not match" not in feedback
+    records = [json.loads(line) for line in (output / "raw/environment_tool_calls.jsonl").read_text().splitlines()]
+    assert len(records) == 2
+    assert records[0]["arguments"]["path"] == "daily.json"
+    assert "挂载目录" in records[0]["error"]
+    submitted = [json.loads(tool_call["function"]["arguments"])
+                 for message in requests[2]["messages"] if message.get("role") == "assistant"
+                 for tool_call in message.get("tool_calls", [])]
+    assert submitted == [{"path": "daily.json"}, {"path": "reports/daily.json"}]
+    assert records[1]["arguments"]["path"] == "daily.json"
+    assert records[1]["error"] is None
+    assert records[1]["result"] == {"success": True, "value": 17}
+
+
 @pytest.mark.parametrize("compaction_probe", [None, "CONTEXT_OVERFLOW_PROBE", "EARLY_BLOCKING_COMPACTION_PROBE"])
 @pytest.mark.parametrize("server_name", ["agent_world_distill", "workspace"])
 def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, compaction_probe, server_name):
@@ -1148,6 +1410,57 @@ def test_official_cli_streaming_mcp_and_evidence(tmp_path, streaming_model, comp
     )
 
 
+def test_official_cli_author_stop_returns_source_errors_and_accepts_repair(tmp_path, streaming_model):
+    from distill.runner import run_k3_distillation
+    from task_gen.program.author_submission import resolve_submission
+
+    kimi_bin = os.environ.get("KIMI_CODE_BIN")
+    if not kimi_bin:
+        pytest.skip("Set KIMI_CODE_BIN to the official Kimi CLI")
+    base_url, requests = streaming_model
+    initial = tmp_path / "initial"
+    initial.mkdir()
+    tool = {
+        "name": "inspect", "description": "Inspect a deterministic value.",
+        "inputSchema": {"type": "object", "additionalProperties": False},
+        "outputSchema": {"type": "object", "properties": {
+            "success": {"const": True}, "value": {"type": "integer"}},
+            "required": ["success", "value"], "additionalProperties": False},
+        "internal": {"code": "def run(arguments, context):\n return {'success': True, 'value': 17}"},
+    }
+    output = tmp_path / "run"
+    trajectory = run_k3_distillation(
+        "AUTHOR_SUBMISSION_STOP_PROBE", initial,
+        {"workspace_root": ".", "trace": "calls.jsonl", "max_tool_calls": 10, "timeout": 30,
+         "memory_limit": 2 * 1024 * 1024 * 1024, "write_limit": 256 * 1024 * 1024,
+         "tools": [tool], "environment": {"environment_id": "author-stop-fixture", "schema_version": "1.0"},
+         "solution_validation": {"submission_gate": True, "source_check": {
+             "protocol": {"read_default_chars": 80000, "max_total_tool_calls": 65},
+             "original_task_text": "Original", "original_call_count": 18}}},
+        output, kimi_bin=Path(kimi_bin), base_url=base_url, api_key="test-key-never-written",
+        max_context_size=1_048_576,
+    )
+
+    assert len(requests) == 5
+    feedback = json.dumps(requests[2]["messages"], ensure_ascii=False)
+    assert "source_check_passed=False" in feedback
+    assert "answer source 1" in feedback
+    records = [json.loads(line) for line in (output / "raw/solution_validations.jsonl").read_text().splitlines()]
+    assert len(records) == 2
+    assert records[0]["result"]["execution_passed"] is True
+    assert records[0]["result"]["source_check_passed"] is False
+    assert records[1]["result"]["source_check_passed"] is True
+    assert records[1]["result"]["execution_reused"] is True
+    proposal, binding = resolve_submission(trajectory["outcome"]["final_answer"], records)
+    assert proposal["answer_sources"][0]["pointer"] == "/value"
+    assert json.loads((output / "raw/solution_submissions.jsonl").read_text()) == {
+        "accepted": True, "validation_id": binding["validation_id"]}
+    stops = [json.loads(line) for line in (output / "raw/author_stop_checks.jsonl").read_text().splitlines()]
+    assert len(stops) == 1
+    assert stops[0]["allowed"] is False
+    assert {call["tool_kind"] for step in trajectory["steps"] for call in step["tool_calls"]} == {"harness_support"}
+
+
 def test_official_cli_denies_native_read_of_execution_state(tmp_path, streaming_model):
     from distill.runner import run_k3_distillation
 
@@ -1191,7 +1504,8 @@ def test_official_cli_denies_native_read_of_execution_state(tmp_path, streaming_
     assert audit[0]["reason"] == "path_outside_session_allowlist"
 
 
-def test_official_cli_reads_long_result_with_native_read(tmp_path, streaming_model):
+@pytest.mark.parametrize("max_tool_calls", [2, 85])
+def test_official_cli_reads_long_result_with_native_read(tmp_path, streaming_model, max_tool_calls):
     from distill.runner import run_k3_distillation
 
     kimi_bin = os.environ.get("KIMI_CODE_BIN")
@@ -1220,7 +1534,7 @@ def test_official_cli_reads_long_result_with_native_read(tmp_path, streaming_mod
         "Inspect the long sample and report the evidence in its middle.",
         initial,
         {
-            "workspace_root": ".", "trace": "calls.jsonl", "max_tool_calls": 2,
+            "workspace_root": ".", "trace": "calls.jsonl", "max_tool_calls": max_tool_calls,
             "timeout": 30, "memory_limit": 2 * 1024 * 1024 * 1024,
             "write_limit": 256 * 1024 * 1024, "tools": [tool],
             "environment": {"environment_id": "long-cli-fixture", "schema_version": "1.0"},

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.runtime import ToolRuntime, state_diff
-from harness.execution import call_environment_tool
+from harness.execution import _schema_error, call_environment_tool
 from harness.mcp_resources import list_mcp_resources, read_mcp_resource
 
 from .delivery_contract import DeliveryPackage
@@ -203,7 +203,8 @@ class ToolMcpServer:
                 "state_changes": changes,
             }
         )
-        return tool_call_result(result, is_error=is_error)
+        structured = not is_error or _schema_error(self._tools[name]["outputSchema"], result) is None
+        return tool_call_result(result, is_error=is_error, structured=structured)
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
         request_id = request.get("id")
