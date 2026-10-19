@@ -292,6 +292,7 @@ class ResourceCatalog:
         *,
         schema: Any = None,
         allowed_scopes: set[str] | None = None,
+        must_exist: bool = True,
     ) -> Any:
         """Validate annotated Scope-relative result paths for the public API."""
 
@@ -360,7 +361,7 @@ class ResourceCatalog:
                     else _relative_path(current)
                 )
                 target = self.resolve_relative(str(scope_id), relative)
-                if not target.exists():
+                if must_exist and not target.exists():
                     raise ValueError(f"输出资源不存在：{current}")
                 if target.exists() and declared_kind == "file" and not target.is_file():
                     raise ValueError(f"输出资源要求文件，实际为目录：{current}")

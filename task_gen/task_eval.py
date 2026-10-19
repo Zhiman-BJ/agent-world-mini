@@ -24,7 +24,7 @@ from .tool_graph.step_3_chain_execute import (
     _tools,
     _workspace_signature,
 )
-from .task_eval_verifier import verify_execution, VerificationError
+from eval.verifier import verify_execution, VerificationError
 
 
 DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[1] / "runs/taskgen"

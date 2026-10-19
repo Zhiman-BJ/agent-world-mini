@@ -10,6 +10,8 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 
+import tomlkit
+
 _CODEX_LLM_API_KEY_ENV = "AGENT_WORLD_LLM_API_KEY"
 _PARENT_SESSION_ENV = (
     "CODEX_THREAD_ID",
@@ -100,7 +102,7 @@ class CodexAgentClient:
     默认直接使用本机 ``~/.codex/config.toml``。也可以在初始化时单独传入
     model、base_url 和 api_key，只覆盖本次 Codex 子进程。需要 Agent 用
     命令下载真实文件时，同时启用 ``network_access``；网页搜索和命令行
-    网络访问是两个独立权限。
+    网络访问是两个独立权限。独立子进程不继承 BASH_ENV/ENV 启动钩子。
     """
 
     def __init__(
@@ -169,6 +171,21 @@ class CodexAgentClient:
                     f"{_toml_string(_CODEX_LLM_API_KEY_ENV)}",
                 ]
             )
+        return arguments
+
+    def _mcp_arguments(self, environment: dict[str, str]) -> list[str]:
+        if not self.disabled_mcp_servers:
+            return []
+        config_root = Path(environment.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+        config_path = config_root / "config.toml"
+        settings = tomlkit.parse(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
+        servers = settings.get("mcp_servers", {})
+        arguments: list[str] = []
+        for server_name in self.disabled_mcp_servers:
+            if server_name in servers:
+                arguments.extend(
+                    ["--config", f"mcp_servers.{_toml_string(server_name)}.enabled=false"]
+                )
         return arguments
 
     def run(self, prompt: str, *, working_directory: Path) -> str:
@@ -246,6 +263,8 @@ class CodexAgentClient:
             directory_context = nullcontext(str(run_log_dir))
 
         with directory_context as run_log_directory:
+            sqlite_home = Path(run_log_directory) / "sqlite_home"
+            sqlite_home.mkdir(parents=True, exist_ok=True)
             final_message = Path(run_log_directory) / "last_message.txt"
             stdout_log = Path(run_log_directory) / "stdout.log"
             stderr_log = Path(run_log_directory) / "stderr.log"
@@ -256,6 +275,7 @@ class CodexAgentClient:
             # provider 配置，但显式移除父会话身份。
             for name in _PARENT_SESSION_ENV:
                 environment.pop(name, None)
+            environment.update({"BASH_ENV": "", "ENV": ""})
             environment.setdefault("NO_COLOR", "1")
 
             command = [executable]
@@ -263,12 +283,10 @@ class CodexAgentClient:
                 # --search 是 Codex 顶层参数，必须写在 exec 子命令之前。
                 command.append("--search")
             command.append("exec")
-            for server_name in self.disabled_mcp_servers:
-                # Codex 当前没有通用的 --no-mcp 参数；将指定用户 MCP 标记为
-                # disabled，避免失效的远程服务阻塞本次 Agent 调用。
-                command.extend(
-                    ["--config", f"mcp_servers.{server_name}.enabled=false"]
-                )
+            command.extend(
+                ["--config", f"sqlite_home={_toml_string(str(sqlite_home))}"]
+            )
+            command.extend(self._mcp_arguments(environment))
             if self.reasoning_effort:
                 if self.reasoning_effort not in {"minimal", "low", "medium", "high", "xhigh"}:
                     raise ValueError(

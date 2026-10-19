@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from utils.io import write_json
 
 from .runtime import ToolPackage, ToolRuntime, state_diff
+from .semantic_contract import CONTRACT_REVIEW_GUIDANCE, contract_issues
 from .test_contract import (
     TEST_GUIDANCE, TestBaselines, baseline_changes, check_numbers, normalize_tests,
     success_gate, validate_tests,
@@ -806,6 +807,8 @@ software_plan.json 示例：
         names = ", ".join(str(action["name"]) for action in actions)
         return f"""你负责为 {package_root.name} 编写这一组相关工具：{names}。
 
+{CONTRACT_REVIEW_GUIDANCE}
+
 {TEST_GUIDANCE}
 
 动作计划如下：
@@ -1033,6 +1036,9 @@ usageConditions.targetObjects.identifiedBy 中的字段都应在 inputSchema.pro
                     name, draft["tool"].get("outputSchema"), known_scopes, target_resources,
                     schema_name="outputSchema",
                 )
+                issues = contract_issues(draft["tool"])
+                if issues:
+                    raise ToolGenerationError(f"工具草稿 {name} 的公开契约不一致：{json.dumps(issues, ensure_ascii=False)}")
             except ToolGenerationError as error:
                 if not allow_missing:
                     raise

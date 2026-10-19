@@ -67,6 +67,8 @@ for tool in delivery.package.tools:
 
 只有真实 Schema 中标有 `x-resource-scope` 的字段才按文件路径解析。单 Scope 直接传 Scope 内相对路径；多 Scope 传带 mount 的工作目录路径，例如 `reports/daily.json`。不要传 `filesystem_scopes/reports/daily.json`。`x-resource-scope` 和 `x-resource-kind` 是 Agent-World 的 JSON Schema 扩展注解，不是额外工具，也不是 MCP 标准字段。
 
+此规则同时适用于输入文件和新建输出文件：多 Scope 下，`output_name` 等路径字段也要包含对应 mount。任务 MCP 的 `tools/list` 和作者材料 `public_tools.json` 会根据本次实际挂载，在这些字段的说明中标明路径前缀；只补充说明，不改变参数、Schema 校验或 Scope 访问边界。
+
 ### A.2 调用代码
 
 在 agent-world-mini 目录中运行：
@@ -130,7 +132,7 @@ print(record)
 arguments Schema 校验
   -> Scope 相对路径校验和物理路径解析
   -> 为可写调用备份 workspace 和私有数据库
-  -> bubblewrap/运行后端执行 internal.code
+  -> 工作区后端执行 internal.code（本例非 Docker：run_tool_direct）
   -> outputSchema 校验
   -> 检查状态差异
   -> 成功保留状态；失败恢复 workspace 和数据库
@@ -148,6 +150,8 @@ arguments Schema 校验
 ~~~
 
 失败记录仍保留工具名、参数和失败类型。需要区分 timeout、runtime_error、业务返回 success=false、invalid arguments 和 output schema failure。这些错误不能都改写成“环境错误”。
+
+MCP 成功调用使用 `structuredContent`，符合业务 `outputSchema` 的业务失败也保留结构化结果。参数、路径或运行时错误如果不符合该业务 Schema，则通过 `content` 文本和 `isError=true` 返回原始错误，不附加不合法的 `structuredContent`；否则客户端的 Schema 异常会遮住实际报错。执行 trace 的原始记录不变，也不因此放宽工具 Schema。
 
 ### A.4 这个 Case 适合哪里
 

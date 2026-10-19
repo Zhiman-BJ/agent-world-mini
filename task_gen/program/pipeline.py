@@ -29,6 +29,8 @@ def generate_solutions(input: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     return implementation(input, **kwargs)
 
 def _config_from_meta(values: dict[str, Any]) -> Config:
+    if values.get("hardening_source_path") is not None:
+        raise ValueError("Legacy hardening runs cannot resume here; use single_agent_hardening with a new output directory")
     policy_values = values.get("policy") or {}
     # Keep this explicit: serialized policy also contains derived candidate_count.
     from .utils.contracts import ProgramGenerationPolicy
@@ -38,14 +40,14 @@ def _config_from_meta(values: dict[str, Any]) -> Config:
     if values.get("environment_package"):
         values["environment_package"] = Path(values["environment_package"])
     values["output_root"] = Path(values["output_root"])
-    for name in ("tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path"):
+    for name in ("tools_path", "delivery_root", "binding_path", "scenario_research_path", "research_fixture_path", "candidates_path", "baseline_task_path"):
         if values.get(name):
             values[name] = Path(values[name])
     values["policy"] = policy
     return Config(**{field.name: values[field.name] for field in fields(Config) if field.name in values})
 
 
-def _client(config: Config, *, web_research: bool = False):
+def _client(config: Config, *, web_research: bool = False, log_directory: Path | None = None):
     from utils.search_agent.codex import CodexAgentClient
 
     return CodexAgentClient(
@@ -56,6 +58,7 @@ def _client(config: Config, *, web_research: bool = False):
         network_access=web_research,
         reasoning_effort="high",
         disabled_mcp_servers=("openaiDeveloperDocs",),
+        log_directory=log_directory,
     )
 
 
@@ -101,7 +104,7 @@ def _run_stages(config: Config, run_dir: Path, stop_after: int | None, should_st
 
     def agent(name: str, *, web_research: bool = False) -> Any:
         if name not in clients:
-            clients[name] = _client(config, web_research=web_research)
+            clients[name] = _client(config, web_research=web_research, log_directory=run_dir / "agent_logs" / name)
         return clients[name]
 
     def stage(step: ProgramPipelineStep, producer: Any) -> None:

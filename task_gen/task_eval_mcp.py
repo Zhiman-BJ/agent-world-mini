@@ -129,6 +129,11 @@ class TaskEvalMcpServer:
             else None
         )
         self.calls = 0
+        self.solution_validator = None
+        if config.get("solution_validation"):
+            from task_gen.program.solution_validation import SolutionValidator
+
+            self.solution_validator = SolutionValidator(config, defer_baseline=True)
         self.choices = None
         self.choice_tool = None
         if 'review_choice_seed' in config:
@@ -157,9 +162,14 @@ class TaskEvalMcpServer:
                 },
             }
         if method == "tools/list":
-            tools = public_tools(self.tools.values())
+            tools = public_tools(self.tools.values(), scope_mounts=self.scope_mounts)
             if self.choice_tool:
                 tools.append(self.choice_tool)
+            if self.solution_validator is not None:
+                from task_gen.program.solution_validation import SUBMISSION_TOOL, TOOL
+
+                tools.append(TOOL)
+                tools.append(SUBMISSION_TOOL)
             return {"tools": tools}
         if method == "tools/call":
             return self._call(request.get("params"))
@@ -174,8 +184,10 @@ class TaskEvalMcpServer:
             raise RpcError(-32602, "tools/call 缺少 params")
         name, arguments = params.get("name"), params.get("arguments", {})
         is_choice = self.choice_tool is not None and name == self.choice_tool['name']
+        is_validation = self.solution_validator is not None and name == "validate_solution_calls"
+        is_submission = self.solution_validator is not None and name == "submit_validated_solution"
         if not isinstance(name, str) or (
-            name not in self.tools and not is_choice
+            name not in self.tools and not is_choice and not is_validation and not is_submission
         ):
             raise RpcError(-32602, f"未知工具：{name}")
         if not isinstance(arguments, dict):
@@ -214,6 +226,25 @@ class TaskEvalMcpServer:
                 }, ensure_ascii=False, allow_nan=False) + "\n")
             raise RpcError(-32000, "工具调用次数已达到上限")
         self.calls += 1
+        if is_validation:
+            try:
+                payload = self.solution_validator.validate(arguments)
+            except ValueError as error:
+                return tool_call_result({"execution_passed": False, "error": str(error)}, is_error=True)
+            feedback_fields = (
+                "validation_id", "execution_passed", "source_check_passed",
+                "failed_call", "call_count", "source_check_errors",
+            )
+            payload = {**{field: payload[field] for field in feedback_fields if field in payload}, **payload}
+            return tool_call_result(payload, is_error=False)
+        if is_submission:
+            try:
+                payload = self.solution_validator.submit(arguments)
+            except ValueError as error:
+                return tool_call_result({"accepted": False, "error": str(error)}, is_error=True)
+            return tool_call_result(payload, is_error=False)
+        if self.solution_validator is not None:
+            self.solution_validator.ensure_baseline()
         if is_choice:
             try:
                 error = _schema_error(self.choice_tool['inputSchema'], arguments)
@@ -255,7 +286,10 @@ class TaskEvalMcpServer:
                 "message": str(record["error"]),
                 "retryable": timeout,
             }, "tool_result": payload}
-        return tool_call_result(payload, is_error=record["error"] is not None or business_failure)
+        is_error = record["error"] is not None or business_failure
+        output_schema = self.choice_tool["outputSchema"] if is_choice else self.tools[name]["outputSchema"]
+        structured = not is_error or _schema_error(output_schema, payload) is None
+        return tool_call_result(payload, is_error=is_error, structured=structured)
 
 def serve(config_path: Path, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> None:
     server = TaskEvalMcpServer(json.loads(config_path.read_text(encoding="utf-8")))

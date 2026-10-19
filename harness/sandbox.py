@@ -148,6 +148,23 @@ def _same_filesystem_replace(source, destination, *args, **kwargs):
 os.replace = _same_filesystem_replace
 os.rename = _same_filesystem_replace
 
+def json_native(value):
+    numpy = sys.modules.get("numpy")
+    if numpy is not None:
+        if isinstance(value, numpy.ndarray):
+            return json_native(value.tolist())
+        if isinstance(value, numpy.generic):
+            scalar = value.item()
+            if isinstance(scalar, numpy.generic):
+                raise TypeError("NumPy scalar has no lossless JSON representation")
+            return json_native(scalar)
+    if isinstance(value, dict):
+        return {key: json_native(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_native(item) for item in value]
+    return value
+
+
 @contextlib.contextmanager
 def quiet_native_stdout():
     # C/Fortran libraries bypass Python's redirect_stdout; stdout is our JSON wire.
@@ -202,7 +219,8 @@ try:
         if payload.get('software_root'):
             context.software_root = Path(payload['software_root'])
         result = run(deepcopy(payload["arguments"]), context)
-    json.dumps(result, ensure_ascii=False)
+    result = json_native(result)
+    json.dumps(result, ensure_ascii=False, allow_nan=False)
     response = {"result": result, "error": None}
 except BaseException as error:
     response = {"result": None, "error": f"{type(error).__name__}: {error}"}
@@ -244,12 +262,13 @@ def _workspace_usage(root: Path) -> tuple[int, int, str | None]:
         parent = Path(directory)
         for name in [*directories, *files]:
             path = parent / name
-            mode = path.lstat().st_mode
+            metadata = path.lstat()
+            mode = metadata.st_mode
             count += 1
             if stat.S_ISLNK(mode):
                 return total, count, f"workspace 包含符号链接：{path.relative_to(root)}"
             if stat.S_ISREG(mode):
-                total += path.stat().st_size
+                total += metadata.st_size
             elif not stat.S_ISDIR(mode):
                 return total, count, f"workspace 包含特殊文件：{path.relative_to(root)}"
     return total, count, None

@@ -128,6 +128,7 @@ def run_selected_steps(
     research_fixture_path: Path | None = None,
     research_attempts: int = 3,
     candidates_path: Path | None = None,
+    baseline_task_path: Path | None = None,
     overwrite: bool = False,
     agent_timeout_seconds: int = 3600,
     review_timeout_seconds: int = 600,
@@ -212,6 +213,7 @@ def run_selected_steps(
             generation_agent=workflow_agent,
             review_agent=review_agent,
             candidates_path=candidates_path,
+            baseline_task_path=baseline_task_path,
         )
     return results
 
@@ -226,11 +228,7 @@ def _policy(arguments: argparse.Namespace) -> ProgramGenerationPolicy:
         max_repair_rounds=arguments.max_repair_rounds,
         execution_timeout_seconds=arguments.execution_timeout_seconds,
         quality_timeout_seconds=arguments.quality_timeout_seconds,
-        minimum_effective_tool_calls=(
-            arguments.minimum_effective_tool_calls
-            if arguments.minimum_effective_tool_calls > 0
-            else None
-        ),
+        minimum_effective_tool_calls=arguments.minimum_effective_tool_calls,
     )
 
 
@@ -246,6 +244,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--research-fixture", type=Path)
     parser.add_argument("--candidates", type=Path)
+    parser.add_argument(
+        "--baseline-task",
+        type=Path,
+        help="可选的原任务 JSON；用于核对改写是否保留核心成果",
+    )
     parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--task-count", type=int, default=1)
     parser.add_argument(
@@ -268,8 +271,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--minimum-effective-tool-calls",
         type=int,
-        default=18,
-        help="生产任务至少需要的去重后有效工具调用数；设为 0 可关闭门槛",
+        default=None,
+        help="可选的有效业务调用数诊断下限；省略时不设置固定长度门槛",
     )
     parser.add_argument("--agent-timeout-seconds", type=int, default=3600)
     parser.add_argument(
@@ -309,8 +312,11 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
         raise ValueError(
             "--quality-timeout-seconds 必须大于 --execution-timeout-seconds"
         )
-    if arguments.minimum_effective_tool_calls < 0:
-        raise ValueError("--minimum-effective-tool-calls 不能小于 0")
+    if (
+        arguments.minimum_effective_tool_calls is not None
+        and arguments.minimum_effective_tool_calls < 1
+    ):
+        raise ValueError("--minimum-effective-tool-calls 必须为正整数或省略")
 
     binding_mode = arguments.binding is not None or arguments.package_id is not None
     legacy_mode = arguments.environment_package is not None
@@ -323,7 +329,7 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
             raise FileNotFoundError("--package-id 需要存在的 --delivery-root")
     if legacy_mode and not arguments.environment_package.exists():
         raise FileNotFoundError(f"找不到环境包：{arguments.environment_package}")
-    for name in ("tools_path", "scenario_research", "research_fixture", "candidates"):
+    for name in ("tools_path", "scenario_research", "research_fixture", "candidates", "baseline_task"):
         value = getattr(arguments, name)
         if value is not None and not value.is_file():
             raise FileNotFoundError(f"找不到 --{name.replace('_', '-')}：{value}")

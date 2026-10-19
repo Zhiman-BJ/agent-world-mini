@@ -3,6 +3,9 @@
 用真实公开数据构建可执行的工具环境，生成可重放的任务，再收集和验证模型的工具调用轨迹。
 `Zhiman-BJ/agent-world-mini` 的 `main` 是正式代码来源。批次配置、数据、运行日志和软件镜像按各自运行目录保存。
 
+新接手按[文档导航](docs/README.md)，先读[系统架构](docs/SYSTEM_ARCHITECTURE_ZH.md)，再按[快速上手](docs/QUICKSTART_ZH.md)操作。
+通用测评使用 [eval/](eval/README.md)，配置、已有现场验收和排错分别见文档首页。
+
 ## 数据流
 
 ```text
@@ -19,7 +22,7 @@ Seed → DataGen → ToolGen 交付包 → TaskGen → 模型执行与 Verifier 
 | Harness | 隔离执行、资源访问、任务状态、MCP 协议 | `harness/`、`utils/record_store.py` |
 | Program TaskGen | 交付包 → 场景调研、业务任务、参考程序和重放结果 | `task_gen/program/` |
 | Tool-graph TaskGen | 交付包 → 工具关系图、调用链、执行轨迹和任务 | `task_gen/tool_graph/` |
-| 评测与蒸馏 | 模型执行轨迹、最终状态、Verifier 判定和原始请求 | `task_gen/task_eval*.py`、`distill/` |
+| 评测与蒸馏 | 模型执行轨迹、最终状态、Verifier 判定和原始请求 | `eval/`、`distill/`，旧 ReAct/SDK 入口在 `task_gen/task_eval.py` |
 | 训练数据构建 | 已验证轨迹 → 标准 JSONL、工具定义、上下文窗口和审计信息 | `distill/dataset/` |
 
 Program 和 Tool-graph 是两种任务生成策略，各自保留正式入口，使用同一份工具交付与执行契约。
@@ -31,7 +34,8 @@ Program 和 Tool-graph 是两种任务生成策略，各自保留正式入口，
 
 ## 安装与运行
 
-需要 Python 3.10+。隔离执行使用 Linux bubblewrap 或交付绑定的 Docker 镜像；生成与评测需各自的模型配置。
+推荐 Python 3.12，当前 Verifier 需要 Python >=3.11 的标准库接口（包元数据的 >=3.10 尚未同步）。
+隔离执行使用 Linux bubblewrap、受限直接进程或交付绑定的 Docker 镜像；生成与评测需各自的模型配置。
 
 ```bash
 python -m pip install -e .
@@ -40,6 +44,7 @@ python -m env_gen.tool_gen --help
 python -m task_gen.program --help
 python -m task_gen.tool_graph --help
 python -m distill --help
+python -m eval --help
 ```
 
 交付包以 `delivery/environments/<environment_id>/binding.json` 为入口，绑定环境、正式工具、验证回执与软件或镜像。

@@ -23,6 +23,8 @@ from .relay import _stream_error
 from .runner import (
     KIMI_K3_CONTEXT_SIZE,
     KIMI_K3_OUTPUT_SIZE,
+    KIMI_READ_DEFAULT_MAX_CHARS,
+    KIMI_READ_MAX_CHARS,
     KIMI_K3_DEFAULT_EFFORT,
     KIMI_K3_EFFORTS,
     KIMI_DEFAULT_MAX_TOOL_CALLS,
@@ -61,6 +63,8 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "max_context_size": arguments.max_context_size,
         "max_output_size": arguments.max_output_size,
         "compaction_trigger_ratio": arguments.compaction_trigger_ratio,
+        "read_default_max_chars": arguments.read_default_max_chars,
+        "read_max_chars": arguments.read_max_chars,
         "model_id": arguments.model_id,
         "model_alias": arguments.model_alias,
         "provider_type": arguments.provider_type,
@@ -877,6 +881,14 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--model-alias", default="evaluation")
     parser.add_argument(
+        "--read-default-max-chars", type=int, default=KIMI_READ_DEFAULT_MAX_CHARS,
+        help="原生 Read 默认输出字符数，按 UTF-16 码元计数，不是 token 数",
+    )
+    parser.add_argument(
+        "--read-max-chars", type=int, default=KIMI_READ_MAX_CHARS,
+        help="原生 Read 输出字符硬上限；超大请求分段读取",
+    )
+    parser.add_argument(
         "--compaction-trigger-ratio", type=float,
         help="official Kimi early-compaction threshold, between 0.5 and 0.99",
     )
@@ -1062,9 +1074,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    arguments = parser.parse_args()
+    arguments = parser.parse_args(argv)
     for name in (
         "limit", "sample_size", "max_concurrency", "min_concurrency", "max_environment_errors", "max_environment_errors_per_task",
         "max_tool_calls", "tool_timeout", "tool_memory_limit",

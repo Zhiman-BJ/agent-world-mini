@@ -2,7 +2,9 @@
 
 本文只描述当前代码。做正式测评、定位工具问题或增加新调用方时，先按这张地图找入口，不要从历史 TaskGen 私有函数反推主链。
 
-## 1. 正式测评时模型能调用什么
+## 1. 架构与协议
+
+### 1.1 模型可见工具
 
 Kimi Code 的模型请求中只有两类工具：
 
@@ -16,10 +18,11 @@ mcp__agent_world_distill__<business_tool>
 - `Read/Grep/Glob` 是 Kimi 原生文件工具。
 - `<business_tool>` 来自当前 ToolGen 交付包的 `tools.json`。
 - `mcp__agent_world_distill__` 是 Kimi MCP Client 添加的命名空间，不是业务工具名，也不写入 ToolGen Schema。
+- 新实验可显式设置 `--mcp-server-name workspace`，此时名称为 `mcp__workspace__<business_tool>`；注册、allowlist 与请求工具表必须一致。默认 namespace 未被自动改写。
 - `initialize`、`tools/list`、`tools/call`、`resources/list`、`resources/read` 是 MCP JSON-RPC 方法，不是额外的模型 function tools。
 - 当前没有自定义 `read_tool_result`；长结果由 Kimi 自己写入 session 的 `tool-results/`。
 
-## 2. 正式测评主链
+### 1.2 正式测评调用链
 
 ```text
 distill.runner.run_k3_distillation
@@ -28,9 +31,11 @@ distill.runner.run_k3_distillation
   -> task_gen.task_eval_kimi_mcp（stdio 入口和 Kimi Schema 适配）
   -> task_gen.task_eval_mcp.TaskEvalMcpServer（任务级 MCP）
   -> harness.execution.call_environment_tool（唯一业务执行事务）
-  -> harness.sandbox / Docker delivery runtime
+  -> 任务工作区执行后端（非 Docker: run_tool_direct；Docker: 交付后端）
   -> ToolGen internal.code
 ```
+
+上述后端选择由工作区布局与 runtime 共同决定；通用 MCP 和 Program 的分支不同，详见[运行时与隔离](TOOL_RUNTIME_ZH.md)。
 
 模型发起原生文件调用时走另一条链：
 
@@ -42,7 +47,7 @@ Kimi Read/Grep/Glob
   -> Kimi 原生工具执行
 ```
 
-## 3. 一条任务的实际目录
+### 1.3 任务目录与状态
 
 正式 `distill.runner` 调用 `create_task_run_layout(..., environment=...)` 后，文件 Scope 会被复制到 Kimi 的真实工作目录：
 
@@ -73,7 +78,7 @@ Kimi home 是每条任务独享的临时目录。任务结束时，其 session �
 - `scope_mounts`：Scope 到工作目录的映射；
 - `raw`：证据。
 
-## 4. 路径契约
+### 1.4 路径契约
 
 模型看到并传给业务工具的是工作目录路径：
 
@@ -92,7 +97,9 @@ resources/read -> 接收上一步 URI 并读取对应资源
 
 业务工具参数和返回值不得包含 `aw://`。正式 Kimi 工具表也不会把 `resources/list/read` 注册成 function tool，因此 URI 不进入正常任务调用链。
 
-## 5. 代码归属
+## 2. 实现地图
+
+### 2.1 代码职责
 
 | 层 | 当前唯一职责 | 代码 |
 | --- | --- | --- |
@@ -107,8 +114,9 @@ resources/read -> 接收上一步 URI 并读取对应资源
 | 测评 MCP | 任务状态、trace、review choice、预算 | `task_gen/task_eval_mcp.py` |
 | Kimi MCP 适配 | stdio 启动参数和 Kimi Schema 兼容 | `task_gen/task_eval_kimi_mcp.py` |
 | 正式测评编排 | Kimi CLI、relay、证据与 trajectory | `distill/runner.py` |
+| 统一入口与正式验收 | CLI、已有现场、摘要、只读调查 | `eval/`，运行继续复用 distill |
 
-## 6. 为什么仍有两套 MCP Server
+### 2.2 两套 MCP Server 的生命周期
 
 它们面向不同生命周期，不是两套业务执行器：
 
@@ -117,7 +125,7 @@ resources/read -> 接收上一步 URI 并读取对应资源
 
 两者共用 `harness.mcp_protocol`、`harness.mcp_resources` 和 `harness.execution.call_environment_tool`。不应把二者生命周期强行合成一个大类。
 
-## 7. 其他调用方
+### 2.3 其他调用方
 
 - `task_gen/task_eval_react.py`：ReAct 评测，直接调用 `call_environment_tool`。
 - `task_gen/program/utils/tool_runtime.py`：Program-form TaskGen 的参考解/重放包装器，业务调用最终委托 `call_environment_tool`。
@@ -125,7 +133,9 @@ resources/read -> 接收上一步 URI 并读取对应资源
 - `task_gen/tool_graph/step_3_chain_execute.py`：历史 fixed-chain replay；不是正式 Kimi 测评入口，不应被新代码依赖。
 - `task_gen/tool_graph/state_runtime.py`：沙盒内 Context 和状态快照实现，不是 MCP Server。
 
-## 8. 增加新调用方的规则
+## 3. 接入与验证
+
+### 3.1 增加新调用方
 
 1. 从 `binding.json` 用 `harness.delivery.load_delivery()` 加载工具与 runtime。
 2. 用 `create_task_run_layout(..., environment=environment)` 创建任务目录。
@@ -135,7 +145,7 @@ resources/read -> 接收上一步 URI 并读取对应资源
 6. 不把宿主路径、`private-state`、`raw`、verifier 文件或 Resource URI写进任务 prompt。
 7. 新测试至少覆盖 `tools/list`、成功调用、失败回滚、路径转换和越权文件读取。
 
-## 9. 测评前检查
+### 3.2 测评前检查
 
 ```bash
 python -m pytest -q \

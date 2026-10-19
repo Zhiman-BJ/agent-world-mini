@@ -1,0 +1,1280 @@
+{
+  "k_mesh_from_samples": {
+    "tool": {
+      "name": "k_mesh_from_samples",
+      "description": "根据实际采样记录和原始 k 点或路径节点建立或核对 k 空间采样网格，并生成可复用的网格文件。",
+      "usageConditions": {
+        "targetResources": [
+          "sampling_grids",
+          "domain_materials"
+        ],
+        "targetObjects": [
+          {
+            "objectType": "采样集合和 k 空间原始文件",
+            "identifiedBy": [
+              "grid_id",
+              "input_path",
+              "output_path"
+            ]
+          }
+        ],
+        "preconditions": [
+          "采样记录或原始 k 点/路径文件存在，且采样维度和单位已明确。"
+        ],
+        "sideEffects": [
+          "成功后在材料范围内生成或更新用户指定的 k 空间采样网格文件。"
+        ]
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "grid_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input_path": {
+            "type": "string",
+            "x-resource-scope": "domain_materials",
+            "x-resource-kind": "file",
+            "minLength": 1
+          },
+          "output_path": {
+            "type": "string",
+            "x-resource-scope": "domain_materials",
+            "x-resource-kind": "file",
+            "minLength": 1
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "path",
+              "points",
+              "grid"
+            ]
+          }
+        },
+        "required": [
+          "grid_id",
+          "input_path",
+          "output_path"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "output_path": {
+                    "type": "string",
+                    "x-resource-scope": "domain_materials",
+                    "x-resource-kind": "file"
+                  },
+                  "metadata_path": {
+                    "type": "string",
+                    "x-resource-scope": "domain_materials",
+                    "x-resource-kind": "file"
+                  },
+                  "grid_id": {
+                    "type": "string"
+                  },
+                  "point_count": {
+                    "type": "integer"
+                  },
+                  "dimension": {
+                    "type": "integer"
+                  },
+                  "source_shape": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "mode": {
+                    "type": "string"
+                  },
+                  "verified": {
+                    "type": "boolean"
+                  },
+                  "unique_points": {
+                    "type": "integer"
+                  },
+                  "max_step": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "output_path",
+                  "metadata_path",
+                  "grid_id",
+                  "point_count",
+                  "dimension",
+                  "source_shape",
+                  "mode",
+                  "verified",
+                  "unique_points",
+                  "max_step"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_input",
+                      "not_found",
+                      "invalid_relation",
+                      "parse_error",
+                      "write_error"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message",
+                  "retryable"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(arguments, context):\n import json\n from pathlib import Path\n import numpy as np\n def f(c,p,m):return {'success':False,'error':{'code':c,'path':p,'message':m,'retryable':False}}\n def s(root,x):\n  if not isinstance(x,str) or not x or Path(x).is_absolute() or '..' in Path(x).parts:return None\n  return root/Path(x)\n gid=str(arguments.get('grid_id','')); ip=str(arguments.get('input_path','')); opath=str(arguments.get('output_path','')); mode=str(arguments.get('mode','path')); g=context.records.get('sampling_grids',{'grid_id':gid})\n if g is None:return f('not_found','grid_id','sampling grid not found')\n if mode not in ('path','points','grid'):return f('invalid_input','mode','invalid mode')\n root=context.scope_root('domain_materials');p=s(root,ip);op=s(root,opath)\n if p is None or op is None:return f('invalid_input','input_path','paths must be Scope-relative')\n if not p.is_file():return f('not_found',ip,'sampling file not found')\n if ip not in (g.get('source_paths') or []):return f('invalid_relation','input_path','input is not registered in source_paths')\n try:\n  a=np.asarray(np.load(p,allow_pickle=False) if p.suffix.lower()=='.npy' else np.loadtxt(p)); shape=[int(x) for x in a.shape]\n  if a.ndim==3 and a.shape[0]==1:a=a[0]\n  if a.ndim!=2 or a.shape[1]!=int(g['dimension']):return f('invalid_input','input_path','sampling array must be N x dimension')\n  if a.shape[0]!=int(g['point_count']):return f('invalid_relation','input_path','point count mismatch')\n  if not np.isfinite(a).all():return f('parse_error',ip,'sampling array contains non-finite values')\n  if mode=='grid':\n   axes=[np.unique(a[:,j]) for j in range(a.shape[1])]\n   if int(np.prod([len(x) for x in axes]))==a.shape[0]:a=np.array(np.meshgrid(*axes,indexing='ij')).reshape(a.shape[1],-1).T\n  op.parent.mkdir(parents=True,exist_ok=True);np.save(op,a,allow_pickle=False); step=np.linalg.norm(np.diff(a,axis=0),axis=1) if len(a)>1 else np.array([0.0]); meta={'grid_id':gid,'mode':mode,'point_count':int(a.shape[0]),'dimension':int(a.shape[1]),'source_shape':shape,'verified':True,'unique_points':int(np.unique(a,axis=0).shape[0]),'max_step':float(step.max())};mp=Path(str(op)+'.meta.json');mp.write_text(json.dumps(meta,ensure_ascii=False,indent=2)+'\\\\n')\n  return {'success':True,'data':{'output_path':str(Path(opath).as_posix()),'metadata_path':str(Path(opath+'.meta.json').as_posix()),**meta}}\n except (OSError,ValueError,TypeError) as e:return f('write_error',ip,str(e))"
+      }
+    },
+    "tests": [
+      {
+        "calls": [
+          {
+            "tool": "k_mesh_from_samples",
+            "arguments": {
+              "grid_id": "graphene_train_kpath_300",
+              "input_path": "sources/dpnegf_graphene_hbn_cnt/examples/graphene/train/data/kpath.0/kpoints.npy",
+              "output_path": "generated/graphene_kpath.npy",
+              "mode": "path"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": true,
+        "expected_data": {
+          "grid_id": "graphene_train_kpath_300",
+          "point_count": 300,
+          "dimension": 3,
+          "verified": true
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "k_mesh_from_samples",
+            "arguments": {
+              "grid_id": "graphene_train_kpath_300",
+              "input_path": "sources/dpnegf_graphene_hbn_cnt/examples/graphene/train/data/kpath.0/missing.npy",
+              "output_path": "generated/missing.npy"
+            }
+          }
+        ],
+        "expect_success": false,
+        "expect_changed": false
+      }
+    ]
+  },
+  "simulate_openilt_aerial_image": {
+    "tool": {
+      "name": "simulate_openilt_aerial_image",
+      "description": "Run the official OpenILT fixed-kernel FFT convolution on a registered real raster mask for a requested focus or defocus condition and return the aerial image and intensity statistics.",
+      "usageConditions": {
+        "targetResources": [
+          "raster_masks",
+          "optical_configs",
+          "opc_workspace"
+        ],
+        "targetObjects": [
+          {
+            "objectType": "栅格掩膜",
+            "identifiedBy": [
+              "mask_raster_id"
+            ]
+          },
+          {
+            "objectType": "OpenILT 光学模型",
+            "identifiedBy": [
+              "model_config_id",
+              "kernel_config_ids",
+              "focus_condition"
+            ]
+          }
+        ],
+        "preconditions": [
+          "掩膜、模型配置、核与尺度文件必须存在并属于可共同使用的模型，掩膜尺寸和核输入要求必须兼容。"
+        ],
+        "sideEffects": []
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mask_raster_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kernel_config_ids": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "focus_condition": {
+            "type": "string",
+            "enum": [
+              "focus",
+              "defocus"
+            ]
+          }
+        },
+        "required": [
+          "mask_raster_id",
+          "model_config_id",
+          "kernel_config_ids",
+          "focus_condition"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "mask_raster_id": {
+                    "type": "string"
+                  },
+                  "model_config_id": {
+                    "type": "string"
+                  },
+                  "kernel_config_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "focus_condition": {
+                    "type": "string"
+                  },
+                  "dose": {
+                    "type": "number"
+                  },
+                  "kernel_count": {
+                    "type": "integer"
+                  },
+                  "shape": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "aerial_image": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "intensity_min": {
+                    "type": "number"
+                  },
+                  "intensity_max": {
+                    "type": "number"
+                  },
+                  "intensity_mean": {
+                    "type": "number"
+                  },
+                  "intensity_sum": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "mask_raster_id",
+                  "model_config_id",
+                  "kernel_config_ids",
+                  "focus_condition",
+                  "dose",
+                  "kernel_count",
+                  "shape",
+                  "aerial_image",
+                  "intensity_min",
+                  "intensity_max",
+                  "intensity_mean",
+                  "intensity_sum"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "not_found",
+                      "missing_file",
+                      "invalid_path",
+                      "incompatible_model",
+                      "invalid_config",
+                      "invalid_kernel",
+                      "processing_failed"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message",
+                  "retryable"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "import math\n\nimport numpy as np\nfrom PIL import Image\nimport torch\n\ndef _failure(code, path, message, retryable=False):\n    return {'success': False, 'error': {'code': code, 'path': path, 'message': message, 'retryable': retryable}}\n\n\ndef _scope_path(context, relative_path, must_exist=True):\n    from pathlib import Path\n    root = context.scope_root('opc_workspace').resolve()\n    candidate = (root / relative_path).resolve()\n    try:\n        candidate.relative_to(root)\n    except ValueError as error:\n        raise ValueError('Path escapes opc_workspace.') from error\n    if must_exist and not candidate.is_file():\n        raise FileNotFoundError(relative_path)\n    return candidate\n\n\n\ndef _parse_config(text):\n    values = {}\n    for raw in text.splitlines():\n        pieces = raw.strip().split()\n        if len(pieces) >= 2:\n            values[pieces[0]] = pieces[1]\n    required = ('KernelNum', 'DoseNom', 'DoseMin')\n    if any(key not in values for key in required):\n        raise ValueError('Model configuration lacks KernelNum, DoseNom, or DoseMin.')\n    return {'KernelNum': int(values['KernelNum']), 'DoseNom': float(values['DoseNom']), 'DoseMin': float(values['DoseMin'])}\n\n\ndef _kernel_mult(kernels, mask_fft, count):\n    kh, kw = kernels.shape[-2:]\n    hh, hw = kh // 2, kw // 2\n    output = torch.zeros((count, mask_fft.shape[-2], mask_fft.shape[-1]), dtype=mask_fft.dtype)\n    output[:, :hh + 1, :hw + 1] = mask_fft[:, :hh + 1, :hw + 1] * kernels[:count, -(hh + 1):, -(hw + 1):]\n    output[:, :hh + 1, -hw:] = mask_fft[:, :hh + 1, -hw:] * kernels[:count, -(hh + 1):, :hw]\n    output[:, -hh:, :hw + 1] = mask_fft[:, -hh:, :hw + 1] * kernels[:count, :hh, -(hw + 1):]\n    output[:, -hh:, -hw:] = mask_fft[:, -hh:, -hw:] * kernels[:count, :hh, :hw]\n    return output\n\n\ndef run(arguments, context):\n    mask_id, model_id = arguments['mask_raster_id'], arguments['model_config_id']\n    mask_record = context.records.get('raster_masks', {'raster_id': mask_id})\n    if mask_record is None:\n        return _failure('not_found', 'mask_raster_id', 'No raster mask exists for the supplied ID.')\n    model = context.records.get('optical_configs', {'config_id': model_id})\n    if model is None:\n        return _failure('not_found', 'model_config_id', 'No model configuration exists for the supplied ID.')\n    if model['config_kind'] != 'text_parameters':\n        return _failure('invalid_config', 'model_config_id', 'The model configuration must be a text parameter record.')\n    kernel_records = []\n    for index, config_id in enumerate(arguments['kernel_config_ids']):\n        record = context.records.get('optical_configs', {'config_id': config_id})\n        if record is None:\n            return _failure('not_found', 'kernel_config_ids[' + str(index) + ']', 'No kernel configuration exists for the supplied ID.')\n        kernel_records.append(record)\n    condition = arguments['focus_condition']\n    expected_word = 'defocus' if condition == 'defocus' else 'focus'\n    if any(record['config_kind'] != 'torch_tensor_archive' for record in kernel_records) or any(expected_word not in record['config_id'].lower() for record in kernel_records):\n        return _failure('incompatible_model', 'kernel_config_ids', 'Kernel records do not match the requested focus condition.')\n    if any(record['experiment_id'] != model['experiment_id'] for record in kernel_records):\n        return _failure('incompatible_model', 'kernel_config_ids', 'Model and kernels are not from the shared optical model.')\n    try:\n        mask_path = _scope_path(context, mask_record['source_path'])\n        model_path = _scope_path(context, model['source_path'])\n        kernel_paths = [_scope_path(context, record['source_path']) for record in kernel_records]\n    except ValueError as error:\n        return _failure('invalid_path', 'kernel_config_ids', str(error))\n    except FileNotFoundError:\n        return _failure('missing_file', 'kernel_config_ids', 'A registered model input file is missing.')\n    try:\n        config = _parse_config(model_path.read_text(encoding='utf-8'))\n        loaded = [torch.load(path, map_location='cpu', weights_only=True) for path in kernel_paths]\n        complex_items = [item for item in loaded if isinstance(item, torch.Tensor) and item.is_complex() and item.ndim == 3]\n        real_items = [item for item in loaded if isinstance(item, torch.Tensor) and not item.is_complex() and item.ndim == 1]\n        if len(complex_items) != 1 or len(real_items) != 1:\n            return _failure('invalid_kernel', 'kernel_config_ids', 'Exactly one 3-D complex kernel and one 1-D real scale tensor are required.')\n        kernels = complex_items[0].permute(2, 0, 1).to(torch.complex64)\n        scales = real_items[0].to(torch.float32)\n        count = config['KernelNum']\n        if count < 1 or count > kernels.shape[0] or count > scales.shape[0]:\n            return _failure('invalid_kernel', 'kernel_config_ids', 'KernelNum exceeds the supplied kernel or scale tensor.')\n        with Image.open(mask_path) as image:\n            pixels = np.asarray(image.convert('L'), dtype=np.float32)\n        if pixels.shape[0] < kernels.shape[1] or pixels.shape[1] < kernels.shape[2]:\n            return _failure('incompatible_model', 'mask_raster_id', 'Mask dimensions are smaller than the optical kernel.')\n        mask = torch.from_numpy(pixels / (255.0 if float(pixels.max()) > 1.0 else 1.0))\n        dose = config['DoseMin'] if condition == 'defocus' else config['DoseNom']\n        cmask = (mask * dose).to(torch.complex64).unsqueeze(0)\n        mask_fft = torch.fft.fft2(cmask, norm='forward')\n        filtered = _kernel_mult(kernels, mask_fft, count)\n        fields = torch.fft.ifft2(filtered, norm='forward')\n        aerial = torch.sum(scales[:count, None, None] * torch.abs(fields) ** 2, dim=0).real\n        if not bool(torch.isfinite(aerial).all()):\n            return _failure('processing_failed', 'kernel_config_ids', 'The OpenILT convolution produced non-finite values.')\n        values = aerial.detach().cpu().numpy()\n        return {'success': True, 'data': {\n            'mask_raster_id': mask_id, 'model_config_id': model_id, 'kernel_config_ids': arguments['kernel_config_ids'],\n            'focus_condition': condition, 'dose': float(dose), 'kernel_count': count, 'shape': list(values.shape),\n            'aerial_image': values.tolist(), 'intensity_min': float(values.min()), 'intensity_max': float(values.max()),\n            'intensity_mean': float(values.mean()), 'intensity_sum': float(values.sum()),\n        }}\n    except (OSError, RuntimeError, ValueError, TypeError) as error:\n        return _failure('processing_failed', 'kernel_config_ids', 'OpenILT simulation failed: ' + str(error), True)\n"
+      }
+    },
+    "tests": [
+      {
+        "calls": [
+          {
+            "tool": "simulate_openilt_aerial_image",
+            "arguments": {
+              "mask_raster_id": "tiny_pbm",
+              "model_config_id": "lithoiccad13",
+              "kernel_config_ids": [
+                "focus",
+                "focus_scales"
+              ],
+              "focus_condition": "focus"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "focus_condition": "focus",
+          "dose": 1.0,
+          "kernel_count": 24,
+          "shape": [
+            300,
+            300
+          ]
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "simulate_openilt_aerial_image",
+            "arguments": {
+              "mask_raster_id": "tiny_pbm",
+              "model_config_id": "lithoiccad13",
+              "kernel_config_ids": [
+                "defocus",
+                "defocus_scales"
+              ],
+              "focus_condition": "defocus"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "focus_condition": "defocus",
+          "dose": 0.98,
+          "kernel_count": 24,
+          "shape": [
+            300,
+            300
+          ]
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "simulate_openilt_aerial_image",
+            "arguments": {
+              "mask_raster_id": "tiny_pbm",
+              "model_config_id": "lithoiccad13",
+              "kernel_config_ids": [
+                "focus",
+                "focus_scales"
+              ],
+              "focus_condition": "defocus"
+            }
+          }
+        ],
+        "expect_success": false,
+        "expect_changed": false
+      }
+    ]
+  },
+  "relate_calculations_host_id_to_hosts": {
+    "tool": {
+      "name": "relate_calculations_host_id_to_hosts",
+      "description": "查询计算所属材料体系，支持从任一侧定位关联记录；空关联返回无结果。",
+      "usageConditions": {
+        "targetResources": [
+          "calculations",
+          "hosts"
+        ],
+        "targetObjects": [
+          {
+            "objectType": "计算",
+            "identifiedBy": [
+              "calculation_id"
+            ]
+          },
+          {
+            "objectType": "材料体系",
+            "identifiedBy": [
+              "host_id"
+            ]
+          }
+        ],
+        "preconditions": [
+          "至少指定一侧存在的记录。"
+        ],
+        "sideEffects": []
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "calculation_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "计算目录或来源 ID"
+          },
+          "host_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "按宿主 ID 查询该材料体系名下的全部计算记录；与 calculation_id 二选一使用。"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true,
+                "description": "表示工具已成功完成请求且 data 中包含可用结果。"
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "calculations": {
+                    "description": "关联到的计算记录列表；从计算侧查询时不返回该列表。"
+                  },
+                  "hosts": {
+                    "description": "关联到的宿主材料体系记录列表，从计算侧查询且存在 host_id 时含一条。"
+                  },
+                  "relation_count": {
+                    "description": "本次查到的关联数量：按计算查询为 0 或 1，按宿主查询为计算记录数。"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false,
+                "description": "工具成功执行时返回的结构化业务结果。"
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false,
+                "description": "表示工具未完成请求且 error 中包含失败详情。"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "not_found",
+                      "parse_error",
+                      "io_error",
+                      "dependency_error",
+                      "already_exists",
+                      "missing_input",
+                      "validation_error"
+                    ],
+                    "description": "稳定的机器可读错误代码，用于区分失败原因。"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "与错误相关的输入字段或数据位置；无法定位到具体位置时可为空。"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "面向调用者的错误说明，包含失败原因和必要的修正线索。"
+                  },
+                  "retryable": {
+                    "type": "boolean",
+                    "description": "在不修改请求参数或环境状态的情况下，重试是否可能成功。"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message",
+                  "retryable"
+                ],
+                "additionalProperties": false,
+                "description": "工具未能完成请求时返回的结构化错误详情。"
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(a,context):\n def fail(p,m):return {'success':False,'error':{'code':'not_found','path':p,'message':m,'retryable':False}}\n if 'calculation_id' in a:\n  r=context.records.get('calculations',{'calculation_id':a['calculation_id']})\n  if r is None:return fail('calculation_id','计算不存在')\n  h=r.get('host_id');return {'success':True,'data':{'relation_count':1 if h else 0,'hosts':[{'host_id':h}] if h else []}}\n if 'host_id' in a:\n  rs=context.records.list('calculations',filters={'host_id':a['host_id']},limit=10000,offset=0);return {'success':True,'data':{'relation_count':len(rs)}}\n return {'success':False,'error':{'code':'invalid_argument','path':'calculation_id','message':'需要过滤键','retryable':False}}"
+      }
+    },
+    "tests": [
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_host_id_to_hosts",
+            "arguments": {
+              "calculation_id": "cdte:v_Cd_-1/vasp_ncl/vasprun.xml.gz"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 1,
+          "hosts": [
+            {
+              "host_id": "cdte"
+            }
+          ]
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_host_id_to_hosts",
+            "arguments": {
+              "host_id": "cdte"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 9
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_host_id_to_hosts",
+            "arguments": {
+              "calculation_id": "missing-calculation"
+            }
+          }
+        ],
+        "expect_success": false,
+        "expect_changed": false
+      }
+    ]
+  },
+  "relate_calculations_configuration_id_to_configurations": {
+    "tool": {
+      "name": "relate_calculations_configuration_id_to_configurations",
+      "description": "查询计算对应缺陷构型，支持从任一侧定位关联记录；空关联返回无结果。",
+      "usageConditions": {
+        "targetResources": [
+          "calculations",
+          "configurations"
+        ],
+        "targetObjects": [
+          {
+            "objectType": "计算",
+            "identifiedBy": [
+              "calculation_id"
+            ]
+          },
+          {
+            "objectType": "缺陷构型",
+            "identifiedBy": [
+              "configuration_id"
+            ]
+          }
+        ],
+        "preconditions": [
+          "至少指定一侧存在的记录。"
+        ],
+        "sideEffects": []
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "calculation_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "计算目录或来源 ID"
+          },
+          "configuration_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "按缺陷构型 ID 查询该构型名下的全部计算记录；与 calculation_id 二选一使用。"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true,
+                "description": "表示工具已成功完成请求且 data 中包含可用结果。"
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "calculations": {
+                    "description": "计算无关联构型时回显的该计算记录列表；其他场景可能不返回。"
+                  },
+                  "configurations": {
+                    "description": "关联到的缺陷构型记录列表，从计算侧查询且存在构型时含一条。"
+                  },
+                  "relation_count": {
+                    "description": "本次查到的关联数量：按计算查询为 0 或 1，按构型查询为计算记录数。"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false,
+                "description": "工具成功执行时返回的结构化业务结果。"
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false,
+                "description": "表示工具未完成请求且 error 中包含失败详情。"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "not_found",
+                      "parse_error",
+                      "io_error",
+                      "dependency_error",
+                      "already_exists",
+                      "missing_input",
+                      "validation_error"
+                    ],
+                    "description": "稳定的机器可读错误代码，用于区分失败原因。"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "与错误相关的输入字段或数据位置；无法定位到具体位置时可为空。"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "面向调用者的错误说明，包含失败原因和必要的修正线索。"
+                  },
+                  "retryable": {
+                    "type": "boolean",
+                    "description": "在不修改请求参数或环境状态的情况下，重试是否可能成功。"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message",
+                  "retryable"
+                ],
+                "additionalProperties": false,
+                "description": "工具未能完成请求时返回的结构化错误详情。"
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(a,context):\n if 'calculation_id' in a:\n  r=context.records.get('calculations',{'calculation_id':a['calculation_id']})\n  if r is None:return {'success':False,'error':{'code':'not_found','path':'calculation_id','message':'计算不存在','retryable':False}}\n  cfg=r.get('configuration_id')\n  if cfg:return {'success':True,'data':{'relation_count':1,'configurations':[{'configuration_id':cfg}]}}\n  return {'success':True,'data':{'relation_count':0,'calculations':[{'calculation_id':a['calculation_id']}]}}\n if 'configuration_id' in a:\n  rs=context.records.list('calculations',filters={'configuration_id':a['configuration_id']},limit=10000,offset=0);return {'success':True,'data':{'relation_count':len(rs)}}\n return {'success':False,'error':{'code':'invalid_argument','path':'calculation_id','message':'需要过滤键','retryable':False}}"
+      }
+    },
+    "tests": [
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_configuration_id_to_configurations",
+            "arguments": {
+              "calculation_id": "cdte:v_Cd_-1/vasp_ncl/vasprun.xml.gz"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 1,
+          "configurations": [
+            {
+              "configuration_id": "cdte:v_Cd"
+            }
+          ]
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_configuration_id_to_configurations",
+            "arguments": {
+              "configuration_id": "cdte:v_Cd"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 3
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_configuration_id_to_configurations",
+            "arguments": {
+              "calculation_id": "cdte:CdTe_bulk/vasp_ncl/vasprun.xml.gz"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 0,
+          "calculations": [
+            {
+              "calculation_id": "cdte:CdTe_bulk/vasp_ncl/vasprun.xml.gz"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "relate_calculations_reference_id_to_calculations": {
+    "tool": {
+      "name": "relate_calculations_reference_id_to_calculations",
+      "description": "查询缺陷计算与其 pristine/bulk 参照，支持从任一侧定位关联记录；空关联返回无结果。",
+      "usageConditions": {
+        "targetResources": [
+          "calculations"
+        ],
+        "targetObjects": [
+          {
+            "objectType": "计算",
+            "identifiedBy": [
+              "calculation_id"
+            ]
+          },
+          {
+            "objectType": "参照计算",
+            "identifiedBy": [
+              "reference_id"
+            ]
+          }
+        ],
+        "preconditions": [
+          "至少指定一侧存在的记录。"
+        ],
+        "sideEffects": []
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "calculation_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "计算目录或来源 ID"
+          },
+          "reference_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "同尺寸同方法 pristine/bulk 计算 ID"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true,
+                "description": "表示工具已成功完成请求且 data 中包含可用结果。"
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "calculations": {
+                    "description": "关联到的计算记录列表；当前实现仅返回数量，不返回该列表。"
+                  },
+                  "reference_calculations": {
+                    "description": "从缺陷计算侧查询时返回的同尺寸同方法 pristine/bulk 参照计算记录，存在参照时含一条。"
+                  },
+                  "relation_count": {
+                    "description": "本次查到的关联数量：按计算查询为 0 或 1，按参照计算查询为以该计算为参照的记录数。"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false,
+                "description": "工具成功执行时返回的结构化业务结果。"
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false,
+                "description": "表示工具未完成请求且 error 中包含失败详情。"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "not_found",
+                      "parse_error",
+                      "io_error",
+                      "dependency_error",
+                      "already_exists",
+                      "missing_input",
+                      "validation_error"
+                    ],
+                    "description": "稳定的机器可读错误代码，用于区分失败原因。"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "与错误相关的输入字段或数据位置；无法定位到具体位置时可为空。"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "面向调用者的错误说明，包含失败原因和必要的修正线索。"
+                  },
+                  "retryable": {
+                    "type": "boolean",
+                    "description": "在不修改请求参数或环境状态的情况下，重试是否可能成功。"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message",
+                  "retryable"
+                ],
+                "additionalProperties": false,
+                "description": "工具未能完成请求时返回的结构化错误详情。"
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(a,context):\n if 'calculation_id' in a:\n  r=context.records.get('calculations',{'calculation_id':a['calculation_id']})\n  if r is None:return {'success':False,'error':{'code':'not_found','path':'calculation_id','message':'计算不存在','retryable':False}}\n  ref=r.get('reference_id');return {'success':True,'data':({'relation_count':1,'reference_calculations':[{'calculation_id':ref}]} if ref else {'relation_count':0})}\n if 'reference_id' in a:\n  rs=context.records.list('calculations',filters={'reference_id':a['reference_id']},limit=10000,offset=0);return {'success':True,'data':{'relation_count':len(rs)}}\n return {'success':False,'error':{'code':'invalid_argument','path':'calculation_id','message':'需要过滤键','retryable':False}}"
+      }
+    },
+    "tests": [
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_reference_id_to_calculations",
+            "arguments": {
+              "calculation_id": "cdte:v_Cd_-1/vasp_ncl/vasprun.xml.gz"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 1,
+          "reference_calculations": [
+            {
+              "calculation_id": "cdte:CdTe_bulk/vasp_ncl/vasprun.xml.gz"
+            }
+          ]
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_reference_id_to_calculations",
+            "arguments": {
+              "reference_id": "cdte:CdTe_bulk/vasp_ncl/vasprun.xml.gz"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 7
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_calculations_reference_id_to_calculations",
+            "arguments": {
+              "calculation_id": "cdte:CdTe_bulk/vasp_gam/vasprun.xml.gz"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 0
+        }
+      }
+    ]
+  },
+  "relate_configurations_host_id_to_hosts": {
+    "tool": {
+      "name": "relate_configurations_host_id_to_hosts",
+      "description": "查询缺陷构型所属材料体系，支持从任一侧定位关联记录；空关联返回无结果。",
+      "usageConditions": {
+        "targetResources": [
+          "configurations",
+          "hosts"
+        ],
+        "targetObjects": [
+          {
+            "objectType": "缺陷构型",
+            "identifiedBy": [
+              "configuration_id"
+            ]
+          },
+          {
+            "objectType": "材料体系",
+            "identifiedBy": [
+              "host_id"
+            ]
+          }
+        ],
+        "preconditions": [
+          "至少指定一侧存在的记录。"
+        ],
+        "sideEffects": []
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "configuration_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "构型 ID"
+          },
+          "host_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "按宿主 ID 查询该材料体系名下的全部缺陷构型；与 configuration_id 二选一使用。"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true,
+                "description": "表示工具已成功完成请求且 data 中包含可用结果。"
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "configurations": {
+                    "description": "关联到的缺陷构型记录列表；按宿主查询时仅返回数量，不返回该列表。"
+                  },
+                  "hosts": {
+                    "description": "关联到的宿主材料体系记录列表，从构型侧查询时含一条。"
+                  },
+                  "relation_count": {
+                    "description": "本次查到的关联数量：按构型查询为 1，按宿主查询为构型记录数。"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false,
+                "description": "工具成功执行时返回的结构化业务结果。"
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false,
+                "description": "表示工具未完成请求且 error 中包含失败详情。"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "not_found",
+                      "parse_error",
+                      "io_error",
+                      "dependency_error",
+                      "already_exists",
+                      "missing_input",
+                      "validation_error"
+                    ],
+                    "description": "稳定的机器可读错误代码，用于区分失败原因。"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "与错误相关的输入字段或数据位置；无法定位到具体位置时可为空。"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "面向调用者的错误说明，包含失败原因和必要的修正线索。"
+                  },
+                  "retryable": {
+                    "type": "boolean",
+                    "description": "在不修改请求参数或环境状态的情况下，重试是否可能成功。"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message",
+                  "retryable"
+                ],
+                "additionalProperties": false,
+                "description": "工具未能完成请求时返回的结构化错误详情。"
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "internal": {
+        "code": "def run(a,context):\n if 'configuration_id' in a:\n  r=context.records.get('configurations',{'configuration_id':a['configuration_id']})\n  if r is None:return {'success':False,'error':{'code':'not_found','path':'configuration_id','message':'构型不存在','retryable':False}}\n  h=r.get('host_id');return {'success':True,'data':{'relation_count':1,'hosts':[{'host_id':h}]}}\n if 'host_id' in a:\n  rs=context.records.list('configurations',filters={'host_id':a['host_id']},limit=10000,offset=0);return {'success':True,'data':{'relation_count':len(rs)}}\n return {'success':False,'error':{'code':'invalid_argument','path':'configuration_id','message':'需要过滤键','retryable':False}}"
+      }
+    },
+    "tests": [
+      {
+        "calls": [
+          {
+            "tool": "relate_configurations_host_id_to_hosts",
+            "arguments": {
+              "configuration_id": "cdte:v_Cd"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 1,
+          "hosts": [
+            {
+              "host_id": "cdte"
+            }
+          ]
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_configurations_host_id_to_hosts",
+            "arguments": {
+              "host_id": "cdte"
+            }
+          }
+        ],
+        "expect_success": true,
+        "expect_changed": false,
+        "expected_data": {
+          "relation_count": 4
+        }
+      },
+      {
+        "calls": [
+          {
+            "tool": "relate_configurations_host_id_to_hosts",
+            "arguments": {
+              "configuration_id": "missing-configuration"
+            }
+          }
+        ],
+        "expect_success": false,
+        "expect_changed": false
+      }
+    ]
+  }
+}

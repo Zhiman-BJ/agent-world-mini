@@ -29,28 +29,84 @@ def mcp_output_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def public_tool(tool: dict[str, Any]) -> dict[str, Any]:
+def _describe_workspace_paths(schema: Any, scope_mounts: dict[str, str]) -> None:
+    if not isinstance(schema, dict):
+        return
+    scope_id = schema.get("x-resource-scope")
+    if isinstance(scope_id, str) and scope_id in scope_mounts:
+        mount = scope_mounts[scope_id].strip("/")
+        if mount in {"", "."}:
+            note = (
+                f"本会话的 Scope `{scope_id}` 挂载在当前工作目录；"
+                "此字段使用相对于当前工作目录的路径。新建输出文件也采用此格式。"
+            )
+        else:
+            note = (
+                f"本会话此字段使用相对于当前工作目录、以 `{mount}/` 开头的路径。"
+                "输入路径和新建输出文件的路径都必须包含此前缀。"
+            )
+        description = str(schema.get("description", "")).strip()
+        if note not in description:
+            schema["description"] = f"{description}\n\n{note}".strip()
+    for keyword in ("properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"):
+        children = schema.get(keyword)
+        if isinstance(children, dict):
+            for child in children.values():
+                _describe_workspace_paths(child, scope_mounts)
+    for keyword in (
+        "additionalProperties", "unevaluatedProperties", "propertyNames", "contains",
+        "additionalItems", "unevaluatedItems", "contentSchema", "if", "then", "else", "not",
+    ):
+        _describe_workspace_paths(schema.get(keyword), scope_mounts)
+    for keyword in ("allOf", "anyOf", "oneOf", "prefixItems", "items"):
+        children = schema.get(keyword)
+        if isinstance(children, list):
+            for child in children:
+                _describe_workspace_paths(child, scope_mounts)
+        else:
+            _describe_workspace_paths(children, scope_mounts)
+
+
+def public_tool(
+    tool: dict[str, Any], *, scope_mounts: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Project an internal ToolGen tool into the exact MCP tools/list shape."""
-    return {
+    projected = {
         "name": str(tool["name"]),
         "description": _usage_description(tool),
         "inputSchema": deepcopy(tool["inputSchema"]),
         "outputSchema": mcp_output_schema(tool["outputSchema"]),
     }
+    if scope_mounts:
+        for key in ("inputSchema", "outputSchema"):
+            _describe_workspace_paths(projected[key], scope_mounts)
+    return projected
 
 
-def public_tools(tools: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [public_tool(tool) for tool in tools]
+def public_tools(
+    tools: Iterable[dict[str, Any]], *, scope_mounts: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    return [public_tool(tool, scope_mounts=scope_mounts) for tool in tools]
 
 
-def tool_call_result(payload: dict[str, Any], *, is_error: bool) -> dict[str, Any]:
+def tool_call_result(
+    payload: dict[str, Any], *, is_error: bool, structured: bool = True,
+) -> dict[str, Any]:
     """Return one canonical business payload through structured MCP output.
 
     Every public tool has an ``outputSchema``, so Kimi Code requires
     ``structuredContent`` on successful calls. MCP keeps ``content`` for
     backwards compatibility but explicitly permits an empty array. Leaving it
     empty prevents the same JSON object from entering the model context twice.
+    Errors outside the business output schema use text-only MCP error content.
     """
+    if not structured:
+        if not is_error:
+            raise ValueError("Successful tool results require structured content")
+        return {
+            "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False, allow_nan=False)}],
+            "isError": True,
+        }
     return {
         "content": [],
         "structuredContent": payload,

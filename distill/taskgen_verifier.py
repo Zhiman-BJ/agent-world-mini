@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import json
-import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -12,7 +12,7 @@ from typing import Any
 
 from task_gen.task_eval_mcp import bind_delivery
 from task_gen.task_eval_mcp import TaskEvalMcpServer
-from task_gen.task_eval_verifier import serialized_state_preparation, verify_execution
+from eval.verifier import _copy_state, serialized_state_preparation, verify_execution
 from harness.layout import create_task_run_layout
 
 from .runner import make_server_config
@@ -23,7 +23,7 @@ def _read_json(path: Path) -> Any:
 
 
 def _copy_tree_links(source: Path, target: Path) -> None:
-    shutil.copytree(source, target, copy_function=os.link)
+    _copy_state(source, target)
 
 
 def reconstruct_actual_state(case: Any, task_dir: Path, target: Path) -> None:
@@ -76,6 +76,45 @@ def _mutation_count(calls: list[dict[str, Any]], environment: dict[str, Any]) ->
     )
 
 
+def verification_calls(
+    trajectory: dict[str, Any], environment_calls: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Include native CLI evidence without dropping or changing raw MCP records."""
+    calls = list(environment_calls)
+    observed_environment = []
+    for step in trajectory["steps"]:
+        for call in step["tool_calls"]:
+            kind = call["tool_kind"]
+            if kind == "environment_mcp":
+                record = call.get("environment_record")
+                if isinstance(record, dict):
+                    observed_environment.append(record)
+                    continue
+                if not call.get("is_error") or call.get("completed_event_sequence") is None:
+                    continue
+            elif kind == "native_file_tool":
+                if call["name"] not in {"Read", "Glob", "Grep"}:
+                    raise ValueError(f"Unsupported native tool: {call['name']}")
+                if call.get("completed_event_sequence") is None:
+                    raise ValueError("Native call has no completed CLI result")
+            else:
+                raise ValueError(f"Unsupported tool kind: {kind}")
+            calls.append({
+                "tool": call["name"],
+                "arguments": call["arguments"],
+                "result": call["output"],
+                "error": f"{kind}_error" if call.get("is_error") else None,
+                "call_id": call["call_id"],
+            })
+
+    def signature(record: dict[str, Any]) -> str:
+        return json.dumps(record, sort_keys=True, ensure_ascii=False)
+
+    if Counter(map(signature, observed_environment)) - Counter(map(signature, environment_calls)):
+        raise ValueError("Exported MCP records differ from the original raw trace")
+    return calls
+
+
 def verify_distilled_case(
     case: Any,
     *,
@@ -95,11 +134,12 @@ def verify_distilled_case(
     try:
         trajectory = _read_json(task_dir / "trajectory.json")
         trace_path = task_dir / "raw/environment_tool_calls.jsonl"
-        calls = [
+        environment_calls = [
             json.loads(line)
             for line in trace_path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
+        calls = verification_calls(trajectory, environment_calls)
         environment = _verifier_environment(case)
         verifier_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="actual-state-", dir=verifier_root) as temporary:
@@ -114,6 +154,7 @@ def verify_distilled_case(
                     "reasoning_effort": reasoning_effort,
                     "timeout_seconds": timeout_seconds,
                     "attempts": attempts,
+                    "submission_preflight": True,
                 },
                 task=case.task,
                 environment=environment,
@@ -125,8 +166,20 @@ def verify_distilled_case(
                     "error": None,
                     "attempts": 1,
                     "harness": "official_kimi_code_cli",
-                    "call_source": "raw",
-                    "mutation_count": _mutation_count(calls, environment),
+                    "call_source": "raw_mcp_and_exported_native_cli_records",
+                    "call_order": "raw MCP completion order followed by native/CLI-only results; not a joint timeline",
+                    "cli_tool_call_manifest": [
+                        {
+                            "call_id": call["call_id"], "name": call["name"],
+                            "tool_kind": call["tool_kind"], "arguments": call["arguments"],
+                            "started_event_sequence": call.get("started_event_sequence"),
+                            "completed_event_sequence": call.get("completed_event_sequence"),
+                            "is_error": call.get("is_error", False),
+                            "raw_record_attached": isinstance(call.get("environment_record"), dict),
+                        }
+                        for step in trajectory["steps"] for call in step["tool_calls"]
+                    ],
+                    "mutation_count": _mutation_count(environment_calls, environment),
                 },
                 reference_state=case.reference_state,
                 reference_calls=case.reference_calls,

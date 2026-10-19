@@ -1,0 +1,109 @@
+{
+  "purpose": "参考解的技术格式说明，与改题目标分开；示例占位内容须替换为实际任务与实测证据。",
+  "proposal_example": {
+    "task_text": "完整中文新题",
+    "real_need": "本任务的用户、业务成果、现实用途，以及执行者需要自行完成的关键判断和结果依赖；原任务仅作环境参考",
+    "reference_answer": "基于实测证据的完整答案，包括必要推理和成果状态",
+    "solution_calls": [
+      {
+        "tool": "公开业务MCP短名",
+        "arguments": {},
+        "argument_sources": {},
+        "purpose": "该步如何服务主要成果"
+      }
+    ],
+    "answer_sources": [{"kind": "call", "call": 1, "pointer": "/data"}],
+    "validation_id": "本次成功校验ID；调用校验时可省略本字段",
+    "self_check": {
+      "real_need_grounded": true,
+      "result_driven_orchestration": true,
+      "public_rules_complete": true,
+      "computation_boundary_respected": true,
+      "no_padding": true,
+      "answer_supported": true,
+      "solver_plans_route": true,
+      "deliverables_supported": true
+    },
+    "self_check_notes": ["移除的方法提示、保留的业务条件、实际难度依据和成果限制"]
+  },
+  "format_rules": [
+    "完整方案只有示例中的八个字段，校验时 validation_id 可省略；自查属作者判断，不代表代码证明。",
+    "solution_calls 按干净初态可执行的顺序填写，每项只有 tool、arguments、argument_sources、purpose。tool 使用公开业务 MCP 短名，至少15次有效调用；不与原参考调用数比较增长。",
+    "argument_sources 的键为参数 JSON Pointer，如 /id。同源对象或数组可整体引用，每个参数叶子恰好覆盖一次。",
+    "来源中的 call 从1开始，只能引用最终参考列表的前序调用；pointer 指向其实际 result，不含 CLI 文本包装。",
+    "quote 须为连续原文；省略 quote 保留原 JSON 类型。文本数字或布尔值用 as: json 明确解析；数字字符串仍是字符串，数值不使用近似容差。",
+    "answer_sources 用 kind: call 或 kind: file 引用实际证据。参考答案说明证据如何支持结论，允许有依据的推理。",
+    "每次 validate_solution_calls 传 {\"proposal\": 完整方案}，以 solution_calls 为唯一执行列表。兼容另传 calls 的旧请求，两份列表的工具和参数须完全一致。返回 state.public_workspace 供只读回查本次实际产物；最终 submit_validated_solution 接受后，仅返回 validation_id 回执。"
+  ],
+  "parameter_binding_examples": [
+    {
+      "use": "筛选后的对象或通道数组，可以逐个叶子引用前序结果，无需在题文中列出所选集合。下面只演示来源格式；选择是否符合业务条件仍由参考答案和正式核验判断。",
+      "task_text": "根据公开记录和业务条件选择适用对象与通道，交付相应成果。",
+      "previous_results": [
+        {"data": {"objects": [{"id": 17}, {"id": 23}, {"id": 42}]}},
+        {"data": {"comparisons": [{"channel": 1}, {"channel": 2}, {"channel": 4}]}}
+      ],
+      "arguments": {"object_ids": [17, 42], "channels": [1, 4]},
+      "argument_sources": {
+        "/object_ids/0": {"kind": "call", "call": 1, "pointer": "/data/objects/0/id"},
+        "/object_ids/1": {"kind": "call", "call": 1, "pointer": "/data/objects/2/id"},
+        "/channels/0": {"kind": "call", "call": 2, "pointer": "/data/comparisons/0/channel"},
+        "/channels/1": {"kind": "call", "call": 2, "pointer": "/data/comparisons/2/channel"}
+      }
+    }
+  ],
+  "source_examples": [
+    {
+      "source": {"kind": "task", "quote": "W01"},
+      "use": "新题中的连续原文；数字例为 {\"kind\":\"task\",\"quote\":\"150\",\"as\":\"json\"}，布尔值同理。"
+    },
+    {
+      "source": {"kind": "task", "quote": "100 MHz", "as": "frequency_hz"},
+      "use": "把明确带单位的频率换算为Hz。"
+    },
+    {
+      "source": {"kind": "schema", "pointer": "/properties/mode/default"},
+      "use": "引用当前工具的公开 inputSchema。"
+    },
+    {
+      "source": {"kind": "schema", "pointer": "/properties/metrics/description", "quote": "wavelength_span"},
+      "use": "引用 Schema 说明中的真实选项，无需把接口选项写进题文。"
+    },
+    {
+      "source": {"kind": "file", "path": "公开工作区相对路径", "quote": "实际原文"},
+      "use": "引用冻结初态的公开文件；数字可加 as: json。引用文件或目录路径时省略 quote；接口需要 Scope 内相对路径时，可加 relative_to 指向包含它的已有公开目录。目录不支持内容引文，私有路径和作者新建路径不作初态证据。文件查看不加入参考列表。"
+    },
+    {
+      "source": {"kind": "protocol", "pointer": "/read_default_chars"},
+      "use": "引用公开协议常量。"
+    },
+    {
+      "source": {"kind": "call", "call": 1, "pointer": "/data/id"},
+      "use": "引用前序实际返回；截取文本时增加连续原文 quote。"
+    },
+    {
+      "source": {
+        "kind": "derived",
+        "operation": "subtract",
+        "inputs": [{"kind": "task", "quote": "10", "as": "json"}, {"kind": "task", "quote": "2", "as": "json"}]
+      },
+      "use": "对两个数字来源做 add、subtract、multiply 或 divide。"
+    },
+    {
+      "source": {"kind": "new_identifier", "value": "新输出名", "reason": "新建标识用途"},
+      "use": "创建新输出标识；已有对象标识仍需真实来源。"
+    },
+    {
+      "source": {"kind": "schema_choice", "value": true, "reason": "选择公开布尔选项"},
+      "use": "选择 Schema 允许的枚举、布尔、默认值、合法 null 或空容器；可选参数可以省略。"
+    },
+    {
+      "source": {"kind": "agent_choice", "value": "待查主题", "reason": "根据目标选择检索词"},
+      "use": "自主选择检索词、分页、排序、投影、分组、帧选择与展示控制，支持 /page/limit、/group_by/0、/frame_selection/start 等叶子；依照公开接口选择，不为来源检查补入题文。业务对象、输入文件、测量阈值与实测值仍需真实公开来源。"
+    },
+    {
+      "source": {"kind": "authored_text", "value": "根据实际材料新编写的内容", "reason": "说明新内容服务什么成果", "basis": [{"kind": "call", "call": 1, "pointer": "/data/id"}]},
+      "use": "声明新编写的正文、修订文本或标题：只适用于 body、comment、content、description、message、new_text、notes、rationale、title 的开放字符串字段。value 须等于实际参数，basis 引用前序返回或冻结公开文件的实际引文；对象ID、输入路径、测量值和枚举仍用原来源类型。声明不代表内容已是事实，也不证明修复正确；内容与实际成果由正式业务核验判断，不将新文本补进题文充当已有事实。"
+    }
+  ]
+}

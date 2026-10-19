@@ -87,6 +87,8 @@ def _new_step(index: int, event: dict[str, Any], wire_line: int) -> dict[str, An
 def _tool_kind(name: str) -> str:
     if name in {"Read", "Grep", "Glob"}:
         return "native_file_tool"
+    if _short_tool_name(name) in {"validate_solution_calls", "submit_validated_solution"}:
+        return "harness_support"
     return "environment_mcp"
 
 

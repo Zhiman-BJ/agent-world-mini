@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from harness.state_snapshot import (
+    MAX_INLINE_STATE_BYTES,
+    snapshot_workspace,
+    workspace_diff,
+)
 from task_gen.program import ProgramGenerationPolicy, validate_solution_code
 from task_gen.program.contracts import Config
 from task_gen.program.run_pipeline import build_parser
@@ -20,6 +27,8 @@ from task_gen.program.step_2_solution_generate import (
     _argument_leaf_paths,
     _authoring_failure_reasons,
     _canonical_payload_hash,
+    _candidate_errors,
+    _candidate_solution_source_errors,
     _CandidateQualityService,
     _compact_failed_review,
     _solution_complexity_errors,
@@ -36,6 +45,7 @@ from task_gen.program.step_2_solution_generate import (
     _replay_comparable_state,
     _run_agent_until_json,
     _terminal_quality_infrastructure_reason,
+    _write_generation_tool_access,
     ProgramExecutionResult,
     ProgramTaskCandidate,
     build_solution_repair_prompt,
@@ -56,6 +66,82 @@ from task_gen.program.step_2_solution_generate import (
 
 
 class ProgramFormContractTests(unittest.TestCase):
+    def test_checker_source_errors_do_not_consume_full_quality_attempts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package_root = root / "package"
+            state = package_root / "state"
+            state.mkdir(parents=True)
+            authoring = root / "authoring"
+            authoring.mkdir()
+            package = Mock(package_root=package_root, state_root=state,
+                           package_format="v2", tools=[],
+                           environment={"environment_id": "checker-source-test"})
+            _write_generation_tool_access(authoring, package)
+            service = _CandidateQualityService(
+                authoring=authoring, package=package, research={}, schema={},
+                review_agent=None, max_repair_rounds=0,
+            )
+
+            def check_source(source):
+                payload = {"candidates": [{"solution_code": source}]}
+                (authoring / "candidate.draft.json").write_text(json.dumps(payload), encoding="utf-8")
+                completed = subprocess.run(
+                    [sys.executable, str(authoring / "candidate_check.py"),
+                     "--quality-timeout-seconds", "5"],
+                    capture_output=True, text=True, timeout=20,
+                )
+                return completed, json.loads(completed.stdout)
+
+            def successful_quality(**kwargs):
+                request = kwargs["request"]
+                return {"request_id": request["request_id"],
+                        "candidate_sha256": request["candidate_sha256"],
+                        "passed": True, "stage": "passed", "errors": [], "metrics": {},
+                        "review": {"accepted": True}, "clean_replay_count": 2}
+
+            with patch("task_gen.program.step_2_solution_generate._run_candidate_quality_request",
+                       side_effect=successful_quality) as quality:
+                service.start()
+                try:
+                    for source in ('final_answer = "unterminated',
+                                   'result = call_tool("inspect", {"active": false})\nfinal_answer = str(result)',
+                                   'import os\nfinal_answer = "done"',
+                                   'final_answer = "hardcoded"'):
+                        with self.subTest(source=source):
+                            completed, report = check_source(source)
+                            self.assertEqual(completed.returncode, 2, completed.stderr)
+                            self.assertEqual(report["stage"], "source_validation")
+                            self.assertFalse(report["submitted_to_quality_service"])
+                            self.assertFalse((authoring / "candidate_check_request.json").exists())
+                            self.assertEqual(service.check_count, 0)
+                    completed, report = check_source(
+                        'result = call_tool("inspect", {})\nfinal_answer = str(result)'
+                    )
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertTrue(report["passed"])
+                    self.assertEqual(service.check_count, 1)
+                    quality.assert_called_once()
+                    receipt = authoring / "candidate_preflight_receipt.json"
+                    self.assertTrue(receipt.is_file())
+                    previous_request = (authoring / "candidate_check_request.json").read_text()
+                    completed, report = check_source('final_answer = "still hardcoded"')
+                    self.assertEqual(completed.returncode, 2, completed.stderr)
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(service.check_count, 1)
+                    self.assertEqual(previous_request, (authoring / "candidate_check_request.json").read_text())
+                    quality.assert_called_once()
+                finally:
+                    service.stop()
+            history = read_records(authoring / "candidate_check_history.jsonl")
+            self.assertEqual(len(history), 6)
+            self.assertEqual([item["stage"] for item in history].count("source_validation"), 5)
+
+    def test_source_precheck_leaves_payload_structure_to_full_validator(self):
+        for payload in (None, [], {}, {"candidates": None}, {"candidates": [None]}):
+            with self.subTest(payload=payload):
+                self.assertEqual(_candidate_solution_source_errors(payload), [])
+
     def test_production_agent_timeout_defaults_to_one_hour(self):
         arguments = build_parser().parse_args(["--output-dir", "/tmp/program-test"])
         self.assertEqual(arguments.agent_timeout_seconds, 3600)
@@ -114,6 +200,7 @@ class ProgramFormContractTests(unittest.TestCase):
                 "reason": "The task, execution evidence, and returned answer are aligned.",
                 "parameter_audit": [],
                 "issues": [],
+                "method_leakage": [],
             }, []
 
         def replay(**kwargs):
@@ -312,7 +399,7 @@ class ProgramFormContractTests(unittest.TestCase):
         self.assertIn("`state/`", generation)
         self.assertIn("solution_code", generation)
         self.assertIn("task_resources", generation)
-        self.assertIn("任务的深度优先来自结果之间的因果关系", generation)
+        self.assertIn("最短可行求解", generation)
         self.assertIn("每一个文件都必须在正文中独立写出完整相对路径", generation)
         self.assertIn("tool_runtime_unavailable", generation)
         self.assertIn("你没有此前对话上下文", repair)
@@ -334,6 +421,129 @@ class ProgramFormContractTests(unittest.TestCase):
             ProgramGenerationPolicy(max_repair_rounds=-1).validate()
         with self.assertRaisesRegex(ValueError, "execution_timeout_seconds"):
             ProgramGenerationPolicy(execution_timeout_seconds=0).validate()
+
+    def test_step2_prompts_preserve_planning_without_hiding_business_inputs(self):
+        generation = build_task_solution_prompt(1, ProgramGenerationPolicy())
+        review = build_task_solution_review_prompt()
+
+        for prompt in (generation, review):
+            self.assertIn("自主选择和编排工具", prompt)
+            self.assertIn("tool_contract", prompt)
+            self.assertIn("业务规则", prompt)
+            self.assertIn("中间答案", prompt)
+        self.assertIn("对象 ID、文件路径、单位、业务阈值和适用规则是正常输入", generation)
+        self.assertIn("工具选择与编排是本轮重点", generation)
+        self.assertIn("不要求所有题采用同一种流程", generation)
+        self.assertIn("调用数是发布底线，不是难度证明", generation)
+        self.assertIn("反事实检查", generation)
+        self.assertIn("available_tool_contracts", review)
+        self.assertIn("更短的合法路径", review)
+        self.assertNotIn("任务复杂度、答案格式、资源标识和文件路径已经由程序自动检查", review)
+        self.assertNotIn("任务没有\n  要求分页时，不要自行传入", generation)
+        self.assertIn("不能仅凭没有工具名就认定没有泄露", review)
+
+    def test_step2_prompts_align_reference_and_solver_computation(self):
+        generation = build_task_solution_prompt(1, ProgramGenerationPolicy())
+        review = build_task_solution_review_prompt()
+
+        self.assertIn("参考解与求解者应共享相同的公开计算能力", generation)
+        self.assertIn("批量统计应有求解者可调用的公开入口", generation)
+        self.assertIn("少量读数、比较和四则运算", generation)
+        self.assertIn("工具返回整份原始数据不等于提供批量计算入口", review)
+        self.assertIn("计算能力对齐", review)
+        self.assertNotIn("就必须在 solution 中用返回的原始值明确计算", generation)
+
+    def test_step2_difficulty_is_not_satisfied_by_one_binary_choice(self):
+        generation = build_task_solution_prompt(1, ProgramGenerationPolicy())
+
+        self.assertIn("不是要照搬的题目或操作路线", generation)
+        self.assertIn("还缺什么信息", generation)
+        self.assertIn("这些未知量由公开交互逐步解决", generation)
+        self.assertIn("一次二选一后继续导出文件，只能证明程序有分支", generation)
+        self.assertIn("保留公开历史信息和正常业务输入", generation)
+        self.assertIn("最短可行求解", generation)
+        self.assertNotIn("任务至少要有一个真实的业务选择点", generation)
+        self.assertIn("能通过公开工具定位的输入", generation)
+        self.assertIn("有真实文件匹配的 glob 范围", generation)
+        self.assertIn("业务明确指定的文件仍给完整路径", generation)
+
+    def test_input_discovery_range_uses_existing_file_resource_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = root / "filesystem_scopes" / "samples" / "measurements"
+            inputs.mkdir(parents=True)
+            (inputs / "run_a.csv").write_text("value\n1\n", encoding="utf-8")
+            (inputs / "run_b.csv").write_text("value\n2\n", encoding="utf-8")
+            environment = {
+                "summary": "Inspect measurement records.",
+                "record_sets": [],
+                "relationships": [],
+                "filesystem_scopes": [{"scope_id": "samples"}],
+            }
+            package = Mock(environment=environment, state_root=root,
+                           tool_names=["inspect_measurements"])
+            candidate = ProgramTaskCandidate(
+                archetype_id="measurement_selection",
+                task_internal="Compare the public measurement inputs.",
+                workspace_brief=environment["summary"],
+                task_summary="Compare current measurement records and select the eligible input for a documented follow-up decision.",
+                task_public="请在 samples 的 measurements/run_*.csv 范围内确定符合业务条件的测量输入。",
+                output_schema={},
+                task_resources={"record_sets": [], "relationships": [],
+                                "allowed_tools": ["inspect_measurements"],
+                                "files": [{"scope_id": "samples", "path": "measurements/run_*.csv",
+                                           "role": "input", "path_is_exact": False}]},
+                solution_code="result = call_tool('inspect_measurements', {})\nfinal_answer = str(result)",
+            )
+            archetypes = {candidate.archetype_id: {}}
+            self.assertEqual(_candidate_errors(package, candidate, archetypes), [])
+
+            hidden_range = deepcopy(candidate)
+            hidden_range.task_public = "请在 samples 中选择符合业务条件的测量输入。"
+            self.assertTrue(any("未在 task_public 中明确说明" in error
+                                for error in _candidate_errors(package, hidden_range, archetypes)))
+
+            missing_range = deepcopy(candidate)
+            missing_range.task_public = "请在 samples 的 missing/*.csv 中选择测量输入。"
+            missing_range.task_resources["files"][0]["path"] = "missing/*.csv"
+            self.assertTrue(any("输入路径在初态中没有匹配文件" in error
+                                for error in _candidate_errors(package, missing_range, archetypes)))
+
+    def test_parameter_audit_accepts_explained_tool_contract_controls(self):
+        trace = [{"tool": "list_items", "arguments": {"limit": 20}}]
+        review = {
+            "parameter_audit": [{
+                "call_index": 0,
+                "tool": "list_items",
+                "parameters": [{
+                    "path": "/limit",
+                    "source": "tool_contract",
+                    "source_call_indices": [],
+                    "evidence": "The public tool contract supports pages of 20; the solution follows every page.",
+                }],
+            }],
+        }
+        self.assertEqual(_parameter_audit_errors(review, trace), [])
+        review["parameter_audit"][0]["parameters"][0]["source_call_indices"] = [0]
+        errors = _parameter_audit_errors(review, trace)
+        self.assertTrue(any("不应声明 source_call_indices" in error for error in errors))
+
+    def test_parameter_audit_rejects_unexplained_tool_contract_controls(self):
+        trace = [{"tool": "list_items", "arguments": {"limit": 20}}]
+        review = {
+            "parameter_audit": [{
+                "call_index": 0,
+                "tool": "list_items",
+                "parameters": [{
+                    "path": "/limit",
+                    "source": "tool_contract",
+                    "source_call_indices": [],
+                    "evidence": "",
+                }],
+            }],
+        }
+        errors = _parameter_audit_errors(review, trace)
+        self.assertTrue(any("缺少具体 evidence" in error for error in errors))
 
     def test_parameter_audit_must_cover_every_runtime_argument_leaf(self):
         trace = [{
@@ -458,6 +668,7 @@ class ProgramFormContractTests(unittest.TestCase):
                         "reason": "The candidate needs changes, but this first response is malformed.",
                         "parameter_audit": [],
                         "issues": [{"description": "missing message field"}],
+                        "method_leakage": [],
                     }), encoding="utf-8")
                 else:
                     (working_directory / "review.json").write_text(json.dumps({
@@ -465,6 +676,7 @@ class ProgramFormContractTests(unittest.TestCase):
                         "reason": "The candidate satisfies every stated requirement using grounded evidence.",
                         "parameter_audit": [],
                         "issues": [],
+                        "method_leakage": [],
                     }), encoding="utf-8")
                 return "done"
 
@@ -497,6 +709,92 @@ class ProgramFormContractTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(review["accepted"])
 
+    def test_semantic_review_exposes_unused_tools_for_shortcut_checks(self):
+        requests = []
+
+        class InspectingReviewAgent:
+            def run(self, prompt, *, working_directory):
+                requests.append(json.loads((working_directory / "review_request.json").read_text()))
+                (working_directory / "review.json").write_text(json.dumps({
+                    "accepted": True,
+                    "reason": "The evidence completes the task and the unused batch contract is visible.",
+                    "parameter_audit": [{"call_index": 0, "tool": "read_one", "parameters": []}],
+                    "issues": [],
+                    "method_leakage": [],
+                }), encoding="utf-8")
+                return "done"
+
+        tools = [
+            {"name": "read_one", "description": "Read one item", "input_schema": {"type": "object"}},
+            {"name": "read_batch", "description": "Read all items", "output_schema": {"type": "array"}},
+        ]
+        candidate = ProgramTaskCandidate(
+            archetype_id="test", task_internal="internal", workspace_brief="workspace",
+            task_summary="summary", task_public="Return the available item.",
+            output_schema={"type": "object"}, task_resources={"files": [], "record_sets": []},
+            solution_code="final_answer = {}",
+        )
+        execution = ProgramExecutionResult(
+            success=True, answer={}, trace=[{"tool": "read_one", "arguments": {}}],
+            initial_state={}, final_state={}, state_diff={},
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            review, errors = _review_task_solution(
+                agent=InspectingReviewAgent(), candidate=candidate, execution=execution,
+                public_tools=tools, review_dir=Path(temporary) / "review",
+            )
+        self.assertEqual(errors, [])
+        self.assertTrue(review["accepted"])
+        self.assertEqual(requests[0]["used_tool_contracts"], tools[:1])
+        self.assertEqual(requests[0]["available_tool_contracts"], tools)
+
+    def test_semantic_review_separates_business_delivery_from_internal_audits(self):
+        prompt = build_task_solution_review_prompt()
+        self.assertIn("计算能力对齐、可替代调用和反事实分析由审阅者写入 `reason`", prompt)
+        self.assertIn("业务答案按 `task_public` 的交付要求验收", prompt)
+        self.assertIn("实际轨迹验证本次发生的分支", prompt)
+        self.assertIn("`solution_code` 用于核对其他返回值下的选择与后续依赖", prompt)
+        self.assertIn("不要求另造数据执行证明", prompt)
+        self.assertIn("漏做、做错、改了不该改的内容、调用失败", prompt)
+
+    def test_semantic_review_rejects_accepted_task_with_method_leakage(self):
+        class LeakingReviewAgent:
+            def run(self, prompt, *, working_directory):
+                (working_directory / "review.json").write_text(json.dumps({
+                    "accepted": True,
+                    "reason": "The task is complete, but the public wording prescribes the route.",
+                    "parameter_audit": [],
+                    "issues": [],
+                    "method_leakage": ["先查询 A，再根据 A 查询 B"],
+                }), encoding="utf-8")
+                return "done"
+
+        candidate = ProgramTaskCandidate(
+            archetype_id="test", task_internal="internal",
+            workspace_brief="workspace", task_summary="summary",
+            task_public="Return the requested result.",
+            output_schema={"type": "object"},
+            task_resources={"files": [], "record_sets": []},
+            solution_code="final_answer = {}",
+        )
+        execution = ProgramExecutionResult(
+            success=True, answer={}, trace=[], initial_state={}, final_state={}, state_diff={}
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            review, errors = _review_task_solution(
+                agent=LeakingReviewAgent(), candidate=candidate, execution=execution,
+                public_tools=[], review_dir=Path(temporary) / "review",
+            )
+        self.assertTrue(review["method_leakage"])
+        self.assertTrue(any("方法泄露" in error for error in errors))
+
+    def test_semantic_review_checks_statistical_denominators(self):
+        prompt = build_task_solution_review_prompt()
+        self.assertIn("核对统计口径", prompt)
+        self.assertIn("不能仅凭字段名 `mean`", prompt)
+        self.assertIn("参数名 `mask` 推断分母", prompt)
+        self.assertIn("题文和契约存在歧义", prompt)
+
     def test_semantic_review_does_not_retry_actionable_rejection(self):
         class RejectingReviewAgent:
             def __init__(self):
@@ -509,6 +807,7 @@ class ProgramFormContractTests(unittest.TestCase):
                     "reason": "The final answer omits a result explicitly required by the public task.",
                     "parameter_audit": [],
                     "issues": ["The final answer is missing the required selected identifier."],
+                    "method_leakage": [],
                 }), encoding="utf-8")
                 return "done"
 
@@ -557,6 +856,7 @@ class ProgramFormContractTests(unittest.TestCase):
                     "reason": "The execution completes the public task and returns the requested item.",
                     "parameter_audit": audit,
                     "issues": [],
+                    "method_leakage": [],
                 }), encoding="utf-8")
                 return "done"
 
@@ -605,6 +905,7 @@ class ProgramFormContractTests(unittest.TestCase):
                         }],
                     }],
                     "issues": [],
+                    "method_leakage": [],
                 }), encoding="utf-8")
                 return "done"
 
@@ -854,6 +1155,91 @@ final_answer = {"status": detail["data"]["status"]}"""
             _replay_comparable_state(first),
             _replay_comparable_state(second),
         )
+
+    def test_notebook_replay_ignores_cell_ids_but_preserves_business_content(self):
+        notebook = {
+            "nbformat": 4, "nbformat_minor": 5, "metadata": {"title": "fit"},
+            "cells": [{
+                "id": "first-cell", "cell_type": "code", "metadata": {},
+                "source": ["result = 1"], "execution_count": 1,
+                "outputs": [{"output_type": "stream", "name": "stdout", "text": ["1"]}],
+            }],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "fit.ipynb"
+            path.write_text(json.dumps(notebook), encoding="utf-8")
+            first = snapshot_workspace(root)
+            notebook["cells"][0]["id"] = "second-longer-cell"
+            path.write_text(json.dumps(notebook, indent=2), encoding="utf-8")
+            second = snapshot_workspace(root)
+            self.assertNotEqual(first["files"][path.name]["sha256"], second["files"][path.name]["sha256"])
+            self.assertNotEqual(first["files"][path.name]["size"], second["files"][path.name]["size"])
+            self.assertEqual(_replay_comparable_state(first), _replay_comparable_state(second))
+            self.assertEqual(workspace_diff({"files": {}}, first)["created"], [path.name])
+            self.assertEqual(
+                _replay_comparable_state(workspace_diff({"files": {}}, first)),
+                _replay_comparable_state(workspace_diff({"files": {}}, second)),
+            )
+            mutations = [
+                ("source", ["result = 2"]),
+                ("outputs", [{"output_type": "stream", "name": "stdout", "text": ["2"]}]),
+                ("execution_count", 2),
+                ("metadata", {"tag": "changed"}),
+                ("attachments", {"image": {"image/png": "changed"}}),
+            ]
+            for key, value in mutations:
+                with self.subTest(changed=key):
+                    changed = deepcopy(notebook)
+                    changed["cells"][0][key] = value
+                    path.write_text(json.dumps(changed), encoding="utf-8")
+                    self.assertNotEqual(_replay_comparable_state(first),
+                                        _replay_comparable_state(snapshot_workspace(root)))
+            changed = deepcopy(notebook)
+            changed["metadata"]["title"] = "different fit"
+            path.write_text(json.dumps(changed), encoding="utf-8")
+            self.assertNotEqual(_replay_comparable_state(first),
+                                _replay_comparable_state(snapshot_workspace(root)))
+
+    def test_large_notebook_replay_fingerprint_is_not_limited_to_inline_json(self):
+        notebook = {
+            "nbformat": 4, "nbformat_minor": 5, "metadata": {},
+            "cells": [{"id": "first", "cell_type": "markdown", "metadata": {},
+                       "source": "report" * MAX_INLINE_STATE_BYTES}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "large.IPYNB"
+            path.write_text(json.dumps(notebook), encoding="utf-8")
+            first = snapshot_workspace(root)
+            self.assertNotIn("json", first["files"][path.name])
+            notebook["cells"][0]["id"] = "second"
+            path.write_text(json.dumps(notebook), encoding="utf-8")
+            self.assertEqual(_replay_comparable_state(first),
+                             _replay_comparable_state(snapshot_workspace(root)))
+
+    def test_invalid_or_legacy_notebook_snapshots_remain_byte_exact(self):
+        invalid = [
+            "not a notebook", "{}", '{"nbformat":4,"nbformat":4}',
+            '{"nbformat":4,"nbformat_minor":5,"metadata":{},"cells":[],"value":NaN}',
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "invalid.ipynb"
+            for content in invalid:
+                with self.subTest(content=content):
+                    path.write_text(content, encoding="utf-8")
+                    first = snapshot_workspace(root)
+                    self.assertNotIn("notebook_v4_sha256_without_cell_ids", first["files"][path.name])
+                    path.write_text(content + " ", encoding="utf-8")
+                    self.assertNotEqual(_replay_comparable_state(first),
+                                        _replay_comparable_state(snapshot_workspace(root)))
+        first = {"files": {"fit.ipynb": {"sha256": "first", "size": 20}}}
+        second = {"files": {"fit.ipynb": {"sha256": "second", "size": 20}}}
+        self.assertNotEqual(_replay_comparable_state(first), _replay_comparable_state(second))
+        first["files"]["fit.ipynb"]["notebook_v4_sha256_without_cell_ids"] = "invalid"
+        second["files"]["fit.ipynb"]["notebook_v4_sha256_without_cell_ids"] = "invalid"
+        self.assertNotEqual(_replay_comparable_state(first), _replay_comparable_state(second))
 
     def test_agent_stops_when_json_handoff_is_complete(self):
         calls = []

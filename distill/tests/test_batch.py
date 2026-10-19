@@ -24,6 +24,21 @@ def test_cli_passes_explicit_output_limit_to_runner(tmp_path, monkeypatch):
 
     assert options["max_context_size"] == 262144
     assert options["max_output_size"] == 131072
+    assert options["read_default_max_chars"] == 80000
+    assert options["read_max_chars"] == 128000
+
+
+def test_cli_passes_explicit_native_read_limits_to_runner(tmp_path, monkeypatch):
+    from distill.__main__ import build_parser, _common
+
+    monkeypatch.setenv("KIMI_API_KEY", "test-key")
+    arguments = build_parser().parse_args([
+        "taskgen", "--input-root", str(tmp_path), "--output-root", str(tmp_path / "runs"),
+        "--read-default-max-chars", "25000", "--read-max-chars", "50000",
+    ])
+    options = _common(arguments)
+    assert options["read_default_max_chars"] == 25000
+    assert options["read_max_chars"] == 50000
 
 
 def test_completed_task_with_tool_timeout_is_still_verified(tmp_path, monkeypatch):
