@@ -14,7 +14,9 @@ def design(root):
                   method='codex', inputs=['actual answer'], static_tools=[], required_tools=[],
                   codex_work='Compare value with source.', evidence_plan='Read answer and source.',
                   missing_policy='Missing answer scores zero.', error_policy='Unreliable inspection is an error.',
-                  method_reason='No prebuilt tools in this method.')
+                  method_reason='No prebuilt tools in this method.', required_for_pass=True,
+                  necessity_reason='The task explicitly asks for the value.', pass_condition='Return the correct value.',
+                  veto_condition='The requested value is confirmed missing or wrong.', subcriteria=[])
     for name, value in {'rubrics.json':{'rubrics':[rubric]}, 'tools.json':{'tools':[]},
                         'coverage.json':{'requirements':[{'task_quote':'Return value.', 'rubric_ids':['R1']}]} }.items():
         (root/name).write_text(json.dumps(value))
@@ -103,6 +105,8 @@ def test_production_review_uses_a_separate_model_session(tmp_path, monkeypatch, 
             sessions.append(self)
         def __call__(self, prompt, *, stage, output_dir):
             assert stage == 'design'
+            if method == 'direct_codex_rubric':
+                assert self.check_module == 'task_gen.test_verifier.direct_codex_rubric.check'
             workspace = tmp_path/'design'; design(workspace)
             return workspace
     class Reviewer:

@@ -51,7 +51,7 @@ def run_case(source, batch, item, config, upstream):
     try:
         with MeteringRelay(upstream, batch / 'api' / item['case'], lambda: 'direct_codex') as relay:
             with metered_config(config, relay) as cfg:
-                verdict = verify_execution(run_dir=output, config=cfg['codex'], **evidence)
+                verdict = verify_execution(run_dir=output, config=dict(cfg['codex'], method='codex'), **evidence)
         row.update(status='completed', outcome=verdict['outcome'], summary=verdict['summary'],
                    failure_causes=verdict['failure_causes'])
     except Exception as error:

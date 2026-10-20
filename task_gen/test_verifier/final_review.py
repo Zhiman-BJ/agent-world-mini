@@ -20,8 +20,11 @@ def package_check(method, root, task_text):
     if method == 'codex_tools':
         from .codex_tool_verifier.contracts import validate_package
         return validate_package(root, task_text)
-    if method in ('codex_rubric_verifier', 'direct_codex_rubric'):
+    if method == 'codex_rubric_verifier':
         from .codex_rubric_verifier.generation import validate_package
+        return validate_package(root, task_text)
+    if method == 'direct_codex_rubric':
+        from .direct_codex_rubric.contracts import validate_package
         return validate_package(root, task_text)
     raise ValueError(f'Unknown verifier method: {method}')
 

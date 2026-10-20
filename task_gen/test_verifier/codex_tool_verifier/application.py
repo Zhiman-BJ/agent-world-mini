@@ -210,6 +210,7 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
         try:
             fallback_input = load_fallback(evidence)
             fallback_config = dict(config.get('codex', {}))
+            fallback_config['method'] = 'codex'
             if config.get('codex_home'):
                 fallback_config.setdefault('codex_home', config['codex_home'])
             fallback_started = time.monotonic()

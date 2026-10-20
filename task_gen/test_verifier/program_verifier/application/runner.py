@@ -186,6 +186,7 @@ def apply(verifier_dir, evidence_dir, output_dir, config=None):
         try:
             evidence = load_fallback(evidence_dir)
             fallback_config = dict(config.get('codex', {}))
+            fallback_config['method'] = 'codex'
             if 'codex_home' in config:
                 fallback_config.setdefault('codex_home', config['codex_home'])
             verdict = verify_execution(run_dir=output_dir/'fallback', config=fallback_config, **evidence)

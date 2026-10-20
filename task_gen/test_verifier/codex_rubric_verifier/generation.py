@@ -30,6 +30,9 @@ def validate_package(root, task_text=None):
 
 
 def generate_for(method, evidence_dir, output_dir, config=None, *, model_call=None):
+    package_validator = validate_package
+    if method == 'direct_codex_rubric':
+        from ..direct_codex_rubric.contracts import validate_package as package_validator
     evidence, output = Path(evidence_dir).resolve(), Path(output_dir).resolve()
     logs = output/'generation'; logs.mkdir(parents=True, exist_ok=True)
     root = output/'verifier'
@@ -49,11 +52,13 @@ def generate_for(method, evidence_dir, output_dir, config=None, *, model_call=No
         prompt += '\n本次应用方式：\n'+(Path(__file__).parent.parent/method/'prompts/application_contract.md').read_text()
         prompt += '\nEvidence bundle: '+str(evidence)+'\nOriginal request:\n'+json.dumps(request, ensure_ascii=False)
         call = model_call or GenerationModel(evidence, config or {}, logs)
+        if not custom_model and method == 'direct_codex_rubric':
+            call.check_module = 'task_gen.test_verifier.direct_codex_rubric.check'
         workspace = Path(call(prompt, stage='design', output_dir=output))
-        plan = validate_package(workspace, request['task_text'])
+        plan = package_validator(workspace, request['task_text'])
         for name in DESIGN_FILES | (OPTIONAL_FILES & set(snapshot(workspace))):
             shutil.copyfile(workspace/name, root/name)
-        validate_package(root, request['task_text'])
+        package_validator(root, request['task_text'])
         result.update(status='generated', verifier_dir=str(root), rubric_count=len(plan['rubrics']), tool_count=0)
     except Exception as error:
         result.update(status='generation_failed', stage='design', error=f'{type(error).__name__}: {error}')
@@ -63,7 +68,7 @@ def generate_for(method, evidence_dir, output_dir, config=None, *, model_call=No
             from ..final_review import run_final_review
             final = run_final_review(method, evidence, output, config or {},
                                      model_call=model_call if custom_model else None)
-            plan = validate_package(root, request['task_text'])
+            plan = package_validator(root, request['task_text'])
             result.pop('stage', None)
             result.pop('error', None)
             result.update(status='generated', verifier_dir=str(root), rubric_count=len(plan['rubrics']),

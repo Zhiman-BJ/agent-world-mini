@@ -7,7 +7,7 @@ name = "agent-world-mini"
 version = "0.1.0"
 description = "A compact reproduction of the Agent-World environment construction pipeline"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["jsonschema>=4.18", "openai>=1.0", "PyYAML>=6.0", "tomlkit>=0.13", "python-dotenv>=1.0", "typing_extensions>=4.5"]
 
 [project.scripts]
@@ -30,6 +30,9 @@ env_gen = ["data_gen/*.md", "data_gen/internal_schemas/*.json"]
 task_gen = ["program/*.json", "program/*.md", "program/schemas/*.json"]
 distill = ["*.json", "*.mjs", "*.md"]
 "task_gen.tool_graph" = ["skills/*/SKILL.md", "prompts/*.txt"]
+"task_gen.test_verifier" = ["final_review_prompt.md"]
+"task_gen.test_verifier.codex_rubric_verifier" = ["prompts/*.md"]
+"task_gen.test_verifier.direct_codex_rubric" = ["prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "distill/tests"]

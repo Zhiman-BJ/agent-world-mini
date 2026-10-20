@@ -2,6 +2,55 @@
 
 本页说明当前可复用流程。源码位于 `eval/`，职责见[测评代码](EVAL_CODE_ZH.md)，历史批次协议不因本页更新而改变。
 
+## 新版 Direct verifier 与旧入口兼容
+
+`eval.verifier.verify_execution()` 现在默认使用新版 `direct_codex_rubric`。
+`from task_gen.task_eval_verifier import verify_execution`、
+`python -m task_gen.task_eval_verifier`、`python -m eval verify` 和
+`python -m eval verify-existing` 继续有效，原有证据参数无需改名。运行需要 Python 3.11+、
+Codex CLI、自己的认证配置和可用的 bubblewrap；不满足运行条件会报 `VerificationError`。
+
+原来的扁平 `config`（`codex_home`、`model`、`reasoning_effort`、`timeout_seconds`、
+`attempts`、`runtime_paths`、`submission_preflight`、`orchestration_only` 等）继续传递给调查阶段。
+也接受实验引擎的嵌套 `codex` 配置；同名扁平字段优先。
+`timeout_seconds` 是每次调查调用的预算；评分标准设计、最终复查另有预算，整个流程可能更长。
+可分别设置 `generation_call_timeout_seconds`、`final_review_timeout_seconds` 和
+`application_timeout_seconds`，详见 `task_gen/test_verifier/direct_codex_rubric/`。
+
+默认先从**题文、工具定义和初态**独立生成并复查评分标准，再冻结应用于被测执行。
+设计输入中的被测回答和调用均为空、终态替换为初态，且不传参考解。
+每层 rubric/subcriterion 必须声明必要性、满足/否决条件及精确原文引用。
+调查同时输出固定标准评分与旧 API 的逐项事实判断；宿主不按总分阈值或分数推算通过与否。
+
+返回值及 `<run_dir>/verdict.json` 保留原来的六个字段：
+`task_id`、`requirements`、`non_blocking_issues`、`summary`、`failure_causes`、`outcome`。
+`request.json`、`evidence/`、`scratch/investigation.md`、`logs/` 的位置不变。
+完整分数及 rubric 证据另存 `direct_result.json`，生成和复查材料位于 `direct/`。
+生成或调查故障抛出 `VerificationError`，不伪造业务 FAIL，也不悄悄换用另一种方法。
+
+同一题重复验收时，可复用首次生成且未修改的评分标准，避免重复设计：
+
+```python
+verdict = verify_execution(
+    run_dir=Path("/path/to/new-review"),
+    config={"codex_home": "/path/to/.codex",
+            "verifier_dir": "/path/to/first-review/direct/generation/verifier"},
+    **evidence,
+)
+```
+
+需保留该目录上一级的 `frozen_manifest.json` 和 `generation/result.json`，
+入口会检查任务 ID、原文摘要、Direct 方法、递归字段结构及文件哈希。
+CLI 对应 `--verifier-dir /path/to/verifier`。不同任务或已修改的包会被拒绝。
+迁移原工具解释器时，可在 API config 中提供
+`runtime={"binding_path": "/path/to/binding.json", "tools_path": "/path/to/tools.json"}`
+及 `delivery_root`；工具实现会与证据逐项核对。未提供绑定时使用宿主运行时。
+
+需要原始纯 Codex 基线时，显式设置 `config={"method": "codex", ...}`，
+CLI 使用 `--method codex`；新方法也可显式指定 `--method direct_codex_rubric`。
+已有 `frozen_requirements_v1` 验收清单模式默认继续走原始 Codex，保持冻结的要求和输出校验；
+不能同时显式选择 Direct。已有实验方法的故障回退仍明确使用纯 Codex，避免递归生成。
+
 ## 1. 架构与验收口径
 
 ### 1.1 参与者与执行流程

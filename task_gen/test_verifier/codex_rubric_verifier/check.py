@@ -7,7 +7,7 @@ from ..codex_tool_verifier.check import check_workspace
 from .generation import validate_package
 
 
-def main():
+def main(*, package_validator=validate_package):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace', type=Path, required=True)
     parser.add_argument('--evidence', type=Path, required=True)
@@ -21,9 +21,9 @@ def main():
     if not request_file.exists():
         request_file = args.evidence/'request.json'
     request = json.loads(request_file.read_text())
-    validate_package(args.workspace, request['task_text'])
+    package_validator(args.workspace, request['task_text'])
     check_workspace(args.workspace, request['task_text'], args.stage, args.self_test)
-    validate_package(args.workspace, request['task_text'])
+    package_validator(args.workspace, request['task_text'])
     result = {'status':'passed', 'stage':args.stage}
     if args.completion_file:
         temporary = args.completion_file.with_suffix('.tmp')

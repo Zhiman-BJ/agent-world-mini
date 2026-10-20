@@ -67,6 +67,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--orchestration-only", action="store_true",
                         help="Apply the restricted computation policy to verifier investigation")
     parser.add_argument("--submission-preflight", action="store_true")
+    parser.add_argument("--method", choices=("direct_codex_rubric", "codex"), default=None)
+    parser.add_argument("--verifier-dir", type=Path, help="Reuse a frozen Direct verifier directory")
     arguments = parser.parse_args(argv)
     if arguments.timeout < 1 or arguments.attempts < 1:
         parser.error("timeout and attempts must be positive")
@@ -82,6 +84,8 @@ def main(argv: list[str] | None = None) -> None:
             result = {"status": "prepared", "request": str(target / "request.json")}
         else:
             result = verify_execution(run_dir=target, config={
+                **({"method": arguments.method} if arguments.method else {}),
+                **({"verifier_dir": str(arguments.verifier_dir)} if arguments.verifier_dir else {}),
                 "codex_home": str(arguments.codex_home.expanduser().resolve()),
                 "model": arguments.model, "reasoning_effort": arguments.reasoning_effort,
                 "timeout_seconds": arguments.timeout, "attempts": arguments.attempts,

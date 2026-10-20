@@ -369,7 +369,15 @@ SymPy等计算库，也不得手写等价优化、拟合、数值求解、假想
 不得用审核者私有专业计算补齐未交付内容或证明超出该边界的任务可解。
 """
     if config.get("submission_preflight") is True:
-        prompt += """\n\n提交前格式自检（不改变任务要求或 PASS/FAIL 标准）：
+        if result_validator is not None:
+            prompt += """\n\n提交前格式自检：在 scratch 保存候选 JSON 和实际执行的自检脚本、输出。
+按本轮 prompt 的最终输出契约检查必需字段、固定 rubric 编号、分数类型及范围，
+调查记录须覆盖所有编号；证据路径须真实存在于 evidence/ 或 scratch/ 内。
+若契约要求 task_quote，逐条检查它是原任务连续子串；若要求 passed，检查与整体 outcome 一致。
+格式检查不能替代事实调查，不按总分门槛改判。只提交检查后的完整 JSON。
+"""
+        else:
+            prompt += """\n\n提交前格式自检（不改变任务要求或 PASS/FAIL 标准）：
 先在 scratch 写出完整候选 JSON，并使用 Python 实际检查后再作为最终响应提交。
 task_quote 必须直接从 request.json 的 task_text 截取连续子串，不手抄、改写、拼接或
 替换标点。多个不连续片段需要拆分要求。逐项检查 quote in task_text 为真。
@@ -403,6 +411,11 @@ evidence/ 或 scratch/ 下，字段、布尔值、字符串数组、总体 outco
         runtimes = [Path(executable).resolve().parents[3], Path(sys.prefix), Path(sys.base_prefix)]
         runtimes += [Path(p) for p in config.get("runtime_paths", [])]
         prefix = list(sandbox_command(run_dir, auth, runtime_paths=runtimes))
+        for path in config.get("readonly_paths", []):
+            path = Path(path).resolve()
+            if not path.is_relative_to(run_dir.resolve()) or not path.exists():
+                raise ValueError("readonly_paths must name existing paths in the verification workspace")
+            prefix += ["--ro-bind", str(path), str(path)]
         selected_provider = settings.get("model_providers", {}).get(settings.get("model_provider"), {})
         env_key = selected_provider.get("env_key")
         if env_key and os.environ.get(env_key):
@@ -455,6 +468,15 @@ def verify_execution(*, run_dir: Path, config: dict | None = None, **evidence: A
         if config.get("verification_profile") is not None:
             evidence.update(verification_profile=config["verification_profile"],
                             acceptance_contract=config.get("acceptance_contract"))
+        profile = evidence.get("verification_profile")
+        method = config.get("method", "codex" if profile else "direct_codex_rubric")
+        if method not in {"codex", "direct_codex_rubric"}:
+            raise ValueError(f"Unknown verifier method: {method}")
+        if method == "direct_codex_rubric":
+            if profile:
+                raise ValueError("Frozen acceptance profiles require method='codex'")
+            from .direct_verifier import verify_execution as verify_direct
+            return verify_direct(run_dir=run_dir, config=config, **evidence)
         # Directory traversal alone can saturate the shared ext4 volume when
         # many large cases finish together. Only preparation is serialized;
         # the model investigations remain concurrent.
@@ -474,13 +496,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--codex-home", type=Path, default=Path.home() / ".codex")
     parser.add_argument("--model")
     parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--method", choices=("direct_codex_rubric", "codex"), default=None)
+    parser.add_argument("--verifier-dir", type=Path, help="Reuse an unchanged frozen Direct verifier directory")
     args = parser.parse_args(argv)
     request = json.loads(args.request.read_text())
     for key in ("initial_state", "actual_state", "reference_state", "reference_initial_state"):
         if request.get(key) is not None:
             request[key] = (args.request.parent / request[key]).resolve()
     result = verify_execution(run_dir=args.output, config={"codex_home": str(args.codex_home),
-        "model": args.model, "timeout_seconds": args.timeout}, **request)
+        "model": args.model, "timeout_seconds": args.timeout,
+        **({"method": args.method} if args.method else {}),
+        **({"verifier_dir": str(args.verifier_dir)} if args.verifier_dir else {})}, **request)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
