@@ -21,11 +21,11 @@ PUBLIC_PROTOCOL_FIELDS = ("model", "provider_type", "reasoning_effort", "context
                           "read_default_chars", "read_max_chars", "max_total_tool_calls", "compaction_trigger_ratio")
 EXPLORATION_TOOLS = frozenset({"Read", "Grep", "Glob"})
 CONTROL_PARAMETERS = {
-    "query", "search_query", "search_text", "query_text", "keywords", "text_contains",
+    "query", "search_query", "search_text", "query_text", "keyword", "keywords", "keyword_fields", "text_contains",
     "page", "page_number", "page_size", "per_page", "limit", "offset", "context_chars", "render_dpi", "page_numbers",
     "sort", "sort_by", "order", "order_by", "direction", "field", "fields", "columns", "projection", "group_by",
     "selected_fields", "comparison_fields", "format", "output_format", "preview_rows", "extension", "file_extension",
-    "max_depth", "max_matches", "max_matches_per_source", "max_matches_per_page",
+    "max_depth", "max_matches", "max_matches_per_source", "max_matches_per_page", "event_limit",
 }
 CONTROL_CONTAINERS = frozenset({"filters", "page", "pagination", "sort", "sorting", "projection", "display"})
 AUTHORED_TEXT_PARAMETERS = frozenset({"body", "comment", "content", "description", "message", "new_text",
@@ -87,8 +87,15 @@ def argument_leaves(value, path="") -> dict:
 
 def argument_schema(schema: dict, path: str) -> dict:
     for token in path.split("/")[1:] if path else ():
+        if schema.get("not") == {}:
+            return schema
         token = token.replace("~1", "/").replace("~0", "~")
-        schema = schema.get("items", {}) if schema.get("type") == "array" else schema.get("properties", {}).get(token, {})
+        if schema.get("type") == "array":
+            schema = schema.get("items", {})
+        else:
+            schema = schema.get("properties", {}).get(token, schema.get("additionalProperties", {}))
+        if not isinstance(schema, dict):
+            schema = {} if schema is True else {"not": {}}
     return schema
 
 
@@ -158,8 +165,9 @@ def source_value(source: dict, *, task: dict, protocol: dict, schema: dict,
             raise ValueError("authored text requires its exact string, a purpose and actual public evidence")
         parameter = argument_path.rsplit("/", 1)[-1]
         types = schema.get("type")
-        if (parameter not in AUTHORED_TEXT_PARAMETERS
-                or "string" not in (types if isinstance(types, list) else [types]) or "enum" in schema):
+        if (parameter not in AUTHORED_TEXT_PARAMETERS or "not" in schema
+                or types is not None and "string" not in (types if isinstance(types, list) else [types])
+                or "enum" in schema or "const" in schema):
             raise ValueError("authored text is limited to open text-content fields, not identifiers, input paths or measurements")
         for evidence in source["basis"]:
             if not isinstance(evidence, dict) or evidence.get("kind") not in {"call", "file"}:

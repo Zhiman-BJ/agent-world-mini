@@ -63,6 +63,8 @@ def _common(arguments: argparse.Namespace) -> dict[str, Any]:
         "max_context_size": arguments.max_context_size,
         "max_output_size": arguments.max_output_size,
         "compaction_trigger_ratio": arguments.compaction_trigger_ratio,
+        "token_budget_backend": getattr(arguments, "token_budget_backend", None),
+        "token_budget_safety_margin": getattr(arguments, "token_budget_safety_margin", 4096),
         "read_default_max_chars": arguments.read_default_max_chars,
         "read_max_chars": arguments.read_max_chars,
         "model_id": arguments.model_id,
@@ -892,6 +894,10 @@ def _add_kimi_options(parser: argparse.ArgumentParser) -> None:
         "--compaction-trigger-ratio", type=float,
         help="official Kimi early-compaction threshold, between 0.5 and 0.99",
     )
+    parser.add_argument("--token-budget-backend", choices=("sglang",),
+                        help="check full chat inputs with the serving model's /v1/tokenize endpoint")
+    parser.add_argument("--token-budget-safety-margin", type=int, default=4096,
+                        help="extra tokens reserved in addition to the full output cap")
     parser.add_argument(
         "--provider-type",
         choices=tuple(sorted(PROVIDER_TYPES)),

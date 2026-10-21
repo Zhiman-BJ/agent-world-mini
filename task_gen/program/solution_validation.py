@@ -96,6 +96,7 @@ class SolutionValidator:
         self.root = Path(self.storage.name)
         self.baseline = self.root / "baseline"
         self.artifacts = Path(self.options.get("artifact_root", self.root / "artifacts"))
+        self.private_artifacts = Path(self.options.get("private_artifact_root", self.root / "private-artifacts"))
         self._baseline_ready = False
         self._baseline_lock = threading.Lock()
         self.attempts = 0
@@ -167,6 +168,17 @@ class SolutionValidator:
                 {name: tool["inputSchema"] for name, tool in self.tools.items()},
                 validation={"request": arguments, "result": result}, public_files=self.public_files(),
                 minimum_reference_calls=options.get("minimum_reference_calls", 1))
+            if "task_history" in self.options:
+                from .task_history import check_task_history, review_novelty
+
+                review_options = self.options.get("task_novelty_review")
+                reviewer = ((lambda candidate, history: review_novelty(candidate, history, review_options))
+                            if review_options else None)
+                novelty = check_task_history(proposal, self.options["task_history"], reviewer=reviewer)
+                result["task_history_check"] = novelty
+                if novelty["passed"] is not True:
+                    raise ValueError("任务与历史或本批前题重复，请在本会话重新设计并验证："
+                                     + json.dumps(novelty, ensure_ascii=False))
             result.update(source_check_passed=True, source_check=checked)
         except (ValueError, KeyError, IndexError, TypeError, ZeroDivisionError) as error:
             errors = getattr(error, "errors", None)
@@ -234,6 +246,12 @@ class SolutionValidator:
             public_workspace = self.artifacts / validation_id
             public_workspace.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(workspace), public_workspace)
+            private_state = self.private_artifacts / validation_id
+            private_state.mkdir(parents=True, exist_ok=False)
+            database_sha256 = None
+            if database.is_file():
+                shutil.copy2(database, private_state / "records.sqlite")
+                database_sha256 = hashlib.sha256(database.read_bytes()).hexdigest()
         passed = len(records) == len(calls) and all(
             not record.get("error") and not (isinstance(record.get("result"), dict)
                                              and record["result"].get("success") is False) for record in records)
@@ -242,7 +260,7 @@ class SolutionValidator:
                   "semantic_correctness_proved": False, "call_count": len(records),
                   "failed_call": None if passed else len(records), "calls": records,
                   "state": {"changed_files": changed, "changed": bool(changed),
-                            "public_workspace": str(public_workspace)},
+                            "public_workspace": str(public_workspace), "database_sha256": database_sha256},
                   "backend": "shared_mcp_executor", "model_inference": False}
     def public_files(self) -> dict[str, Path]:
         self.ensure_baseline()

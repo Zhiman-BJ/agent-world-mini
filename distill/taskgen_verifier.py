@@ -24,6 +24,15 @@ def _read_json(path: Path) -> Any:
 
 def _copy_tree_links(source: Path, target: Path) -> None:
     _copy_state(source, target)
+    database = target / "records.sqlite"
+    if database.is_file():
+        with tempfile.NamedTemporaryFile(dir=target, prefix=".records-copy-", delete=False) as stream:
+            temporary = Path(stream.name)
+        try:
+            shutil.copy2(database, temporary)
+            temporary.replace(database)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def reconstruct_actual_state(case: Any, task_dir: Path, target: Path) -> None:

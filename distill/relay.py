@@ -10,12 +10,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import random
+import re
 import select
 import socket
 import threading
 import time
 from typing import Any, Callable
 from urllib.parse import urlsplit
+
+from .token_budget import SGLangTokenBudget
 
 
 def _now() -> str:
@@ -142,6 +145,22 @@ def _normalize_kimi_k3_chat_request(request: dict[str, Any]) -> tuple[dict[str, 
     return normalized, changes
 
 
+def _normalize_api_error(body: bytes) -> tuple[bytes, list[str]]:
+    try:
+        payload = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return body, []
+    if not isinstance(payload, dict) or "error" in payload:
+        return body, []
+    message = payload.get("message")
+    if not isinstance(message, str) or not message:
+        return body, []
+    error = dict(payload)
+    if re.search(r"context[ _-]?length|maximum context|context window.*exceed", message, re.I):
+        error["code"] = "context_length_exceeded"
+    return json.dumps({"error": error}, ensure_ascii=False).encode(), ["flat_error_to_openai_envelope"]
+
+
 class StreamingRelay(AbstractContextManager["StreamingRelay"]):
     """Forward an OpenAI-compatible endpoint without buffering SSE responses."""
 
@@ -159,6 +178,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         expected_tool_names: set[str] | None = None,
         fatal_stream_error_codes: set[str] | None = None,
         reasoning_effort_map: dict[str, str] | None = None,
+        token_budget: SGLangTokenBudget | None = None,
     ):
         upstream = urlsplit(upstream_base_url.rstrip("/"))
         if upstream.scheme not in {"http", "https"} or not upstream.hostname:
@@ -190,6 +210,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
         self.expected_tool_names = set(expected_tool_names or ())
         self.fatal_stream_error_codes = set(fatal_stream_error_codes or ())
         self.reasoning_effort_map = dict(reasoning_effort_map or {})
+        self.token_budget = token_budget
         self.raw_dir = raw_dir.resolve()
         self.io_dir = self.raw_dir / "model_io"
         self.io_dir.mkdir(parents=True, exist_ok=True)
@@ -418,6 +439,10 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                         "method": self.command,
                         "path": self.path,
                         "request": forwarded_request,
+                        "protocol_headers": {
+                            key.lower(): value for key, value in self.headers.items()
+                            if key.lower() in {"user-agent", "originator", "openai-beta"}
+                        },
                         "normalizations": normalizations,
                         "raw_path": request_path.relative_to(relay.raw_dir.parent).as_posix(),
                         "sha256": hashlib.sha256(forwarded_body or b"").hexdigest(),
@@ -471,6 +496,26 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                         })
                         return
 
+                    if relay.token_budget is not None and endpoint.endswith("/chat/completions"):
+                        try:
+                            budget = relay.token_budget.check(forwarded_request)
+                        except Exception as error:
+                            self._local_budget_error(request_id, 503, "token_budget_unavailable",
+                                                     f"Token budget check failed: {type(error).__name__}")
+                            return
+                        relay._append(relay.raw_dir / "token_budget.jsonl", {
+                            "request_id": request_id, "recorded_at": _now(), **budget,
+                        })
+                        if not budget["accepted"]:
+                            self._local_budget_error(
+                                request_id, 400, "context_length_exceeded",
+                                f"Maximum context length is {budget['context_size']} tokens: "
+                                f"input {budget['input_tokens']} + output {budget['output_tokens']} "
+                                f"+ safety margin {budget['safety_margin']} exceeds the window. "
+                                "Compact the history before retrying; the output cap was not reduced.",
+                            )
+                            return
+
                 headers = {
                     key: value for key, value in self.headers.items()
                     if key.lower() not in {
@@ -493,6 +538,8 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                 prefetched_body: bytes | None = None
                 prefetched_complete = False
                 prefetched_stream_error = None
+                error_normalizations = []
+                upstream_error_record = {}
                 worker = threading.current_thread()
                 transfer_done = threading.Event()
                 client_disconnected = threading.Event()
@@ -583,8 +630,19 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             raise ConnectionAbortedError("Model relay client disconnected")
                     if response is None:
                         raise RuntimeError("upstream returned no response")
+                    if model_request and response.status >= 400 and prefetched_body is not None:
+                        normalized_error, error_normalizations = _normalize_api_error(prefetched_body)
+                        if error_normalizations:
+                            upstream_path = relay.io_dir / f"{request_id:06d}.upstream.response.json"
+                            upstream_path.write_bytes(prefetched_body)
+                            upstream_error_record = {
+                                "upstream_body_path": upstream_path.relative_to(relay.raw_dir.parent).as_posix(),
+                                "upstream_sha256": hashlib.sha256(prefetched_body).hexdigest(),
+                                "response_normalizations": error_normalizations,
+                            }
+                            prefetched_body = normalized_error
                     self.send_response(response.status)
-                    content_type = response.getheader("Content-Type")
+                    content_type = "application/json" if error_normalizations else response.getheader("Content-Type")
                     if content_type:
                         self.send_header("Content-Type", content_type)
                     self.send_header("Connection", "close")
@@ -627,6 +685,7 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
                             "body_path": response_path.relative_to(relay.raw_dir.parent).as_posix(),
                             "sha256": digest.hexdigest(),
                             "attempts": attempts,
+                            **upstream_error_record,
                         }
                         if client_disconnected.is_set() or relay._closing.is_set():
                             record["error"] = "client_disconnected"
@@ -667,6 +726,22 @@ class StreamingRelay(AbstractContextManager["StreamingRelay"]):
 
             def _json_error(self, status: int, message: str) -> None:
                 body = json.dumps({"error": {"message": message, "type": "relay_error"}}).encode()
+                self._json_body(status, body)
+
+            def _local_budget_error(self, request_id: int, status: int, code: str, message: str) -> None:
+                body = json.dumps({"error": {"message": message, "type": "context_budget_error",
+                                             "code": code}}).encode()
+                path = relay.io_dir / f"{request_id:06d}.response.sse"
+                path.write_bytes(body)
+                relay._append(relay.response_log, {
+                    "request_id": request_id, "recorded_at": _now(), "status": status,
+                    "origin": "local_token_budget", "upstream_forwarded": False,
+                    "body_path": path.relative_to(relay.raw_dir.parent).as_posix(),
+                    "bytes": len(body), "sha256": hashlib.sha256(body).hexdigest(), "attempts": [],
+                })
+                self._json_body(status, body)
+
+            def _json_body(self, status: int, body: bytes) -> None:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))

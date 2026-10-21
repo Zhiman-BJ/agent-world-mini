@@ -29,7 +29,10 @@ def resolve_submission(answer: str, reports: list[dict]) -> tuple[dict, dict]:
         if not text.endswith("```"):
             raise ValueError("author submission has an incomplete JSON fence")
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    submission = json.loads(text)
+    if text and any(report.get("result", {}).get("validation_id") == text for report in reports):
+        submission = {"validation_id": text}
+    else:
+        submission = json.loads(text)
     if not isinstance(submission, dict):
         raise ValueError("author submission must be a complete JSON object")
     if set(submission) == PROPOSAL_FIELDS:

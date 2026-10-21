@@ -91,6 +91,10 @@ def run_harness(case, task: dict, protocol: dict, root: Path, api_key: str,
                 "minimum_reference_calls": 15,
                 "original_task_text": author_materials["original_task.json"]["task_text"],
                 "original_call_count": author_materials["original_task.json"]["original_call_count"]}}
+        if "task_history.json" in author_materials:
+            config["solution_validation"]["task_history"] = author_materials["task_history.json"]
+            if protocol.get("task_novelty_review"):
+                config["solution_validation"]["task_novelty_review"] = protocol["task_novelty_review"]
     trajectory = run_k3_distillation(task["task_text"], case.initial_state, config, root,
         kimi_bin=os.environ.get("KIMI_CODE_BIN", "kimi"), base_url=protocol["provider_base_url"],
         api_key=api_key, model_id=protocol["model"], provider_type=protocol["provider_type"],
@@ -174,7 +178,8 @@ def validated_reference(proposal: dict, reports: list[dict], *,
     return validation, checked
 
 
-def prepare_case(case, protocol: dict, output: Path, *, prior_evaluation: dict | None = None) -> dict:
+def prepare_case(case, protocol: dict, output: Path, *, prior_evaluation: dict | None = None,
+                 task_history: dict | None = None) -> dict:
     from distill.taskgen_verifier import _verifier_environment
     from harness.mcp_protocol import public_tools
 
@@ -206,6 +211,24 @@ def prepare_case(case, protocol: dict, output: Path, *, prior_evaluation: dict |
             "filesystem_scopes": case.environment.get("filesystem_scopes", []),
             "path_note": "文件在当前公开工作区按scope挂载；单scope挂载根目录，多scope分别挂载子目录。"}}
     prompt = AUTHOR_PROMPT
+    if task_history is not None:
+        from .task_history import HISTORY_PROMPT, validate_history
+
+        validate_history(task_history, case.task["environment_id"])
+        materials["task_history.json"] = deepcopy(task_history)
+        prompt += HISTORY_PROMPT
+        if "fixed_task_text" in task_history:
+            materials["fixed_task.json"] = {"task_text": task_history["fixed_task_text"]}
+            prompt = (
+                "# 恢复已发布任务的参考解\n"
+                "本轮任务题文已冻结在 fixed_task.json，不是重新出题。读取公开工具、工作区、solution_format.json"
+                "和 task_history.json，根据真实工具返回，恢复该题的完整参考工具调用列表和交付答案。"
+                "proposal.task_text 必须逐字等于 fixed_task.json 的 task_text；保持所有业务条件和验收要求。"
+                "参考列表记录至少15次公开业务MCP调用，参数和答案证据使用实际观察来源。"
+                "通过 validate_solution_calls 校验完整proposal，收到错误后在同一会话修正参考解并重验。"
+                "调用 submit_validated_solution，accepted=true 后最终只返回"
+                '{"validation_id":"成功ID"}。其他历史题用于去重核查，不是本题的替代需求。\n'
+            )
     if prior_evaluation is not None:
         materials["previous_evaluation.json"] = deepcopy(prior_evaluation)
         if (prior_evaluation.get("revision_opportunities") == 1
@@ -248,13 +271,15 @@ def prepare_case(case, protocol: dict, output: Path, *, prior_evaluation: dict |
 
 def run_case(case, protocol_path: Path, output: Path, *, api_key: str | None = None,
              execute: bool = False, solve_independently: bool = True,
-             prior_evaluation: dict | None = None) -> dict:
+             prior_evaluation: dict | None = None, task_history: dict | None = None) -> dict:
     from .reference_evidence import _atomic_json, check_protocol, public_task, sha256, source_fingerprint
 
     protocol = read_json(protocol_path)
     check_protocol(protocol)
     report = read_json(output / "result.json") if output.exists() else prepare_case(
-        case, protocol, output, prior_evaluation=prior_evaluation)
+        case, protocol, output, prior_evaluation=prior_evaluation, task_history=task_history)
+    if task_history != read_json(output / "author_materials.json").get("task_history.json"):
+        raise ValueError("task history differs from the frozen prepared author materials")
     if prior_evaluation is not None and read_json(output / "author_materials.json").get("previous_evaluation.json") != prior_evaluation:
         raise ValueError("prior evaluation differs from the frozen prepared author materials")
     if not execute:
@@ -292,6 +317,17 @@ def run_case(case, protocol_path: Path, output: Path, *, api_key: str | None = N
         if checked.get("parameter_sources_match") is not True:
             raise ValueError("final source validation did not confirm public parameter sources")
         checked["clean_state_validation"] = clean
+        if task_history is not None:
+            from .task_history import history_digest
+
+            novelty = validation["result"].get("task_history_check", {})
+            if novelty.get("passed") is not True or novelty.get("history_sha256") != history_digest(task_history):
+                raise ValueError("final author validation did not check the frozen task history")
+            semantic_review = novelty.get("semantic_review")
+            if (protocol.get("task_novelty_review") and novelty.get("compared_tasks", 0)
+                    and (not isinstance(semantic_review, dict) or not semantic_review.get("novel"))):
+                raise ValueError("final author validation is missing its successful semantic novelty review")
+            checked["task_history_check"] = novelty
         write_json(output / "source_check.json", checked)
         calls = [{key: deepcopy(record[key]) for key in ("tool", "arguments", "result", "error")}
                  for record in validation["result"]["calls"]]
@@ -337,13 +373,15 @@ def main() -> None:
     parser.add_argument("--execute", action="store_true", help="Run only after the draft flow has been approved")
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
     parser.add_argument("--prior-evaluation", type=Path, help="Private previous-round diagnostic feedback for this source")
+    parser.add_argument("--task-history", type=Path, help="Frozen previous tasks from the same environment")
     options = parser.parse_args()
     case = select_case(options.input_root, options.case)
     if options.execute:
         os.environ.update(evaluation_environment())
     report = run_case(case, options.protocol, options.output_root.resolve(), execute=options.execute,
                       api_key=os.environ.get(options.api_key_env) if options.execute else None,
-                      prior_evaluation=read_json(options.prior_evaluation) if options.prior_evaluation else None)
+                      prior_evaluation=read_json(options.prior_evaluation) if options.prior_evaluation else None,
+                      task_history=read_json(options.task_history) if options.task_history else None)
     print({key: report[key] for key in ("profile", "status", "author_started", "release_ready")})
 
 

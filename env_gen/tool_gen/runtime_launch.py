@@ -57,6 +57,7 @@ def docker_stdio_launch(
     arguments: list[str],
     writable_paths: tuple[Path, ...] = (),
     project_root: Path | None = None,
+    forward_environment: tuple[str, ...] = (),
 ) -> StdioLaunch:
     """Launch the adapter in the reusable image selected by runtime.json."""
     runtime = delivery.runtime
@@ -121,6 +122,10 @@ def docker_stdio_launch(
         command.extend(
             ["--mount", f"type=bind,source={source},target={target}"]
         )
+    for name in forward_environment:
+        if not name or not name.isascii() or not name.replace('_', 'a').isalnum() or name[0].isdigit():
+            raise ValueError("forwarded environment entries must be variable names, not values")
+        command.extend(["--env", name])
     command.extend(
         [
             "--env",
@@ -142,6 +147,7 @@ def stdio_launch(
     arguments: list[str],
     writable_paths: tuple[Path, ...] = (),
     project_root: Path | None = None,
+    forward_environment: tuple[str, ...] = (),
 ) -> StdioLaunch:
     if delivery.runtime.get("backend") == "docker":
         return docker_stdio_launch(
@@ -150,6 +156,7 @@ def stdio_launch(
             arguments=arguments,
             writable_paths=writable_paths,
             project_root=project_root,
+            forward_environment=forward_environment,
         )
     return local_stdio_launch(
         delivery,

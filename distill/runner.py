@@ -33,6 +33,7 @@ from task_gen.tool_graph.step_3_chain_execute import _public_environment
 from .export import _parse_sse, export_trajectory, validate_trajectory
 from .environment_errors import environment_errors
 from .relay import StreamingRelay
+from .token_budget import SGLangTokenBudget
 
 
 KIMI_K3_CONTEXT_SIZE = 1_048_576
@@ -376,6 +377,18 @@ def _write_mcp_config(path: Path, launch: StdioLaunch, workspace: Path, timeout:
     path.chmod(0o600)
 
 
+def _solution_review_environment(config: dict[str, Any]) -> tuple[str, ...]:
+    review = config.get("solution_validation", {}).get("task_novelty_review")
+    if not review:
+        return ()
+    name = review.get("api_key_environment")
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        raise ValueError("task novelty review requires an API key environment variable name")
+    if not os.environ.get(name):
+        raise ValueError("task novelty reviewer API key environment is unavailable")
+    return (name,)
+
+
 def _task_mcp_launch(
     config: dict[str, Any],
     private_server: Path,
@@ -442,6 +455,7 @@ def _task_mcp_launch(
         arguments=arguments,
         writable_paths=tuple(writable_paths),
         project_root=repository,
+        forward_environment=_solution_review_environment(config),
     )
 
 
@@ -1077,6 +1091,8 @@ def run_k3_distillation(
     evaluation: dict[str, Any] | None = None,
     provider_headers: dict[str, str] | None = None,
     upstream_reasoning_effort_map: dict[str, str] | None = None,
+    token_budget_backend: str | None = None,
+    token_budget_safety_margin: int = 4096,
 ) -> dict[str, Any]:
     """Run one task through the official streaming Kimi CLI and export its trajectory."""
     if not isinstance(prompt, str) or not prompt.strip():
@@ -1099,6 +1115,15 @@ def run_k3_distillation(
         raise ValueError("max_context_size must be a positive integer supported by the upstream model")
     if type(max_output_size) is not int or max_output_size < 1:
         raise ValueError("max_output_size must be a positive integer")
+    if token_budget_backend not in (None, "sglang"):
+        raise ValueError("token_budget_backend must be None or sglang")
+    if token_budget_backend is not None and provider_type != "kimi":
+        raise ValueError("SGLang token budgeting requires the chat provider")
+    if token_budget_backend is not None and (
+        type(token_budget_safety_margin) is not int or token_budget_safety_margin < 0
+        or max_output_size + token_budget_safety_margin >= max_context_size
+    ):
+        raise ValueError("Output tokens plus safety margin must leave room for input")
     _validate_read_limits(read_default_max_chars, read_max_chars)
     _validate_provider_headers(provider_headers)
     if compaction_trigger_ratio is not None and (
@@ -1144,7 +1169,8 @@ def run_k3_distillation(
     if config.get("solution_validation"):
         artifact_root = paths.output / ".task-validation"
         artifact_root.mkdir(exist_ok=False)
-        config["solution_validation"] = {**config["solution_validation"], "artifact_root": str(artifact_root)}
+        config["solution_validation"] = {**config["solution_validation"], "artifact_root": str(artifact_root),
+            "private_artifact_root": str(paths.private_state / "solution-validation")}
         author_read_roots.append(artifact_root)
     config.update({
         "workspace_root": str(paths.model_workspace),
@@ -1207,6 +1233,9 @@ def run_k3_distillation(
         "reasoning_effort": reasoning_effort,
         "upstream_reasoning_effort_map": upstream_reasoning_effort_map or {},
         "compaction_trigger_ratio": compaction_trigger_ratio,
+        "token_budget": {"backend": token_budget_backend,
+                         "safety_margin": token_budget_safety_margin,
+                         "full_output_cap_preserved": True},
         "compaction_reserved_context_size": _compaction_reserved_context(max_context_size, compaction_trigger_ratio),
         "native_read": {
             "default_max_chars": read_default_max_chars,
@@ -1288,6 +1317,8 @@ def run_k3_distillation(
             expected_tool_names=expected_names,
             fatal_stream_error_codes={"504001", "upstream_stream_truncated"},
             reasoning_effort_map=upstream_reasoning_effort_map,
+            token_budget=(SGLangTokenBudget(base_url, api_key, max_context_size, token_budget_safety_margin)
+                          if token_budget_backend == "sglang" else None),
         ) as relay:
             author_stop_options = {}
             if config.get("solution_validation", {}).get("submission_gate"):
@@ -1355,8 +1386,9 @@ def run_k3_distillation(
                     f"evidence retained at {paths.raw}: {preflight['error']}"
                 )
             child_env = dict(os.environ)
+            review_environment = _solution_review_environment(config)
             for name, value in list(child_env.items()):
-                if value == api_key or name in {"OPENAI_API_KEY", "KIMI_API_KEY"}:
+                if name not in review_environment and (value == api_key or name in {"OPENAI_API_KEY", "KIMI_API_KEY"}):
                     child_env.pop(name, None)
             child_env.update({
                 "KIMI_CODE_HOME": str(kimi_home),
